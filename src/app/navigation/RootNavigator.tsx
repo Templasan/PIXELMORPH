@@ -1,8 +1,10 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProjectHubScreen from '../screens/ProjectHubScreen';
+import PhotoEditorSpikeScreen from '../screens/PhotoEditorSpikeScreen';
 
 export type RootStackParamList = {
   ProjectHub: undefined;
+  PhotoEditorSpike: undefined;
   PhotoEditor: undefined;
   VideoEditor: undefined;
   Camera: undefined;
@@ -20,6 +22,7 @@ export default function RootNavigator() {
       }}
     >
       <Stack.Screen name="ProjectHub" component={ProjectHubScreen} />
+      <Stack.Screen name="PhotoEditorSpike" component={PhotoEditorSpikeScreen} />
     </Stack.Navigator>
   );
 }

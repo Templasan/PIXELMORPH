@@ -1,7 +1,11 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 
-export default function ProjectHubScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'ProjectHub'>;
+
+export default function ProjectHubScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -13,6 +17,12 @@ export default function ProjectHubScreen() {
             This is the project hub screen. Additional features will be added here.
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.spikeButton}
+          onPress={() => navigation.navigate('PhotoEditorSpike')}
+        >
+          <Text style={styles.spikeButtonText}>→ Test Photo Editor Spike</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -45,6 +55,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
+    marginBottom: 30,
   },
   placeholderText: {
     fontSize: 18,
@@ -56,5 +67,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666666',
     textAlign: 'center',
+  },
+  spikeButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  spikeButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
