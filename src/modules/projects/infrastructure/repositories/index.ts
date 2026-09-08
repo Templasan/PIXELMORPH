@@ -1,0 +1,1 @@
+export { LocalProjectRepository } from './LocalProjectRepository';
