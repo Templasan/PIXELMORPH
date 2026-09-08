@@ -1,0 +1,35 @@
+# Node
+node_modules/
+*.log
+npm-debug.log
+yarn-error.log
+
+# Expo
+.expo/
+dist/
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build outputs
+build/
+android/app/build/
+android/.gradle/
+
+# Test coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Development Build
+development-build/
