@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Project } from '../../domain';
+import { Project, updateProject } from '../../domain';
 import {
   ProjectRepository,
   ProjectNotFoundError,
@@ -7,10 +7,15 @@ import {
   StorageError,
 } from '../../ports';
 import { ProjectMapper } from '../mappers/ProjectMapper';
+import { validateProjectPersistenceDTO } from '../dtos';
 import { ProjectType, ProjectStatus } from '../../domain/types';
 
 const PROJECT_KEY_PREFIX = 'project:';
+const BACKUP_KEY_PREFIX = 'projectBackup:';
 const PROJECT_LIST_KEY = 'projectList';
+
+/** RNF-006: outcome of checking (and possibly repairing) one project's stored data. */
+export type IntegrityResult = 'ok' | 'restored' | 'unrecoverable' | 'not_found';
 
 export class LocalProjectRepository implements ProjectRepository {
   async create(project: Project): Promise<void> {
@@ -19,6 +24,8 @@ export class LocalProjectRepository implements ProjectRepository {
       const json = JSON.stringify(dto);
 
       await AsyncStorage.setItem(`${PROJECT_KEY_PREFIX}${project.id}`, json);
+      // RNF-006: seed a backup immediately so even a first-edit corruption is recoverable.
+      await AsyncStorage.setItem(`${BACKUP_KEY_PREFIX}${project.id}`, json);
 
       const list = await this.getProjectList();
       list.push(project.id);
@@ -72,7 +79,7 @@ export class LocalProjectRepository implements ProjectRepository {
 
       return projects;
     } catch (error) {
-      if (error instanceof (DataCorruptionError || StorageError)) {
+      if (error instanceof DataCorruptionError || error instanceof StorageError) {
         throw error;
       }
       if (error instanceof Error) {
@@ -99,11 +106,19 @@ export class LocalProjectRepository implements ProjectRepository {
         throw new ProjectNotFoundError(project.id);
       }
 
+      // RNF-006: snapshot the last known-good state before overwriting it.
+      const backupDto = ProjectMapper.toPersistence(existing);
+      await AsyncStorage.setItem(`${BACKUP_KEY_PREFIX}${project.id}`, JSON.stringify(backupDto));
+
       const dto = ProjectMapper.toPersistence(project);
       const json = JSON.stringify(dto);
       await AsyncStorage.setItem(`${PROJECT_KEY_PREFIX}${project.id}`, json);
     } catch (error) {
-      if (error instanceof (ProjectNotFoundError || DataCorruptionError || StorageError)) {
+      if (
+        error instanceof ProjectNotFoundError ||
+        error instanceof DataCorruptionError ||
+        error instanceof StorageError
+      ) {
         throw error;
       }
       if (error instanceof Error) {
@@ -116,6 +131,7 @@ export class LocalProjectRepository implements ProjectRepository {
   async delete(id: string): Promise<void> {
     try {
       await AsyncStorage.removeItem(`${PROJECT_KEY_PREFIX}${id}`);
+      await AsyncStorage.removeItem(`${BACKUP_KEY_PREFIX}${id}`);
 
       const list = await this.getProjectList();
       const newList = list.filter((projectId) => projectId !== id);
@@ -134,10 +150,7 @@ export class LocalProjectRepository implements ProjectRepository {
       throw new ProjectNotFoundError(id);
     }
 
-    project.status = 'archived';
-    project.updatedAt = new Date();
-
-    await this.update(project);
+    await this.update(updateProject(project, { status: 'archived' }));
   }
 
   async unarchive(id: string): Promise<void> {
@@ -146,10 +159,51 @@ export class LocalProjectRepository implements ProjectRepository {
       throw new ProjectNotFoundError(id);
     }
 
-    project.status = 'active';
-    project.updatedAt = new Date();
+    await this.update(updateProject(project, { status: 'active' }));
+  }
 
-    await this.update(project);
+  /**
+   * RNF-006: checks one project's stored JSON is valid; if not, attempts to restore it
+   * from the last backup snapshot taken before the corrupting write.
+   */
+  async verifyIntegrity(id: string): Promise<IntegrityResult> {
+    const liveJson = await AsyncStorage.getItem(`${PROJECT_KEY_PREFIX}${id}`);
+    if (!liveJson) {
+      return 'not_found';
+    }
+
+    if (this.isValidPersistedJson(liveJson)) {
+      return 'ok';
+    }
+
+    const backupJson = await AsyncStorage.getItem(`${BACKUP_KEY_PREFIX}${id}`);
+    if (backupJson && this.isValidPersistedJson(backupJson)) {
+      await AsyncStorage.setItem(`${PROJECT_KEY_PREFIX}${id}`, backupJson);
+      return 'restored';
+    }
+
+    return 'unrecoverable';
+  }
+
+  /** Runs verifyIntegrity across every known project — powers the Storage screen's check. */
+  async verifyAllIntegrity(): Promise<{ id: string; result: IntegrityResult }[]> {
+    const list = await this.getProjectList();
+    const results: { id: string; result: IntegrityResult }[] = [];
+    for (const id of list) {
+      results.push({ id, result: await this.verifyIntegrity(id) });
+    }
+    return results;
+  }
+
+  private isValidPersistedJson(json: string): boolean {
+    try {
+      const dto = JSON.parse(json);
+      if (!validateProjectPersistenceDTO(dto)) return false;
+      ProjectMapper.toDomain(dto);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async getProjectList(): Promise<string[]> {

@@ -1,0 +1,11 @@
+{
+  "title": "PixelMorphDemo",
+  "description": "This web application streamlines project management by enabling teams to collaborate, track progress, and enhance productivity in real-time.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

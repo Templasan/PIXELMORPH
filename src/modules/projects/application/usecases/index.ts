@@ -3,6 +3,7 @@ export { GetProjectUseCase } from './GetProjectUseCase';
 export { ListProjectsUseCase } from './ListProjectsUseCase';
 export { UpdateProjectUseCase } from './UpdateProjectUseCase';
 export { ArchiveProjectUseCase } from './ArchiveProjectUseCase';
+export { UnarchiveProjectUseCase } from './UnarchiveProjectUseCase';
 export { DeleteProjectUseCase } from './DeleteProjectUseCase';
 export { AddMediaAssetUseCase } from './AddMediaAssetUseCase';
 export { RemoveMediaAssetUseCase } from './RemoveMediaAssetUseCase';

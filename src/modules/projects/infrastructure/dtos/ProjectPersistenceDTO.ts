@@ -1,5 +1,8 @@
 import { ProjectType, ProjectStatus } from '../../domain/types';
+import { ProjectPriority } from '../../domain/entities/Project';
 import { MediaAssetDTO } from './MediaAssetDTO';
+
+const PROJECT_PRIORITIES: readonly ProjectPriority[] = ['low', 'medium', 'high'];
 
 export interface ProjectPersistenceDTO {
   version: number;
@@ -11,6 +14,8 @@ export interface ProjectPersistenceDTO {
   updatedAt: string;
   assets: MediaAssetDTO[];
   thumbnailUri?: string;
+  dueDate?: string;
+  priority?: ProjectPriority;
 }
 
 export function validateProjectPersistenceDTO(dto: unknown): dto is ProjectPersistenceDTO {
@@ -27,6 +32,10 @@ export function validateProjectPersistenceDTO(dto: unknown): dto is ProjectPersi
   if (typeof d.updatedAt !== 'string' || !d.updatedAt) return false;
   if (!Array.isArray(d.assets)) return false;
   if (d.thumbnailUri !== undefined && typeof d.thumbnailUri !== 'string') return false;
+  if (d.dueDate !== undefined && typeof d.dueDate !== 'string') return false;
+  if (d.priority !== undefined && !PROJECT_PRIORITIES.includes(d.priority as ProjectPriority)) {
+    return false;
+  }
 
   return true;
 }

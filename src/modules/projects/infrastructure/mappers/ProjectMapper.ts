@@ -14,6 +14,8 @@ export class ProjectMapper {
       updatedAt: project.updatedAt.toISOString(),
       assets: project.assets.map((asset) => this.assetToPersistence(asset)),
       thumbnailUri: project.thumbnailUri,
+      dueDate: project.dueDate?.toISOString(),
+      priority: project.priority,
     };
   }
 
@@ -38,6 +40,14 @@ export class ProjectMapper {
 
     const assets = dto.assets.map((assetDto) => this.assetToDomain(assetDto));
 
+    let dueDate: Date | undefined;
+    if (dto.dueDate !== undefined) {
+      dueDate = new Date(dto.dueDate);
+      if (Number.isNaN(dueDate.getTime())) {
+        throw new DataCorruptionError('Invalid dueDate field');
+      }
+    }
+
     return {
       id: dto.id,
       name: dto.name,
@@ -47,6 +57,8 @@ export class ProjectMapper {
       updatedAt,
       assets,
       thumbnailUri: dto.thumbnailUri,
+      dueDate,
+      priority: dto.priority,
     };
   }
 

@@ -52,7 +52,7 @@ export function SkiaSpike({ imageUri }: SkiaSpikeProps) {
     if (!image) return null;
 
     return (
-      <Canvas style={{ flex: 1 }}>
+      <Canvas style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}>
         <SkiaImage
           image={image}
           x={SCREEN_WIDTH / 2 - (image.width() * scale.value) / 2 + offsetX.value}

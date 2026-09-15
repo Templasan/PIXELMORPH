@@ -2,6 +2,11 @@ import { ProjectType, validateProjectType } from '../types/ProjectType';
 import { ProjectStatus } from '../types/ProjectStatus';
 import { MediaAsset, validateMediaAsset } from './MediaAsset';
 
+/** RF-070: reminder priority for a pending (unfinished) project. */
+export type ProjectPriority = 'low' | 'medium' | 'high';
+
+const PROJECT_PRIORITIES: readonly ProjectPriority[] = ['low', 'medium', 'high'];
+
 export interface Project {
   id: string;
   name: string;
@@ -11,6 +16,10 @@ export interface Project {
   updatedAt: Date;
   assets: MediaAsset[];
   thumbnailUri?: string;
+  /** RF-070: optional deadline used to remind the user about unfinished projects. */
+  dueDate?: Date;
+  /** RF-070: reminder priority; defaults to 'medium' when a dueDate is set without one. */
+  priority?: ProjectPriority;
 }
 
 export function createProject(id: string, name: string, type: ProjectType): Project {
@@ -111,6 +120,10 @@ export function updateProject(
     throw new Error('Project.update: Invalid status');
   }
 
+  if (updates.priority && !PROJECT_PRIORITIES.includes(updates.priority)) {
+    throw new Error('Project.update: Invalid priority');
+  }
+
   return {
     ...project,
     ...updates,
@@ -135,6 +148,10 @@ export function validateProject(project: unknown): project is Project {
   if (!Array.isArray(p.assets)) return false;
   if (!p.assets.every(validateMediaAsset)) return false;
   if (p.thumbnailUri !== undefined && typeof p.thumbnailUri !== 'string') return false;
+  if (p.dueDate !== undefined && !(p.dueDate instanceof Date)) return false;
+  if (p.priority !== undefined && !PROJECT_PRIORITIES.includes(p.priority as ProjectPriority)) {
+    return false;
+  }
 
   return true;
 }

@@ -4,7 +4,7 @@ export { createMediaMetadata, validateMediaMetadata } from './MediaMetadata';
 export type { MediaAsset } from './MediaAsset';
 export { createMediaAsset, updateMediaAsset, validateMediaAsset } from './MediaAsset';
 
-export type { Project } from './Project';
+export type { Project, ProjectPriority } from './Project';
 export {
   createProject,
   addAssetToProject,

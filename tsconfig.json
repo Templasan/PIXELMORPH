@@ -2,8 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -18,16 +21,39 @@
     "declarationMap": true,
     "sourceMap": true,
     "jsx": "react-jsx",
-    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "types": [
+      "jest",
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@modules/*": ["src/modules/*"],
-      "@infrastructure/*": ["src/infrastructure/*"],
-      "@app/*": ["src/app/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@core/*": [
+        "src/core/*"
+      ],
+      "@modules/*": [
+        "src/modules/*"
+      ],
+      "@infrastructure/*": [
+        "src/infrastructure/*"
+      ],
+      "@app/*": [
+        "src/app/*"
+      ]
     }
   },
-  "include": ["src", "index.js"],
-  "exclude": ["node_modules", "dist", "build"]
+  "include": [
+    "src",
+    "index.js",
+    "tests"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build"
+  ],
+  "extends": "expo/tsconfig.base"
 }
