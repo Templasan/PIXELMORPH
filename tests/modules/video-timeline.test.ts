@@ -26,6 +26,7 @@ import {
   previousClipOf,
 } from '@modules/video-editor/transitions';
 import { insertFreezeFrame } from '@modules/video-editor/freezeFrame';
+import { clampFadeMs, volumeAtOffset } from '@modules/video-editor/audio';
 
 function makeTrack(id: string, clips: ReturnType<typeof createClip>[]): Track {
   return { id, name: id, kind: 'video', visible: true, locked: false, clips };
@@ -581,5 +582,36 @@ describe('buildTimelapseTrack (RF-023)', () => {
   it('falls back to a numbered name when the photo has none', () => {
     const track = buildTimelapseTrack([{ uri: 'a.jpg', name: '' }], 200, '#fff');
     expect(track.clips[0].name).toBe('Foto 1');
+  });
+});
+
+describe('clampFadeMs / volumeAtOffset (RF-036)', () => {
+  const clip = createClip({
+    name: 'Trilha',
+    sourceUri: 'a',
+    color: '#fff',
+    startMs: 0,
+    sourceDurationMs: 10000,
+    outPointMs: 10000,
+  });
+
+  it('clamps a fade to the clip duration', () => {
+    expect(clampFadeMs(20000, clip)).toBe(10000);
+    expect(clampFadeMs(-5, clip)).toBe(0);
+    expect(clampFadeMs(2000, clip)).toBe(2000);
+  });
+
+  it('ramps volume up during fade-in and down during fade-out', () => {
+    const faded = { ...clip, fadeInMs: 1000, fadeOutMs: 1000 };
+    expect(volumeAtOffset(faded, 0)).toBe(0);
+    expect(volumeAtOffset(faded, 500)).toBeCloseTo(0.5);
+    expect(volumeAtOffset(faded, 5000)).toBe(1);
+    expect(volumeAtOffset(faded, 9500)).toBeCloseTo(0.5);
+    expect(volumeAtOffset(faded, 10000)).toBe(0);
+  });
+
+  it('scales by the clip volume', () => {
+    const quiet = { ...clip, volume: 50 };
+    expect(volumeAtOffset(quiet, 5000)).toBeCloseTo(0.5);
   });
 });

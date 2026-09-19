@@ -53,6 +53,19 @@
           "savePhotosPermission": "O PixelMorph salva suas fotos exportadas na galeria.",
           "isAccessMediaLocationEnabled": false
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O PixelMorph usa a câmera para fotografar e gravar vídeos.",
+          "microphonePermission": "O PixelMorph usa o microfone para gravar áudio junto com o vídeo."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "O PixelMorph usa o microfone para monitorar o nível de áudio ao gravar."
+        }
       ]
     ],
     "scheme": "pixelmorph"

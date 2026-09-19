@@ -31,6 +31,11 @@ export interface Clip {
   colorCorrection?: number;
   /** RF-049: playback rate — 0.25 (4x slow-mo) .. 4 (4x fast-forward). Defaults to 1. */
   speed?: number;
+  /** RF-036: background audio track volume, 0..100. Defaults to 100. */
+  volume?: number;
+  /** RF-036: linear fade-in/out at the clip's edges, in ms. Defaults to 0 (no fade). */
+  fadeInMs?: number;
+  fadeOutMs?: number;
 }
 
 export interface Track {

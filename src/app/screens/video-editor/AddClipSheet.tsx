@@ -12,7 +12,7 @@ import {
 import { Icon } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { createProjectsModule, type Project } from '@modules/projects';
-import { pickFromGallery } from '@modules/device-media';
+import { pickFromGallery, pickAudioFromDevice } from '@modules/device-media';
 
 export interface AddClipResult {
   name: string;
@@ -22,27 +22,45 @@ export interface AddClipResult {
 
 interface AddClipSheetProps {
   trackName: string;
+  /** RF-036: an audio track picks a real audio file instead of a photo/video. */
+  trackKind?: 'video' | 'image' | 'text' | 'audio';
   onClose: () => void;
   onConfirm: (result: AddClipResult) => void;
 }
 
 const DEFAULT_IMAGE_CLIP_MS = 4000;
+const DEFAULT_AUDIO_CLIP_MS = 30000;
 
-/** RF-058: appends another clip to a track — a real device import, or from the project library. */
-export function AddClipSheet({ trackName, onClose, onConfirm }: AddClipSheetProps) {
+/** RF-058/RF-036: appends another clip to a track — a real device import, or from the project library. */
+export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddClipSheetProps) {
+  const isAudio = trackKind === 'audio';
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [picking, setPicking] = useState(false);
 
   useEffect(() => {
+    if (isAudio) {
+      setProjects([]);
+      return;
+    }
     createProjectsModule()
       .listProjects.execute()
       .then((all) => setProjects(all.filter((p) => p.thumbnailUri || p.assets[0]?.originalUri)))
       .catch(() => setProjects([]));
-  }, []);
+  }, [isAudio]);
 
   const pickFromDevice = async () => {
     setPicking(true);
     try {
+      if (isAudio) {
+        const picked = await pickAudioFromDevice();
+        if (!picked) return;
+        onConfirm({
+          name: picked.fileName,
+          sourceUri: picked.uri,
+          sourceDurationMs: DEFAULT_AUDIO_CLIP_MS,
+        });
+        return;
+      }
       const picked = await pickFromGallery();
       if (!picked) return;
       onConfirm({
@@ -76,38 +94,44 @@ export function AddClipSheet({ trackName, onClose, onConfirm }: AddClipSheetProp
         ) : (
           <Icon name="upload" size={16} color={colors.texto} />
         )}
-        <Text style={styles.deviceButtonText}>Importar da galeria do dispositivo</Text>
+        <Text style={styles.deviceButtonText}>
+          {isAudio ? 'Importar áudio do dispositivo' : 'Importar da galeria do dispositivo'}
+        </Text>
       </Pressable>
 
-      <Text style={styles.sectionLabel}>Ou de um projeto existente</Text>
-      <ScrollView contentContainerStyle={styles.grid}>
-        {projects === null && <Text style={styles.hint}>Carregando projetos…</Text>}
-        {projects !== null && projects.length === 0 && (
-          <Text style={styles.hint}>Nenhum projeto disponível para adicionar.</Text>
-        )}
-        {projects?.map((p) => {
-          const uri = p.thumbnailUri ?? p.assets[0]?.originalUri;
-          const asset = p.assets[0];
-          return (
-            <Pressable
-              key={p.id}
-              style={styles.item}
-              onPress={() =>
-                onConfirm({
-                  name: p.name,
-                  sourceUri: uri as string,
-                  sourceDurationMs: asset?.metadata.durationMs ?? DEFAULT_IMAGE_CLIP_MS,
-                })
-              }
-            >
-              <Image source={{ uri }} style={styles.itemThumb} />
-              <Text style={styles.itemName} numberOfLines={1}>
-                {p.name}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {!isAudio && (
+        <>
+          <Text style={styles.sectionLabel}>Ou de um projeto existente</Text>
+          <ScrollView contentContainerStyle={styles.grid}>
+            {projects === null && <Text style={styles.hint}>Carregando projetos…</Text>}
+            {projects !== null && projects.length === 0 && (
+              <Text style={styles.hint}>Nenhum projeto disponível para adicionar.</Text>
+            )}
+            {projects?.map((p) => {
+              const uri = p.thumbnailUri ?? p.assets[0]?.originalUri;
+              const asset = p.assets[0];
+              return (
+                <Pressable
+                  key={p.id}
+                  style={styles.item}
+                  onPress={() =>
+                    onConfirm({
+                      name: p.name,
+                      sourceUri: uri as string,
+                      sourceDurationMs: asset?.metadata.durationMs ?? DEFAULT_IMAGE_CLIP_MS,
+                    })
+                  }
+                >
+                  <Image source={{ uri }} style={styles.itemThumb} />
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </>
+      )}
     </View>
   );
 }

@@ -8,6 +8,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 
 export interface PickedMedia {
   uri: string;
@@ -77,6 +78,30 @@ export async function pickMultipleImagesFromGallery(): Promise<PickedMedia[]> {
 
   if (result.canceled) return [];
   return result.assets.map(toPickedMedia);
+}
+
+export interface PickedAudio {
+  uri: string;
+  fileName: string;
+  fileSizeBytes: number | null;
+  mimeType: string;
+}
+
+/**
+ * RF-036: a real audio file (music, narration) for a background track — expo-image-picker
+ * has no audio mode, so this uses the OS document/file picker (Storage Access Framework on
+ * Android) instead, same as any "attach a file" flow.
+ */
+export async function pickAudioFromDevice(): Promise<PickedAudio | null> {
+  const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*' });
+  if (result.canceled || !result.assets[0]) return null;
+  const asset = result.assets[0];
+  return {
+    uri: asset.uri,
+    fileName: asset.name,
+    fileSizeBytes: asset.size ?? null,
+    mimeType: asset.mimeType ?? 'audio/mpeg',
+  };
 }
 
 export async function pickVideoFromGallery(): Promise<PickedMedia | null> {

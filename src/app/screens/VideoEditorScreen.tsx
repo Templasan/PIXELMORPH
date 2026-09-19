@@ -44,6 +44,7 @@ import {
   previousClipOf,
   insertFreezeFrame,
   buildTimelapseTrack,
+  clampFadeMs,
 } from '@modules/video-editor';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { pickMultipleImagesFromGallery } from '@modules/device-media';
@@ -69,7 +70,7 @@ const TOOLBAR_ITEMS = [
   { icon: 'image', label: 'Time-lapse', action: 'timelapse' },
 ] as const;
 
-const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Velocidade', 'Correção'] as const;
+const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Velocidade', 'Correção', 'Áudio'] as const;
 /** RF-049: câmera lenta (<1) até aceleração (>1) — quick presets alongside the continuous slider. */
 const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 type ClipTab = (typeof CLIP_TABS)[number];
@@ -596,6 +597,40 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     commitTracks(before, tracksRef.current);
   };
 
+  // RF-036: volume + fade in/out for a background audio clip — same apply/commit pattern as
+  // speed and color correction above.
+  const setClipField = (field: 'volume' | 'fadeInMs' | 'fadeOutMs', value: number) => {
+    if (!selected) return;
+    const next = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) => (c.id === selected.clip.id ? { ...c, [field]: value } : c)),
+          }
+        : t
+    );
+    tracksRef.current = next;
+    setTracks(next);
+  };
+  const commitClipField = (
+    field: 'volume' | 'fadeInMs' | 'fadeOutMs',
+    _value: number,
+    previousValue: number
+  ) => {
+    if (!selected) return;
+    const before = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected.clip.id ? { ...c, [field]: previousValue } : c
+            ),
+          }
+        : t
+    );
+    commitTracks(before, tracksRef.current);
+  };
+
   const handleAddClip = (trackId: string, result: AddClipResult) => {
     const track = tracks.find((t) => t.id === trackId);
     if (!track) return;
@@ -779,13 +814,18 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 <Pressable
                   key={t}
                   onPress={() => setClipTab(t)}
-                  disabled={t === 'Transição' && !previousOfSelected}
+                  disabled={
+                    (t === 'Transição' && !previousOfSelected) ||
+                    (t === 'Áudio' && selected.track.kind !== 'audio')
+                  }
                 >
                   <Text
                     style={[
                       styles.clipTabText,
                       clipTab === t && styles.clipTabTextActive,
-                      t === 'Transição' && !previousOfSelected && styles.clipTabTextDisabled,
+                      ((t === 'Transição' && !previousOfSelected) ||
+                        (t === 'Áudio' && selected.track.kind !== 'audio')) &&
+                        styles.clipTabTextDisabled,
                     ]}
                   >
                     {t}
@@ -969,6 +1009,39 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 onSlidingComplete={commitColorCorrection}
               />
             )}
+            {clipTab === 'Áudio' && selected.track.kind === 'audio' && (
+              <View style={{ gap: 4 }}>
+                <Slider
+                  label="Volume"
+                  value={selected.clip.volume ?? 100}
+                  min={0}
+                  max={100}
+                  unit="%"
+                  onChange={(v) => setClipField('volume', v)}
+                  onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
+                />
+                <Slider
+                  label="Fade in"
+                  value={selected.clip.fadeInMs ?? 0}
+                  min={0}
+                  max={clampFadeMs(99999, selected.clip)}
+                  step={100}
+                  unit=" ms"
+                  onChange={(v) => setClipField('fadeInMs', v)}
+                  onSlidingComplete={(v, from) => commitClipField('fadeInMs', v, from)}
+                />
+                <Slider
+                  label="Fade out"
+                  value={selected.clip.fadeOutMs ?? 0}
+                  min={0}
+                  max={clampFadeMs(99999, selected.clip)}
+                  step={100}
+                  unit=" ms"
+                  onChange={(v) => setClipField('fadeOutMs', v)}
+                  onSlidingComplete={(v, from) => commitClipField('fadeOutMs', v, from)}
+                />
+              </View>
+            )}
           </View>
         )}
 
@@ -1020,6 +1093,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       {addClipTrackId && (
         <AddClipSheet
           trackName={tracks.find((t) => t.id === addClipTrackId)?.name ?? ''}
+          trackKind={tracks.find((t) => t.id === addClipTrackId)?.kind}
           onClose={() => setAddClipTrackId(null)}
           onConfirm={(result) => handleAddClip(addClipTrackId, result)}
         />

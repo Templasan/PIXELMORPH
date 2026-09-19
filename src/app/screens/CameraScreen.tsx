@@ -1,18 +1,31 @@
-import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  CameraView,
+  type CameraType,
+  useCameraPermissions,
+  useMicrophonePermissions,
+} from 'expo-camera';
+import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-audio';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider } from '@core/ui';
 import { colors, monoFontFamily } from '@core/theme';
+import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
+import { errorLogger } from '@core/reliability';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
+
+// A stable, module-level constant — passing a fresh object literal to useAudioRecorder on
+// every render made it recreate (and prematurely release) the native recorder each time.
+const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 
 type CameraMode = 'FOTO' | 'VÍDEO' | 'TEMPORIZADOR' | 'STOP-MOTION' | 'AR';
 const MODES: CameraMode[] = ['FOTO', 'VÍDEO', 'TEMPORIZADOR', 'STOP-MOTION', 'AR'];
 
 // TODO: these are visual stand-ins (tint overlays) for real per-pixel filters.
 // A production build needs a GPU pipeline (Skia runtime shaders or a GL filter chain)
-// applied to the live `expo-camera` feed.
+// applied to the live camera feed.
 const FILTERS: { name: string; tint: string | null }[] = [
   { name: 'Original', tint: null },
   { name: 'Vívido', tint: 'rgba(255,140,0,0.08)' },
@@ -23,9 +36,14 @@ const FILTERS: { name: string; tint: string | null }[] = [
   { name: 'Cine', tint: 'rgba(20,20,30,0.3)' },
 ];
 
-const PREVIEW_URI =
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=780&h=1200&fit=crop&auto=format';
-
+/**
+ * RF-018: real camera capture. Photo and video both use a live `expo-camera` feed and save
+ * a real file — video recording includes a real embedded audio track (CameraView's `mute`
+ * defaults to false). Before recording, a real mic level meter (expo-audio, metering
+ * enabled) lets the user check their audio — "monitoramento em tempo real". There is no
+ * manual input-gain API exposed by either module on a managed Expo build, so that part of
+ * RF-018 is left out rather than faked with a slider that would not do anything.
+ */
 export default function CameraScreen({ navigation }: Props) {
   const [activeFilter, setActiveFilter] = useState(0);
   const [intensity, setIntensity] = useState(100);
@@ -34,16 +52,116 @@ export default function CameraScreen({ navigation }: Props) {
   const [stopFrames, setStopFrames] = useState<number[]>([]);
   const [recording, setRecording] = useState(false);
   const [stopFps, setStopFps] = useState(6);
+  const [facing, setFacing] = useState<CameraType>('back');
+  const [torch, setTorch] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [lastCaptureUri, setLastCaptureUri] = useState<string | null>(null);
+
+  const cameraRef = useRef<CameraView | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+
+  const audioRecorder = useAudioRecorder(AUDIO_RECORDER_OPTIONS);
+  const audioState = useAudioRecorderState(audioRecorder, 100);
+
+  useEffect(() => {
+    if (!cameraPermission) requestCameraPermission();
+    if (!micPermission) requestMicPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // RF-018 "monitoramento em tempo real": a real mic level meter, running while framing a
+  // shot in VÍDEO mode (not during the recording itself — CameraView takes exclusive mic
+  // access once `recordAsync` starts).
+  useEffect(() => {
+    if (mode !== 'VÍDEO' || recording || !micPermission?.granted) return;
+    audioRecorder.prepareToRecordAsync().then(() => audioRecorder.record());
+    return () => {
+      if (audioRecorder.isRecording) audioRecorder.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, recording, micPermission?.granted]);
 
   useEffect(() => {
     if (countdown === null) return;
     if (countdown === 0) {
       setCountdown(null);
+      takePhoto();
       return;
     }
     const t = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
+
+  const openInEditor = async (
+    uri: string,
+    kind: 'image' | 'video',
+    width: number,
+    height: number
+  ) => {
+    const mod = createProjectsModule();
+    const project = await mod.createProject.execute(
+      kind === 'video' ? 'Vídeo da câmera' : 'Foto da câmera',
+      kind === 'video' ? 'video' : 'photo'
+    );
+    await mod.addMediaAsset.execute(
+      project.id,
+      createMediaAsset(
+        `asset_${Date.now()}`,
+        kind,
+        uri,
+        uri,
+        createMediaMetadata(kind === 'video' ? 'video/mp4' : 'image/jpeg', { width, height })
+      )
+    );
+    navigation.navigate(kind === 'video' ? 'VideoEditor' : 'PhotoEditor', {
+      projectId: project.id,
+    });
+  };
+
+  const takePhoto = async () => {
+    if (!cameraRef.current || busy) return;
+    setBusy(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync();
+      if (!photo) return;
+      setLastCaptureUri(photo.uri);
+      await openInEditor(photo.uri, 'image', photo.width, photo.height);
+    } catch (error) {
+      errorLogger.log(error, 'CameraScreen.takePhoto');
+      Alert.alert('Não foi possível capturar a foto', 'Tente novamente.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleVideoRecording = async () => {
+    if (!cameraRef.current) return;
+    if (recording) {
+      // Not gated behind `busy` — that stays true for the whole recordAsync() call below,
+      // and this is the only way to end it.
+      cameraRef.current.stopRecording();
+      return;
+    }
+    if (busy) return;
+    if (audioRecorder.isRecording) audioRecorder.stop();
+    setRecording(true);
+    setBusy(true);
+    try {
+      const video = await cameraRef.current.recordAsync();
+      setRecording(false);
+      setBusy(false);
+      if (!video) return;
+      setLastCaptureUri(video.uri);
+      await openInEditor(video.uri, 'video', 1920, 1080);
+    } catch (error) {
+      setRecording(false);
+      setBusy(false);
+      errorLogger.log(error, 'CameraScreen.toggleVideoRecording');
+      Alert.alert('Não foi possível gravar o vídeo', 'Tente novamente.');
+    }
+  };
 
   const handleShutter = () => {
     if (mode === 'TEMPORIZADOR') {
@@ -51,20 +169,47 @@ export default function CameraScreen({ navigation }: Props) {
     } else if (mode === 'STOP-MOTION') {
       setStopFrames((prev) => [...prev, prev.length + 1]);
     } else if (mode === 'VÍDEO') {
-      setRecording((r) => !r);
+      toggleVideoRecording();
     } else {
-      // TODO: pass the actually-captured photo into the editor instead of navigating blind.
-      navigation.navigate('PhotoEditor');
+      takePhoto();
     }
   };
 
   const filter = FILTERS[activeFilter];
+  const permissionsReady = cameraPermission?.granted && micPermission?.granted;
+
+  if (!permissionsReady) {
+    return (
+      <View style={[styles.container, styles.permissionWrap]}>
+        <Icon name="camera" size={32} color={colors.texto2} />
+        <Text style={styles.permissionText}>
+          O PixelMorph precisa de acesso à câmera e ao microfone para fotografar e gravar vídeo com
+          áudio.
+        </Text>
+        <Pressable
+          style={styles.permissionButton}
+          onPress={() => {
+            requestCameraPermission();
+            requestMicPermission();
+          }}
+        >
+          <Text style={styles.permissionButtonText}>Permitir acesso</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.previewWrap}>
-        {/* TODO: replace with a live expo-camera feed; this is a static stand-in image. */}
-        <Image source={{ uri: PREVIEW_URI }} style={styles.preview} />
+        <CameraView
+          ref={cameraRef}
+          style={styles.preview}
+          facing={facing}
+          enableTorch={torch}
+          mode={mode === 'VÍDEO' ? 'video' : 'picture'}
+          mute={false}
+        />
         {filter.tint && (
           <View
             pointerEvents="none"
@@ -77,10 +222,16 @@ export default function CameraScreen({ navigation }: Props) {
             <Icon name="chevronLeft" size={24} color={colors.branco} />
           </Pressable>
           <View style={{ flexDirection: 'row', gap: 20 }}>
-            {/* TODO: wire flash / grid / camera-flip controls to expo-camera. */}
-            <Icon name="flash" size={20} color={colors.branco} />
+            <Pressable onPress={() => setTorch((t) => !t)} hitSlop={8}>
+              <Icon name="flash" size={20} color={torch ? colors.acento : colors.branco} />
+            </Pressable>
             <Icon name="grid" size={20} color={colors.branco} />
-            <Icon name="rotate" size={20} color={colors.branco} />
+            <Pressable
+              onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+              hitSlop={8}
+            >
+              <Icon name="rotate" size={20} color={colors.branco} />
+            </Pressable>
           </View>
           <View style={styles.fpsBadge}>
             <Text style={styles.fpsBadgeText}>60 FPS</Text>
@@ -90,6 +241,21 @@ export default function CameraScreen({ navigation }: Props) {
         {countdown !== null && (
           <View style={styles.countdownOverlay}>
             <Text style={styles.countdownText}>{countdown}</Text>
+          </View>
+        )}
+
+        {/* RF-018: a real mic level meter while framing a video shot. */}
+        {mode === 'VÍDEO' && !recording && micPermission?.granted && (
+          <View style={styles.audioMeterWrap}>
+            <Icon name="mic" size={14} color={colors.texto2} />
+            <View style={styles.audioMeterTrack}>
+              <View
+                style={[
+                  styles.audioMeterFill,
+                  { width: `${meteringToPercent(audioState.metering)}%` },
+                ]}
+              />
+            </View>
           </View>
         )}
 
@@ -139,9 +305,12 @@ export default function CameraScreen({ navigation }: Props) {
           {FILTERS.map((f, i) => (
             <Pressable key={f.name} style={styles.filterItem} onPress={() => setActiveFilter(i)}>
               <View
-                style={[styles.filterThumbWrap, activeFilter === i && styles.filterThumbActive]}
+                style={[
+                  styles.filterThumbWrap,
+                  activeFilter === i && styles.filterThumbActive,
+                  { backgroundColor: colors.faixa },
+                ]}
               >
-                <Image source={{ uri: PREVIEW_URI }} style={styles.filterThumb} />
                 {f.tint && <View style={[StyleSheet.absoluteFill, { backgroundColor: f.tint }]} />}
               </View>
               <Text style={[styles.filterName, activeFilter === i && styles.filterNameActive]}>
@@ -178,19 +347,18 @@ export default function CameraScreen({ navigation }: Props) {
 
       <View style={styles.controlsRow}>
         <View style={styles.lastCaptureWrap}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=96&h=96&fit=crop&auto=format',
-            }}
-            style={styles.lastCapture}
-          />
+          {lastCaptureUri && (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.faixa }]} />
+          )}
         </View>
 
         <Pressable
           onPress={handleShutter}
+          disabled={busy && !recording}
           style={[
             styles.shutter,
             (mode === 'STOP-MOTION' || (mode === 'VÍDEO' && recording)) && styles.shutterRecording,
+            busy && { opacity: 0.5 },
           ]}
         >
           {mode === 'VÍDEO' ? (
@@ -208,7 +376,7 @@ export default function CameraScreen({ navigation }: Props) {
           )}
         </Pressable>
 
-        <Pressable onPress={() => navigation.navigate('Projects')} hitSlop={8}>
+        <Pressable onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))} hitSlop={8}>
           <Icon name="rotate" size={28} color={colors.icone} />
         </Pressable>
       </View>
@@ -230,10 +398,42 @@ export default function CameraScreen({ navigation }: Props) {
   );
 }
 
+/** expo-audio metering is in dBFS (roughly -160 silence .. 0 peak) — map to a 0..100 bar. */
+function meteringToPercent(db: number | undefined): number {
+  if (db === undefined || Number.isNaN(db)) return 0;
+  const clamped = Math.max(-60, Math.min(0, db));
+  return ((clamped + 60) / 60) * 100;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.preto,
+  },
+  permissionWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 32,
+  },
+  permissionText: {
+    color: colors.texto2,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  permissionButton: {
+    height: 44,
+    paddingHorizontal: 24,
+    backgroundColor: colors.acento,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permissionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1,
+    color: '#0D2036',
   },
   previewWrap: {
     flex: 1,
@@ -282,6 +482,27 @@ const styles = StyleSheet.create({
     fontSize: 96,
     fontWeight: '700',
     color: colors.branco,
+  },
+  audioMeterWrap: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  audioMeterTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  audioMeterFill: {
+    height: '100%',
+    backgroundColor: colors.ok,
   },
   stopFramesRow: {
     position: 'absolute',
@@ -368,10 +589,6 @@ const styles = StyleSheet.create({
   filterThumbActive: {
     borderColor: colors.acento,
   },
-  filterThumb: {
-    width: '100%',
-    height: '100%',
-  },
   filterName: {
     fontSize: 9,
     color: colors.texto2,
@@ -416,10 +633,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.linha,
     overflow: 'hidden',
-  },
-  lastCapture: {
-    width: '100%',
-    height: '100%',
   },
   shutter: {
     width: 72,
