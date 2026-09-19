@@ -1036,6 +1036,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 height={PHOTO_HEIGHT}
                 onChange={(nx, ny) => setTextPosition(selectedLayer.id, nx, ny)}
                 onCommitValue={() => {}}
+                guides
               />
             )}
             {activeTool === 'elementos' &&
@@ -1048,6 +1049,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                   height={PHOTO_HEIGHT}
                   onChange={(nx, ny) => setShapePosition(selectedLayer.id, nx, ny)}
                   onCommitValue={() => {}}
+                  guides
                 />
               )}
             {paintModeActive && (
