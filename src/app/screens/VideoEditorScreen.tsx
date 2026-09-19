@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Image,
   LayoutChangeEvent,
   Pressable,
@@ -42,8 +43,10 @@ import {
   setTransition,
   previousClipOf,
   insertFreezeFrame,
+  buildTimelapseTrack,
 } from '@modules/video-editor';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
+import { pickMultipleImagesFromGallery } from '@modules/device-media';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -63,9 +66,12 @@ const TOOLBAR_ITEMS = [
   { icon: 'zap', label: 'Dividir', action: 'split' },
   { icon: 'flash', label: 'Congelar', action: 'freeze' },
   { icon: 'ripple', label: 'Ripple', action: 'ripple' },
+  { icon: 'image', label: 'Time-lapse', action: 'timelapse' },
 ] as const;
 
-const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Correção'] as const;
+const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Velocidade', 'Correção'] as const;
+/** RF-049: câmera lenta (<1) até aceleração (>1) — quick presets alongside the continuous slider. */
+const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 type ClipTab = (typeof CLIP_TABS)[number];
 
 /** US-14: seeds a real starting timeline from the open project's own asset (real durationMs). */
@@ -485,11 +491,36 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     commitTracks(before, after);
   };
 
+  // RF-023: a time-lapse is a real image track built from photos the user actually picks —
+  // each photo a short still clip, sequenced back-to-back (see buildTimelapseTrack).
+  const handleTimelapse = async () => {
+    try {
+      const picked = await pickMultipleImagesFromGallery();
+      if (picked.length === 0) return;
+      const track = buildTimelapseTrack(
+        picked.map((p) => ({ uri: p.uri, name: p.fileName ?? '' })),
+        200,
+        TRACK_COLORS.image
+      );
+      const before = tracksRef.current;
+      const after = [...before, track];
+      commitTracks(before, after);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PERMISSION_DENIED') {
+        Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para criar o time-lapse.');
+      } else {
+        errorLogger.log(error, 'VideoEditorScreen.handleTimelapse');
+        Alert.alert('Não foi possível criar o time-lapse', 'Tente novamente.');
+      }
+    }
+  };
+
   const handleToolbarAction = (action: string) => {
     if (action === 'cut') handleCut();
     else if (action === 'split') handleSplit();
     else if (action === 'freeze') handleFreeze();
     else if (action === 'ripple') setRippleMode((r) => !r);
+    else if (action === 'timelapse') handleTimelapse();
   };
 
   const toggleVisible = (trackId: string) => {
@@ -528,6 +559,36 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             ...t,
             clips: t.clips.map((c) =>
               c.id === selected.clip.id ? { ...c, colorCorrection: previousValue } : c
+            ),
+          }
+        : t
+    );
+    commitTracks(before, tracksRef.current);
+  };
+
+  // RF-049: playback speed — real, changes the clip's actual on-track duration
+  // (clipDurationMs divides by speed), not just a cosmetic label.
+  const applySpeed = (value: number) => {
+    if (!selected) return;
+    const next = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) => (c.id === selected.clip.id ? { ...c, speed: value } : c)),
+          }
+        : t
+    );
+    tracksRef.current = next;
+    setTracks(next);
+  };
+  const commitSpeed = (_value: number, previousValue: number) => {
+    if (!selected) return;
+    const before = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected.clip.id ? { ...c, speed: previousValue } : c
             ),
           }
         : t
@@ -846,6 +907,54 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     onSlidingComplete={(v, from) => commitTransitionDuration(v, from)}
                   />
                 )}
+              </View>
+            )}
+            {clipTab === 'Velocidade' && (
+              <View>
+                <View style={styles.chipRow}>
+                  {SPEED_PRESETS.map((preset) => (
+                    <Pressable
+                      key={preset}
+                      style={[
+                        styles.chip,
+                        (selected.clip.speed ?? 1) === preset && styles.chipActive,
+                      ]}
+                      onPress={() => {
+                        const before = tracksRef.current;
+                        const after = before.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? { ...c, speed: preset } : c
+                                ),
+                              }
+                            : t
+                        );
+                        commitTracks(before, after);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          (selected.clip.speed ?? 1) === preset && styles.chipTextActive,
+                        ]}
+                      >
+                        {preset}x
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Slider
+                  label="Velocidade"
+                  value={selected.clip.speed ?? 1}
+                  min={0.25}
+                  max={4}
+                  step={0.25}
+                  unit="x"
+                  onChange={applySpeed}
+                  onSlidingComplete={commitSpeed}
+                />
               </View>
             )}
             {clipTab === 'Correção' && (

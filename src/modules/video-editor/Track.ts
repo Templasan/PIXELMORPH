@@ -29,6 +29,8 @@ export interface Clip {
   holdMs?: number;
   /** RF-013: a point color correction (brightness, -100..100) applied to this clip only. */
   colorCorrection?: number;
+  /** RF-049: playback rate — 0.25 (4x slow-mo) .. 4 (4x fast-forward). Defaults to 1. */
+  speed?: number;
 }
 
 export interface Track {
@@ -42,7 +44,7 @@ export interface Track {
 
 export function clipDurationMs(clip: Clip): number {
   if (clip.frozen) return clip.holdMs ?? 0;
-  return clip.outPointMs - clip.inPointMs;
+  return (clip.outPointMs - clip.inPointMs) / (clip.speed ?? 1);
 }
 
 export function clipEndMs(clip: Clip): number {

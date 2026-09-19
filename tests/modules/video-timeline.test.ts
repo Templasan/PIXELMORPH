@@ -10,6 +10,7 @@ import {
   removeClip,
   findClip,
   rippleShiftAfter,
+  buildTimelapseTrack,
   MIN_CLIP_DURATION_MS,
 } from '@modules/video-editor/timeline';
 import {
@@ -507,5 +508,78 @@ describe('insertFreezeFrame', () => {
     const result = insertFreezeFrame([videoTrack, textTrack], 't1', a.id, 2000, 800);
     const clipText = result[1].clips.find((c) => c.id === text.id)!;
     expect(clipText.startMs).toBe(3800);
+  });
+});
+
+describe('clipDurationMs with speed (RF-049)', () => {
+  it('defaults to 1x when speed is unset', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs(clip)).toBe(4000);
+  });
+
+  it('halves the on-track duration at 2x speed', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, speed: 2 })).toBe(2000);
+  });
+
+  it('doubles the on-track duration at 0.5x slow-mo', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, speed: 0.5 })).toBe(8000);
+  });
+
+  it('ignores speed for a frozen (freeze-frame) clip', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, frozen: true, holdMs: 1000, speed: 4 })).toBe(1000);
+  });
+});
+
+describe('buildTimelapseTrack (RF-023)', () => {
+  it('sequences each photo back-to-back with no gaps', () => {
+    const track = buildTimelapseTrack(
+      [
+        { uri: 'a.jpg', name: 'A' },
+        { uri: 'b.jpg', name: 'B' },
+        { uri: 'c.jpg', name: 'C' },
+      ],
+      200,
+      '#fff'
+    );
+    expect(track.kind).toBe('image');
+    expect(track.clips).toHaveLength(3);
+    expect(track.clips.map((c) => c.startMs)).toEqual([0, 200, 400]);
+    expect(track.clips.every((c) => c.outPointMs - c.inPointMs === 200)).toBe(true);
+  });
+
+  it('falls back to a numbered name when the photo has none', () => {
+    const track = buildTimelapseTrack([{ uri: 'a.jpg', name: '' }], 200, '#fff');
+    expect(track.clips[0].name).toBe('Foto 1');
   });
 });

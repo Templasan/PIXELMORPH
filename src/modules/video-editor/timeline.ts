@@ -5,7 +5,14 @@
  * editor screen in this app.
  */
 
-import { type Clip, type Track, clipDurationMs, clipEndMs, createClipId } from './Track';
+import {
+  type Clip,
+  type Track,
+  clipDurationMs,
+  clipEndMs,
+  createClipId,
+  createTrackId,
+} from './Track';
 
 /** No clip may end up shorter than this — protects trims/splits from degenerating to nothing. */
 export const MIN_CLIP_DURATION_MS = 200;
@@ -174,6 +181,42 @@ export function removeClip(tracks: Track[], trackId: string, clipId: string): Tr
     trackId,
     track.clips.filter((c) => c.id !== clipId)
   );
+}
+
+/**
+ * RF-023: a time-lapse is just a real image track — each photo becomes a short still clip,
+ * played back-to-back at `photoDurationMs` each. Reuses the same Clip/Track model (and so
+ * the same trim/reorder/speed/transition tools) instead of a bespoke time-lapse pipeline.
+ */
+export function buildTimelapseTrack(
+  images: { uri: string; name: string }[],
+  photoDurationMs: number,
+  color: string
+): Track {
+  let startMs = 0;
+  const clips: Clip[] = images.map((img, i) => {
+    const clip: Clip = {
+      id: createClipId(),
+      name: img.name || `Foto ${i + 1}`,
+      sourceUri: img.uri,
+      color,
+      startMs,
+      inPointMs: 0,
+      outPointMs: photoDurationMs,
+      sourceDurationMs: photoDurationMs,
+    };
+    startMs += photoDurationMs;
+    return clip;
+  });
+
+  return {
+    id: createTrackId(),
+    name: 'Time-lapse',
+    kind: 'image',
+    visible: true,
+    locked: false,
+    clips,
+  };
 }
 
 export function findClip(tracks: Track[], clipId: string): { track: Track; clip: Clip } | null {

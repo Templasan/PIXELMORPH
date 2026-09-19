@@ -61,6 +61,24 @@ export async function pickImageFromGallery(): Promise<PickedMedia | null> {
   return pickFromGallery(['images']);
 }
 
+/** RF-023: multi-select photo pick — the source sequence for a time-lapse. */
+export async function pickMultipleImagesFromGallery(): Promise<PickedMedia[]> {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) {
+    throw new Error('PERMISSION_DENIED');
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 1,
+    exif: false,
+    allowsMultipleSelection: true,
+  });
+
+  if (result.canceled) return [];
+  return result.assets.map(toPickedMedia);
+}
+
 export async function pickVideoFromGallery(): Promise<PickedMedia | null> {
   return pickFromGallery(['videos']);
 }
