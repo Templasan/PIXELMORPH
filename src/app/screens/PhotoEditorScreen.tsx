@@ -13,12 +13,17 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import {
   Canvas,
+  Circle,
   Fill,
   Group,
   ImageShader,
+  Line,
   Path,
+  Rect,
   Shader,
   Skia,
+  Text as SkiaText,
+  matchFont,
   useCanvasRef,
   useImage,
 } from '@shopify/react-native-skia';
@@ -42,8 +47,11 @@ import {
   type Point,
 } from '@modules/photo-editor/geometry';
 import {
+  arrowPath,
   createPaintLayer,
+  createShapeLayer,
   createStrokeId,
+  createTextLayer,
   duplicateLayer,
   mergeVisiblePaintLayers,
   type EditorLayer,
@@ -64,7 +72,7 @@ import { LightEffectOverlay } from './photo-editor/LightEffectOverlay';
 import { MasksDrawer } from './photo-editor/MasksDrawer';
 import { RetouchDrawer } from './photo-editor/RetouchDrawer';
 import { EffectsDrawer, type DoubleExposureImage } from './photo-editor/EffectsDrawer';
-import { ElementsDrawer } from './photo-editor/ElementsDrawer';
+import { ElementsDrawer, type ShapeDraft, type TextDraft } from './photo-editor/ElementsDrawer';
 import { AIDrawer } from './photo-editor/AIDrawer';
 import { PresetsDrawer } from './photo-editor/PresetsDrawer';
 import { LayersPanel } from './photo-editor/LayersPanel';
@@ -283,8 +291,30 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [lightEditMode, setLightEditMode] = useState(false);
   const [doubleExposureImage, setDoubleExposureImage] = useState<DoubleExposureImage | null>(null);
 
+  // RF-008: the Elementos ▸ Texto form's draft — creates a new text layer, or (when the
+  // selection is a text layer) edits it in place.
+  const [textDraft, setTextDraft] = useState<TextDraft>({
+    content: '',
+    fontFamily: 'sans-serif',
+    color: '#FFFFFF',
+    shadow: false,
+    strokeWidth: 0,
+    entrada: 0,
+    saida: 100,
+  });
+
+  // RF-044: the Elementos ▸ Formas form's draft — same create-or-edit pattern as text.
+  const [shapeDraft, setShapeDraft] = useState<ShapeDraft>({
+    kind: 'circle',
+    color: '#FFFFFF',
+    strokeWidth: 4,
+  });
+
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
-  const photoUri = projectPhotoUri ?? DEMO_PHOTO_URI;
+  // Real projects have no photo to show until their asset loads — falling back to the demo
+  // URI here would fire a slow network fetch that can resolve *after* the real one and clobber
+  // it (useImage race). Only the no-project spike entry point gets the demo photo immediately.
+  const photoUri = projectPhotoUri ?? (projectId ? null : DEMO_PHOTO_URI);
 
   // RF-057: a ref to the on-screen Canvas so ExportSheet can snapshot the real composited
   // result (adjustments + geometry + effects + paint layers, exactly as rendered on screen).
@@ -396,6 +426,130 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const paintModeActive =
     activeTool === 'camadas' && selectedLayer?.kind === 'paint' && !selectedLayer.locked;
 
+  // Selecting an existing text layer loads its real style into the Texto form for editing.
+  useEffect(() => {
+    if (selectedLayer?.kind === 'text' && selectedLayer.text) {
+      const t = selectedLayer.text;
+      setTextDraft({
+        content: t.content,
+        fontFamily: t.fontFamily,
+        color: t.color,
+        shadow: t.shadow,
+        strokeWidth: t.strokeWidth,
+        entrada: t.entrada,
+        saida: t.saida,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLayerId]);
+
+  const submitTextLayer = useCallback(() => {
+    if (!textDraft.content.trim()) return;
+    if (selectedLayer?.kind === 'text' && selectedLayer.text) {
+      const currentId = selectedLayer.id;
+      const position = { x: selectedLayer.text.x, y: selectedLayer.text.y };
+      setLayers((prev) =>
+        prev.map((l) =>
+          l.id === currentId && l.text
+            ? { ...l, text: { ...l.text, ...textDraft, ...position } }
+            : l
+        )
+      );
+    } else {
+      const layer = createTextLayer(
+        `Texto ${layers.filter((l) => l.kind === 'text').length + 1}`,
+        textDraft.content,
+        textDraft
+      );
+      setLayers((prev) => [...prev, layer]);
+      setSelectedLayerId(layer.id);
+    }
+  }, [textDraft, selectedLayer, layers]);
+
+  const setTextPosition = useCallback((id: string, nx: number, ny: number) => {
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id && l.text ? { ...l, text: { ...l.text, x: nx, y: ny } } : l))
+    );
+  }, []);
+
+  // RF-046: a meme is just two classically-styled text layers (top/bottom, bold, white with
+  // a black outline) — created through the exact same real text-layer pipeline as Texto.
+  const submitMeme = useCallback((top: string, bottom: string) => {
+    const memeStyle = {
+      fontFamily: 'sans-serif-black',
+      fontSize: 32,
+      color: '#FFFFFF',
+      strokeColor: '#000000',
+      strokeWidth: 3,
+    };
+    const newLayers: EditorLayer[] = [];
+    if (top.trim()) {
+      const layer = createTextLayer('Meme (cima)', top, memeStyle);
+      layer.text!.y = 0.12;
+      newLayers.push(layer);
+    }
+    if (bottom.trim()) {
+      const layer = createTextLayer('Meme (baixo)', bottom, memeStyle);
+      layer.text!.y = 0.88;
+      newLayers.push(layer);
+    }
+    if (newLayers.length === 0) return;
+    setLayers((prev) => [...prev, ...newLayers]);
+    setSelectedLayerId(newLayers[newLayers.length - 1].id);
+  }, []);
+
+  // RF-046: a sticker is an emoji glyph placed as a (larger, unstroked) text layer.
+  const addSticker = useCallback((emoji: string) => {
+    const layer = createTextLayer('Adesivo', emoji, { fontSize: 48 });
+    setLayers((prev) => [...prev, layer]);
+    setSelectedLayerId(layer.id);
+  }, []);
+
+  // Selecting an existing shape layer loads its real style into the Formas form for editing.
+  useEffect(() => {
+    if (selectedLayer?.kind === 'shape' && selectedLayer.shape) {
+      const s = selectedLayer.shape;
+      setShapeDraft({ kind: s.kind, color: s.color, strokeWidth: s.strokeWidth });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLayerId]);
+
+  const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
+    circle: 'Círculo',
+    rect: 'Retângulo',
+    line: 'Linha',
+    arrow: 'Seta',
+  };
+
+  const submitShapeLayer = useCallback(() => {
+    if (selectedLayer?.kind === 'shape' && selectedLayer.shape) {
+      const currentId = selectedLayer.id;
+      const position = { x: selectedLayer.shape.x, y: selectedLayer.shape.y };
+      setLayers((prev) =>
+        prev.map((l) =>
+          l.id === currentId && l.shape
+            ? { ...l, shape: { ...l.shape, ...shapeDraft, ...position } }
+            : l
+        )
+      );
+    } else {
+      const layer = createShapeLayer(
+        `${SHAPE_NAMES[shapeDraft.kind]} ${layers.filter((l) => l.kind === 'shape').length + 1}`,
+        shapeDraft.kind,
+        shapeDraft
+      );
+      setLayers((prev) => [...prev, layer]);
+      setSelectedLayerId(layer.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeDraft, selectedLayer, layers]);
+
+  const setShapePosition = useCallback((id: string, nx: number, ny: number) => {
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id && l.shape ? { ...l, shape: { ...l.shape, x: nx, y: ny } } : l))
+    );
+  }, []);
+
   useEffect(() => {
     if (!projectId) return;
     const { getProject } = createProjectsModule();
@@ -442,6 +596,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   }, [history]);
 
   const applyExifOrientation = useCallback(async () => {
+    if (!photoUri) return;
     try {
       const response = await fetch(photoUri);
       const buffer = await response.arrayBuffer();
@@ -692,6 +847,98 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                     color={brushColor}
                   />
                 )}
+                {/* RF-008: real Skia text — a system font (via matchFont), color, optional
+                    drop shadow and stroke outline all draw for real, so they survive export. */}
+                {layers
+                  .filter((l) => l.kind === 'text' && l.visible && l.text)
+                  .map((l) => {
+                    const t = l.text!;
+                    const font = matchFont({
+                      fontFamily: t.fontFamily,
+                      fontSize: t.fontSize,
+                      fontWeight: 'bold',
+                    });
+                    const textWidth = font.measureText(t.content).width;
+                    const px = t.x * PHOTO_WIDTH - textWidth / 2;
+                    const py = t.y * PHOTO_HEIGHT;
+                    return (
+                      <Group key={l.id} opacity={l.opacity / 100}>
+                        {t.shadow && (
+                          <SkiaText
+                            text={t.content}
+                            x={px + 2}
+                            y={py + 2}
+                            font={font}
+                            color="rgba(0,0,0,0.5)"
+                          />
+                        )}
+                        {t.strokeWidth > 0 && (
+                          <SkiaText
+                            text={t.content}
+                            x={px}
+                            y={py}
+                            font={font}
+                            color={t.strokeColor}
+                            style="stroke"
+                            strokeWidth={t.strokeWidth}
+                          />
+                        )}
+                        <SkiaText text={t.content} x={px} y={py} font={font} color={t.color} />
+                      </Group>
+                    );
+                  })}
+                {/* RF-044: real vector shapes — same layer stack, same drag handle pattern. */}
+                {layers
+                  .filter((l) => l.kind === 'shape' && l.visible && l.shape)
+                  .map((l) => {
+                    const s = l.shape!;
+                    const cx = s.x * PHOTO_WIDTH;
+                    const cy = s.y * PHOTO_HEIGHT;
+                    const r = s.size * PHOTO_WIDTH;
+                    return (
+                      <Group key={l.id} opacity={l.opacity / 100}>
+                        {s.kind === 'circle' && (
+                          <Circle
+                            cx={cx}
+                            cy={cy}
+                            r={r}
+                            style="stroke"
+                            strokeWidth={s.strokeWidth}
+                            color={s.color}
+                          />
+                        )}
+                        {s.kind === 'rect' && (
+                          <Rect
+                            x={cx - r}
+                            y={cy - r}
+                            width={r * 2}
+                            height={r * 2}
+                            style="stroke"
+                            strokeWidth={s.strokeWidth}
+                            color={s.color}
+                          />
+                        )}
+                        {s.kind === 'line' && (
+                          <Line
+                            p1={{ x: cx - r, y: cy }}
+                            p2={{ x: cx + r, y: cy }}
+                            strokeWidth={s.strokeWidth}
+                            color={s.color}
+                          />
+                        )}
+                        {s.kind === 'arrow' && (
+                          <Path
+                            path={arrowPath(cx, cy, r)}
+                            style="stroke"
+                            strokeWidth={s.strokeWidth}
+                            strokeCap="round"
+                            strokeJoin="round"
+                            color={s.color}
+                          />
+                        )}
+                      </Group>
+                    );
+                  })}
                 {/* RF-060: drawn last so the frame sits on top of the finished piece. */}
                 {adjustments.frameStyle > 0 && (
                   <FrameOverlay
@@ -706,7 +953,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 )}
               </Canvas>
             ) : (
-              <Image source={{ uri: photoUri }} style={styles.photo} />
+              <Image source={{ uri: photoUri ?? '' }} style={styles.photo} />
             )}
             {perspectiveEditMode && (
               <PerspectiveHandles
@@ -727,6 +974,28 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 onCommitValue={commitLightPosition}
               />
             )}
+            {activeTool === 'elementos' && selectedLayer?.kind === 'text' && selectedLayer.text && (
+              <LightPositionHandle
+                x={selectedLayer.text.x * PHOTO_WIDTH}
+                y={selectedLayer.text.y * PHOTO_HEIGHT}
+                width={PHOTO_WIDTH}
+                height={PHOTO_HEIGHT}
+                onChange={(nx, ny) => setTextPosition(selectedLayer.id, nx, ny)}
+                onCommitValue={() => {}}
+              />
+            )}
+            {activeTool === 'elementos' &&
+              selectedLayer?.kind === 'shape' &&
+              selectedLayer.shape && (
+                <LightPositionHandle
+                  x={selectedLayer.shape.x * PHOTO_WIDTH}
+                  y={selectedLayer.shape.y * PHOTO_HEIGHT}
+                  width={PHOTO_WIDTH}
+                  height={PHOTO_HEIGHT}
+                  onChange={(nx, ny) => setShapePosition(selectedLayer.id, nx, ny)}
+                  onCommitValue={() => {}}
+                />
+              )}
             {paintModeActive && (
               <GestureDetector gesture={paintGesture}>
                 <View style={StyleSheet.absoluteFill} />
@@ -759,7 +1028,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           {compareMode && canvasWidth > 0 && (
             <View style={StyleSheet.absoluteFill}>
               <View style={[styles.compareOriginalWrap, { width: `${compareSplit}%` }]}>
-                <Image source={{ uri: photoUri }} style={[styles.photo, { width: canvasWidth }]} />
+                <Image
+                  source={{ uri: photoUri ?? '' }}
+                  style={[styles.photo, { width: canvasWidth }]}
+                />
               </View>
               <GestureDetector gesture={compareDrag}>
                 <View style={[styles.compareHandle, { left: `${compareSplit}%` }]}>
@@ -884,7 +1156,20 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 currentProjectId={projectId}
               />
             )}
-            {activeTool === 'elementos' && <ElementsDrawer />}
+            {activeTool === 'elementos' && (
+              <ElementsDrawer
+                textDraft={textDraft}
+                onChangeTextDraft={(patch) => setTextDraft((prev) => ({ ...prev, ...patch }))}
+                onSubmitText={submitTextLayer}
+                isEditingText={selectedLayer?.kind === 'text'}
+                shapeDraft={shapeDraft}
+                onChangeShapeDraft={(patch) => setShapeDraft((prev) => ({ ...prev, ...patch }))}
+                onSubmitShape={submitShapeLayer}
+                isEditingShape={selectedLayer?.kind === 'shape'}
+                onSubmitMeme={submitMeme}
+                onAddSticker={addSticker}
+              />
+            )}
             {activeTool === 'ia' && <AIDrawer />}
             {activeTool === 'presets' && <PresetsDrawer />}
           </ScrollView>

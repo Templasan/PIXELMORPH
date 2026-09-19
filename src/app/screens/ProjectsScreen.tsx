@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +22,7 @@ import {
   createMediaMetadata,
   type Project,
   type MediaAsset,
+  type ProjectPriority,
 } from '@modules/projects';
 import { LocalHistoryRepository, type Operation } from '@core/history';
 import { rawFormatLabel } from '@modules/photo-editor/raw';
@@ -121,6 +123,24 @@ const priorityLabel: Record<string, string> = {
   high: 'alta',
 };
 
+const PRIORITY_OPTIONS: readonly ProjectPriority[] = ['low', 'medium', 'high'];
+
+// RF-070: a plain DD/MM/AAAA text field is enough to set a reminder deadline — no calendar
+// picker dependency needed for that.
+function parseDateInput(text: string): Date | null {
+  const m = text.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const date = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateInput(date: Date | undefined): string {
+  if (!date) return '';
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${date.getFullYear()}`;
+}
+
 export default function ProjectsScreen({ navigation }: Props) {
   const moduleRef = useRef(createProjectsModule());
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -136,15 +156,29 @@ export default function ProjectsScreen({ navigation }: Props) {
   const batchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rawImportOpen, setRawImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dueDateInput, setDueDateInput] = useState('');
 
   const openInfo = useCallback((project: Project) => {
     setInfoProject(project);
     setInfoTab('PROPRIEDADES');
+    setDueDateInput(formatDateInput(project.dueDate));
     // RF-037 "histórico de edições": pulls the real undo/redo log built for US-03.
     new LocalHistoryRepository().load(project.id).then((snapshot) => {
       setHistoryLog(snapshot?.past ?? []);
     });
   }, []);
+
+  // RF-070: lets the user actually set the deadline/priority the pending-projects reminder
+  // reads — previously only seed data had these fields.
+  const updateReminder = useCallback(
+    async (patch: { dueDate?: Date | null; priority?: ProjectPriority | null }) => {
+      if (!infoProject) return;
+      const updated = await moduleRef.current.updateProject.execute(infoProject.id, patch);
+      setInfoProject(updated);
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    },
+    [infoProject]
+  );
 
   const loadProjects = useCallback(async () => {
     const mod = moduleRef.current;
@@ -480,12 +514,78 @@ export default function ProjectsScreen({ navigation }: Props) {
                   ['Modificado em', dateFormatter.format(infoProject.updatedAt)],
                   ['Criado em', dateFormatter.format(infoProject.createdAt)],
                 ];
-                return rows.map(([k, v]) => (
-                  <View key={k} style={styles.infoRow}>
-                    <Text style={styles.infoKey}>{k}</Text>
-                    <Text style={styles.infoValue}>{v}</Text>
-                  </View>
-                ));
+                return (
+                  <>
+                    {rows.map(([k, v]) => (
+                      <View key={k} style={styles.infoRow}>
+                        <Text style={styles.infoKey}>{k}</Text>
+                        <Text style={styles.infoValue}>{v}</Text>
+                      </View>
+                    ))}
+                    <View style={styles.reminderEditor}>
+                      <Text style={styles.sectionLabel}>LEMBRETE</Text>
+                      <View style={styles.priorityChips}>
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <Pressable
+                            key={p}
+                            style={[
+                              styles.priorityChip,
+                              infoProject.priority === p && styles.priorityChipActive,
+                            ]}
+                            onPress={() =>
+                              updateReminder({
+                                priority: infoProject.priority === p ? null : p,
+                              })
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.priorityChipText,
+                                infoProject.priority === p && styles.priorityChipTextActive,
+                              ]}
+                            >
+                              {priorityLabel[p]}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                      <View style={styles.dueDateRow}>
+                        <TextInput
+                          style={styles.dueDateInput}
+                          value={dueDateInput}
+                          onChangeText={setDueDateInput}
+                          placeholder="DD/MM/AAAA"
+                          placeholderTextColor={colors.texto2}
+                          keyboardType="number-pad"
+                        />
+                        <Pressable
+                          style={styles.dueDateButton}
+                          onPress={() => {
+                            const parsed = parseDateInput(dueDateInput);
+                            if (!parsed) {
+                              Alert.alert('Data inválida', 'Use o formato DD/MM/AAAA.');
+                              return;
+                            }
+                            updateReminder({ dueDate: parsed });
+                          }}
+                        >
+                          <Text style={styles.dueDateButtonText}>Salvar prazo</Text>
+                        </Pressable>
+                        {infoProject.dueDate && (
+                          <Pressable
+                            style={styles.dueDateButton}
+                            onPress={() => {
+                              setDueDateInput('');
+                              updateReminder({ dueDate: null });
+                            }}
+                          >
+                            <Text style={styles.dueDateButtonText}>Remover</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  </>
+                );
               })()
             ) : historyLog.length > 0 ? (
               [...historyLog].reverse().map((op) => (
@@ -831,6 +931,61 @@ const styles = StyleSheet.create({
     fontFamily: monoFontFamily,
     fontSize: fontSize.xs,
     color: colors.texto,
+  },
+  reminderEditor: {
+    padding: 16,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: colors.texto2,
+    marginBottom: 8,
+  },
+  priorityChips: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  priorityChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  priorityChipActive: {
+    borderColor: colors.acento,
+  },
+  priorityChipText: {
+    fontSize: fontSize.xs,
+    color: colors.texto,
+    textTransform: 'capitalize',
+  },
+  priorityChipTextActive: {
+    color: colors.acento,
+  },
+  dueDateRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dueDateInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.linha,
+    paddingHorizontal: 10,
+    fontFamily: monoFontFamily,
+    fontSize: fontSize.xs,
+    color: colors.texto,
+  },
+  dueDateButton: {
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    backgroundColor: colors.acento,
+  },
+  dueDateButtonText: {
+    fontSize: fontSize.xs,
+    fontWeight: '600',
+    color: '#0D2036',
   },
   historyRow: {
     flexDirection: 'row',

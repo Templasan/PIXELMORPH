@@ -7,12 +7,16 @@ const KIND_ICON: Record<EditorLayer['kind'], string> = {
   background: 'image',
   adjustments: 'sliders',
   paint: 'wand',
+  text: 'type',
+  shape: 'triangle',
 };
 
 const KIND_LABEL: Record<EditorLayer['kind'], string> = {
   background: 'Normal',
   adjustments: 'Ajuste',
   paint: 'Pintura',
+  text: 'Texto',
+  shape: 'Forma',
 };
 
 interface LayersPanelProps {

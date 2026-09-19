@@ -1,9 +1,63 @@
 import {
+  arrowPath,
   createPaintLayer,
+  createShapeLayer,
+  createTextLayer,
   duplicateLayer,
   mergeVisiblePaintLayers,
   type EditorLayer,
 } from '@modules/photo-editor/layers';
+
+describe('createShapeLayer', () => {
+  it('centers a new shape with sane defaults', () => {
+    const layer = createShapeLayer('Círculo 1', 'circle');
+    expect(layer.kind).toBe('shape');
+    expect(layer.shape?.kind).toBe('circle');
+    expect(layer.shape?.x).toBe(0.5);
+    expect(layer.shape?.y).toBe(0.5);
+    expect(layer.shape?.strokeWidth).toBe(4);
+  });
+
+  it('applies the given style options over the defaults', () => {
+    const layer = createShapeLayer('Seta 1', 'arrow', { color: '#00FF00', strokeWidth: 8 });
+    expect(layer.shape?.color).toBe('#00FF00');
+    expect(layer.shape?.strokeWidth).toBe(8);
+  });
+});
+
+describe('arrowPath', () => {
+  it('draws a shaft from tail to head plus two head strokes', () => {
+    const path = arrowPath(100, 50, 20);
+    // shaft + two head lines = 3 "M" (moveTo) subpaths
+    expect(path.match(/M/g)).toHaveLength(3);
+    expect(path).toContain('M80,50 L120,50');
+  });
+});
+
+describe('createTextLayer', () => {
+  it('centers new text with sane defaults', () => {
+    const layer = createTextLayer('Texto 1', 'Oi mundo');
+    expect(layer.kind).toBe('text');
+    expect(layer.text?.content).toBe('Oi mundo');
+    expect(layer.text?.x).toBe(0.5);
+    expect(layer.text?.y).toBe(0.5);
+    expect(layer.text?.shadow).toBe(false);
+    expect(layer.text?.strokeWidth).toBe(0);
+  });
+
+  it('applies the given style options over the defaults', () => {
+    const layer = createTextLayer('Texto 1', 'Oi', {
+      fontFamily: 'serif',
+      color: '#FF0000',
+      shadow: true,
+      strokeWidth: 3,
+    });
+    expect(layer.text?.fontFamily).toBe('serif');
+    expect(layer.text?.color).toBe('#FF0000');
+    expect(layer.text?.shadow).toBe(true);
+    expect(layer.text?.strokeWidth).toBe(3);
+  });
+});
 
 describe('createPaintLayer', () => {
   it('starts visible, unlocked, at full opacity, with no strokes', () => {
