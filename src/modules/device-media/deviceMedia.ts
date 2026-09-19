@@ -87,3 +87,20 @@ export async function saveImageToGallery(
   const asset = await MediaLibrary.createAssetAsync(tempUri);
   return asset.uri;
 }
+
+/**
+ * RF-011: writes composed bytes (e.g. a collage) to the app's own cache — a real local
+ * file:// URI usable as a project's MediaAsset, same cache dir the image picker already
+ * uses. Not added to the device gallery; that's what "Salvar na galeria" is for.
+ */
+export async function writeImageToCache(
+  base64: string,
+  format: 'JPEG' | 'PNG' | 'WebP'
+): Promise<string> {
+  const extension = format === 'JPEG' ? 'jpg' : format.toLowerCase();
+  const uri = `${FileSystem.cacheDirectory}pixelmorph_collage_${Date.now()}.${extension}`;
+  await FileSystem.writeAsStringAsync(uri, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return uri;
+}

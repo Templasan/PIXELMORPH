@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   LayoutChangeEvent,
   Pressable,
@@ -22,6 +23,7 @@ import {
   Rect,
   Shader,
   Skia,
+  type SkImage,
   Text as SkiaText,
   matchFont,
   useCanvasRef,
@@ -32,8 +34,11 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
-import { createProjectsModule } from '@modules/projects';
+import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
+import { encodeImage } from '@modules/export';
+import { writeImageToCache } from '@modules/device-media';
+import { composeCollage, loadSkImage, type CollageLayout } from '@modules/photo-editor/collage';
 import {
   ADJUSTMENTS_SKSL,
   CURVE_IDENTITY,
@@ -504,6 +509,55 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     setLayers((prev) => [...prev, layer]);
     setSelectedLayerId(layer.id);
   }, []);
+
+  // RF-011: a collage composes real picked photos into a new image (offscreen Skia
+  // surface), which becomes its own project — same "real file becomes a project" pattern
+  // as gallery import and the RAW converter. `push` (not `navigate`) forces a fresh
+  // PhotoEditorScreen mount so this project's data doesn't inherit the current one's
+  // in-memory layers/adjustments.
+  const submitCollage = useCallback(
+    async (
+      layout: CollageLayout,
+      uris: string[],
+      options: { spacing: number; borderWidth: number; borderColor: string }
+    ) => {
+      try {
+        // Sequential, not Promise.all: matches useImage's own one-at-a-time loader and
+        // avoids relying on this Skia binding's native bridge under concurrent Data.fromURI
+        // calls, which hung indefinitely (no error, 0% CPU) when tried in parallel.
+        const images: SkImage[] = [];
+        for (const uri of uris) {
+          images.push(await loadSkImage(uri));
+        }
+        const outputSize = 1600;
+        const composed = composeCollage(images, layout, outputSize, outputSize, options);
+        const encoded = encodeImage(composed, 'JPEG', 90);
+        const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
+
+        const mod = createProjectsModule();
+        const project = await mod.createProject.execute('Colagem', 'photo');
+        await mod.addMediaAsset.execute(
+          project.id,
+          createMediaAsset(
+            `asset_${Date.now()}`,
+            'image',
+            fileUri,
+            fileUri,
+            createMediaMetadata('image/jpeg', {
+              width: encoded.width,
+              height: encoded.height,
+              fileSizeBytes: encoded.bytes.length,
+            })
+          )
+        );
+        navigation.push('PhotoEditor', { projectId: project.id });
+      } catch (error) {
+        errorLogger.log(error, 'PhotoEditorScreen.submitCollage');
+        Alert.alert('Não foi possível criar a colagem', 'Tente novamente.');
+      }
+    },
+    [navigation]
+  );
 
   // Selecting an existing shape layer loads its real style into the Formas form for editing.
   useEffect(() => {
@@ -1168,6 +1222,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 isEditingShape={selectedLayer?.kind === 'shape'}
                 onSubmitMeme={submitMeme}
                 onAddSticker={addSticker}
+                onSubmitCollage={submitCollage}
               />
             )}
             {activeTool === 'ia' && <AIDrawer />}

@@ -1,8 +1,18 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Slider, Tabs } from '@core/ui';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { Icon, Slider, Tabs } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import type { ShapeKind } from '@modules/photo-editor/layers';
+import { COLLAGE_LAYOUTS, type CollageLayout } from '@modules/photo-editor/collage';
+import { pickImageFromGallery } from '@modules/device-media';
 
 const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'Colagem'] as const;
 type ElementsTab = (typeof TABS)[number];
@@ -56,12 +66,19 @@ interface ElementsDrawerProps {
   isEditingShape: boolean;
   onSubmitMeme: (top: string, bottom: string) => void;
   onAddSticker: (emoji: string) => void;
+  onSubmitCollage: (
+    layout: CollageLayout,
+    uris: string[],
+    options: { spacing: number; borderWidth: number; borderColor: string }
+  ) => Promise<void>;
 }
 
+const COLLAGE_COLORS = ['#FFFFFF', '#000000', colors.acento];
+
 /**
- * Elementos drawer. TODO: collage (RF-011) is still a placeholder — Texto (RF-008), Formas
- * (RF-044), Meme and Adesivos (RF-046) all draw for real, onto the Skia canvas in
- * PhotoEditorScreen (memes/stickers reuse the same text-layer pipeline as Texto).
+ * Elementos drawer — Texto (RF-008), Formas (RF-044), Meme/Adesivos (RF-046) all draw for
+ * real onto the Skia canvas in PhotoEditorScreen; Colagem (RF-011) composes real picked
+ * photos into a new project via PhotoEditorScreen.submitCollage.
  */
 export function ElementsDrawer({
   textDraft,
@@ -74,10 +91,40 @@ export function ElementsDrawer({
   isEditingShape,
   onSubmitMeme,
   onAddSticker,
+  onSubmitCollage,
 }: ElementsDrawerProps) {
   const [tab, setTab] = useState<ElementsTab>('Texto');
   const [memeTop, setMemeTop] = useState('');
   const [memeBottom, setMemeBottom] = useState('');
+
+  const [collageLayout, setCollageLayout] = useState<CollageLayout>(COLLAGE_LAYOUTS[0]);
+  const [collageUris, setCollageUris] = useState<(string | null)[]>(
+    Array(COLLAGE_LAYOUTS[0].cells.length).fill(null)
+  );
+  const [collageSpacing, setCollageSpacing] = useState(8);
+  const [collageBorderWidth, setCollageBorderWidth] = useState(4);
+  const [collageBorderColor, setCollageBorderColor] = useState(COLLAGE_COLORS[0]);
+  const [collagePickingCell, setCollagePickingCell] = useState<number | null>(null);
+  const [collageCreating, setCollageCreating] = useState(false);
+
+  const selectCollageLayout = (layout: CollageLayout) => {
+    setCollageLayout(layout);
+    setCollageUris(Array(layout.cells.length).fill(null));
+  };
+
+  const pickCollageCell = async (index: number) => {
+    setCollagePickingCell(index);
+    try {
+      const picked = await pickImageFromGallery();
+      if (picked) {
+        setCollageUris((prev) => prev.map((u, i) => (i === index ? picked.uri : u)));
+      }
+    } finally {
+      setCollagePickingCell(null);
+    }
+  };
+
+  const collageReady = collageUris.every((u) => u !== null);
 
   return (
     <View>
@@ -263,14 +310,100 @@ export function ElementsDrawer({
         </View>
       )}
       {tab === 'Colagem' && (
-        <View style={styles.collageGrid}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <View key={i} style={styles.collageCard}>
-              <View style={[styles.collageCell, i % 2 === 0 && styles.collageCellTall]} />
-              <View style={styles.collageCell} />
-              {i % 2 !== 0 && <View style={styles.collageCell} />}
-            </View>
-          ))}
+        <View style={{ padding: 12 }}>
+          <View style={styles.layoutRow}>
+            {COLLAGE_LAYOUTS.map((l) => (
+              <Pressable
+                key={l.id}
+                style={[styles.fontChip, collageLayout.id === l.id && styles.fontChipActive]}
+                onPress={() => selectCollageLayout(l)}
+              >
+                <Text
+                  style={[
+                    styles.fontChipText,
+                    collageLayout.id === l.id && styles.fontChipTextActive,
+                  ]}
+                >
+                  {l.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.collagePreview}>
+            {collageLayout.cells.map((cell, i) => (
+              <Pressable
+                key={i}
+                style={[
+                  styles.collagePreviewCell,
+                  {
+                    left: `${cell.x * 100}%`,
+                    top: `${cell.y * 100}%`,
+                    width: `${cell.width * 100}%`,
+                    height: `${cell.height * 100}%`,
+                  },
+                ]}
+                onPress={() => pickCollageCell(i)}
+              >
+                {collagePickingCell === i ? (
+                  <ActivityIndicator size="small" color={colors.acento} />
+                ) : collageUris[i] ? (
+                  <Image source={{ uri: collageUris[i]! }} style={styles.collagePreviewImage} />
+                ) : (
+                  <Icon name="plus" size={18} color={colors.texto2} />
+                )}
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.colorRow}>
+            {COLLAGE_COLORS.map((c) => (
+              <Pressable
+                key={c}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: c },
+                  collageBorderColor === c && styles.colorSwatchActive,
+                ]}
+                onPress={() => setCollageBorderColor(c)}
+              />
+            ))}
+          </View>
+          <Slider
+            label="Espessura"
+            value={collageBorderWidth}
+            min={0}
+            max={20}
+            onChange={setCollageBorderWidth}
+          />
+          <Slider
+            label="Espaçamento"
+            value={collageSpacing}
+            min={0}
+            max={40}
+            onChange={setCollageSpacing}
+          />
+          <Pressable
+            style={[
+              styles.submitButton,
+              (!collageReady || collageCreating) && styles.submitButtonDisabled,
+            ]}
+            disabled={!collageReady || collageCreating}
+            onPress={() => {
+              setCollageCreating(true);
+              onSubmitCollage(collageLayout, collageUris as string[], {
+                spacing: collageSpacing,
+                borderWidth: collageBorderWidth,
+                borderColor: collageBorderColor,
+              }).finally(() => setCollageCreating(false));
+            }}
+          >
+            {collageCreating ? (
+              <ActivityIndicator size="small" color="#0D2036" />
+            ) : (
+              <Text style={styles.submitButtonText}>CRIAR COLAGEM</Text>
+            )}
+          </Pressable>
         </View>
       )}
     </View>
@@ -358,30 +491,29 @@ const styles = StyleSheet.create({
     color: colors.texto2,
     marginBottom: 6,
   },
-  collageGrid: {
+  layoutRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    padding: 12,
+    gap: 6,
+    marginBottom: 10,
   },
-  collageCard: {
-    width: '30%',
+  collagePreview: {
     aspectRatio: 1,
+    backgroundColor: colors.faixa,
     borderWidth: 1,
     borderColor: colors.linha,
-    backgroundColor: colors.faixa,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 2,
-    padding: 4,
+    marginBottom: 12,
   },
-  collageCell: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.linha,
+  collagePreviewCell: {
+    position: 'absolute',
+    borderWidth: 1,
+    borderColor: colors.linha,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  collageCellTall: {
-    minHeight: '100%',
+  collagePreviewImage: {
+    width: '100%',
+    height: '100%',
   },
   placeholderText: {
     padding: 16,
