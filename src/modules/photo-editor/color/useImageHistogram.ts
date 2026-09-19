@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlphaType, ColorType, type SkImage } from '@shopify/react-native-skia';
-import { applyAdjustmentsRGB, type AdjustmentUniforms } from './colorAdjustments';
+import { applyFullAdjustmentsRGB, type FullAdjustmentUniforms } from './colorAdjustments';
 
 export interface RGBHistogram {
   r: number[];
@@ -51,7 +51,7 @@ export function useImageHistogram(image: SkImage | null) {
     }
   }, [image]);
 
-  const compute = useCallback((uniforms: AdjustmentUniforms): RGBHistogram => {
+  const compute = useCallback((uniforms: FullAdjustmentUniforms): RGBHistogram => {
     const data = bufferRef.current;
     if (!data) return emptyHistogram();
 
@@ -61,7 +61,7 @@ export function useImageHistogram(image: SkImage | null) {
     const stride = 4 * SAMPLE_STRIDE_PX;
 
     for (let i = 0; i + 3 < data.length; i += stride) {
-      const [r, g, b] = applyAdjustmentsRGB(
+      const [r, g, b] = applyFullAdjustmentsRGB(
         data[i] / 255,
         data[i + 1] / 255,
         data[i + 2] / 255,

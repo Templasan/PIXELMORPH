@@ -38,6 +38,21 @@
             "minSdkVersion": 26
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O PixelMorph usa suas fotos para importar imagens para edição.",
+          "videosPermission": "O PixelMorph usa seus vídeos para importar clipes para edição."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "O PixelMorph salva suas fotos exportadas na galeria.",
+          "savePhotosPermission": "O PixelMorph salva suas fotos exportadas na galeria.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "scheme": "pixelmorph"

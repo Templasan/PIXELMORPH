@@ -1,14 +1,33 @@
 import { useCallback, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, SideDrawer } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
-import { createProjectsModule, type Project, type MediaAsset } from '@modules/projects';
+import {
+  createProjectsModule,
+  createMediaAsset,
+  createMediaMetadata,
+  type Project,
+  type MediaAsset,
+} from '@modules/projects';
 import { LocalHistoryRepository, type Operation } from '@core/history';
+import { rawFormatLabel } from '@modules/photo-editor/raw';
+import { pickFromGallery } from '@modules/device-media';
+import { errorLogger } from '@core/reliability';
 import { seedDemoProjectsIfEmpty } from '../bootstrap/seedDemoProjects';
+import { RawImportSheet } from './projects/RawImportSheet';
 
 const FIELD_LABELS: Record<string, string> = {
   temperatura: 'Temperatura',
@@ -56,6 +75,9 @@ function isDraft(project: Project): boolean {
 function formatTypeLabel(project: Project): string {
   const asset = primaryAsset(project);
   if (!asset) return project.type.toUpperCase();
+
+  const raw = rawFormatLabel(asset.metadata.mimeType);
+  if (raw) return raw;
 
   const subtype = asset.metadata.mimeType.split('/')[1]?.toUpperCase() ?? project.type;
   if (project.type === 'video') {
@@ -112,6 +134,8 @@ export default function ProjectsScreen({ navigation }: Props) {
   const [historyLog, setHistoryLog] = useState<readonly Operation[]>([]);
   const [batchProgress, setBatchProgress] = useState<number | null>(null);
   const batchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [rawImportOpen, setRawImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const openInfo = useCallback((project: Project) => {
     setInfoProject(project);
@@ -138,6 +162,55 @@ export default function ProjectsScreen({ navigation }: Props) {
       loadProjects();
     }, [loadProjects])
   );
+
+  // RF-028/US-11: a real device gallery import — creates a project from the file the user
+  // actually picked, not a bundled demo asset.
+  const importFromGallery = useCallback(async () => {
+    setImporting(true);
+    try {
+      const picked = await pickFromGallery();
+      if (!picked) return; // user cancelled
+
+      const mod = moduleRef.current;
+      const name = picked.fileName?.replace(/\.[^./]+$/, '') || 'Importado da galeria';
+      const project = await mod.createProject.execute(
+        name,
+        picked.type === 'video' ? 'video' : 'photo'
+      );
+      await mod.addMediaAsset.execute(
+        project.id,
+        createMediaAsset(
+          `asset_${Date.now()}`,
+          picked.type,
+          picked.uri,
+          picked.uri,
+          createMediaMetadata(picked.mimeType, {
+            width: picked.width || undefined,
+            height: picked.height || undefined,
+            durationMs: picked.durationMs ?? undefined,
+            fileSizeBytes: picked.fileSizeBytes ?? undefined,
+          })
+        )
+      );
+
+      await loadProjects();
+      navigation.navigate(picked.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
+        projectId: project.id,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PERMISSION_DENIED') {
+        Alert.alert(
+          'Permissão necessária',
+          'Autorize o acesso à galeria nas configurações do dispositivo para importar arquivos.'
+        );
+      } else {
+        errorLogger.log(error, 'ProjectsScreen.importFromGallery');
+        Alert.alert('Não foi possível importar', 'Tente novamente.');
+      }
+    } finally {
+      setImporting(false);
+    }
+  }, [navigation, loadProjects]);
 
   const filtered = projects.filter((p) => {
     if (activeTab === 'FOTOS') return p.type === 'photo';
@@ -317,9 +390,31 @@ export default function ProjectsScreen({ navigation }: Props) {
       </ScrollView>
 
       {!multiSelect && (
-        <Pressable style={styles.fab} onPress={() => navigation.navigate('Camera')}>
-          <Icon name="camera" size={24} color={colors.branco} />
-        </Pressable>
+        <>
+          <Pressable
+            style={[styles.fab, styles.fabGallery]}
+            onPress={importFromGallery}
+            disabled={importing}
+          >
+            <Icon name="image" size={20} color={colors.branco} />
+          </Pressable>
+          <Pressable style={[styles.fab, styles.fabRaw]} onPress={() => setRawImportOpen(true)}>
+            <Icon name="upload" size={20} color={colors.branco} />
+          </Pressable>
+          <Pressable style={styles.fab} onPress={() => navigation.navigate('Camera')}>
+            <Icon name="camera" size={24} color={colors.branco} />
+          </Pressable>
+        </>
+      )}
+
+      {rawImportOpen && (
+        <RawImportSheet
+          onClose={() => setRawImportOpen(false)}
+          onConfirm={(result) => {
+            setRawImportOpen(false);
+            navigation.navigate('RawConverter', result);
+          }}
+        />
       )}
 
       {multiSelect && selected.length > 0 && (
@@ -621,6 +716,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
+  },
+  fabRaw: {
+    bottom: 88,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.painel,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  fabGallery: {
+    bottom: 156,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.painel,
+    borderWidth: 1,
+    borderColor: colors.linha,
   },
   batchSheet: {
     backgroundColor: colors.barra,

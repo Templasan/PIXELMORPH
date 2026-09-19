@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import {
   Canvas,
   Fill,
@@ -19,28 +21,50 @@ import {
 
 const HISTOGRAM_VIEW_WIDTH = 256;
 const HISTOGRAM_VIEW_HEIGHT = 56;
+const CURVE_BOX_HEIGHT = 160;
 const ZOOM_PREVIEW_SIZE = 140;
 const ZOOM_FACTOR = 3;
 
 /** Turns one channel's bin values (0..1) into a filled-area path, baseline-closed. */
-function histogramToPath(values: number[]): string {
+function histogramToPath(values: number[], height = HISTOGRAM_VIEW_HEIGHT): string {
   const n = values.length;
-  if (n === 0) return `M0,${HISTOGRAM_VIEW_HEIGHT} Z`;
+  if (n === 0) return `M0,${height} Z`;
   const points = values.map((v, i) => {
     const x = ((i + 0.5) / n) * HISTOGRAM_VIEW_WIDTH;
-    const y = HISTOGRAM_VIEW_HEIGHT - v * HISTOGRAM_VIEW_HEIGHT;
+    const y = height - v * height;
     return `L${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  return `M0,${HISTOGRAM_VIEW_HEIGHT} ${points.join(' ')} L${HISTOGRAM_VIEW_WIDTH},${HISTOGRAM_VIEW_HEIGHT} Z`;
+  return `M0,${height} ${points.join(' ')} L${HISTOGRAM_VIEW_WIDTH},${height} Z`;
+}
+
+/** Piecewise-linear curve through (0,0)-(1/3,y1)-(2/3,y2)-(1,1) — mirrors evalCurve() in the shader. */
+function curveToPath(y1: number, y2: number, width: number, height: number): string {
+  const x0 = 0;
+  const x1 = width / 3;
+  const x2 = (width * 2) / 3;
+  const x3 = width;
+  const toY = (v: number) => height - v * height;
+  return `M${x0},${toY(0)} L${x1},${toY(y1)} L${x2},${toY(y2)} L${x3},${toY(1)}`;
 }
 
 const TABS = ['Básico', 'Curvas', 'Detalhe', 'Cor seletiva'] as const;
 type AdjustTab = (typeof TABS)[number];
 const CURVE_CHANNELS = ['RGB', 'R', 'G', 'B'] as const;
 type CurveChannel = (typeof CURVE_CHANNELS)[number];
+const CURVE_CHANNEL_COLOR: Record<CurveChannel, string> = {
+  RGB: colors.acento,
+  R: 'rgb(210,82,82)',
+  G: 'rgb(95,185,143)',
+  B: 'rgb(58,143,222)',
+};
+
+function curveFieldPrefix(channel: CurveChannel): string {
+  return channel === 'RGB' ? 'Master' : channel;
+}
 
 interface AdjustmentsLike {
   temperatura: number;
+  tint: number;
   matiz: number;
   saturacao: number;
   luminosidade: number;
@@ -55,7 +79,69 @@ interface AdjustmentsLike {
   corMatiz: number;
   corSaturacao: number;
   corLuminosidade: number;
+  curveMasterY1: number;
+  curveMasterY2: number;
+  curveRY1: number;
+  curveRY2: number;
+  curveGY1: number;
+  curveGY2: number;
+  curveBY1: number;
+  curveBY2: number;
   [key: string]: number;
+}
+
+interface CurveHandleProps {
+  x: number;
+  value: number;
+  boxHeight: number;
+  onChange: (v: number) => void;
+  onCommitValue: (value: number, previousValue: number) => void;
+}
+
+/** One draggable curve control point — an invisible touch target; the visible dot is drawn in SVG. */
+function CurveHandle({ x, value, boxHeight, onChange, onCommitValue }: CurveHandleProps) {
+  const startValue = useRef(value);
+  const latestValue = useRef(value);
+
+  const updateFromDeltaY = useCallback(
+    (deltaY: number) => {
+      const next = Math.min(1, Math.max(0, startValue.current - deltaY / boxHeight));
+      latestValue.current = next;
+      onChange(next);
+    },
+    [boxHeight, onChange]
+  );
+
+  const commit = useCallback(() => {
+    onCommitValue(latestValue.current, startValue.current);
+  }, [onCommitValue]);
+
+  const pan = Gesture.Pan()
+    .onBegin(() => {
+      startValue.current = value;
+    })
+    .onUpdate((e) => {
+      runOnJS(updateFromDeltaY)(e.translationY);
+    })
+    .onEnd(() => {
+      runOnJS(commit)();
+    });
+
+  const cy = boxHeight - value * boxHeight;
+
+  return (
+    <GestureDetector gesture={pan}>
+      <View
+        style={{
+          position: 'absolute',
+          left: x - 14,
+          top: cy - 14,
+          width: 28,
+          height: 28,
+        }}
+      />
+    </GestureDetector>
+  );
 }
 
 interface AdjustDrawerProps {
@@ -83,8 +169,10 @@ export function AdjustDrawer({
 }: AdjustDrawerProps) {
   const [tab, setTab] = useState<AdjustTab>('Básico');
   const [curveChannel, setCurveChannel] = useState<CurveChannel>('RGB');
-  // TODO: Curvas tab below is a read-only placeholder — RF-029's per-channel tone curve
-  // editor (draggable control points + matching live histogram) isn't wired yet.
+  const [curveBoxWidth, setCurveBoxWidth] = useState(0);
+  const onCurveBoxLayout = useCallback((e: LayoutChangeEvent) => {
+    setCurveBoxWidth(e.nativeEvent.layout.width);
+  }, []);
 
   const slider = (
     label: string,
@@ -135,6 +223,11 @@ export function AdjustDrawer({
             max: 100,
             gradientColors: ['#4477FF', '#FF8833'],
           })}
+          {slider('Matiz de branco', 'tint', {
+            min: -100,
+            max: 100,
+            gradientColors: ['#22C55E', '#D946EF'],
+          })}
           {slider('Matiz', 'matiz', { min: -100, max: 100 })}
           {slider('Saturação', 'saturacao', { min: -100, max: 100 })}
           {slider('Luminosidade', 'luminosidade', { min: -100, max: 100 })}
@@ -142,68 +235,118 @@ export function AdjustDrawer({
           {slider('Exposição', 'exposicao', { min: -3, max: 3 })}
         </View>
       )}
-      {tab === 'Curvas' && (
-        <View style={{ padding: 12 }}>
-          <View style={styles.curveBox}>
-            {/* TODO: real editable curve — drag control points and recompute the tone curve per channel. */}
-            <Svg
-              width="100%"
-              height={160}
-              viewBox="0 0 256 160"
-              preserveAspectRatio="none"
-              style={StyleSheet.absoluteFill}
-            >
-              <Path
-                d="M0,160 C30,158 50,126 80,52 C100,8 116,22 132,42 C152,66 182,114 222,146 C242,154 252,158 256,160 Z"
-                fill="rgba(210,82,82,0.18)"
-              />
-              <Path
-                d="M0,160 C20,160 40,143 70,74 C95,22 116,38 142,54 C167,78 186,118 216,146 C236,154 248,160 256,160 Z"
-                fill="rgba(95,185,143,0.18)"
-              />
-              <Path
-                d="M0,160 C14,158 28,134 54,58 C74,6 95,20 116,38 C142,60 172,109 212,146 C233,154 246,160 256,160 Z"
-                fill="rgba(58,143,222,0.18)"
-              />
-            </Svg>
-            <Svg width="100%" height={160} style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}>
-              <Line x1="33%" y1="0" x2="33%" y2="100%" stroke={colors.texto} strokeWidth={1} />
-              <Line x1="66%" y1="0" x2="66%" y2="100%" stroke={colors.texto} strokeWidth={1} />
-              <Line x1="0" y1="33%" x2="100%" y2="33%" stroke={colors.texto} strokeWidth={1} />
-              <Line x1="0" y1="66%" x2="100%" y2="66%" stroke={colors.texto} strokeWidth={1} />
-              <Line x1="0" y1="100%" x2="100%" y2="0" stroke={colors.texto} strokeWidth={1} />
-            </Svg>
-            <Svg width="100%" height={160} viewBox="0 0 160 160" style={StyleSheet.absoluteFill}>
-              <Path
-                d="M0,160 C40,155 55,120 80,80 C105,40 120,8 160,0"
-                fill="none"
-                stroke={colors.acento}
-                strokeWidth={2}
-              />
-              <Circle cx={80} cy={80} r={5} fill={colors.acento} />
-              <Circle cx={120} cy={38} r={5} fill={colors.acento} />
-            </Svg>
-          </View>
-          <View style={styles.channelRow}>
-            {CURVE_CHANNELS.map((c) => (
-              <Pressable
-                key={c}
-                style={[styles.channelChip, curveChannel === c && styles.channelChipActive]}
-                onPress={() => setCurveChannel(c)}
-              >
-                <Text
-                  style={[
-                    styles.channelChipText,
-                    curveChannel === c && styles.channelChipTextActive,
-                  ]}
+      {tab === 'Curvas' &&
+        (() => {
+          const prefix = curveFieldPrefix(curveChannel);
+          const y1Field = `curve${prefix}Y1`;
+          const y2Field = `curve${prefix}Y2`;
+          const y1 = adjustments[y1Field];
+          const y2 = adjustments[y2Field];
+          const color = CURVE_CHANNEL_COLOR[curveChannel];
+          const x1 = curveBoxWidth / 3;
+          const x2 = (curveBoxWidth * 2) / 3;
+
+          return (
+            <View style={{ padding: 12 }}>
+              <View style={styles.curveBox} onLayout={onCurveBoxLayout}>
+                <Svg
+                  width="100%"
+                  height={CURVE_BOX_HEIGHT}
+                  viewBox={`0 0 ${HISTOGRAM_VIEW_WIDTH} ${CURVE_BOX_HEIGHT}`}
+                  preserveAspectRatio="none"
+                  style={StyleSheet.absoluteFill}
                 >
-                  {c}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
+                  <Path
+                    d={histogramToPath(histogram.r, CURVE_BOX_HEIGHT)}
+                    fill="rgba(210,82,82,0.18)"
+                  />
+                  <Path
+                    d={histogramToPath(histogram.g, CURVE_BOX_HEIGHT)}
+                    fill="rgba(95,185,143,0.18)"
+                  />
+                  <Path
+                    d={histogramToPath(histogram.b, CURVE_BOX_HEIGHT)}
+                    fill="rgba(58,143,222,0.18)"
+                  />
+                </Svg>
+                <Svg
+                  width="100%"
+                  height={CURVE_BOX_HEIGHT}
+                  style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+                >
+                  <Line x1="33%" y1="0" x2="33%" y2="100%" stroke={colors.texto} strokeWidth={1} />
+                  <Line x1="66%" y1="0" x2="66%" y2="100%" stroke={colors.texto} strokeWidth={1} />
+                  <Line x1="0" y1="33%" x2="100%" y2="33%" stroke={colors.texto} strokeWidth={1} />
+                  <Line x1="0" y1="66%" x2="100%" y2="66%" stroke={colors.texto} strokeWidth={1} />
+                  <Line x1="0" y1="100%" x2="100%" y2="0" stroke={colors.texto} strokeWidth={1} />
+                </Svg>
+                {curveBoxWidth > 0 && (
+                  <Svg
+                    width="100%"
+                    height={CURVE_BOX_HEIGHT}
+                    viewBox={`0 0 ${curveBoxWidth} ${CURVE_BOX_HEIGHT}`}
+                    style={StyleSheet.absoluteFill}
+                  >
+                    <Path
+                      d={curveToPath(y1, y2, curveBoxWidth, CURVE_BOX_HEIGHT)}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                    <Circle
+                      cx={x1}
+                      cy={CURVE_BOX_HEIGHT - y1 * CURVE_BOX_HEIGHT}
+                      r={5}
+                      fill={color}
+                    />
+                    <Circle
+                      cx={x2}
+                      cy={CURVE_BOX_HEIGHT - y2 * CURVE_BOX_HEIGHT}
+                      r={5}
+                      fill={color}
+                    />
+                  </Svg>
+                )}
+                {curveBoxWidth > 0 && (
+                  <>
+                    <CurveHandle
+                      x={x1}
+                      value={y1}
+                      boxHeight={CURVE_BOX_HEIGHT}
+                      onChange={(v) => setField(y1Field, v)}
+                      onCommitValue={(v, from) => onCommit(y1Field, v, from)}
+                    />
+                    <CurveHandle
+                      x={x2}
+                      value={y2}
+                      boxHeight={CURVE_BOX_HEIGHT}
+                      onChange={(v) => setField(y2Field, v)}
+                      onCommitValue={(v, from) => onCommit(y2Field, v, from)}
+                    />
+                  </>
+                )}
+              </View>
+              <View style={styles.channelRow}>
+                {CURVE_CHANNELS.map((c) => (
+                  <Pressable
+                    key={c}
+                    style={[styles.channelChip, curveChannel === c && styles.channelChipActive]}
+                    onPress={() => setCurveChannel(c)}
+                  >
+                    <Text
+                      style={[
+                        styles.channelChipText,
+                        curveChannel === c && styles.channelChipTextActive,
+                      ]}
+                    >
+                      {c}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          );
+        })()}
       {tab === 'Detalhe' && (
         <View>
           <View style={styles.zoomPreviewRow}>

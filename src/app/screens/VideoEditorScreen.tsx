@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   LayoutChangeEvent,
@@ -15,125 +15,543 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet, Slider, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { usePersistedHistory } from '@core/history';
+import { createProjectsModule, type Project } from '@modules/projects';
+import { errorLogger } from '@core/reliability';
+import {
+  type Track,
+  type Clip,
+  createClip,
+  clipDurationMs,
+  clipEndMs,
+  moveClip,
+  trimClipIn,
+  trimClipOut,
+  splitClipAtMs,
+  appendClip,
+  findClip,
+  rippleShiftAfter,
+  timelineDurationMs,
+  DEFAULT_FPS,
+  stepFrameMs,
+  formatTimecode,
+  TRANSITION_TYPES,
+  TRANSITION_LABELS,
+  DEFAULT_TRANSITION_MS,
+  clampTransitionDurationMs,
+  setTransition,
+  previousClipOf,
+  insertFreezeFrame,
+} from '@modules/video-editor';
+import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
-const DURATION = 154; // 2:34 in seconds, matches the example "Viagem Litoral" clip
 const TRACK_HEADER_WIDTH = 72;
-
-function formatTimecode(s: number): string {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  const fr = Math.floor((s % 1) * 30);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}:${String(fr).padStart(2, '0')}`;
-}
-
-interface Clip {
-  start: number;
-  end: number;
-  name: string;
-  color: string;
-}
-interface Track {
-  id: string;
-  label: string;
-  type: 'video' | 'text' | 'audio';
-  clips: Clip[];
-}
-
-// TODO: replace with the real timeline/tracks for the open project.
-const TRACKS: Track[] = [
-  {
-    id: 'v2',
-    label: 'V2',
-    type: 'video',
-    clips: [{ start: 0.08, end: 0.45, name: 'B-roll Praia', color: '#1E3A5C' }],
-  },
-  {
-    id: 'v1',
-    label: 'V1',
-    type: 'video',
-    clips: [{ start: 0, end: 1, name: 'Viagem Litoral', color: '#152C44' }],
-  },
-  {
-    id: 'txt',
-    label: 'TXT',
-    type: 'text',
-    clips: [{ start: 0.18, end: 0.62, name: 'Legenda principal', color: '#1E1E40' }],
-  },
-  {
-    id: 'a1',
-    label: 'A1',
-    type: 'audio',
-    clips: [{ start: 0, end: 1, name: 'Trilha principal', color: '#122A1E' }],
-  },
-  {
-    id: 'a2',
-    label: 'A2',
-    type: 'audio',
-    clips: [{ start: 0.04, end: 0.55, name: 'Ambient ocean', color: '#0E1F16' }],
-  },
-];
+const ONE_FRAME_MS = 1000 / DEFAULT_FPS;
+const PLACEHOLDER_URI =
+  'https://images.unsplash.com/photo-1504700610630-ac6aba3536d3?w=780&h=440&fit=crop&auto=format';
+const TRACK_COLORS: Record<Track['kind'], string> = {
+  video: '#152C44',
+  image: '#1E3A5C',
+  text: '#1E1E40',
+  audio: '#122A1E',
+};
 
 const TOOLBAR_ITEMS = [
-  { icon: 'scissors', label: 'Selecionar' },
-  { icon: 'crop', label: 'Cortar' },
-  { icon: 'zap', label: 'Dividir' },
-  { icon: 'ripple', label: 'Ripple' },
-  { icon: 'sun', label: 'Zoom' },
-];
+  { icon: 'crop', label: 'Cortar', action: 'cut' },
+  { icon: 'zap', label: 'Dividir', action: 'split' },
+  { icon: 'flash', label: 'Congelar', action: 'freeze' },
+  { icon: 'ripple', label: 'Ripple', action: 'ripple' },
+] as const;
 
-const CLIP_TABS = ['Aparar', 'Quadro', 'Correção'] as const;
+const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Correção'] as const;
 type ClipTab = (typeof CLIP_TABS)[number];
 
-const PREVIEW_URI =
-  'https://images.unsplash.com/photo-1504700610630-ac6aba3536d3?w=780&h=440&fit=crop&auto=format';
+/** US-14: seeds a real starting timeline from the open project's own asset (real durationMs). */
+function buildInitialTracks(project: Project | null): Track[] {
+  const asset = project?.assets[0];
+  const uri = project?.thumbnailUri ?? asset?.originalUri ?? PLACEHOLDER_URI;
+  const sourceDurationMs = asset?.metadata.durationMs ?? 10000;
+  const v1: Track = {
+    id: 'v1',
+    name: 'V1',
+    kind: 'video',
+    visible: true,
+    locked: false,
+    clips: [
+      createClip({
+        name: project?.name ?? 'Clipe principal',
+        sourceUri: uri,
+        color: TRACK_COLORS.video,
+        startMs: 0,
+        sourceDurationMs,
+      }),
+    ],
+  };
+  const txt: Track = {
+    id: 'txt',
+    name: 'TXT',
+    kind: 'text',
+    visible: true,
+    locked: false,
+    clips: [],
+  };
+  const a1: Track = {
+    id: 'a1',
+    name: 'A1',
+    kind: 'audio',
+    visible: true,
+    locked: false,
+    clips: [],
+  };
+  return [v1, txt, a1];
+}
 
-export default function VideoEditorScreen({ navigation }: Props) {
+interface ClipBlockProps {
+  clip: Clip;
+  track: Track;
+  leftPct: number;
+  widthPct: number;
+  isSelected: boolean;
+  msPerPx: number;
+  onSelect: () => void;
+  onBeginDrag: () => void;
+  onMove: (deltaMs: number) => void;
+  onTrimIn: (deltaMs: number) => void;
+  onTrimOut: (deltaMs: number) => void;
+  onEndDrag: () => void;
+}
+
+/** One draggable, trimmable clip block (RF-005 move, RF-035 frame-precise trim handles). */
+function ClipBlock({
+  clip,
+  track,
+  leftPct,
+  widthPct,
+  isSelected,
+  msPerPx,
+  onSelect,
+  onBeginDrag,
+  onMove,
+  onTrimIn,
+  onTrimOut,
+  onEndDrag,
+}: ClipBlockProps) {
+  // minDistance lets a plain tap (near-zero movement) fall through to the Pressable's
+  // onPress below instead of being claimed by this Pan the instant the touch lands.
+  const moveGesture = Gesture.Pan()
+    .minDistance(10)
+    .enabled(!track.locked)
+    .onBegin(() => runOnJS(onBeginDrag)())
+    .onUpdate((e) => runOnJS(onMove)(e.translationX * msPerPx))
+    .onEnd(() => runOnJS(onEndDrag)());
+
+  const trimInGesture = Gesture.Pan()
+    .minDistance(4)
+    .enabled(!track.locked && !clip.frozen)
+    .onBegin(() => runOnJS(onBeginDrag)())
+    .onUpdate((e) => runOnJS(onTrimIn)(e.translationX * msPerPx))
+    .onEnd(() => runOnJS(onEndDrag)());
+
+  const trimOutGesture = Gesture.Pan()
+    .minDistance(4)
+    .enabled(!track.locked && !clip.frozen)
+    .onBegin(() => runOnJS(onBeginDrag)())
+    .onUpdate((e) => runOnJS(onTrimOut)(e.translationX * msPerPx))
+    .onEnd(() => runOnJS(onEndDrag)());
+
+  return (
+    <GestureDetector gesture={moveGesture}>
+      <Pressable
+        onPress={onSelect}
+        style={[
+          styles.clip,
+          { left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: clip.color },
+          isSelected && styles.clipSelected,
+          clip.frozen && styles.clipFrozen,
+        ]}
+      >
+        <Text style={styles.clipName} numberOfLines={1}>
+          {clip.frozen ? '❄ ' : ''}
+          {clip.name}
+        </Text>
+        {track.kind === 'audio' && (
+          <View style={styles.waveform}>
+            {Array.from({ length: 40 }).map((_, j) => (
+              <View
+                key={j}
+                style={[styles.waveformBar, { height: `${30 + Math.sin(j * 0.7) * 65}%` }]}
+              />
+            ))}
+          </View>
+        )}
+        {clip.transitionIn && (
+          <View style={styles.transitionMarker}>
+            <Icon name="zap" size={9} color={colors.acento} />
+          </View>
+        )}
+        {isSelected && !clip.frozen && !track.locked && (
+          <>
+            <GestureDetector gesture={trimInGesture}>
+              <View style={styles.trimHandleLeft} />
+            </GestureDetector>
+            <GestureDetector gesture={trimOutGesture}>
+              <View style={styles.trimHandleRight} />
+            </GestureDetector>
+          </>
+        )}
+      </Pressable>
+    </GestureDetector>
+  );
+}
+
+export default function VideoEditorScreen({ navigation, route }: Props) {
+  const projectId = route.params?.projectId;
+  const sessionId = projectId ?? 'unsaved-video-session';
+  const history = usePersistedHistory(sessionId);
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectName, setProjectName] = useState('Novo projeto');
+  const [tracks, setTracks] = useState<Track[]>(() => buildInitialTracks(null));
+  const tracksRef = useRef(tracks);
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+
   const [exportOpen, setExportOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(134.27);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [timelineZoom, setTimelineZoom] = useState(50);
-  const [selectedClip, setSelectedClip] = useState<string | null>(null);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [clipTab, setClipTab] = useState<ClipTab>('Aparar');
-  const [trackVis, setTrackVis] = useState<Record<string, boolean>>({
-    v2: true,
-    v1: true,
-    txt: true,
-    a1: true,
-    a2: true,
-  });
   const [loopReview, setLoopReview] = useState(false);
-  const [correctionBrightness, setCorrectionBrightness] = useState(0);
   const [bodyWidth, setBodyWidth] = useState(0);
+  const [previewRatio, setPreviewRatio] = useState(0.34);
+  const [contentHeight, setContentHeight] = useState(1);
+  const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
+  const [rippleMode, setRippleMode] = useState(false);
+  const [freezeHoldMs, setFreezeHoldMs] = useState(2000);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const { getProject } = createProjectsModule();
+    getProject
+      .execute(projectId)
+      .then((p) => {
+        if (p) {
+          setProject(p);
+          setProjectName(p.name);
+        }
+      })
+      .catch((error) => errorLogger.log(error, 'VideoEditorScreen.getProject'));
+  }, [projectId]);
+
+  const initialTracks = useMemo(() => buildInitialTracks(project), [project]);
+
+  // RF-027: once the log loads, replay it over the real project's seeded tracks so reopening
+  // this project shows the same edit — the whole timeline is tracked as a single history field.
+  useEffect(() => {
+    if (!history.ready) return;
+    const state = history.reconstructState({ tracks: initialTracks } as unknown as Record<
+      string,
+      unknown
+    >);
+    setTracks(state.tracks as Track[]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history.ready, initialTracks]);
+
+  const commitTracks = useCallback(
+    (before: Track[], after: Track[]) => {
+      if (before === after) return;
+      tracksRef.current = after;
+      setTracks(after);
+      history.push('tracks', before, after);
+    },
+    [history]
+  );
+
+  const handleUndo = useCallback(() => {
+    const op = history.undo();
+    if (op && op.type === 'tracks') {
+      const from = op.params.from as Track[];
+      tracksRef.current = from;
+      setTracks(from);
+    }
+  }, [history]);
+
+  const handleRedo = useCallback(() => {
+    const op = history.redo();
+    if (op && op.type === 'tracks') {
+      const to = op.params.to as Track[];
+      tracksRef.current = to;
+      setTracks(to);
+    }
+  }, [history]);
+
+  const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
+  const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
+  const playheadPct = (currentTimeMs / totalDurationMs) * 100;
+
+  // A real (if approximated) playhead — this app has no video decoder installed, so play
+  // advances elapsed time and swaps the poster image per clip rather than decoding frames.
+  useEffect(() => {
+    if (!playing) return;
+    const interval = setInterval(() => {
+      setCurrentTimeMs((t) => {
+        const next = t + 100;
+        if (next >= totalDurationMs) {
+          if (loopReview) return 0;
+          setPlaying(false);
+          return totalDurationMs;
+        }
+        return next;
+      });
+    }, 100);
+    return () => clearInterval(interval);
+  }, [playing, totalDurationMs, loopReview]);
 
   const onBodyLayout = useCallback((e: LayoutChangeEvent) => {
     setBodyWidth(e.nativeEvent.layout.width - TRACK_HEADER_WIDTH);
+  }, []);
+
+  const onContentLayout = useCallback((e: LayoutChangeEvent) => {
+    setContentHeight(Math.max(1, e.nativeEvent.layout.height));
   }, []);
 
   const updateTimeFromX = useCallback(
     (x: number) => {
       if (bodyWidth <= 0) return;
       const pct = Math.max(0, Math.min(1, (x - TRACK_HEADER_WIDTH) / bodyWidth));
-      setCurrentTime(pct * DURATION);
+      setCurrentTimeMs(pct * totalDurationMs);
     },
-    [bodyWidth]
+    [bodyWidth, totalDurationMs]
   );
 
-  const scrubGesture = Gesture.Pan().onUpdate((e) => {
-    runOnJS(updateTimeFromX)(e.x);
-  });
-  const scrubTap = Gesture.Tap().onEnd((e) => {
-    runOnJS(updateTimeFromX)(e.x);
-  });
-  const timelineGesture = Gesture.Race(scrubGesture, scrubTap);
+  // Tap-to-jump lives only on the ruler (nothing else to tap there); track rows only scrub
+  // on drag so a plain tap can still reach a clip's own Pressable underneath to select it.
+  const rulerGesture = Gesture.Race(
+    Gesture.Pan().onUpdate((e) => runOnJS(updateTimeFromX)(e.x)),
+    Gesture.Tap().onEnd((e) => runOnJS(updateTimeFromX)(e.x))
+  );
 
-  const playheadPct = (currentTime / DURATION) * 100;
+  // RF-053: a real draggable divider between the preview and timeline panels.
+  const dividerStartRatio = useRef(previewRatio);
+  const dividerGesture = Gesture.Pan()
+    .onBegin(() => {
+      dividerStartRatio.current = previewRatio;
+    })
+    .onUpdate((e) => {
+      const next = Math.max(
+        0.15,
+        Math.min(0.62, dividerStartRatio.current + e.translationY / contentHeight)
+      );
+      runOnJS(setPreviewRatio)(next);
+    });
 
-  // TODO: this screen covers the scope actually shipped in the prototype (preview + timeline +
-  // trim/frame/correction on a selected clip). The broader spec states — transitions library,
-  // speed curve, full audio mixer, AI captions, PiP/360/stabilization — are not implemented here.
+  const stepFrame = useCallback(
+    (direction: 1 | -1) => {
+      setCurrentTimeMs((t) => stepFrameMs(t, direction, totalDurationMs, DEFAULT_FPS));
+    },
+    [totalDurationMs]
+  );
+
+  // RF-005/RF-032: which clip is "on screen" right now, and whether it's mid-transition.
+  const currentClip = useMemo(() => {
+    const mediaTracks = tracks.filter(
+      (t) => (t.kind === 'video' || t.kind === 'image') && t.visible
+    );
+    for (const track of mediaTracks) {
+      const clip = track.clips.find(
+        (c) => currentTimeMs >= c.startMs && currentTimeMs < clipEndMs(c)
+      );
+      if (clip) return clip;
+    }
+    return null;
+  }, [tracks, currentTimeMs]);
+
+  const transitionBlend = useMemo(() => {
+    if (!currentClip?.transitionIn) return null;
+    const t = currentTimeMs - currentClip.startMs;
+    if (t < 0 || t > currentClip.transitionIn.durationMs) return null;
+    const track = tracks.find((tr) => tr.clips.some((c) => c.id === currentClip.id));
+    if (!track) return null;
+    const prev = previousClipOf(track, currentClip);
+    if (!prev) return null;
+    return {
+      progress: t / currentClip.transitionIn.durationMs,
+      type: currentClip.transitionIn.type,
+      fromUri: prev.sourceUri,
+    };
+  }, [currentClip, currentTimeMs, tracks]);
+
+  const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
+
+  // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
+  // is what history.push compares against, matching the pattern used across this app.
+  const dragStartRef = useRef<Track[] | null>(null);
+  const beginDrag = useCallback(() => {
+    dragStartRef.current = tracksRef.current;
+  }, []);
+  const updateDragMove = useCallback((trackId: string, clipId: string, deltaMs: number) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    const orig = findClip(start, clipId);
+    if (!orig) return;
+    const next = moveClip(start, trackId, clipId, orig.clip.startMs + deltaMs);
+    tracksRef.current = next;
+    setTracks(next);
+  }, []);
+  const updateDragTrimIn = useCallback((trackId: string, clipId: string, deltaMs: number) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    const orig = findClip(start, clipId);
+    if (!orig) return;
+    const next = trimClipIn(start, trackId, clipId, orig.clip.inPointMs + deltaMs);
+    tracksRef.current = next;
+    setTracks(next);
+  }, []);
+  const updateDragTrimOut = useCallback((trackId: string, clipId: string, deltaMs: number) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    const orig = findClip(start, clipId);
+    if (!orig) return;
+    const next = trimClipOut(start, trackId, clipId, orig.clip.outPointMs + deltaMs);
+    tracksRef.current = next;
+    setTracks(next);
+  }, []);
+  const endDrag = useCallback(() => {
+    const before = dragStartRef.current;
+    if (before) {
+      dragStartRef.current = null;
+      history.push('tracks', before, tracksRef.current);
+    }
+  }, [history]);
+
+  const nudgeTrimIn = (deltaFrames: number) => {
+    if (!selected) return;
+    const before = tracksRef.current;
+    const after = trimClipIn(
+      before,
+      selected.track.id,
+      selected.clip.id,
+      selected.clip.inPointMs + deltaFrames * ONE_FRAME_MS
+    );
+    commitTracks(before, after);
+  };
+  /** Trims the out-point and, in Ripple mode, shifts every later clip to close the gap. */
+  const trimOutWithRipple = (newOutPointMs: number) => {
+    if (!selected) return;
+    const before = tracksRef.current;
+    const oldEnd = clipEndMs(selected.clip);
+    let after = trimClipOut(before, selected.track.id, selected.clip.id, newOutPointMs);
+    if (rippleMode) {
+      const trimmed = findClip(after, selected.clip.id)?.clip;
+      if (trimmed) {
+        after = rippleShiftAfter(after, selected.track.id, oldEnd, clipEndMs(trimmed) - oldEnd);
+      }
+    }
+    commitTracks(before, after);
+  };
+
+  const nudgeTrimOut = (deltaFrames: number) => {
+    if (!selected) return;
+    trimOutWithRipple(selected.clip.outPointMs + deltaFrames * ONE_FRAME_MS);
+  };
+
+  const handleSplit = () => {
+    if (!selected) return;
+    const before = tracksRef.current;
+    const after = splitClipAtMs(before, selected.track.id, selected.clip.id, currentTimeMs);
+    commitTracks(before, after);
+  };
+
+  const handleCut = () => {
+    if (!selected) return;
+    const relativeMs = currentTimeMs - selected.clip.startMs;
+    trimOutWithRipple(selected.clip.inPointMs + relativeMs);
+  };
+
+  const handleFreeze = () => {
+    if (!selected) return;
+    const before = tracksRef.current;
+    const after = insertFreezeFrame(
+      before,
+      selected.track.id,
+      selected.clip.id,
+      currentTimeMs,
+      freezeHoldMs
+    );
+    commitTracks(before, after);
+  };
+
+  const handleToolbarAction = (action: string) => {
+    if (action === 'cut') handleCut();
+    else if (action === 'split') handleSplit();
+    else if (action === 'freeze') handleFreeze();
+    else if (action === 'ripple') setRippleMode((r) => !r);
+  };
+
+  const toggleVisible = (trackId: string) => {
+    const next = tracksRef.current.map((t) =>
+      t.id === trackId ? { ...t, visible: !t.visible } : t
+    );
+    tracksRef.current = next;
+    setTracks(next);
+  };
+  const toggleLocked = (trackId: string) => {
+    const next = tracksRef.current.map((t) => (t.id === trackId ? { ...t, locked: !t.locked } : t));
+    tracksRef.current = next;
+    setTracks(next);
+  };
+
+  const applyColorCorrection = (value: number) => {
+    if (!selected) return;
+    const next = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected.clip.id ? { ...c, colorCorrection: value } : c
+            ),
+          }
+        : t
+    );
+    tracksRef.current = next;
+    setTracks(next);
+  };
+  const commitColorCorrection = (_value: number, previousValue: number) => {
+    if (!selected) return;
+    const before = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected.clip.id ? { ...c, colorCorrection: previousValue } : c
+            ),
+          }
+        : t
+    );
+    commitTracks(before, tracksRef.current);
+  };
+
+  const handleAddClip = (trackId: string, result: AddClipResult) => {
+    const track = tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    const before = tracksRef.current;
+    const newClip = createClip({
+      name: result.name,
+      sourceUri: result.sourceUri,
+      color: TRACK_COLORS[track.kind],
+      startMs: 0,
+      sourceDurationMs: result.sourceDurationMs,
+    });
+    const after = appendClip(before, trackId, newClip);
+    commitTracks(before, after);
+    setAddClipTrackId(null);
+  };
+
+  const previousOfSelected = selected ? previousClipOf(selected.track, selected.clip) : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -142,183 +560,304 @@ export default function VideoEditorScreen({ navigation }: Props) {
           <Icon name="chevronLeft" size={20} />
         </Pressable>
         <Text style={styles.fileName} numberOfLines={1}>
-          Viagem Litoral <Text style={styles.unsavedDot}>●</Text>
+          {projectName} {history.canUndo && <Text style={styles.unsavedDot}>●</Text>}
         </Text>
-        <Pressable hitSlop={6}>
-          <Icon name="undo" size={18} />
+        <Pressable onPress={handleUndo} disabled={!history.canUndo} hitSlop={6}>
+          <Icon name="undo" size={18} color={history.canUndo ? colors.icone : colors.linha} />
         </Pressable>
-        <Pressable hitSlop={6}>
-          <Icon name="redo" size={18} />
+        <Pressable onPress={handleRedo} disabled={!history.canRedo} hitSlop={6}>
+          <Icon name="redo" size={18} color={history.canRedo ? colors.icone : colors.linha} />
         </Pressable>
         <Pressable style={styles.exportButton} onPress={() => setExportOpen(true)}>
           <Text style={styles.exportButtonText}>EXPORTAR</Text>
         </Pressable>
       </View>
 
-      <View style={styles.previewPanel}>
-        {/* TODO: replace with a real video player (expo-av / expo-video) synced to currentTime. */}
-        <Image source={{ uri: PREVIEW_URI }} style={styles.previewImage} />
-        <View style={styles.qualityBadge}>
-          <Text style={styles.qualityBadgeText}>4K · 30 fps</Text>
-        </View>
-        <View style={styles.transportOverlay}>
-          <View style={styles.timeRow}>
-            <Text style={styles.timeCurrent}>{formatTimecode(currentTime)}</Text>
-            <Text style={styles.timeTotal}>{formatTimecode(DURATION)}</Text>
+      <View style={{ flex: 1 }} onLayout={onContentLayout}>
+        <View style={[styles.previewPanel, { height: `${previewRatio * 100}%` }]}>
+          {transitionBlend && (
+            <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
+          )}
+          <Image
+            source={{ uri: currentClip?.sourceUri ?? PLACEHOLDER_URI }}
+            style={[
+              styles.previewImage,
+              transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
+              transitionBlend?.type === 'slide' && {
+                transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
+              },
+              transitionBlend?.type === 'zoom' && {
+                opacity: transitionBlend.progress,
+                transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
+              },
+              transitionBlend?.type === 'wipe' && {
+                opacity: transitionBlend.progress > 0.05 ? 1 : 0,
+              },
+            ]}
+          />
+          {currentClip?.colorCorrection ? (
+            <View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
+                  opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                },
+              ]}
+            />
+          ) : null}
+          <View style={styles.qualityBadge}>
+            <Text style={styles.qualityBadgeText}>
+              {project?.assets[0]?.metadata.width ?? 3840}×
+              {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
+            </Text>
           </View>
-          <View style={styles.transportButtons}>
-            {/* TODO: wire transport controls to the real player. */}
-            <Pressable hitSlop={6}>
-              <Icon name="skipBack" size={20} />
-            </Pressable>
-            <Pressable hitSlop={6}>
-              <Icon name="rewindFrame" size={18} />
-            </Pressable>
-            <Pressable style={styles.playButton} onPress={() => setPlaying((p) => !p)}>
-              <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.texto} />
-            </Pressable>
-            <Pressable hitSlop={6}>
-              <Icon name="forwardFrame" size={18} />
-            </Pressable>
-            <Pressable hitSlop={6}>
-              <Icon name="skipForward" size={20} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
-      {/* TODO: draggable divider to resize preview vs. timeline is not implemented (fixed split here). */}
-      <View style={styles.dividerHandle} />
-
-      <View style={styles.timelineSection}>
-        <GestureDetector gesture={timelineGesture}>
-          <ScrollView style={{ flex: 1 }} onLayout={onBodyLayout}>
-            <View style={styles.ruler}>
-              {Array.from({ length: 11 }).map((_, i) => (
-                <View key={i} style={styles.rulerTick}>
-                  <Text style={styles.rulerLabel}>
-                    {formatTimecode((DURATION / 10) * i).slice(0, 5)}
-                  </Text>
-                </View>
-              ))}
-              <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
+          <View style={styles.transportOverlay}>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeCurrent}>{formatTimecode(currentTimeMs)}</Text>
+              <Text style={styles.timeTotal}>{formatTimecode(totalDurationMs)}</Text>
             </View>
+            <View style={styles.transportButtons}>
+              <Pressable hitSlop={6} onPress={() => setCurrentTimeMs(0)}>
+                <Icon name="skipBack" size={20} />
+              </Pressable>
+              <Pressable hitSlop={6} onPress={() => stepFrame(-1)}>
+                <Icon name="rewindFrame" size={18} />
+              </Pressable>
+              <Pressable style={styles.playButton} onPress={() => setPlaying((p) => !p)}>
+                <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.texto} />
+              </Pressable>
+              <Pressable hitSlop={6} onPress={() => stepFrame(1)}>
+                <Icon name="forwardFrame" size={18} />
+              </Pressable>
+              <Pressable hitSlop={6} onPress={() => setCurrentTimeMs(totalDurationMs)}>
+                <Icon name="skipForward" size={20} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
 
-            {TRACKS.map((track) => (
-              <View key={track.id} style={styles.trackRow}>
-                <View style={styles.trackHeader}>
-                  <Pressable
-                    onPress={() => setTrackVis((v) => ({ ...v, [track.id]: !v[track.id] }))}
-                    hitSlop={6}
-                  >
-                    <Icon
-                      name={trackVis[track.id] ? 'eye' : 'eyeOff'}
-                      size={12}
-                      color={trackVis[track.id] ? colors.texto2 : colors.linha}
-                    />
-                  </Pressable>
-                  <Text style={styles.trackLabel}>{track.label}</Text>
-                  {/* TODO: real lock-track behavior. */}
-                  <Icon name="lock" size={10} color={colors.linha} />
-                </View>
-
-                <View style={styles.clipArea}>
-                  <View style={[styles.clipAreaPlayhead, { left: `${playheadPct}%` }]} />
-                  {trackVis[track.id] &&
-                    track.clips.map((clip, ci) => {
-                      const clipId = `${track.id}-${ci}`;
-                      const isSelected = selectedClip === clipId;
-                      return (
-                        <Pressable
-                          key={ci}
-                          onPress={() => setSelectedClip(isSelected ? null : clipId)}
-                          style={[
-                            styles.clip,
-                            {
-                              left: `${clip.start * 100}%`,
-                              width: `${(clip.end - clip.start) * 100}%`,
-                              backgroundColor: clip.color,
-                            },
-                            isSelected && styles.clipSelected,
-                          ]}
-                        >
-                          <Text style={styles.clipName} numberOfLines={1}>
-                            {clip.name}
-                          </Text>
-                          {track.type === 'audio' && (
-                            <View style={styles.waveform}>
-                              {Array.from({ length: 40 }).map((_, j) => (
-                                <View
-                                  key={j}
-                                  style={[
-                                    styles.waveformBar,
-                                    { height: `${30 + Math.sin(j * 0.7) * 65}%` },
-                                  ]}
-                                />
-                              ))}
-                            </View>
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
+        <GestureDetector gesture={dividerGesture}>
+          <View style={styles.dividerHandle} />
         </GestureDetector>
 
-        {selectedClip && (
+        <View style={styles.timelineSection}>
+          <ScrollView style={{ flex: 1 }} onLayout={onBodyLayout}>
+            <GestureDetector gesture={rulerGesture}>
+              <View style={styles.ruler}>
+                {Array.from({ length: 11 }).map((_, i) => (
+                  <View key={i} style={styles.rulerTick}>
+                    <Text style={styles.rulerLabel}>
+                      {formatTimecode((totalDurationMs / 10) * i).slice(0, 5)}
+                    </Text>
+                  </View>
+                ))}
+                <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
+              </View>
+            </GestureDetector>
+
+            {tracks.map((track) => {
+              return (
+                <View key={track.id} style={styles.trackRow}>
+                  <View style={styles.trackHeader}>
+                    <Pressable onPress={() => toggleVisible(track.id)} hitSlop={6}>
+                      <Icon
+                        name={track.visible ? 'eye' : 'eyeOff'}
+                        size={12}
+                        color={track.visible ? colors.texto2 : colors.linha}
+                      />
+                    </Pressable>
+                    <Text style={styles.trackLabel}>{track.name}</Text>
+                    <Pressable onPress={() => toggleLocked(track.id)} hitSlop={6}>
+                      <Icon
+                        name="lock"
+                        size={10}
+                        color={track.locked ? colors.perigo : colors.linha}
+                      />
+                    </Pressable>
+                    <Pressable onPress={() => setAddClipTrackId(track.id)} hitSlop={6}>
+                      <Icon name="plus" size={12} color={colors.texto2} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.clipArea}>
+                    <View style={[styles.clipAreaPlayhead, { left: `${playheadPct}%` }]} />
+                    {track.visible &&
+                      track.clips.map((clip) => (
+                        <ClipBlock
+                          key={clip.id}
+                          clip={clip}
+                          track={track}
+                          leftPct={(clip.startMs / totalDurationMs) * 100}
+                          widthPct={(clipDurationMs(clip) / totalDurationMs) * 100}
+                          isSelected={selectedClipId === clip.id}
+                          msPerPx={msPerPx}
+                          onSelect={() => {
+                            setSelectedClipId((id) => (id === clip.id ? null : clip.id));
+                            setClipTab('Aparar');
+                          }}
+                          onBeginDrag={beginDrag}
+                          onMove={(delta) => updateDragMove(track.id, clip.id, delta)}
+                          onTrimIn={(delta) => updateDragTrimIn(track.id, clip.id, delta)}
+                          onTrimOut={(delta) => updateDragTrimOut(track.id, clip.id, delta)}
+                          onEndDrag={endDrag}
+                        />
+                      ))}
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {selected && (
           <View style={styles.clipPanel}>
             <View style={styles.clipTabsRow}>
               {CLIP_TABS.map((t) => (
-                <Pressable key={t} onPress={() => setClipTab(t)}>
-                  <Text style={[styles.clipTabText, clipTab === t && styles.clipTabTextActive]}>
+                <Pressable
+                  key={t}
+                  onPress={() => setClipTab(t)}
+                  disabled={t === 'Transição' && !previousOfSelected}
+                >
+                  <Text
+                    style={[
+                      styles.clipTabText,
+                      clipTab === t && styles.clipTabTextActive,
+                      t === 'Transição' && !previousOfSelected && styles.clipTabTextDisabled,
+                    ]}
+                  >
                     {t}
                   </Text>
                 </Pressable>
               ))}
               <Pressable
                 style={{ marginLeft: 'auto' }}
-                onPress={() => setSelectedClip(null)}
+                onPress={() => setSelectedClipId(null)}
                 hitSlop={6}
               >
                 <Icon name="x" size={16} color={colors.texto2} />
               </Pressable>
             </View>
             {clipTab === 'Aparar' && (
-              // TODO: draggable trim handles on the clip itself; these are read-only timecodes.
               <View style={styles.trimRow}>
                 <Text style={styles.trimLabel}>Início</Text>
-                <Text style={styles.trimValue}>00:00:12:00</Text>
+                <Pressable onPress={() => nudgeTrimIn(-1)} hitSlop={4}>
+                  <Icon name="minus" size={12} color={colors.texto2} />
+                </Pressable>
+                <Text style={styles.trimValue}>{formatTimecode(selected.clip.inPointMs)}</Text>
+                <Pressable onPress={() => nudgeTrimIn(1)} hitSlop={4}>
+                  <Icon name="plus" size={12} color={colors.texto2} />
+                </Pressable>
                 <View style={{ flex: 1 }} />
                 <Text style={styles.trimLabel}>Fim</Text>
-                <Text style={styles.trimValue}>00:02:34:00</Text>
+                <Pressable onPress={() => nudgeTrimOut(-1)} hitSlop={4}>
+                  <Icon name="minus" size={12} color={colors.texto2} />
+                </Pressable>
+                <Text style={styles.trimValue}>{formatTimecode(selected.clip.outPointMs)}</Text>
+                <Pressable onPress={() => nudgeTrimOut(1)} hitSlop={4}>
+                  <Icon name="plus" size={12} color={colors.texto2} />
+                </Pressable>
               </View>
             )}
             {clipTab === 'Quadro' && (
-              <View style={styles.frameRow}>
-                {/* TODO: real frame-by-frame navigation. */}
-                <Pressable style={styles.frameButton}>
-                  <Text style={styles.frameButtonText}>−1 quadro</Text>
-                </Pressable>
-                <Pressable style={styles.frameButton}>
-                  <Text style={styles.frameButtonText}>+1 quadro</Text>
-                </Pressable>
-                <View style={{ marginLeft: 8 }}>
-                  <Switch value={loopReview} onChange={setLoopReview} label="Revisar em loop" />
+              <View>
+                <View style={styles.frameRow}>
+                  <Pressable style={styles.frameButton} onPress={() => stepFrame(-1)}>
+                    <Text style={styles.frameButtonText}>−1 quadro</Text>
+                  </Pressable>
+                  <Pressable style={styles.frameButton} onPress={() => stepFrame(1)}>
+                    <Text style={styles.frameButtonText}>+1 quadro</Text>
+                  </Pressable>
+                  <View style={{ marginLeft: 8 }}>
+                    <Switch value={loopReview} onChange={setLoopReview} label="Revisar em loop" />
+                  </View>
+                </View>
+                <View style={[styles.frameRow, { marginTop: 8 }]}>
+                  <Text style={styles.trimLabel}>Congelar por</Text>
+                  <Pressable
+                    onPress={() => setFreezeHoldMs((v) => Math.max(500, v - 500))}
+                    hitSlop={4}
+                  >
+                    <Icon name="minus" size={12} color={colors.texto2} />
+                  </Pressable>
+                  <Text style={styles.trimValue}>{(freezeHoldMs / 1000).toFixed(1)}s</Text>
+                  <Pressable onPress={() => setFreezeHoldMs((v) => v + 500)} hitSlop={4}>
+                    <Icon name="plus" size={12} color={colors.texto2} />
+                  </Pressable>
+                  <Pressable style={styles.frameButton} onPress={handleFreeze}>
+                    <Text style={styles.frameButtonText}>❄ Congelar aqui</Text>
+                  </Pressable>
                 </View>
               </View>
             )}
+            {clipTab === 'Transição' && previousOfSelected && (
+              <View>
+                <View style={styles.chipRow}>
+                  {TRANSITION_TYPES.map((type) => {
+                    const active = selected.clip.transitionIn?.type === type;
+                    return (
+                      <Pressable
+                        key={type}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => {
+                          const before = tracksRef.current;
+                          const duration = clampTransitionDurationMs(
+                            selected.clip.transitionIn?.durationMs ?? DEFAULT_TRANSITION_MS,
+                            previousOfSelected,
+                            selected.clip
+                          );
+                          const after = setTransition(before, selected.track.id, selected.clip.id, {
+                            type,
+                            durationMs: duration,
+                          });
+                          commitTracks(before, after);
+                        }}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {TRANSITION_LABELS[type]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    style={styles.chip}
+                    onPress={() => {
+                      const before = tracksRef.current;
+                      const after = setTransition(
+                        before,
+                        selected.track.id,
+                        selected.clip.id,
+                        undefined
+                      );
+                      commitTracks(before, after);
+                    }}
+                  >
+                    <Text style={styles.chipText}>Nenhuma</Text>
+                  </Pressable>
+                </View>
+                {selected.clip.transitionIn && (
+                  <Slider
+                    label="Duração"
+                    value={selected.clip.transitionIn.durationMs}
+                    min={100}
+                    max={clampTransitionDurationMs(99999, previousOfSelected, selected.clip)}
+                    onChange={(v) => applyTransitionDuration(v)}
+                    onSlidingComplete={(v, from) => commitTransitionDuration(v, from)}
+                  />
+                )}
+              </View>
+            )}
             {clipTab === 'Correção' && (
-              // TODO: real per-clip color correction.
               <Slider
                 label="Brilho"
-                value={correctionBrightness}
+                value={selected.clip.colorCorrection ?? 0}
                 min={-100}
                 max={100}
                 bipolar
                 showSign
-                onChange={setCorrectionBrightness}
+                onChange={applyColorCorrection}
+                onSlidingComplete={commitColorCorrection}
               />
             )}
           </View>
@@ -326,10 +865,29 @@ export default function VideoEditorScreen({ navigation }: Props) {
 
         <View style={styles.bottomToolbar}>
           <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
-            {TOOLBAR_ITEMS.map(({ icon, label }) => (
-              // TODO: wire up select/cut/split/ripple/zoom timeline tools.
-              <Pressable key={label} style={styles.toolItem}>
-                <Icon name={icon} size={18} />
+            {TOOLBAR_ITEMS.map(({ icon, label, action }) => (
+              <Pressable
+                key={label}
+                style={[
+                  styles.toolItem,
+                  action === 'ripple' && rippleMode && styles.toolItemActive,
+                ]}
+                onPress={() => handleToolbarAction(action)}
+                disabled={
+                  (action === 'cut' || action === 'split' || action === 'freeze') && !selected
+                }
+              >
+                <Icon
+                  name={icon}
+                  size={18}
+                  color={
+                    (action === 'cut' || action === 'split' || action === 'freeze') && !selected
+                      ? colors.linha
+                      : action === 'ripple' && rippleMode
+                        ? colors.acento
+                        : colors.icone
+                  }
+                />
                 <Text style={styles.toolLabel}>{label}</Text>
               </Pressable>
             ))}
@@ -350,9 +908,52 @@ export default function VideoEditorScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {exportOpen && <ExportSheet onClose={() => setExportOpen(false)} />}
+      {addClipTrackId && (
+        <AddClipSheet
+          trackName={tracks.find((t) => t.id === addClipTrackId)?.name ?? ''}
+          onClose={() => setAddClipTrackId(null)}
+          onConfirm={(result) => handleAddClip(addClipTrackId, result)}
+        />
+      )}
+
+      {exportOpen && <ExportSheet onClose={() => setExportOpen(false)} mediaKind="video" />}
     </SafeAreaView>
   );
+
+  function applyTransitionDuration(value: number) {
+    if (!selected || !selected.clip.transitionIn) return;
+    const next = tracksRef.current.map((t) =>
+      t.id === selected.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected.clip.id && c.transitionIn
+                ? { ...c, transitionIn: { ...c.transitionIn, durationMs: value } }
+                : c
+            ),
+          }
+        : t
+    );
+    tracksRef.current = next;
+    setTracks(next);
+  }
+
+  function commitTransitionDuration(_value: number, previousValue: number) {
+    if (!selected || !selected.clip.transitionIn) return;
+    const before = tracksRef.current.map((t) =>
+      t.id === selected!.track.id
+        ? {
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === selected!.clip.id && c.transitionIn
+                ? { ...c, transitionIn: { ...c.transitionIn, durationMs: previousValue } }
+                : c
+            ),
+          }
+        : t
+    );
+    commitTracks(before, tracksRef.current);
+  }
 }
 
 const styles = StyleSheet.create({
@@ -391,13 +992,16 @@ const styles = StyleSheet.create({
     color: '#0D2036',
   },
   previewPanel: {
-    height: '34%',
     backgroundColor: colors.preto,
     position: 'relative',
+    overflow: 'hidden',
   },
   previewImage: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   qualityBadge: {
     position: 'absolute',
@@ -454,8 +1058,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dividerHandle: {
-    height: 3,
+    height: 10,
     backgroundColor: colors.linha,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timelineSection: {
     flex: 1,
@@ -502,12 +1108,12 @@ const styles = StyleSheet.create({
     borderRightColor: colors.linha,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    gap: 4,
+    paddingHorizontal: 5,
+    gap: 3,
   },
   trackLabel: {
     fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
+    fontSize: 10,
     color: colors.texto2,
     fontWeight: '500',
     flex: 1,
@@ -539,6 +1145,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.acento,
   },
+  clipFrozen: {
+    borderStyle: 'dashed',
+  },
   clipName: {
     fontSize: 9,
     color: 'rgba(228,228,228,0.65)',
@@ -558,6 +1167,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.ok,
     opacity: 0.6,
+  },
+  transitionMarker: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(58,143,222,0.25)',
+  },
+  trimHandleLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 10,
+  },
+  trimHandleRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 10,
   },
   clipPanel: {
     backgroundColor: colors.barra,
@@ -579,10 +1212,13 @@ const styles = StyleSheet.create({
   clipTabTextActive: {
     color: colors.acento,
   },
+  clipTabTextDisabled: {
+    color: colors.linha,
+  },
   trimRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   trimLabel: {
     fontFamily: monoFontFamily,
@@ -609,6 +1245,28 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.texto,
   },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  chip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  chipActive: {
+    borderColor: colors.acento,
+  },
+  chipText: {
+    fontSize: fontSize.xs,
+    color: colors.texto,
+  },
+  chipTextActive: {
+    color: colors.acento,
+  },
   bottomToolbar: {
     backgroundColor: colors.barra,
     borderTopWidth: 1,
@@ -622,6 +1280,9 @@ const styles = StyleSheet.create({
   toolItem: {
     alignItems: 'center',
     gap: 2,
+  },
+  toolItemActive: {
+    opacity: 1,
   },
   toolLabel: {
     fontSize: 9,

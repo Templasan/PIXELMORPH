@@ -1,132 +1,126 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon, Slider } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
+import type { EditorLayer } from '@modules/photo-editor/layers';
 
-interface LayerDef {
-  key: string;
-  name: string;
-  type: string;
-  img: string;
-  locked?: boolean;
-  group?: boolean;
-  child?: boolean;
-}
+const KIND_ICON: Record<EditorLayer['kind'], string> = {
+  background: 'image',
+  adjustments: 'sliders',
+  paint: 'wand',
+};
 
-// TODO: replace with the real layer stack for the open project.
-const LAYER_DEFS: LayerDef[] = [
-  { key: 'texto', name: 'Texto', type: 'Texto', img: 'photo-1611532736597-de2d4265fba3' },
-  { key: 'pintura', name: 'Pintura à mão', type: 'Normal', img: 'photo-1558618666-fcd25c85cd64' },
-  {
-    key: 'efeitos',
-    name: 'Efeitos',
-    type: 'Grupo',
-    img: 'photo-1504701954957-2010ec3bcec1',
-    group: true,
-  },
-  {
-    key: 'vinheta',
-    name: 'Vinheta',
-    type: 'Efeito',
-    img: 'photo-1507525428034-b723cf961d3e',
-    child: true,
-  },
-  {
-    key: 'granulado',
-    name: 'Granulado',
-    type: 'Efeito',
-    img: 'photo-1469474968028-56623f02e42e',
-    child: true,
-  },
-  { key: 'mascara', name: 'Máscara céu', type: 'Máscara', img: 'photo-1507525428034-b723cf961d3e' },
-  {
-    key: 'ajustes',
-    name: 'Ajustes de cor',
-    type: 'Ajuste',
-    img: 'photo-1531746020798-e6953c6e8e04',
-  },
-  {
-    key: 'fundo',
-    name: 'Fundo',
-    type: 'Normal',
-    img: 'photo-1507525428034-b723cf961d3e',
-    locked: true,
-  },
-];
-
-const ACTIONS = [
-  { title: 'Adicionar', symbol: '+', danger: false },
-  { title: 'Duplicar', symbol: '⧉', danger: false },
-  { title: 'Mesclar visíveis', symbol: '⊕', danger: false },
-  { title: 'Agrupar', symbol: '▣', danger: false },
-  { title: 'Excluir', symbol: '✕', danger: true },
-];
+const KIND_LABEL: Record<EditorLayer['kind'], string> = {
+  background: 'Normal',
+  adjustments: 'Ajuste',
+  paint: 'Pintura',
+};
 
 interface LayersPanelProps {
-  visibility: Record<string, boolean>;
-  onToggleVisibility: (key: string) => void;
-  groupExpanded: boolean;
-  onToggleGroup: () => void;
-  opacity: number;
-  onOpacityChange: (value: number) => void;
+  layers: EditorLayer[];
+  selectedLayerId: string;
+  onSelectLayer: (id: string) => void;
+  onToggleVisibility: (id: string) => void;
+  onOpacityChange: (id: string, value: number) => void;
+  onAdd: () => void;
+  onDuplicate: (id: string) => void;
+  onMergeVisible: () => void;
+  onDelete: (id: string) => void;
 }
 
-/** Camadas panel: 220px side panel (not a bottom drawer), per spec. Eyes really toggle visibility. */
+/** Camadas panel (RF-002/RF-052): a real, small layer stack — not mocked layer names. */
 export function LayersPanel({
-  visibility,
+  layers,
+  selectedLayerId,
+  onSelectLayer,
   onToggleVisibility,
-  groupExpanded,
-  onToggleGroup,
-  opacity,
   onOpacityChange,
+  onAdd,
+  onDuplicate,
+  onMergeVisible,
+  onDelete,
 }: LayersPanelProps) {
+  const selected = layers.find((l) => l.id === selectedLayerId);
+  const canDuplicate = !!selected && selected.kind === 'paint';
+  const canDelete = !!selected && !selected.locked && selected.kind !== 'background';
+  const visiblePaintCount = layers.filter((l) => l.kind === 'paint' && l.visible).length;
+
   return (
     <View style={styles.panel}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>Camadas</Text>
       </View>
       <View style={styles.actionBar}>
-        {ACTIONS.map(({ title, symbol, danger }) => (
-          // TODO: implement add/duplicate/merge/group/delete layer actions.
-          <Pressable key={title} style={styles.actionButton}>
-            <Text style={[styles.actionSymbol, danger && styles.actionSymbolDanger]}>{symbol}</Text>
-          </Pressable>
-        ))}
+        <Pressable style={styles.actionButton} onPress={onAdd}>
+          <Text style={styles.actionSymbol}>+</Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionButton}
+          onPress={() => canDuplicate && onDuplicate(selectedLayerId)}
+          disabled={!canDuplicate}
+        >
+          <Text style={[styles.actionSymbol, !canDuplicate && styles.actionSymbolDisabled]}>⧉</Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionButton}
+          onPress={onMergeVisible}
+          disabled={visiblePaintCount < 2}
+        >
+          <Text style={[styles.actionSymbol, visiblePaintCount < 2 && styles.actionSymbolDisabled]}>
+            ⊕
+          </Text>
+        </Pressable>
+        <Pressable
+          style={styles.actionButton}
+          onPress={() => canDelete && onDelete(selectedLayerId)}
+          disabled={!canDelete}
+        >
+          <Text
+            style={[
+              styles.actionSymbol,
+              canDelete ? styles.actionSymbolDanger : styles.actionSymbolDisabled,
+            ]}
+          >
+            ✕
+          </Text>
+        </Pressable>
       </View>
       <ScrollView style={{ flex: 1 }}>
-        {LAYER_DEFS.map((layer) => {
-          if (layer.child && !groupExpanded) return null;
-          const visible = visibility[layer.key] ?? true;
+        {[...layers].reverse().map((layer) => {
+          const isSelected = layer.id === selectedLayerId;
           return (
-            <View
-              key={layer.key}
-              style={[styles.row, layer.child && styles.rowChild, !visible && { opacity: 0.4 }]}
+            <Pressable
+              key={layer.id}
+              onPress={() => onSelectLayer(layer.id)}
+              style={[
+                styles.row,
+                isSelected && styles.rowSelected,
+                !layer.visible && { opacity: 0.4 },
+              ]}
             >
-              <Pressable onPress={() => onToggleVisibility(layer.key)} hitSlop={6}>
+              <Pressable onPress={() => onToggleVisibility(layer.id)} hitSlop={6}>
                 <Icon
-                  name={visible ? 'eye' : 'eyeOff'}
+                  name={layer.visible ? 'eye' : 'eyeOff'}
                   size={13}
-                  color={visible ? colors.icone : colors.linha}
+                  color={layer.visible ? colors.icone : colors.linha}
                 />
               </Pressable>
-              {layer.group && (
-                <Pressable onPress={onToggleGroup} hitSlop={6}>
-                  <Text style={styles.groupCaret}>{groupExpanded ? '▾' : '▸'}</Text>
-                </Pressable>
-              )}
-              <Image
-                source={{
-                  uri: `https://images.unsplash.com/${layer.img}?w=52&h=52&fit=crop&auto=format`,
-                }}
-                style={[styles.layerThumb, !visible && { opacity: 0.3 }]}
-              />
+              <View style={styles.layerThumb}>
+                <Icon name={KIND_ICON[layer.kind]} size={14} color={colors.texto2} />
+              </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.layerName, !visible && styles.layerNameDim]} numberOfLines={1}>
+                <Text
+                  style={[styles.layerName, !layer.visible && styles.layerNameDim]}
+                  numberOfLines={1}
+                >
                   {layer.name}
                 </Text>
-                <Text style={styles.layerType}>{layer.type}</Text>
+                <Text style={styles.layerType}>
+                  {KIND_LABEL[layer.kind]}
+                  {layer.kind === 'paint' ? ` · ${layer.strokes?.length ?? 0} traços` : ''}
+                </Text>
               </View>
               {layer.locked && <Icon name="lock" size={11} color={colors.texto2} />}
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -138,19 +132,12 @@ export function LayersPanel({
           <View style={{ flex: 1 }}>
             <Slider
               label=""
-              value={opacity}
+              value={selected?.opacity ?? 100}
               min={0}
               max={100}
-              onChange={onOpacityChange}
+              onChange={(v) => onOpacityChange(selectedLayerId, v)}
               labelWidth={0}
             />
-          </View>
-        </View>
-        <View style={styles.footerRow}>
-          <Text style={styles.footerLabel}>Modo</Text>
-          {/* TODO: real blend-mode picker (Normal, Multiply, Screen, etc.). */}
-          <View style={styles.modeBox}>
-            <Text style={styles.modeText}>Normal</Text>
           </View>
         </View>
       </View>
@@ -209,6 +196,9 @@ const styles = StyleSheet.create({
   actionSymbolDanger: {
     color: colors.perigo,
   },
+  actionSymbolDisabled: {
+    color: colors.linha,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -218,18 +208,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.linha,
   },
-  rowChild: {
-    paddingLeft: 22,
-  },
-  groupCaret: {
-    fontSize: 8,
-    color: colors.texto2,
+  rowSelected: {
+    backgroundColor: colors.faixa,
   },
   layerThumb: {
     width: 26,
     height: 26,
     borderWidth: 1,
     borderColor: colors.linha,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   layerName: {
     fontSize: 10,
@@ -258,18 +246,5 @@ const styles = StyleSheet.create({
     color: colors.texto2,
     width: 64,
     flexShrink: 0,
-  },
-  modeBox: {
-    flex: 1,
-    fontSize: fontSize.xs,
-    backgroundColor: colors.painel,
-    borderWidth: 1,
-    borderColor: colors.linha,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  modeText: {
-    fontSize: fontSize.xs,
-    color: colors.texto,
   },
 });

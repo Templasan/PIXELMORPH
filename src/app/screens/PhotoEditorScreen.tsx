@@ -11,7 +11,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { Canvas, Fill, ImageShader, Shader, Skia, useImage } from '@shopify/react-native-skia';
+import {
+  Canvas,
+  Fill,
+  Group,
+  ImageShader,
+  Path,
+  Shader,
+  Skia,
+  useCanvasRef,
+  useImage,
+} from '@shopify/react-native-skia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet } from '@core/ui';
@@ -19,12 +29,41 @@ import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { createProjectsModule } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
-import { ADJUSTMENTS_SKSL, toFullUniforms, useImageHistogram } from '@modules/photo-editor/color';
+import {
+  ADJUSTMENTS_SKSL,
+  CURVE_IDENTITY,
+  toFullUniforms,
+  useImageHistogram,
+} from '@modules/photo-editor/color';
+import {
+  computeHomography,
+  orientationToTransform,
+  readExifOrientation,
+  type Point,
+} from '@modules/photo-editor/geometry';
+import {
+  createPaintLayer,
+  createStrokeId,
+  duplicateLayer,
+  mergeVisiblePaintLayers,
+  type EditorLayer,
+} from '@modules/photo-editor/layers';
+import {
+  RETRO_EFFECTS_SKSL,
+  toRetroUniforms,
+  blendModeAt,
+  DEFAULT_DOUBLE_EXPOSURE_BLEND,
+  DEFAULT_DOUBLE_EXPOSURE_OPACITY,
+} from '@modules/photo-editor/effects';
 import { AdjustDrawer } from './photo-editor/AdjustDrawer';
 import { GeometryDrawer } from './photo-editor/GeometryDrawer';
+import { PerspectiveHandles } from './photo-editor/PerspectiveHandles';
+import { LightPositionHandle } from './photo-editor/LightPositionHandle';
+import { FrameOverlay } from './photo-editor/FrameOverlay';
+import { LightEffectOverlay } from './photo-editor/LightEffectOverlay';
 import { MasksDrawer } from './photo-editor/MasksDrawer';
 import { RetouchDrawer } from './photo-editor/RetouchDrawer';
-import { EffectsDrawer } from './photo-editor/EffectsDrawer';
+import { EffectsDrawer, type DoubleExposureImage } from './photo-editor/EffectsDrawer';
 import { ElementsDrawer } from './photo-editor/ElementsDrawer';
 import { AIDrawer } from './photo-editor/AIDrawer';
 import { PresetsDrawer } from './photo-editor/PresetsDrawer';
@@ -56,14 +95,18 @@ const TOOLBAR = [
   { id: 'presets', icon: 'preset', label: 'Presets' },
 ] as const;
 
-const PHOTO_URI =
+// Fallback only for the no-project spike entry point — every real project uses its own
+// imported asset (see projectPhotoUri).
+const DEMO_PHOTO_URI =
   'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=533&fit=crop&auto=format';
 const PHOTO_WIDTH = 340;
 const PHOTO_HEIGHT = 227;
+const BRUSH_COLORS = ['#E5484D', '#F5A623', '#F5D90A', '#30A46C', '#3B82F6', '#FFFFFF', '#000000'];
 
 interface Adjustments {
   // Básico (RF-047)
   temperatura: number;
+  tint: number; // RF-003 white balance's green<->magenta axis
   matiz: number;
   saturacao: number;
   luminosidade: number;
@@ -80,11 +123,58 @@ interface Adjustments {
   corMatiz: number;
   corSaturacao: number;
   corLuminosidade: number;
+  // Curvas (RF-029) — piecewise-linear per channel, see colorAdjustments.ts.
+  curveMasterY1: number;
+  curveMasterY2: number;
+  curveRY1: number;
+  curveRY2: number;
+  curveGY1: number;
+  curveGY2: number;
+  curveBY1: number;
+  curveBY2: number;
+  // Geometria (US-05): rotation, mirror, and 4-point perspective — see geometry/.
+  rotation90: number; // 0 | 90 | 180 | 270
+  fineRotation: number; // -45..45 (horizon straighten)
+  flipH: number; // 0 | 1
+  flipV: number; // 0 | 1
+  mirrorOpacity: number; // 0..100
+  perspX0: number;
+  perspY0: number;
+  perspX1: number;
+  perspY1: number;
+  perspX2: number;
+  perspY2: number;
+  perspX3: number;
+  perspY3: number;
+  // Efeitos — Retrô (RF-041): envelhecimento/granulado/vinheta, each with its own blend.
+  retroAging: number;
+  retroAgingBlend: number;
+  retroGrain: number;
+  retroGrainBlend: number;
+  retroVignette: number;
+  retroVignetteBlend: number;
+  // Efeitos — Overlays (RF-028): procedural textures from the internal repository.
+  overlayType: number;
+  overlayIntensity: number;
+  overlayOpacity: number;
+  // Efeitos — Molduras (RF-060).
+  frameStyle: number;
+  frameThickness: number;
+  frameRadius: number;
+  // Efeitos — Iluminação (RF-068).
+  lightType: number;
+  lightX: number;
+  lightY: number;
+  lightIntensity: number;
+  // Efeitos — Dupla exposição (RF-075).
+  doubleExposureBlend: number;
+  doubleExposureOpacity: number;
   [key: string]: number;
 }
 
 const DEFAULT_ADJUSTMENTS: Adjustments = {
   temperatura: 0,
+  tint: 0,
   matiz: 0,
   saturacao: 0,
   luminosidade: 0,
@@ -99,7 +189,52 @@ const DEFAULT_ADJUSTMENTS: Adjustments = {
   corMatiz: 0,
   corSaturacao: 0,
   corLuminosidade: 0,
+  curveMasterY1: CURVE_IDENTITY.y1,
+  curveMasterY2: CURVE_IDENTITY.y2,
+  curveRY1: CURVE_IDENTITY.y1,
+  curveRY2: CURVE_IDENTITY.y2,
+  curveGY1: CURVE_IDENTITY.y1,
+  curveGY2: CURVE_IDENTITY.y2,
+  curveBY1: CURVE_IDENTITY.y1,
+  curveBY2: CURVE_IDENTITY.y2,
+  rotation90: 0,
+  fineRotation: 0,
+  flipH: 0,
+  flipV: 0,
+  mirrorOpacity: 100,
+  perspX0: 0,
+  perspY0: 0,
+  perspX1: 1,
+  perspY1: 0,
+  perspX2: 1,
+  perspY2: 1,
+  perspX3: 0,
+  perspY3: 1,
+  retroAging: 0,
+  retroAgingBlend: 100,
+  retroGrain: 0,
+  retroGrainBlend: 100,
+  retroVignette: 0,
+  retroVignetteBlend: 100,
+  overlayType: 0,
+  overlayIntensity: 60,
+  overlayOpacity: 0,
+  frameStyle: 0,
+  frameThickness: 30,
+  frameRadius: 30,
+  lightType: 0,
+  lightX: 0.78,
+  lightY: 0.22,
+  lightIntensity: 0,
+  doubleExposureBlend: DEFAULT_DOUBLE_EXPOSURE_BLEND,
+  doubleExposureOpacity: DEFAULT_DOUBLE_EXPOSURE_OPACITY,
 };
+
+function pointsToPath(points: Point[]): string {
+  if (points.length === 0) return '';
+  const [first, ...rest] = points;
+  return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
+}
 
 export default function PhotoEditorScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
@@ -109,31 +244,58 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const history = usePersistedHistory(sessionId);
 
   const [projectName, setProjectName] = useState('Novo projeto');
+  // RF-028/US-11: the project's own real asset (imported from the device or created by the
+  // RAW converter) — falls back to the bundled demo photo only when there is no real asset yet.
+  const [projectPhotoUri, setProjectPhotoUri] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareSplit, setCompareSplit] = useState(50);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [zoom, setZoom] = useState(100);
-  const [layersVisible, setLayersVisible] = useState<Record<string, boolean>>({
-    texto: true,
-    pintura: true,
-    efeitos: true,
-    vinheta: true,
-    granulado: true,
-    mascara: true,
-    ajustes: true,
-    fundo: true,
+  // US-08: a real (small) non-destructive layer stack — background + the color-adjustment
+  // stack (already fully real) + vector paint layers. See @modules/photo-editor/layers.
+  const [layers, setLayers] = useState<EditorLayer[]>(() => {
+    const initialPaint = createPaintLayer('Pintura 1');
+    return [
+      { id: 'fundo', name: 'Fundo', kind: 'background', visible: true, opacity: 100, locked: true },
+      {
+        id: 'ajustes',
+        name: 'Ajustes de cor',
+        kind: 'adjustments',
+        visible: true,
+        opacity: 100,
+        locked: false,
+      },
+      initialPaint,
+    ];
   });
-  const [groupExpanded, setGroupExpanded] = useState(true);
-  const [layerOpacity, setLayerOpacity] = useState(100);
+  const [selectedLayerId, setSelectedLayerId] = useState('fundo');
+  const [brushColor, setBrushColor] = useState('#E5484D');
+  const [brushSize, setBrushSize] = useState(8);
+  const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
+
+  // US-09: frame/light are drawn from the numeric Adjustments fields (undo-tracked like
+  // everything else); their non-numeric bits (color, the picked second image) live here —
+  // same deliberate split already used for paint layers/brushColor.
+  const [frameColor, setFrameColor] = useState('#111111');
+  const [frameGradientColor, setFrameGradientColor] = useState('#FFFFFF');
+  const [lightEditMode, setLightEditMode] = useState(false);
+  const [doubleExposureImage, setDoubleExposureImage] = useState<DoubleExposureImage | null>(null);
 
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
+  const photoUri = projectPhotoUri ?? DEMO_PHOTO_URI;
+
+  // RF-057: a ref to the on-screen Canvas so ExportSheet can snapshot the real composited
+  // result (adjustments + geometry + effects + paint layers, exactly as rendered on screen).
+  const canvasRef = useCanvasRef();
 
   // RF-047/RF-063/RF-059: real GPU color-grading pipeline (see @modules/photo-editor/color)
   // instead of the flat tint overlay this screen used to fake it with.
-  const skiaImage = useImage(PHOTO_URI);
+  const skiaImage = useImage(photoUri);
+  const doubleExposureSkImage = useImage(doubleExposureImage?.uri ?? null);
   const adjustmentsEffect = useMemo(() => Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL), []);
+  const retroEffect = useMemo(() => Skia.RuntimeEffect.Make(RETRO_EFFECTS_SKSL), []);
   const uniforms = useMemo(
     () =>
       toFullUniforms(
@@ -150,12 +312,89 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           matiz: adjustments.corMatiz,
           saturacao: adjustments.corSaturacao,
           luminosidade: adjustments.corLuminosidade,
+        },
+        {
+          master: { y1: adjustments.curveMasterY1, y2: adjustments.curveMasterY2 },
+          r: { y1: adjustments.curveRY1, y2: adjustments.curveRY2 },
+          g: { y1: adjustments.curveGY1, y2: adjustments.curveGY2 },
+          b: { y1: adjustments.curveBY1, y2: adjustments.curveBY2 },
         }
+      ),
+    [adjustments]
+  );
+  const retroUniforms = useMemo(
+    () =>
+      toRetroUniforms(
+        {
+          aging: adjustments.retroAging,
+          agingBlend: adjustments.retroAgingBlend,
+          grain: adjustments.retroGrain,
+          grainBlend: adjustments.retroGrainBlend,
+          vignette: adjustments.retroVignette,
+          vignetteBlend: adjustments.retroVignetteBlend,
+        },
+        {
+          type: adjustments.overlayType,
+          intensity: adjustments.overlayIntensity,
+          opacity: adjustments.overlayOpacity,
+        },
+        PHOTO_WIDTH,
+        PHOTO_HEIGHT
       ),
     [adjustments]
   );
   const histogram = useImageHistogram(skiaImage);
   const liveHistogram = useMemo(() => histogram.compute(uniforms), [histogram, uniforms]);
+
+  // US-05: rotation/mirror/perspective geometry — a separate transform stage applied
+  // around the color-adjusted image, real Skia matrices (not a cosmetic overlay).
+  const [perspectiveEditMode, setPerspectiveEditMode] = useState(false);
+  const totalRotationDeg = adjustments.rotation90 + adjustments.fineRotation;
+  const totalRotationRad = (totalRotationDeg * Math.PI) / 180;
+  const perspectiveCorners = useMemo<[Point, Point, Point, Point]>(
+    () => [
+      { x: adjustments.perspX0 * PHOTO_WIDTH, y: adjustments.perspY0 * PHOTO_HEIGHT },
+      { x: adjustments.perspX1 * PHOTO_WIDTH, y: adjustments.perspY1 * PHOTO_HEIGHT },
+      { x: adjustments.perspX2 * PHOTO_WIDTH, y: adjustments.perspY2 * PHOTO_HEIGHT },
+      { x: adjustments.perspX3 * PHOTO_WIDTH, y: adjustments.perspY3 * PHOTO_HEIGHT },
+    ],
+    [
+      adjustments.perspX0,
+      adjustments.perspY0,
+      adjustments.perspX1,
+      adjustments.perspY1,
+      adjustments.perspX2,
+      adjustments.perspY2,
+      adjustments.perspX3,
+      adjustments.perspY3,
+    ]
+  );
+  const perspectiveActive = perspectiveCorners.some(
+    (p, i) =>
+      Math.abs(p.x - [0, PHOTO_WIDTH, PHOTO_WIDTH, 0][i]) > 0.5 ||
+      Math.abs(p.y - [0, 0, PHOTO_HEIGHT, PHOTO_HEIGHT][i]) > 0.5
+  );
+  // RF-048: maps the marked (distorted) quad onto the full canvas rect. Applied as the
+  // Group's own render matrix — Skia rasterizes shader-filled geometry under a projective
+  // matrix with true per-pixel perspective correction, unlike a triangle-mesh/UV
+  // approximation (react-native-skia's Vertices textures didn't warp reliably here).
+  const perspectiveMatrix = useMemo(
+    () =>
+      perspectiveActive
+        ? computeHomography(perspectiveCorners, [
+            { x: 0, y: 0 },
+            { x: PHOTO_WIDTH, y: 0 },
+            { x: PHOTO_WIDTH, y: PHOTO_HEIGHT },
+            { x: 0, y: PHOTO_HEIGHT },
+          ])
+        : null,
+    [perspectiveActive, perspectiveCorners]
+  );
+  const flipActive = adjustments.flipH > 0 || adjustments.flipV > 0;
+  const adjustmentsLayerVisible = layers.find((l) => l.id === 'ajustes')?.visible ?? true;
+  const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+  const paintModeActive =
+    activeTool === 'camadas' && selectedLayer?.kind === 'paint' && !selectedLayer.locked;
 
   useEffect(() => {
     if (!projectId) return;
@@ -163,7 +402,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     getProject
       .execute(projectId)
       .then((project) => {
-        if (project) setProjectName(project.name);
+        if (!project) return;
+        setProjectName(project.name);
+        const asset = project.assets[0];
+        if (asset) setProjectPhotoUri(asset.workingUri || asset.originalUri);
       })
       .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.getProject'));
   }, [projectId]);
@@ -199,6 +441,20 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     }
   }, [history]);
 
+  const applyExifOrientation = useCallback(async () => {
+    try {
+      const response = await fetch(photoUri);
+      const buffer = await response.arrayBuffer();
+      const orientation = readExifOrientation(new Uint8Array(buffer));
+      const transform = orientationToTransform(orientation);
+      commitAdjustment('rotation90', transform.rotate, adjustments.rotation90);
+      commitAdjustment('flipH', transform.flipH ? 1 : 0, adjustments.flipH);
+      commitAdjustment('flipV', transform.flipV ? 1 : 0, adjustments.flipV);
+    } catch (error) {
+      errorLogger.log(error, 'PhotoEditorScreen.applyExifOrientation');
+    }
+  }, [photoUri, commitAdjustment, adjustments.rotation90, adjustments.flipH, adjustments.flipV]);
+
   const toggleTool = (tool: Exclude<Tool, null>) =>
     setActiveTool((prev) => (prev === tool ? null : tool));
 
@@ -218,6 +474,134 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const compareDrag = Gesture.Pan().onUpdate((e) => {
     runOnJS(updateSplitFromX)(e.x);
   });
+
+  // RF-033: real digital painting — points are captured as they come in (works the same
+  // for a finger or a stylus, since gesture-handler reports both as pointer events) and
+  // committed as one vector stroke on release, appended to the active paint layer only.
+  const appendStrokePoint = useCallback((x: number, y: number) => {
+    setCurrentStroke((pts) => [...pts, { x, y }]);
+  }, []);
+
+  const commitStroke = useCallback(() => {
+    setCurrentStroke((pts) => {
+      if (pts.length > 1) {
+        const path = pointsToPath(pts);
+        setLayers((prev) =>
+          prev.map((l) =>
+            l.id === selectedLayerId
+              ? {
+                  ...l,
+                  strokes: [
+                    ...(l.strokes ?? []),
+                    {
+                      id: createStrokeId(),
+                      path,
+                      color: brushColor,
+                      width: brushSize,
+                      opacity: 1,
+                    },
+                  ],
+                }
+              : l
+          )
+        );
+      }
+      return [];
+    });
+  }, [selectedLayerId, brushColor, brushSize]);
+
+  const paintGesture = Gesture.Pan()
+    .onBegin((e) => {
+      runOnJS(appendStrokePoint)(e.x, e.y);
+    })
+    .onUpdate((e) => {
+      runOnJS(appendStrokePoint)(e.x, e.y);
+    })
+    .onEnd(() => {
+      runOnJS(commitStroke)();
+    });
+
+  const setPerspCorner = useCallback((index: 0 | 1 | 2 | 3, nx: number, ny: number) => {
+    setAdjustments((s) => ({ ...s, [`perspX${index}`]: nx, [`perspY${index}`]: ny }));
+  }, []);
+
+  const commitPerspCorner = useCallback(
+    (index: 0 | 1 | 2 | 3, nx: number, ny: number, fromNx: number, fromNy: number) => {
+      commitAdjustment(`perspX${index}`, nx, fromNx);
+      commitAdjustment(`perspY${index}`, ny, fromNy);
+    },
+    [commitAdjustment]
+  );
+
+  const setLightPosition = useCallback((nx: number, ny: number) => {
+    setAdjustments((s) => ({ ...s, lightX: nx, lightY: ny }));
+  }, []);
+
+  const commitLightPosition = useCallback(
+    (nx: number, ny: number, fromNx: number, fromNy: number) => {
+      commitAdjustment('lightX', nx, fromNx);
+      commitAdjustment('lightY', ny, fromNy);
+    },
+    [commitAdjustment]
+  );
+
+  // US-09: chains the retro/overlay-texture shader (RF-041/028) right after the
+  // color-adjustments one — Skia composes nested <Shader> nodes into a single GPU pass.
+  const renderPhotoLayer = (
+    flipH: boolean,
+    flipV: boolean,
+    opacity: number,
+    key: string,
+    includeDoubleExposure = false
+  ) => (
+    <Group
+      key={key}
+      transform={[{ scaleX: flipH ? -1 : 1 }, { scaleY: flipV ? -1 : 1 }]}
+      origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
+      opacity={opacity}
+    >
+      <Group matrix={perspectiveMatrix ?? undefined}>
+        <Fill>
+          <Shader source={retroEffect as NonNullable<typeof retroEffect>} uniforms={retroUniforms}>
+            {/* US-08: hiding the "Ajustes de cor" layer genuinely shows the untouched photo. */}
+            {adjustmentsLayerVisible ? (
+              <Shader
+                source={adjustmentsEffect as NonNullable<typeof adjustmentsEffect>}
+                uniforms={uniforms}
+              >
+                <ImageShader
+                  image={skiaImage}
+                  fit="cover"
+                  rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+                />
+              </Shader>
+            ) : (
+              <ImageShader
+                image={skiaImage}
+                fit="cover"
+                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+              />
+            )}
+          </Shader>
+        </Fill>
+        {/* RF-075: a real second image, GPU-blended over the first with an adjustable mode/opacity. */}
+        {includeDoubleExposure && doubleExposureSkImage && (
+          <Group
+            blendMode={blendModeAt(adjustments.doubleExposureBlend)}
+            opacity={adjustments.doubleExposureOpacity / 100}
+          >
+            <Fill>
+              <ImageShader
+                image={doubleExposureSkImage}
+                fit="cover"
+                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+              />
+            </Fill>
+          </Group>
+        )}
+      </Group>
+    </Group>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -252,26 +636,130 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         <View style={styles.canvasCenter} onLayout={onCanvasLayout}>
           <View style={styles.photo}>
             {skiaImage && adjustmentsEffect ? (
-              <Canvas style={StyleSheet.absoluteFill}>
-                <Fill>
-                  <Shader source={adjustmentsEffect} uniforms={uniforms}>
-                    <ImageShader
-                      image={skiaImage}
-                      fit="cover"
-                      rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-                    />
-                  </Shader>
-                </Fill>
+              <Canvas ref={canvasRef} style={StyleSheet.absoluteFill}>
+                <Group
+                  transform={[{ rotate: totalRotationRad }]}
+                  origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
+                >
+                  {renderPhotoLayer(false, false, 1, 'base', true)}
+                  {flipActive &&
+                    renderPhotoLayer(
+                      adjustments.flipH > 0,
+                      adjustments.flipV > 0,
+                      adjustments.mirrorOpacity / 100,
+                      'mirror'
+                    )}
+                </Group>
+                {/* RF-068: positioned in canvas space, like the paint layers below — it stays
+                    where the user placed it regardless of the photo's own rotation. */}
+                {adjustments.lightIntensity > 0 && (
+                  <LightEffectOverlay
+                    type={adjustments.lightType}
+                    x={adjustments.lightX * PHOTO_WIDTH}
+                    y={adjustments.lightY * PHOTO_HEIGHT}
+                    intensity={adjustments.lightIntensity}
+                    width={PHOTO_WIDTH}
+                    height={PHOTO_HEIGHT}
+                  />
+                )}
+                {/* US-08: paint layers live outside the photo's own rotate/flip group —
+                    strokes stay put in canvas space, matching where they were drawn. */}
+                {layers
+                  .filter((l) => l.kind === 'paint' && l.visible)
+                  .map((l) => (
+                    <Group key={l.id} opacity={l.opacity / 100}>
+                      {(l.strokes ?? []).map((s) => (
+                        <Path
+                          key={s.id}
+                          path={s.path}
+                          style="stroke"
+                          strokeWidth={s.width}
+                          strokeCap="round"
+                          strokeJoin="round"
+                          color={s.color}
+                          opacity={s.opacity}
+                        />
+                      ))}
+                    </Group>
+                  ))}
+                {currentStroke.length > 1 && (
+                  <Path
+                    path={pointsToPath(currentStroke)}
+                    style="stroke"
+                    strokeWidth={brushSize}
+                    strokeCap="round"
+                    strokeJoin="round"
+                    color={brushColor}
+                  />
+                )}
+                {/* RF-060: drawn last so the frame sits on top of the finished piece. */}
+                {adjustments.frameStyle > 0 && (
+                  <FrameOverlay
+                    style={adjustments.frameStyle}
+                    thickness={adjustments.frameThickness}
+                    radius={adjustments.frameRadius}
+                    color={frameColor}
+                    gradientColor={frameGradientColor}
+                    width={PHOTO_WIDTH}
+                    height={PHOTO_HEIGHT}
+                  />
+                )}
               </Canvas>
             ) : (
-              <Image source={{ uri: PHOTO_URI }} style={styles.photo} />
+              <Image source={{ uri: photoUri }} style={styles.photo} />
+            )}
+            {perspectiveEditMode && (
+              <PerspectiveHandles
+                corners={perspectiveCorners}
+                width={PHOTO_WIDTH}
+                height={PHOTO_HEIGHT}
+                onChangeCorner={setPerspCorner}
+                onCommitCorner={commitPerspCorner}
+              />
+            )}
+            {lightEditMode && (
+              <LightPositionHandle
+                x={adjustments.lightX * PHOTO_WIDTH}
+                y={adjustments.lightY * PHOTO_HEIGHT}
+                width={PHOTO_WIDTH}
+                height={PHOTO_HEIGHT}
+                onChange={setLightPosition}
+                onCommitValue={commitLightPosition}
+              />
+            )}
+            {paintModeActive && (
+              <GestureDetector gesture={paintGesture}>
+                <View style={StyleSheet.absoluteFill} />
+              </GestureDetector>
             )}
           </View>
+          {paintModeActive && (
+            <View style={styles.brushBar}>
+              {BRUSH_COLORS.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => setBrushColor(c)}
+                  style={[
+                    styles.brushSwatch,
+                    { backgroundColor: c },
+                    brushColor === c && styles.brushSwatchActive,
+                  ]}
+                />
+              ))}
+              <Pressable onPress={() => setBrushSize((s) => Math.max(2, s - 2))} hitSlop={6}>
+                <Icon name="minus" size={14} color={colors.texto} />
+              </Pressable>
+              <Text style={styles.brushSizeText}>{brushSize}px</Text>
+              <Pressable onPress={() => setBrushSize((s) => Math.min(40, s + 2))} hitSlop={6}>
+                <Icon name="plus" size={14} color={colors.texto} />
+              </Pressable>
+            </View>
+          )}
 
           {compareMode && canvasWidth > 0 && (
             <View style={StyleSheet.absoluteFill}>
               <View style={[styles.compareOriginalWrap, { width: `${compareSplit}%` }]}>
-                <Image source={{ uri: PHOTO_URI }} style={[styles.photo, { width: canvasWidth }]} />
+                <Image source={{ uri: photoUri }} style={[styles.photo, { width: canvasWidth }]} />
               </View>
               <GestureDetector gesture={compareDrag}>
                 <View style={[styles.compareHandle, { left: `${compareSplit}%` }]}>
@@ -292,14 +780,50 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
         {activeTool === 'camadas' && (
           <LayersPanel
-            visibility={layersVisible}
-            onToggleVisibility={(key) =>
-              setLayersVisible((prev) => ({ ...prev, [key]: !prev[key] }))
+            layers={layers}
+            selectedLayerId={selectedLayerId}
+            onSelectLayer={setSelectedLayerId}
+            onToggleVisibility={(id) =>
+              setLayers((prev) =>
+                prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l))
+              )
             }
-            groupExpanded={groupExpanded}
-            onToggleGroup={() => setGroupExpanded((g) => !g)}
-            opacity={layerOpacity}
-            onOpacityChange={setLayerOpacity}
+            onOpacityChange={(id, value) =>
+              setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, opacity: value } : l)))
+            }
+            onAdd={() => {
+              const layer = createPaintLayer(
+                `Pintura ${layers.filter((l) => l.kind === 'paint').length + 1}`
+              );
+              setLayers((prev) => [...prev, layer]);
+              setSelectedLayerId(layer.id);
+            }}
+            onDuplicate={(id) =>
+              setLayers((prev) => {
+                const source = prev.find((l) => l.id === id);
+                if (!source) return prev;
+                const copy = duplicateLayer(source);
+                setSelectedLayerId(copy.id);
+                return [...prev, copy];
+              })
+            }
+            onMergeVisible={() =>
+              setLayers((prev) => {
+                const merged = mergeVisiblePaintLayers(prev);
+                if (!merged.some((l) => l.id === selectedLayerId)) {
+                  const survivor = merged.find((l) => l.kind === 'paint');
+                  if (survivor) setSelectedLayerId(survivor.id);
+                }
+                return merged;
+              })
+            }
+            onDelete={(id) =>
+              setLayers((prev) => {
+                const next = prev.filter((l) => l.id !== id);
+                if (selectedLayerId === id) setSelectedLayerId('fundo');
+                return next;
+              })
+            }
           />
         )}
 
@@ -331,10 +855,35 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 uniforms={uniforms}
               />
             )}
-            {activeTool === 'geometria' && <GeometryDrawer />}
+            {activeTool === 'geometria' && (
+              <GeometryDrawer
+                adjustments={adjustments}
+                setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
+                onCommit={commitAdjustment}
+                perspectiveEditMode={perspectiveEditMode}
+                onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
+                onApplyExif={applyExifOrientation}
+              />
+            )}
             {activeTool === 'mascaras' && <MasksDrawer />}
             {activeTool === 'retoque' && <RetouchDrawer />}
-            {activeTool === 'efeitos' && <EffectsDrawer />}
+            {activeTool === 'efeitos' && (
+              <EffectsDrawer
+                adjustments={adjustments}
+                setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
+                onCommit={commitAdjustment}
+                frameColor={frameColor}
+                onFrameColorChange={setFrameColor}
+                frameGradientColor={frameGradientColor}
+                onFrameGradientColorChange={setFrameGradientColor}
+                lightEditMode={lightEditMode}
+                onToggleLightEditMode={() => setLightEditMode((v) => !v)}
+                doubleExposureImage={doubleExposureImage}
+                onPickDoubleExposureImage={setDoubleExposureImage}
+                onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
+                currentProjectId={projectId}
+              />
+            )}
             {activeTool === 'elementos' && <ElementsDrawer />}
             {activeTool === 'ia' && <AIDrawer />}
             {activeTool === 'presets' && <PresetsDrawer />}
@@ -362,7 +911,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         </ScrollView>
       </View>
 
-      {exportOpen && <ExportSheet onClose={() => setExportOpen(false)} />}
+      {exportOpen && (
+        <ExportSheet
+          onClose={() => setExportOpen(false)}
+          mediaKind="photo"
+          getSourceImage={() => canvasRef.current?.makeImageSnapshot() ?? null}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -532,5 +1087,34 @@ const styles = StyleSheet.create({
   },
   toolbarLabelActive: {
     color: colors.acento,
+  },
+  brushBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(37,37,37,0.92)',
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  brushSwatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  brushSwatchActive: {
+    borderColor: colors.acento,
+    borderWidth: 2,
+  },
+  brushSizeText: {
+    fontFamily: monoFontFamily,
+    fontSize: fontSize.xs,
+    color: colors.texto,
+    width: 32,
+    textAlign: 'center',
   },
 });

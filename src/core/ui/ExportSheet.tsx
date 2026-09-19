@@ -1,53 +1,73 @@
-import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { SkImage } from '@shopify/react-native-skia';
+import {
+  IMAGE_FORMATS,
+  UNSUPPORTED_IMAGE_FORMATS,
+  SIZE_PRESETS,
+  SOCIAL_PRESETS,
+  formatBytes,
+  encodeImage,
+  encodeToTargetSize,
+  resizeImageCover,
+  resizeImageToFit,
+  type EncodedImage,
+  type ImageExportFormat,
+} from '@modules/export';
+import { saveImageToGallery } from '@modules/device-media';
+import { errorLogger } from '@core/reliability';
 import { colors, fontSize, monoFontFamily } from '../theme';
 import { Icon } from './Icon';
 import { Slider } from './Slider';
+import { Switch } from './Switch';
 import { Tabs } from './Tabs';
 
 interface ExportSheetProps {
   onClose: () => void;
+  /** Which pipeline this sheet is exporting from — video has no real encoder in this build. */
+  mediaKind?: 'photo' | 'video';
+  /** RF-057: real Skia snapshot of the current edit, e.g. `() => canvasRef.current?.makeImageSnapshot() ?? null`. */
+  getSourceImage?: () => SkImage | null;
 }
 
 type ExportTab = 'RÁPIDO' | 'PROFISSIONAL' | "MARCA D'ÁGUA";
 const EXPORT_TABS: readonly ExportTab[] = ['RÁPIDO', 'PROFISSIONAL', "MARCA D'ÁGUA"];
 
-type ExportState = 'idle' | 'exporting' | 'done';
+type ExportState = 'idle' | 'exporting' | 'done' | 'error';
 
-const FORMATS = ['JPEG', 'PNG', 'WebP', 'HEIC', 'GIF'];
-const SIZES = ['Original', '2K', '1080p', '720p'];
-const SOCIAL_PRESETS = [
-  ['Instagram Feed', '1080×1080'],
-  ['Instagram Story', '1080×1920'],
-  ['Twitter / X', '1200×675'],
-  ['LinkedIn', '1200×627'],
-];
 const PRO_OPTIONS = ['Manter camadas', 'Incluir máscaras', 'Incorporar perfil ICC'];
 const DPI_OPTIONS = ['72', '150', '300', '600'];
 const COLOR_SPACES = ['sRGB', 'Adobe RGB', 'DCI-P3'];
 const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '↓', '↘'];
-const SHARE_ACTIONS = [
-  { icon: 'save', label: 'Salvar' },
-  { icon: 'upload', label: 'Enviar' },
-  { icon: 'link', label: 'Copiar link' },
-  { icon: 'printer', label: 'Imprimir' },
-  { icon: 'share', label: 'Mais' },
-];
-
-const PREVIEW_URI =
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=320&h=180&fit=crop&auto=format';
 
 /**
- * Modal export sheet — covers 85% of the height over the current editor.
- * Rendered as an overlay by PhotoEditorScreen / VideoEditorScreen; not a route.
+ * Modal export sheet — covers ~88% of the height over the current editor. Rendered as an
+ * overlay by PhotoEditorScreen / VideoEditorScreen; not a route.
+ *
+ * RF-057: photo export is genuinely real — it encodes the editor's actual Skia canvas
+ * snapshot to JPEG/PNG/WebP bytes via Skia's own encoder. RNF-013's "smart compression" is
+ * a real binary search against the encoder's own output size. Video export, PSD/TIFF, GIF
+ * and HEIC all need an encoder this build doesn't have (FFmpeg-class / native image codecs),
+ * and are flagged as such rather than faked.
  */
-export function ExportSheet({ onClose }: ExportSheetProps) {
+export function ExportSheet({ onClose, mediaKind = 'photo', getSourceImage }: ExportSheetProps) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ExportTab>('RÁPIDO');
-  const [format, setFormat] = useState('JPEG');
+  const [format, setFormat] = useState<ImageExportFormat>('JPEG');
   const [quality, setQuality] = useState(85);
   const [sizeChip, setSizeChip] = useState('Original');
+  const [socialPreset, setSocialPreset] = useState<string | null>(null);
+  const [smartCompression, setSmartCompression] = useState(false);
+  const [targetSizeMB, setTargetSizeMB] = useState(2);
   const [dpi, setDpi] = useState('300');
   const [colorSpace, setColorSpace] = useState('Adobe RGB');
   const [proOptions, setProOptions] = useState<Record<string, boolean>>({
@@ -57,30 +77,85 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
   });
   const [wmPosition, setWmPosition] = useState(8);
   const [exportState, setExportState] = useState<ExportState>('idle');
-  const [progress, setProgress] = useState(0);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [result, setResult] = useState<EncodedImage | null>(null);
   const [opacity, setOpacity] = useState(60);
   const [wmSize, setWmSize] = useState(20);
   const [wmRotation, setWmRotation] = useState(0);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
-  const estimatedSize = Math.max(1, Math.round(quality * 0.44));
-
-  const handleExport = () => {
-    // TODO: replace this fake progress timer with the real export pipeline.
-    setExportState('exporting');
-    setProgress(0);
-    let p = 0;
-    const iv = setInterval(() => {
-      p += Math.random() * 15 + 5;
-      if (p >= 100) {
-        p = 100;
-        clearInterval(iv);
-        setProgress(100);
-        setTimeout(() => setExportState('done'), 200);
+  // RF-057 "Salvar": a real file, written via expo-file-system and added to the device's
+  // own photo library via expo-media-library — no longer a fake "not installed" notice.
+  const handleSave = useCallback(async () => {
+    if (!result) return;
+    setSaveState('saving');
+    try {
+      await saveImageToGallery(result.base64, result.format);
+      setSaveState('saved');
+    } catch (error) {
+      setSaveState('error');
+      if (error instanceof Error && error.message === 'PERMISSION_DENIED') {
+        setSaveErrorMessage('Autorize o acesso à galeria para salvar a exportação.');
       } else {
-        setProgress(Math.round(p));
+        setSaveErrorMessage('Não foi possível salvar na galeria.');
+        errorLogger.log(error, 'ExportSheet.handleSave');
       }
-    }, 120);
-  };
+    }
+  }, [result]);
+
+  const handleExport = useCallback(async () => {
+    if (mediaKind !== 'photo' || !getSourceImage) {
+      setExportState('error');
+      setErrorMessage(
+        'Exportação de vídeo exige um codificador nativo (ex.: FFmpeg), não incluído neste build.'
+      );
+      return;
+    }
+    const source = getSourceImage();
+    if (!source) {
+      setExportState('error');
+      setErrorMessage('Não foi possível capturar a imagem atual do editor.');
+      return;
+    }
+
+    setExportState('exporting');
+    setSaveState('idle');
+    // Let "Processando..." paint before the (synchronous) encode work runs.
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const image = socialPreset
+        ? resizeImageCover(
+            source,
+            SOCIAL_PRESETS.find((p) => p.name === socialPreset)!.width,
+            SOCIAL_PRESETS.find((p) => p.name === socialPreset)!.height
+          )
+        : resizeImageToFit(
+            source,
+            (SIZE_PRESETS.find((p) => p.name === sizeChip) ?? SIZE_PRESETS[0]).maxLongEdge
+          );
+
+      const encoded = smartCompression
+        ? encodeToTargetSize(image, format, Math.round(targetSizeMB * 1024 * 1024))
+        : encodeImage(image, format, quality);
+
+      setResult(encoded);
+      setExportState('done');
+    } catch (error) {
+      setExportState('error');
+      setErrorMessage('Falha ao codificar a imagem.');
+      errorLogger.log(error, 'ExportSheet.handleExport');
+    }
+  }, [
+    mediaKind,
+    getSourceImage,
+    socialPreset,
+    sizeChip,
+    smartCompression,
+    targetSizeMB,
+    format,
+    quality,
+  ]);
 
   return (
     <View style={styles.overlay}>
@@ -98,11 +173,32 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
           </Pressable>
         </View>
 
-        {exportState === 'done' ? (
+        {mediaKind === 'video' ? (
+          <View style={styles.centeredContent}>
+            <Icon name="film" size={28} color={colors.linha} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.doneTitle}>Exportação de vídeo indisponível</Text>
+              <Text style={[styles.warningText, styles.warningTextBlock, { color: colors.texto2 }]}>
+                Unir clipes, aplicar transições e recodificar um vídeo final exige um codificador
+                nativo (classe FFmpeg) que não está incluído neste build Expo gerenciado. A linha do
+                tempo e todas as edições continuam reais e são salvas — só a etapa final de gravação
+                do arquivo de vídeo não está disponível aqui.
+              </Text>
+            </View>
+            <Pressable style={styles.exportButton} onPress={onClose}>
+              <Text style={styles.exportButtonText}>Entendi</Text>
+            </Pressable>
+          </View>
+        ) : exportState === 'done' && result ? (
           <View style={styles.centeredContent}>
             <View>
-              {/* TODO: show the real exported file thumbnail. */}
-              <Image source={{ uri: PREVIEW_URI }} style={styles.doneThumb} />
+              <Image
+                source={{
+                  uri: `data:image/${result.format.toLowerCase()};base64,${result.base64}`,
+                }}
+                style={styles.doneThumb}
+                resizeMode="cover"
+              />
               <View style={styles.doneCheck}>
                 <Icon name="check" size={16} color={colors.preto} />
               </View>
@@ -110,18 +206,39 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.doneTitle}>Exportação concluída</Text>
               <Text style={styles.doneMeta}>
-                {format} · 6000×4000 · {estimatedSize} MB · 2,3 s
+                {result.format} · {result.width}×{result.height} ·{' '}
+                {formatBytes(result.bytes.length)}
+                {smartCompression ? ` · qualidade ${result.quality}%` : ''}
               </Text>
             </View>
-            <View style={styles.shareRow}>
-              {SHARE_ACTIONS.map(({ icon, label }) => (
-                // TODO: wire real save / share / print integrations.
-                <Pressable key={label} style={styles.shareButton}>
-                  <Icon name={icon} size={18} />
-                  <Text style={styles.shareLabel}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {saveState === 'saved' ? (
+              <View style={styles.savedRow}>
+                <Icon name="check" size={14} color={colors.ok} />
+                <Text style={[styles.warningText, styles.savedText]}>
+                  Salva na galeria do dispositivo.
+                </Text>
+              </View>
+            ) : (
+              <Pressable
+                style={[styles.saveButton, saveState === 'saving' && styles.chipDisabled]}
+                onPress={handleSave}
+                disabled={saveState === 'saving'}
+              >
+                {saveState === 'saving' ? (
+                  <ActivityIndicator size="small" color={colors.texto} />
+                ) : (
+                  <Icon name="save" size={14} color={colors.texto} />
+                )}
+                <Text style={styles.saveButtonText}>Salvar na galeria</Text>
+              </Pressable>
+            )}
+            {saveState === 'error' && (
+              <Text style={[styles.warningText, styles.warningTextBlock]}>{saveErrorMessage}</Text>
+            )}
+            <Text style={[styles.warningText, styles.warningTextBlock, { color: colors.texto2 }]}>
+              Compartilhar diretamente por outros apps ainda exige o módulo de compartilhamento do
+              Expo, não instalado neste build.
+            </Text>
             <Pressable style={styles.exportButton} onPress={onClose}>
               <Text style={styles.exportButtonText}>Concluído</Text>
             </Pressable>
@@ -129,10 +246,14 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
         ) : exportState === 'exporting' ? (
           <View style={styles.centeredContent}>
             <Text style={styles.processingText}>Processando...</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress}%` }]} />
-            </View>
-            <Text style={styles.progressLabel}>{progress}%</Text>
+          </View>
+        ) : exportState === 'error' ? (
+          <View style={styles.centeredContent}>
+            <Icon name="triangle" size={24} color={colors.alerta} />
+            <Text style={[styles.warningText, styles.warningTextBlock]}>{errorMessage}</Text>
+            <Pressable style={styles.exportButton} onPress={() => setExportState('idle')}>
+              <Text style={styles.exportButtonText}>Voltar</Text>
+            </Pressable>
           </View>
         ) : (
           <>
@@ -146,7 +267,7 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
                   <View>
                     <Text style={styles.sectionLabel}>Formato</Text>
                     <View style={styles.chipRow}>
-                      {FORMATS.map((f) => (
+                      {IMAGE_FORMATS.map((f) => (
                         <Pressable
                           key={f}
                           style={[styles.chip, format === f && styles.chipActive]}
@@ -157,50 +278,92 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
                           </Text>
                         </Pressable>
                       ))}
+                      {UNSUPPORTED_IMAGE_FORMATS.map((f) => (
+                        <View key={f} style={[styles.chip, styles.chipDisabled]}>
+                          <Text style={styles.chipTextDisabled}>{f}</Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
+
                   <View>
                     <View style={styles.qualityHeader}>
                       <Text style={styles.sectionLabel}>Qualidade</Text>
-                      <Text style={styles.qualityValue}>
-                        {quality}% · ~{estimatedSize} MB
-                      </Text>
+                      <Switch
+                        value={smartCompression}
+                        onChange={setSmartCompression}
+                        label="Compressão inteligente"
+                      />
                     </View>
-                    <Slider
-                      label=""
-                      value={quality}
-                      min={10}
-                      max={100}
-                      onChange={setQuality}
-                      labelWidth={0}
-                    />
+                    {smartCompression ? (
+                      <Slider
+                        label="Tamanho alvo"
+                        value={targetSizeMB}
+                        min={0.5}
+                        max={10}
+                        step={0.5}
+                        unit=" MB"
+                        onChange={setTargetSizeMB}
+                      />
+                    ) : (
+                      <Slider
+                        label=""
+                        value={quality}
+                        min={10}
+                        max={100}
+                        unit="%"
+                        onChange={setQuality}
+                        labelWidth={0}
+                      />
+                    )}
                   </View>
+
                   <View>
                     <Text style={styles.sectionLabel}>Tamanho</Text>
                     <View style={styles.chipRow}>
-                      {SIZES.map((s) => (
+                      {SIZE_PRESETS.map((s) => (
                         <Pressable
-                          key={s}
-                          style={[styles.chip, sizeChip === s && styles.chipActive]}
-                          onPress={() => setSizeChip(s)}
+                          key={s.name}
+                          style={[
+                            styles.chip,
+                            sizeChip === s.name && !socialPreset && styles.chipActive,
+                          ]}
+                          onPress={() => {
+                            setSizeChip(s.name);
+                            setSocialPreset(null);
+                          }}
                         >
-                          <Text style={[styles.chipText, sizeChip === s && styles.chipTextActive]}>
-                            {s}
+                          <Text
+                            style={[
+                              styles.chipText,
+                              sizeChip === s.name && !socialPreset && styles.chipTextActive,
+                            ]}
+                          >
+                            {s.name}
                           </Text>
                         </Pressable>
                       ))}
                     </View>
                   </View>
+
                   <View>
                     <Text style={styles.sectionLabel}>Redes sociais</Text>
                     <View style={styles.socialGrid}>
-                      {SOCIAL_PRESETS.map(([name, res]) => (
-                        // TODO: apply the real crop/export preset for this social size.
-                        <Pressable key={name} style={styles.socialCard}>
-                          <Text style={styles.socialName}>{name}</Text>
-                          <Text style={styles.socialRes}>{res}</Text>
-                        </Pressable>
-                      ))}
+                      {SOCIAL_PRESETS.map((p) => {
+                        const active = socialPreset === p.name;
+                        return (
+                          <Pressable
+                            key={p.name}
+                            style={[styles.socialCard, active && styles.chipActive]}
+                            onPress={() => setSocialPreset(active ? null : p.name)}
+                          >
+                            <Text style={styles.socialName}>{p.name}</Text>
+                            <Text style={styles.socialRes}>
+                              {p.width}×{p.height}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
                     </View>
                   </View>
                 </View>
@@ -208,16 +371,23 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
 
               {tab === 'PROFISSIONAL' && (
                 <View style={{ gap: 16 }}>
+                  <View style={styles.warningBox}>
+                    <Icon name="triangle" size={14} color={colors.alerta} />
+                    <Text style={styles.warningText}>
+                      Exportação PSD/TIFF exige um codificador dedicado, não incluído neste build —
+                      os controles abaixo ficam registrados, mas o botão Exportar usa o formato
+                      escolhido na aba Rápido.
+                    </Text>
+                  </View>
                   <View style={styles.proFormatGrid}>
                     {[
                       ['PSD', 'Adobe Photoshop'],
                       ['TIFF', 'Sem perdas'],
                     ].map(([fmt, desc]) => (
-                      // TODO: implement real PSD/TIFF export with layer preservation.
-                      <Pressable key={fmt} style={styles.proFormatCard}>
-                        <Text style={styles.proFormatName}>{fmt}</Text>
+                      <View key={fmt} style={[styles.proFormatCard, styles.chipDisabled]}>
+                        <Text style={styles.proFormatNameDisabled}>{fmt}</Text>
                         <Text style={styles.proFormatDesc}>{desc}</Text>
-                      </Pressable>
+                      </View>
                     ))}
                   </View>
                   <View style={{ gap: 10 }}>
@@ -250,12 +420,6 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
                       ))}
                     </View>
                   </View>
-                  <View style={styles.warningBox}>
-                    <Icon name="triangle" size={14} color={colors.alerta} />
-                    <Text style={styles.warningText}>
-                      Simulação CMYK pode alterar as cores do perfil RGB
-                    </Text>
-                  </View>
                   <View>
                     <Text style={styles.sectionLabel}>Espaço de cor</Text>
                     {COLOR_SPACES.map((cs) => (
@@ -270,10 +434,24 @@ export function ExportSheet({ onClose }: ExportSheetProps) {
 
               {tab === "MARCA D'ÁGUA" && (
                 <View style={{ gap: 14 }}>
+                  <View style={styles.warningBox}>
+                    <Icon name="triangle" size={14} color={colors.alerta} />
+                    <Text style={styles.warningText}>
+                      Pré-visualização apenas — a marca d'água ainda não é composta no arquivo
+                      exportado nesta versão.
+                    </Text>
+                  </View>
                   <View style={styles.watermarkPreviewWrap}>
-                    {/* TODO: composite the real watermark text/QR over the actual export preview. */}
-                    <Image source={{ uri: PREVIEW_URI }} style={styles.watermarkPreviewImage} />
-                    <Text style={[styles.watermarkText, { opacity: opacity / 100 }]}>
+                    <Text
+                      style={[
+                        styles.watermarkText,
+                        {
+                          opacity: opacity / 100,
+                          transform: [{ rotate: `${wmRotation}deg` }],
+                          fontSize: 10 + wmSize * 0.3,
+                        },
+                      ]}
+                    >
                       @joaosilva
                     </Text>
                   </View>
@@ -368,8 +546,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   doneThumb: {
-    width: 80,
-    height: 80,
+    width: 120,
+    height: 90,
     borderWidth: 1,
     borderColor: colors.linha,
   },
@@ -387,6 +565,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: colors.texto,
+    textAlign: 'center',
   },
   doneMeta: {
     fontFamily: monoFontFamily,
@@ -394,43 +573,32 @@ const styles = StyleSheet.create({
     color: colors.texto2,
     marginTop: 4,
   },
-  shareRow: {
+  saveButton: {
     flexDirection: 'row',
-    gap: 8,
-    width: '100%',
-    justifyContent: 'center',
-  },
-  shareButton: {
-    flex: 1,
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: colors.linha,
   },
-  shareLabel: {
-    fontSize: 9,
-    color: colors.texto2,
-    textAlign: 'center',
+  saveButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.texto,
+  },
+  savedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  savedText: {
+    flex: 0,
+    color: colors.ok,
   },
   processingText: {
     fontSize: fontSize.md,
     color: colors.texto,
-  },
-  progressTrack: {
-    width: '100%',
-    height: 2,
-    backgroundColor: colors.linha,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.acento,
-  },
-  progressLabel: {
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.sm,
-    color: colors.texto2,
   },
   tabContent: {
     padding: 16,
@@ -456,9 +624,16 @@ const styles = StyleSheet.create({
   chipActive: {
     borderColor: colors.acento,
   },
+  chipDisabled: {
+    opacity: 0.4,
+  },
   chipText: {
     fontSize: fontSize.xs,
     color: colors.texto2,
+  },
+  chipTextDisabled: {
+    fontSize: fontSize.xs,
+    color: colors.linha,
   },
   chipTextMono: {
     fontFamily: monoFontFamily,
@@ -472,11 +647,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  qualityValue: {
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
-    color: colors.texto,
+    marginBottom: 4,
   },
   socialGrid: {
     flexDirection: 'row',
@@ -514,10 +685,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  proFormatName: {
+  proFormatNameDisabled: {
     fontFamily: monoFontFamily,
     fontSize: fontSize.lg,
-    color: colors.acento,
+    color: colors.texto2,
   },
   proFormatDesc: {
     fontSize: fontSize.xs,
@@ -559,6 +730,11 @@ const styles = StyleSheet.create({
     color: colors.alerta,
     lineHeight: 16,
   },
+  /** Overrides warningText's row-oriented flex:1 for standalone use in a centered column. */
+  warningTextBlock: {
+    flex: 0,
+    textAlign: 'center',
+  },
   radioRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -583,17 +759,11 @@ const styles = StyleSheet.create({
     borderColor: colors.linha,
     overflow: 'hidden',
     position: 'relative',
-  },
-  watermarkPreviewImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.65,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    padding: 10,
   },
   watermarkText: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    fontSize: fontSize.md,
     color: colors.texto,
   },
   positionGrid: {
