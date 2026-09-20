@@ -4,6 +4,7 @@ import {
   createListPresetsUseCase,
   createApplyBrushStrokeUseCase,
   createColorMaskUseCase,
+  createFocusMaskUseCase,
 } from './application';
 
 export * from './spike';
@@ -14,6 +15,7 @@ type PhotoEditorModule = {
   listPresets: ReturnType<typeof createListPresetsUseCase>;
   applyBrushStroke: ReturnType<typeof createApplyBrushStrokeUseCase>;
   createColorMask: ReturnType<typeof createColorMaskUseCase>;
+  createFocusMask: ReturnType<typeof createFocusMaskUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -28,6 +30,7 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     listPresets: createListPresetsUseCase(presetsRepo),
     applyBrushStroke: createApplyBrushStrokeUseCase(),
     createColorMask: createColorMaskUseCase(),
+    createFocusMask: createFocusMaskUseCase(),
   };
 
   return photoEditorModule;
