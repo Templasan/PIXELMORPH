@@ -1294,9 +1294,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           style={{
             paddingVertical: 8,
             paddingHorizontal: 12,
-            backgroundColor: colors.background2,
+            backgroundColor: colors.painel,
             borderTopWidth: 1,
-            borderTopColor: colors.border,
+            borderTopColor: colors.linha,
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1304,7 +1304,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         >
           <Text
             style={{
-              color: colors.texto1,
+              color: colors.texto,
               fontSize: fontSize.sm,
               fontWeight: '500',
             }}
