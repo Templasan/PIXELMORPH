@@ -39,6 +39,8 @@ export interface Clip {
   /** RF-065: picture-in-picture overlay positioning and sizing. */
   pipPosition?: { x: number; y: number }; // 0..1 relative to canvas
   pipSize?: { width: number; height: number }; // 0..1 relative to canvas
+  /** RF-009: video stabilization via sensor smoothing. */
+  stabilization?: boolean;
 }
 
 export interface Track {
@@ -107,5 +109,12 @@ export function setPipTransform(
       width: Math.max(0.1, Math.min(1, size.width)),
       height: Math.max(0.1, Math.min(1, size.height)),
     },
+  };
+}
+
+export function setStabilization(clip: Clip, enabled: boolean): Clip {
+  return {
+    ...clip,
+    stabilization: enabled,
   };
 }

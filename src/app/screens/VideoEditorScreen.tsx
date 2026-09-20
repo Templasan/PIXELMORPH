@@ -47,6 +47,7 @@ import {
   buildTimelapseTrack,
   clampFadeMs,
   setPipTransform,
+  setStabilization,
 } from '@modules/video-editor';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { pickMultipleImagesFromGallery } from '@modules/device-media';
@@ -1068,16 +1069,48 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 </View>
               )}
               {clipTab === 'Correção' && (
-                <Slider
-                  label="Brilho"
-                  value={selected.clip.colorCorrection ?? 0}
-                  min={-100}
-                  max={100}
-                  bipolar
-                  showSign
-                  onChange={applyColorCorrection}
-                  onSlidingComplete={commitColorCorrection}
-                />
+                <View style={{ gap: 8 }}>
+                  <Slider
+                    label="Brilho"
+                    value={selected.clip.colorCorrection ?? 0}
+                    min={-100}
+                    max={100}
+                    bipolar
+                    showSign
+                    onChange={applyColorCorrection}
+                    onSlidingComplete={commitColorCorrection}
+                  />
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingHorizontal: 4,
+                    }}
+                  >
+                    <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '500' }}>
+                      Estabilização
+                    </Text>
+                    <Switch
+                      value={selected.clip.stabilization ?? false}
+                      onChange={(v: boolean) => {
+                        const updated = setStabilization(selected.clip, v);
+                        const before = tracksRef.current;
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        commitTracks(before, after);
+                      }}
+                    />
+                  </View>
+                </View>
               )}
               {clipTab === 'Áudio' && selected.track.kind === 'audio' && (
                 <View style={{ gap: 4 }}>
