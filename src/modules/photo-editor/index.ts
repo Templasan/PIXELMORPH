@@ -9,6 +9,7 @@ import {
   createRadialGradientMaskUseCase,
   createApplyCloneStrokeUseCase,
   createApplyLiquifyStrokeUseCase,
+  createComputeWatermarkRenderingUseCase,
 } from './application';
 
 export * from './spike';
@@ -24,6 +25,7 @@ type PhotoEditorModule = {
   createRadialGradientMask: ReturnType<typeof createRadialGradientMaskUseCase>;
   applyCloneStroke: ReturnType<typeof createApplyCloneStrokeUseCase>;
   applyLiquifyStroke: ReturnType<typeof createApplyLiquifyStrokeUseCase>;
+  computeWatermarkRendering: ReturnType<typeof createComputeWatermarkRenderingUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -43,6 +45,7 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     createRadialGradientMask: createRadialGradientMaskUseCase(),
     applyCloneStroke: createApplyCloneStrokeUseCase(),
     applyLiquifyStroke: createApplyLiquifyStrokeUseCase(),
+    computeWatermarkRendering: createComputeWatermarkRenderingUseCase(),
   };
 
   return photoEditorModule;

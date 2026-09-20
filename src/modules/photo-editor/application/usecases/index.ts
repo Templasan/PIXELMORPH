@@ -6,3 +6,4 @@ export { createFocusMaskUseCase } from './CreateFocusMaskUseCase';
 export { createLinearGradientMaskUseCase, createRadialGradientMaskUseCase } from './CreateGradientMaskUseCase';
 export { createApplyCloneStrokeUseCase } from './ApplyCloneStrokeUseCase';
 export { createApplyLiquifyStrokeUseCase } from './ApplyLiquifyStrokeUseCase';
+export { createComputeWatermarkRenderingUseCase } from './ComputeWatermarkRenderingUseCase';
