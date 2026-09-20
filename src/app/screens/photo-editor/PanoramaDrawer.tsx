@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
-import { Slider } from '@core/ui/Slider';
 
 interface PanoramaImage {
   uri: string;
@@ -38,12 +36,12 @@ export function PanoramaDrawer({
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>📸 Imagens</Text>
           <Pressable
-            style={styles.addButton}
-            onPress={onAddImage}
-            disabled={isStitching}
-          >
-            <Icon name="plus" size={16} color={colors.acento} />
-          </Pressable>
+          style={styles.addButton}
+          onPress={onAddImage}
+          disabled={isStitching}
+        >
+          <Icon name="plus" size={16} color={colors.acento} />
+        </Pressable>
         </View>
         {selectedImages.length === 0 ? (
           <Text style={styles.emptyText}>Selecione imagens para iniciar</Text>
@@ -55,16 +53,26 @@ export function PanoramaDrawer({
                   <Text style={styles.imageLabel}>Imagem {idx + 1}</Text>
                   {idx < selectedImages.length - 1 && (
                     <View style={styles.offsetControl}>
-                      <Text style={styles.offsetLabel}>Deslocamento:</Text>
-                      <Text style={styles.offsetValue}>{offsets[idx] || 0}px</Text>
-                      <Slider
-                        value={offsets[idx] || 0}
-                        onValueChange={(val) => onOffsetChange(idx, val)}
-                        minimumValue={-200}
-                        maximumValue={200}
-                        step={5}
-                        disabled={isStitching}
-                      />
+                      <View style={styles.offsetHeader}>
+                        <Text style={styles.offsetLabel}>Deslocamento:</Text>
+                        <Text style={styles.offsetValue}>{offsets[idx] || 0}px</Text>
+                      </View>
+                      <View style={styles.offsetButtons}>
+                        <Pressable
+                          style={styles.adjustButton}
+                          onPress={() => onOffsetChange(idx, (offsets[idx] || 0) - 10)}
+                          disabled={isStitching}
+                        >
+                          <Text style={styles.adjustButtonText}>−</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.adjustButton}
+                          onPress={() => onOffsetChange(idx, (offsets[idx] || 0) + 10)}
+                          disabled={isStitching}
+                        >
+                          <Text style={styles.adjustButtonText}>+</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -72,7 +80,7 @@ export function PanoramaDrawer({
                   onPress={() => onRemoveImage(img.id)}
                   disabled={isStitching}
                 >
-                  <Icon name="trash" size={14} color={colors.erro} />
+                  <Icon name="trash" size={14} color={colors.perigo} />
                 </Pressable>
               </View>
             ))}
@@ -84,16 +92,26 @@ export function PanoramaDrawer({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>⚙️ Parâmetros</Text>
           <View style={styles.paramControl}>
-            <Text style={styles.paramLabel}>Largura de Sobreposição:</Text>
-            <Text style={styles.paramValue}>{overlapWidth}px</Text>
-            <Slider
-              value={overlapWidth}
-              onValueChange={onOverlapChange}
-              minimumValue={0}
-              maximumValue={200}
-              step={5}
-              disabled={isStitching}
-            />
+            <View style={styles.paramHeader}>
+              <Text style={styles.paramLabel}>Largura de Sobreposição:</Text>
+              <Text style={styles.paramValue}>{overlapWidth}px</Text>
+            </View>
+            <View style={styles.paramButtons}>
+              <Pressable
+                style={styles.adjustButton}
+                onPress={() => onOverlapChange(Math.max(0, overlapWidth - 10))}
+                disabled={isStitching}
+              >
+                <Text style={styles.adjustButtonText}>−</Text>
+              </Pressable>
+              <Pressable
+                style={styles.adjustButton}
+                onPress={() => onOverlapChange(Math.min(200, overlapWidth + 10))}
+                disabled={isStitching}
+              >
+                <Text style={styles.adjustButtonText}>+</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       )}
@@ -111,7 +129,7 @@ export function PanoramaDrawer({
             <Icon
               name={isStitching ? 'loader' : 'check'}
               size={16}
-              color={colors.fundo}
+              color={colors.canvas}
             />
             <Text style={styles.stitchButtonText}>
               {isStitching ? 'Costurando...' : 'Costurar Panorama'}
@@ -179,30 +197,59 @@ const styles = StyleSheet.create({
   offsetControl: {
     marginTop: 8,
   },
+  offsetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   offsetLabel: {
     fontSize: fontSize.xs,
     color: colors.texto2,
-    marginBottom: 4,
   },
   offsetValue: {
     fontFamily: monoFontFamily,
     fontSize: 12,
     color: colors.acento,
-    marginBottom: 6,
+  },
+  offsetButtons: {
+    flexDirection: 'row',
+    gap: 8,
   },
   paramControl: {
     paddingHorizontal: 8,
   },
+  paramHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   paramLabel: {
     fontSize: fontSize.xs,
     color: colors.texto2,
-    marginBottom: 4,
   },
   paramValue: {
     fontFamily: monoFontFamily,
     fontSize: 12,
     color: colors.acento,
-    marginBottom: 8,
+  },
+  paramButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adjustButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.linha,
+    borderRadius: 4,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  adjustButtonText: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.texto,
   },
   stitchButton: {
     paddingHorizontal: 8,
@@ -223,6 +270,6 @@ const styles = StyleSheet.create({
   stitchButtonText: {
     fontSize: fontSize.sm,
     fontWeight: '600',
-    color: colors.fundo,
+    color: colors.canvas,
   },
 });
