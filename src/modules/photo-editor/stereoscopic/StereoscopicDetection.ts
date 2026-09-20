@@ -30,10 +30,7 @@ export function detectStereoscopicFromUri(uri: string): StereoscopicInfo {
   return { isStereoscopic: false };
 }
 
-export function detectStereoscopicFromDimensions(
-  width: number,
-  height: number
-): StereoscopicInfo {
+export function detectStereoscopicFromDimensions(width: number, height: number): StereoscopicInfo {
   const aspect = width / height;
 
   // Side-by-side: ~2:1 aspect ratio

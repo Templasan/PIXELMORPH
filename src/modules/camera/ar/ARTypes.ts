@@ -37,11 +37,7 @@ export function createARAnchor(type: ARAnchorType, x: number, y: number): ARAnch
   };
 }
 
-export function updateARPosition(
-  anchor: ARAnchor,
-  x: number,
-  y: number
-): ARAnchor {
+export function updateARPosition(anchor: ARAnchor, x: number, y: number): ARAnchor {
   return {
     ...anchor,
     x: Math.max(0, Math.min(1, x)),

@@ -35,13 +35,9 @@ export function PanoramaDrawer({
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>📸 Imagens</Text>
-          <Pressable
-          style={styles.addButton}
-          onPress={onAddImage}
-          disabled={isStitching}
-        >
-          <Icon name="plus" size={16} color={colors.acento} />
-        </Pressable>
+          <Pressable style={styles.addButton} onPress={onAddImage} disabled={isStitching}>
+            <Icon name="plus" size={16} color={colors.acento} />
+          </Pressable>
         </View>
         {selectedImages.length === 0 ? (
           <Text style={styles.emptyText}>Selecione imagens para iniciar</Text>
@@ -76,10 +72,7 @@ export function PanoramaDrawer({
                     </View>
                   )}
                 </View>
-                <Pressable
-                  onPress={() => onRemoveImage(img.id)}
-                  disabled={isStitching}
-                >
+                <Pressable onPress={() => onRemoveImage(img.id)} disabled={isStitching}>
                   <Icon name="trash" size={14} color={colors.perigo} />
                 </Pressable>
               </View>
@@ -119,18 +112,11 @@ export function PanoramaDrawer({
       {selectedImages.length > 1 && (
         <View style={styles.stitchButton}>
           <Pressable
-            style={[
-              styles.stitchButtonContent,
-              isStitching && styles.stitchButtonDisabled,
-            ]}
+            style={[styles.stitchButtonContent, isStitching && styles.stitchButtonDisabled]}
             onPress={onStitch}
             disabled={isStitching}
           >
-            <Icon
-              name={isStitching ? 'loader' : 'check'}
-              size={16}
-              color={colors.canvas}
-            />
+            <Icon name={isStitching ? 'loader' : 'check'} size={16} color={colors.canvas} />
             <Text style={styles.stitchButtonText}>
               {isStitching ? 'Costurando...' : 'Costurar Panorama'}
             </Text>

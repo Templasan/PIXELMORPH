@@ -407,10 +407,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const liveHistogram = useMemo(() => histogram.compute(uniforms), [histogram, uniforms]);
 
   // RF-071: gyro-responsive parallax for stereoscopic photos
-  const parallaxOffset = useGyroParallax(
-    gyroParallaxEnabled && stereoInfo.isStereoscopic,
-    20
-  );
+  const parallaxOffset = useGyroParallax(gyroParallaxEnabled && stereoInfo.isStereoscopic, 20);
 
   // US-05: rotation/mirror/perspective geometry — a separate transform stage applied
   // around the color-adjusted image, real Skia matrices (not a cosmetic overlay).
@@ -608,15 +605,18 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     setPanoramaOffsets((prev) => [...prev, 0]);
   }, [photoUri]);
 
-  const handleRemovePanoramaImage = useCallback((id: string) => {
-    setSelectedPanoramaImages((prev) => prev.filter((img) => img.id !== id));
-    setPanoramaOffsets((prev) => {
-      const filtered = [...prev];
-      const idx = selectedPanoramaImages.findIndex((img) => img.id === id);
-      if (idx >= 0) filtered.splice(idx, 1);
-      return filtered;
-    });
-  }, [selectedPanoramaImages]);
+  const handleRemovePanoramaImage = useCallback(
+    (id: string) => {
+      setSelectedPanoramaImages((prev) => prev.filter((img) => img.id !== id));
+      setPanoramaOffsets((prev) => {
+        const filtered = [...prev];
+        const idx = selectedPanoramaImages.findIndex((img) => img.id === id);
+        if (idx >= 0) filtered.splice(idx, 1);
+        return filtered;
+      });
+    },
+    [selectedPanoramaImages]
+  );
 
   const handlePanoramaOffsetChange = useCallback((index: number, offset: number) => {
     setPanoramaOffsets((prev) => {

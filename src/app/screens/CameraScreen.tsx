@@ -643,7 +643,12 @@ export default function CameraScreen({ navigation }: Props) {
                 onChange={(v: number) => {
                   const anchor = arSession.anchors.find((a) => a.id === selectedAnchorId);
                   if (!anchor) return;
-                  const updated = updateARAppearance(anchor, v / 100, anchor.rotation, anchor.color);
+                  const updated = updateARAppearance(
+                    anchor,
+                    v / 100,
+                    anchor.rotation,
+                    anchor.color
+                  );
                   setArSession((s) => ({
                     ...s,
                     anchors: s.anchors.map((a) => (a.id === selectedAnchorId ? updated : a)),
