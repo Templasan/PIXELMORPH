@@ -13,6 +13,8 @@ import {
   createValidateQRCodeUseCase,
   createAddRecentAdjustmentUseCase,
   createListRecentAdjustmentsUseCase,
+  createSaveWatermarkPresetUseCase,
+  createListWatermarkPresetsUseCase,
 } from './application';
 
 export * from './spike';
@@ -32,6 +34,8 @@ type PhotoEditorModule = {
   validateQRCode: ReturnType<typeof createValidateQRCodeUseCase>;
   addRecentAdjustment: ReturnType<typeof createAddRecentAdjustmentUseCase>;
   listRecentAdjustments: ReturnType<typeof createListRecentAdjustmentsUseCase>;
+  saveWatermarkPreset: ReturnType<typeof createSaveWatermarkPresetUseCase>;
+  listWatermarkPresets: ReturnType<typeof createListWatermarkPresetsUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -42,6 +46,8 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   const presetsRepo = new AsyncStoragePresetsRepository();
   const { AsyncStorageRecentAdjustmentsRepository } = require('@infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository');
   const recentRepo = new AsyncStorageRecentAdjustmentsRepository();
+  const { AsyncStorageWatermarkPresetsRepository } = require('@infrastructure/repositories/AsyncStorageWatermarkPresetsRepository');
+  const watermarkPresetsRepo = new AsyncStorageWatermarkPresetsRepository();
 
   photoEditorModule = {
     savePreset: createSavePresetUseCase(presetsRepo),
@@ -57,6 +63,8 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     validateQRCode: createValidateQRCodeUseCase(),
     addRecentAdjustment: createAddRecentAdjustmentUseCase(recentRepo),
     listRecentAdjustments: createListRecentAdjustmentsUseCase(recentRepo),
+    saveWatermarkPreset: createSaveWatermarkPresetUseCase(watermarkPresetsRepo),
+    listWatermarkPresets: createListWatermarkPresetsUseCase(watermarkPresetsRepo),
   };
 
   return photoEditorModule;

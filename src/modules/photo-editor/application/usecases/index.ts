@@ -10,3 +10,5 @@ export { createComputeWatermarkRenderingUseCase } from './ComputeWatermarkRender
 export { createValidateQRCodeUseCase } from './ValidateQRCodeUseCase';
 export { createAddRecentAdjustmentUseCase } from './AddRecentAdjustmentUseCase';
 export { createListRecentAdjustmentsUseCase } from './ListRecentAdjustmentsUseCase';
+export { createSaveWatermarkPresetUseCase } from './SaveWatermarkPresetUseCase';
+export { createListWatermarkPresetsUseCase } from './ListWatermarkPresetsUseCase';
