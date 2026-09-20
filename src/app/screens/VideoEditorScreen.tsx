@@ -3,6 +3,7 @@ import {
   Alert,
   Image,
   LayoutChangeEvent,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import ViewShot from 'react-native-view-shot';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet, Slider, Switch } from '@core/ui';
@@ -246,10 +248,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [timelineZoom, setTimelineZoom] = useState(50);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
   const [clipTab, setClipTab] = useState<ClipTab>('Aparar');
   const [loopReview, setLoopReview] = useState(false);
   const [bodyWidth, setBodyWidth] = useState(0);
-  const [previewRatio, setPreviewRatio] = useState(0.34);
+  // RF-053: the divider between preview and timeline is draggable from 0.15 to 0.75; default
+  // near the top of that range so a portrait clip (tall content in a wide, short-by-default
+  // panel) isn't rendered tiny before the user ever touches the divider.
+  const [previewRatio, setPreviewRatio] = useState(0.7);
+  const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [contentHeight, setContentHeight] = useState(1);
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
   const [rippleMode, setRippleMode] = useState(false);
@@ -383,7 +390,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     .onUpdate((e) => {
       const next = Math.max(
         0.15,
-        Math.min(0.62, dividerStartRatio.current + e.translationY / contentHeight)
+        Math.min(0.75, dividerStartRatio.current + e.translationY / contentHeight)
       );
       runOnJS(setPreviewRatio)(next);
     });
@@ -409,6 +416,34 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     return null;
   }, [tracks, currentTimeMs]);
 
+  // RF-005: the preview panel showed nothing for real video clips — <Image> can't decode a
+  // .mp4 source. Extract an actual frame at the playhead instead. Bucketed to ~5fps so
+  // scrubbing doesn't fire a native extraction on every pixel of drag.
+  const sourceTimeMs = currentClip
+    ? currentClip.inPointMs + (currentTimeMs - currentClip.startMs) * (currentClip.speed ?? 1)
+    : 0;
+  const frameBucket = Math.round(sourceTimeMs / 200);
+  const [previewFrameUri, setPreviewFrameUri] = useState<string | null>(null);
+  useEffect(() => {
+    if (!currentClip) {
+      setPreviewFrameUri(null);
+      return;
+    }
+    let cancelled = false;
+    VideoThumbnails.getThumbnailAsync(currentClip.sourceUri, { time: sourceTimeMs })
+      .then((result) => {
+        if (!cancelled) setPreviewFrameUri(result.uri);
+      })
+      .catch(() => {
+        // Not a video (e.g. an image clip) — the raw source is already a displayable image.
+        if (!cancelled) setPreviewFrameUri(currentClip.sourceUri);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentClip?.id, currentClip?.sourceUri, frameBucket]);
+
   const pipClip = useMemo(() => {
     if (!pipClipId) return null;
     const clip = findClip(tracks, pipClipId);
@@ -430,7 +465,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     };
   }, [currentClip, currentTimeMs, tracks]);
 
-  const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
 
   // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
   // is what history.push compares against, matching the pattern used across this app.
@@ -739,7 +773,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
             )}
             <Image
-              source={{ uri: currentClip?.sourceUri ?? PLACEHOLDER_URI }}
+              source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
               style={[
                 styles.previewImage,
                 transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
@@ -789,6 +823,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
               </Text>
             </View>
+            <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
+              <Icon name="maximize" size={16} color={colors.branco} />
+            </Pressable>
             <View style={styles.transportOverlay}>
               <View style={styles.timeRow}>
                 <Text style={styles.timeCurrent}>{formatTimecode(currentTimeMs)}</Text>
@@ -813,12 +850,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               </View>
             </View>
           </View>
+        </ViewShot>
 
-          <GestureDetector gesture={dividerGesture}>
-            <View style={styles.dividerHandle} />
-          </GestureDetector>
+        <GestureDetector gesture={dividerGesture}>
+          <View style={styles.dividerHandle} />
+        </GestureDetector>
 
-          <View style={styles.timelineSection}>
+        <View style={styles.timelineSection}>
             <ScrollView style={{ flex: 1 }} onLayout={onBodyLayout}>
               <GestureDetector gesture={rulerGesture}>
                 <View style={styles.ruler}>
@@ -1470,7 +1508,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               </View>
             </View>
           </View>
-        </ViewShot>
       </View>
 
       {addClipTrackId && (
@@ -1483,6 +1520,61 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       )}
 
       {exportOpen && <ExportSheet onClose={() => setExportOpen(false)} mediaKind="video" />}
+
+      <Modal
+        visible={fullscreenPreview}
+        animationType="fade"
+        onRequestClose={() => setFullscreenPreview(false)}
+        statusBarTranslucent
+      >
+        <SafeAreaView style={styles.fullscreenPreview} edges={['top', 'bottom']}>
+          {transitionBlend && (
+            <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
+          )}
+          <Image
+            source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
+            style={styles.previewImage}
+          />
+          <View style={styles.fullscreenTopBar}>
+            <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
+              <Text style={styles.qualityBadgeText}>
+                {project?.assets[0]?.metadata.width ?? 3840}×
+                {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
+              </Text>
+            </View>
+            <Pressable
+              style={styles.fullscreenCloseButton}
+              onPress={() => setFullscreenPreview(false)}
+              hitSlop={8}
+            >
+              <Icon name="x" size={22} color={colors.branco} />
+            </Pressable>
+          </View>
+          <View style={styles.transportOverlay}>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeCurrent}>{formatTimecode(currentTimeMs)}</Text>
+              <Text style={styles.timeTotal}>{formatTimecode(totalDurationMs)}</Text>
+            </View>
+            <View style={styles.transportButtons}>
+              <Pressable hitSlop={10} onPress={() => setCurrentTimeMs(0)}>
+                <Icon name="skipBack" size={20} color={colors.icone} />
+              </Pressable>
+              <Pressable hitSlop={10} onPress={() => stepFrame(-1)}>
+                <Icon name="rewindFrame" size={18} color={colors.icone} />
+              </Pressable>
+              <Pressable style={styles.playButton} onPress={() => setPlaying((p) => !p)}>
+                <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.texto} />
+              </Pressable>
+              <Pressable hitSlop={10} onPress={() => stepFrame(1)}>
+                <Icon name="forwardFrame" size={18} color={colors.icone} />
+              </Pressable>
+              <Pressable hitSlop={10} onPress={() => setCurrentTimeMs(totalDurationMs)}>
+                <Icon name="skipForward" size={20} color={colors.icone} />
+              </Pressable>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 
@@ -1558,6 +1650,7 @@ const styles = StyleSheet.create({
     color: '#0D2036',
   },
   previewPanel: {
+    flex: 1,
     backgroundColor: colors.preto,
     position: 'relative',
     overflow: 'hidden',
@@ -1568,6 +1661,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    // Default resizeMode is 'cover', which crops the frame to fill the panel — a preview
+    // should show the whole shot instead, letterboxed if the aspect ratio doesn't match.
+    resizeMode: 'contain',
   },
   qualityBadge: {
     position: 'absolute',
@@ -1578,6 +1674,38 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderWidth: 1,
     borderColor: colors.linha,
+  },
+  maximizeButton: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 6,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  fullscreenPreview: {
+    flex: 1,
+    backgroundColor: colors.preto,
+  },
+  fullscreenTopBar: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  qualityBadgeInline: {
+    position: 'relative',
+    top: 0,
+    right: 0,
+  },
+  fullscreenCloseButton: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 10,
+    borderRadius: 20,
   },
   qualityBadgeText: {
     fontFamily: monoFontFamily,

@@ -43,7 +43,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   return (
     <Stack.Navigator
-      initialRouteName="Login"
+      initialRouteName="Projects"
       screenOptions={{
         headerShown: false,
         animation: 'fade',
