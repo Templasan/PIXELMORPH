@@ -48,7 +48,6 @@ import {
 import type { Mask } from '@modules/photo-editor/domain';
 import {
   detectStereoscopicFromUri,
-  detectStereoscopicFromDimensions,
   useGyroParallax,
   type StereoscopicInfo,
 } from '@modules/photo-editor/stereoscopic';

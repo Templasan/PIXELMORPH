@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Gyroscope, type GyroscopeData } from 'expo-sensors';
+import { Gyroscope } from 'expo-sensors';
 
 export interface ParallaxOffset {
   x: number;
@@ -25,7 +25,7 @@ export function useGyroParallax(enabled: boolean, maxOffset: number = 30): Paral
     // Set sampling rate to ~60Hz for smooth animation
     Gyroscope.setUpdateInterval(16);
 
-    const subscription = Gyroscope.addListener((data: GyroscopeData) => {
+    const subscription = Gyroscope.addListener((data: { x: number; y: number; z: number }) => {
       const now = Date.now();
       if (now - lastUpdateRef.current < 16) return;
       lastUpdateRef.current = now;
