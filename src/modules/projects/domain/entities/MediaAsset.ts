@@ -9,6 +9,7 @@ export interface MediaAsset {
   metadata: MediaMetadata;
   createdAt: Date;
   updatedAt: Date;
+  adjustments?: Record<string, number>;
 }
 
 export function createMediaAsset(
@@ -77,6 +78,8 @@ export function validateMediaAsset(asset: unknown): asset is MediaAsset {
   if (!validateMediaMetadata(a.metadata)) return false;
   if (!(a.createdAt instanceof Date)) return false;
   if (!(a.updatedAt instanceof Date)) return false;
+  if (a.adjustments !== undefined && (typeof a.adjustments !== 'object' || a.adjustments === null))
+    return false;
 
   return true;
 }

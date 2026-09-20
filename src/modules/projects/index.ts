@@ -10,6 +10,7 @@ import {
   AddMediaAssetUseCase,
   RemoveMediaAssetUseCase,
   UpdateMediaAssetUseCase,
+  ApplyAdjustmentsBatchUseCase,
 } from './application/usecases';
 
 export * from './domain';
@@ -33,6 +34,7 @@ export function createProjectsModule() {
     addMediaAsset: new AddMediaAssetUseCase(repository),
     removeMediaAsset: new RemoveMediaAssetUseCase(repository),
     updateMediaAsset: new UpdateMediaAssetUseCase(repository),
+    applyAdjustmentsBatch: new ApplyAdjustmentsBatchUseCase(repository),
   };
 }
 
