@@ -45,6 +45,7 @@ import {
   toFullUniforms,
   useImageHistogram,
 } from '@modules/photo-editor/color';
+import type { Mask } from '@modules/photo-editor/domain';
 import {
   computeHomography,
   orientationToTransform,
@@ -81,6 +82,7 @@ import { ElementsDrawer, type ShapeDraft, type TextDraft } from './photo-editor/
 import { AIDrawer } from './photo-editor/AIDrawer';
 import { PresetsDrawer } from './photo-editor/PresetsDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
+import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
@@ -264,6 +266,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [maskPainterOpen, setMaskPainterOpen] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareSplit, setCompareSplit] = useState(50);
   const [canvasWidth, setCanvasWidth] = useState(0);
@@ -318,6 +321,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   });
 
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
+  const [currentMask, setCurrentMask] = useState<Mask | null>(null);
   // Real projects have no photo to show until their asset loads — falling back to the demo
   // URI here would fire a slow network fetch that can resolve *after* the real one and clobber
   // it (useImage race). Only the no-project spike entry point gets the demo photo immediately.
@@ -569,6 +573,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLayerId]);
+
+  useEffect(() => {
+    // RF-007: monitor mask changes for future GPU integration
+    if (currentMask) {
+      // Placeholder for future mask rendering logic
+    }
+  }, [currentMask]);
 
   const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
     circle: 'Círculo',
@@ -837,6 +848,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             <Icon name="copy" size={18} color={colors.icone} />
           </Pressable>
         )}
+        <Pressable onPress={() => setMaskPainterOpen(true)} hitSlop={6}>
+          <Icon name="layers" size={18} color={colors.icone} />
+        </Pressable>
         <Pressable style={styles.exportButton} onPress={() => setExportOpen(true)}>
           <Text style={styles.exportButtonText}>EXPORTAR</Text>
         </Pressable>
@@ -1273,6 +1287,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           onSuccess={() => {
             // Optionally reload data if needed
           }}
+        />
+      )}
+
+      {maskPainterOpen && skiaImage && (
+        <MaskPainterSheet
+          onClose={() => setMaskPainterOpen(false)}
+          onApplyMask={setCurrentMask}
+          photoWidth={skiaImage.width()}
+          photoHeight={skiaImage.height()}
         />
       )}
 

@@ -134,6 +134,7 @@ export interface FullAdjustmentUniforms extends AdjustmentUniforms, CurveUniform
   selectiveHueShift: number;
   selectiveSaturation: number;
   selectiveLuminosity: number;
+  maskActive: number; // 0 or 1 — RF-007 mask blending
 }
 
 const MAX_HUE_SHIFT_TURNS = 60 / 360;
@@ -154,7 +155,8 @@ export function toFullUniforms(
   basic: BasicAdjustments,
   detail: DetailAdjustments,
   selective: SelectiveColorAdjustments,
-  curves: CurvesAdjustments = DEFAULT_CURVES
+  curves: CurvesAdjustments = DEFAULT_CURVES,
+  maskActive: boolean = false
 ): FullAdjustmentUniforms {
   const active = selective.colorIndex !== null;
   const hueDeg = active ? SELECTIVE_HUES_DEG[selective.colorIndex as number] : 0;
@@ -173,11 +175,14 @@ export function toFullUniforms(
     selectiveHueShift: (selective.matiz / 100) * 0.15,
     selectiveSaturation: selective.saturacao / 100,
     selectiveLuminosity: (selective.luminosidade / 100) * 0.5,
+    maskActive: maskActive ? 1 : 0,
   };
 }
 
 export const ADJUSTMENTS_SKSL = `
 uniform shader image;
+uniform shader maskImage;
+uniform float maskActive;
 uniform float exposure;
 uniform float temperature;
 uniform float tint;
@@ -351,6 +356,15 @@ half4 main(vec2 pos) {
   }
 
   rgb = hsl2rgb(hsl);
+
+  // RF-007: apply mask — blend original and adjusted based on mask strength
+  if (maskActive > 0.5) {
+    half4 maskSample = maskImage.eval(pos);
+    float maskStrength = maskSample.r;
+    vec3 originalRGB = image.eval(pos).rgb / c.a;
+    rgb = mix(originalRGB, rgb, maskStrength);
+  }
+
   return half4(rgb * c.a, c.a);
 }
 `;
