@@ -44,9 +44,13 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   if (photoEditorModule) return photoEditorModule;
 
   const presetsRepo = new AsyncStoragePresetsRepository();
-  const { AsyncStorageRecentAdjustmentsRepository } = require('@infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository');
+  const {
+    AsyncStorageRecentAdjustmentsRepository,
+  } = require('@infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository');
   const recentRepo = new AsyncStorageRecentAdjustmentsRepository();
-  const { AsyncStorageWatermarkPresetsRepository } = require('@infrastructure/repositories/AsyncStorageWatermarkPresetsRepository');
+  const {
+    AsyncStorageWatermarkPresetsRepository,
+  } = require('@infrastructure/repositories/AsyncStorageWatermarkPresetsRepository');
   const watermarkPresetsRepo = new AsyncStorageWatermarkPresetsRepository();
 
   photoEditorModule = {

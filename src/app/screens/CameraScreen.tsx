@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   CameraView,
   type CameraType,
@@ -136,7 +136,7 @@ export default function CameraScreen({ navigation }: Props) {
   const [intensity, setIntensity] = useState(100);
   const [mode, setMode] = useState<CameraMode>('FOTO');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [stopFrames, setStopFrames] = useState<number[]>([]);
+  const [stopFrames, setStopFrames] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
   const [stopFps, setStopFps] = useState(6);
   const [facing, setFacing] = useState<CameraType>('back');
@@ -207,6 +207,36 @@ export default function CameraScreen({ navigation }: Props) {
     });
   };
 
+  const composeStopMotionVideo = async () => {
+    if (stopFrames.length === 0 || busy) return;
+    setBusy(true);
+    try {
+      const mod = createProjectsModule();
+      const project = await mod.createProject.execute('Stop-motion', 'video');
+
+      for (let i = 0; i < stopFrames.length; i++) {
+        await mod.addMediaAsset.execute(
+          project.id,
+          createMediaAsset(
+            `stopmotion_${i}`,
+            'image',
+            stopFrames[i],
+            stopFrames[i],
+            createMediaMetadata('image/jpeg', { width: 1920, height: 1080 })
+          )
+        );
+      }
+
+      setStopFrames([]);
+      navigation.navigate('VideoEditor', { projectId: project.id });
+    } catch (error) {
+      errorLogger.log(error, 'CameraScreen.composeStopMotionVideo');
+      Alert.alert('Não foi possível compor o vídeo', 'Tente novamente.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const takePhoto = async () => {
     if (!cameraRef.current || busy) return;
     setBusy(true);
@@ -250,11 +280,22 @@ export default function CameraScreen({ navigation }: Props) {
     }
   };
 
-  const handleShutter = () => {
+  const handleShutter = async () => {
     if (mode === 'TEMPORIZADOR') {
       setCountdown(3);
     } else if (mode === 'STOP-MOTION') {
-      setStopFrames((prev) => [...prev, prev.length + 1]);
+      if (!cameraRef.current || busy) return;
+      setBusy(true);
+      try {
+        const photo = await cameraRef.current.takePictureAsync();
+        if (photo) {
+          setStopFrames((prev) => [...prev, photo.uri]);
+        }
+      } catch (error) {
+        errorLogger.log(error, 'CameraScreen.handleShutter.stopMotion');
+      } finally {
+        setBusy(false);
+      }
     } else if (mode === 'VÍDEO') {
       toggleVideoRecording();
     } else {
@@ -354,9 +395,10 @@ export default function CameraScreen({ navigation }: Props) {
             style={styles.stopFramesRow}
             showsHorizontalScrollIndicator={false}
           >
-            {stopFrames.map((f) => (
-              <View key={f} style={styles.stopFrame}>
-                <Text style={styles.stopFrameText}>{f}</Text>
+            {stopFrames.map((uri, i) => (
+              <View key={i} style={styles.stopFrame}>
+                <Image source={{ uri }} style={StyleSheet.absoluteFill} />
+                <Text style={styles.stopFrameNum}>{i + 1}</Text>
               </View>
             ))}
           </ScrollView>
@@ -486,6 +528,22 @@ export default function CameraScreen({ navigation }: Props) {
             onChange={setStopFps}
             labelWidth={110}
           />
+          {stopFrames.length > 0 && (
+            <View style={styles.stopActionRow}>
+              <Pressable onPress={() => setStopFrames([])} style={styles.stopActionBtn}>
+                <Text style={styles.stopActionText}>Limpar</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => composeStopMotionVideo()}
+                style={[styles.stopActionBtn, styles.stopActionBtnPrimary]}
+                disabled={busy}
+              >
+                <Text style={[styles.stopActionText, styles.stopActionTextPrimary]}>
+                  Compor Vídeo
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -618,6 +676,41 @@ const styles = StyleSheet.create({
     fontFamily: monoFontFamily,
     fontSize: 11,
     color: colors.texto2,
+  },
+  stopFrameNum: {
+    fontFamily: monoFontFamily,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.branco,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  stopActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+    paddingHorizontal: 16,
+  },
+  stopActionBtn: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: colors.linha,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopActionBtnPrimary: {
+    backgroundColor: colors.acento,
+    borderColor: colors.acento,
+  },
+  stopActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.texto,
+  },
+  stopActionTextPrimary: {
+    color: '#0D2036',
   },
   arOverlay: {
     ...StyleSheet.absoluteFill,
