@@ -45,6 +45,7 @@ import {
   insertFreezeFrame,
   buildTimelapseTrack,
   clampFadeMs,
+  setPipTransform,
 } from '@modules/video-editor';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { pickMultipleImagesFromGallery } from '@modules/device-media';
@@ -70,7 +71,15 @@ const TOOLBAR_ITEMS = [
   { icon: 'image', label: 'Time-lapse', action: 'timelapse' },
 ] as const;
 
-const CLIP_TABS = ['Aparar', 'Quadro', 'Transição', 'Velocidade', 'Correção', 'Áudio'] as const;
+const CLIP_TABS = [
+  'Aparar',
+  'Quadro',
+  'Transição',
+  'Velocidade',
+  'Correção',
+  'Áudio',
+  'Sobreposição',
+] as const;
 /** RF-049: câmera lenta (<1) até aceleração (>1) — quick presets alongside the continuous slider. */
 const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 type ClipTab = (typeof CLIP_TABS)[number];
@@ -239,6 +248,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
   const [rippleMode, setRippleMode] = useState(false);
   const [freezeHoldMs, setFreezeHoldMs] = useState(2000);
+  const [pipClipId, setPipClipId] = useState<string | null>(null);
+  const [pipX, setPipX] = useState(0.7);
+  const [pipY, setPipY] = useState(0.7);
+  const [pipWidth, setPipWidth] = useState(0.3);
+  const [pipHeight, setPipHeight] = useState(0.3);
 
   useEffect(() => {
     if (!projectId) return;
@@ -599,7 +613,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   // RF-036: volume + fade in/out for a background audio clip — same apply/commit pattern as
   // speed and color correction above.
-  const setClipField = (field: 'volume' | 'fadeInMs' | 'fadeOutMs', value: number) => {
+  const setClipField = (
+    field: 'volume' | 'fadeInMs' | 'fadeOutMs' | 'pipPosition' | 'pipSize',
+    value: number | { x: number; y: number } | { width: number; height: number } | undefined
+  ) => {
     if (!selected) return;
     const next = tracksRef.current.map((t) =>
       t.id === selected.track.id
@@ -613,9 +630,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     setTracks(next);
   };
   const commitClipField = (
-    field: 'volume' | 'fadeInMs' | 'fadeOutMs',
-    _value: number,
-    previousValue: number
+    field: 'volume' | 'fadeInMs' | 'fadeOutMs' | 'pipPosition' | 'pipSize',
+    _value: number | { x: number; y: number } | { width: number; height: number } | undefined,
+    previousValue: number | { x: number; y: number } | { width: number; height: number } | undefined
   ) => {
     if (!selected) return;
     const before = tracksRef.current.map((t) =>
@@ -1040,6 +1057,108 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   onChange={(v) => setClipField('fadeOutMs', v)}
                   onSlidingComplete={(v, from) => commitClipField('fadeOutMs', v, from)}
                 />
+              </View>
+            )}
+            {clipTab === 'Sobreposição' && (
+              <View style={{ gap: 4 }}>
+                {pipClipId === selected.clip.id ? (
+                  <>
+                    <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '600' }}>
+                      Este clip é sobreposição (PIP)
+                    </Text>
+                    <Slider
+                      label="Posição X"
+                      value={pipX}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipX}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: v, y: pipY },
+                          { width: pipWidth, height: pipHeight }
+                        );
+                        setClipField('pipPosition', updated.pipPosition);
+                      }}
+                    />
+                    <Slider
+                      label="Posição Y"
+                      value={pipY}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipY}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: v },
+                          { width: pipWidth, height: pipHeight }
+                        );
+                        setClipField('pipPosition', updated.pipPosition);
+                      }}
+                    />
+                    <Slider
+                      label="Largura"
+                      value={pipWidth}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipWidth}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: pipY },
+                          { width: v, height: pipHeight }
+                        );
+                        setClipField('pipSize', updated.pipSize);
+                      }}
+                    />
+                    <Slider
+                      label="Altura"
+                      value={pipHeight}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipHeight}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: pipY },
+                          { width: pipWidth, height: v }
+                        );
+                        setClipField('pipSize', updated.pipSize);
+                      }}
+                    />
+                    <Pressable
+                      onPress={() => setPipClipId(null)}
+                      style={[styles.button, { backgroundColor: colors.perigo }]}
+                    >
+                      <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
+                        Remover Sobreposição
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      setPipClipId(selected.clip.id);
+                      setPipX(0.65);
+                      setPipY(0.65);
+                      setPipWidth(0.3);
+                      setPipHeight(0.3);
+                    }}
+                    style={[styles.button, { backgroundColor: colors.acento }]}
+                  >
+                    <Text style={{ color: '#0D2036', fontWeight: '600', fontSize: 12 }}>
+                      Usar como Sobreposição
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </View>
@@ -1476,5 +1595,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     width: 88,
+  },
+  button: {
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

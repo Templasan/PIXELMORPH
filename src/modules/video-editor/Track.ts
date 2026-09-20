@@ -36,6 +36,9 @@ export interface Clip {
   /** RF-036: linear fade-in/out at the clip's edges, in ms. Defaults to 0 (no fade). */
   fadeInMs?: number;
   fadeOutMs?: number;
+  /** RF-065: picture-in-picture overlay positioning and sizing. */
+  pipPosition?: { x: number; y: number }; // 0..1 relative to canvas
+  pipSize?: { width: number; height: number }; // 0..1 relative to canvas
 }
 
 export interface Track {
@@ -86,5 +89,23 @@ export function createClip(partial: {
     inPointMs: partial.inPointMs ?? 0,
     outPointMs: partial.outPointMs ?? partial.sourceDurationMs,
     sourceDurationMs: partial.sourceDurationMs,
+  };
+}
+
+export function setPipTransform(
+  clip: Clip,
+  position: { x: number; y: number },
+  size: { width: number; height: number }
+): Clip {
+  return {
+    ...clip,
+    pipPosition: {
+      x: Math.max(0, Math.min(1, position.x)),
+      y: Math.max(0, Math.min(1, position.y)),
+    },
+    pipSize: {
+      width: Math.max(0.1, Math.min(1, size.width)),
+      height: Math.max(0.1, Math.min(1, size.height)),
+    },
   };
 }
