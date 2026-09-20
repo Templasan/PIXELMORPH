@@ -3,3 +3,4 @@ export { createListPresetsUseCase } from './ListPresetsUseCase';
 export { createApplyBrushStrokeUseCase } from './ApplyBrushStrokeUseCase';
 export { createColorMaskUseCase } from './CreateColorMaskUseCase';
 export { createFocusMaskUseCase } from './CreateFocusMaskUseCase';
+export { createLinearGradientMaskUseCase, createRadialGradientMaskUseCase } from './CreateGradientMaskUseCase';

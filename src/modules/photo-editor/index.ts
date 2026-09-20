@@ -5,6 +5,8 @@ import {
   createApplyBrushStrokeUseCase,
   createColorMaskUseCase,
   createFocusMaskUseCase,
+  createLinearGradientMaskUseCase,
+  createRadialGradientMaskUseCase,
 } from './application';
 
 export * from './spike';
@@ -16,6 +18,8 @@ type PhotoEditorModule = {
   applyBrushStroke: ReturnType<typeof createApplyBrushStrokeUseCase>;
   createColorMask: ReturnType<typeof createColorMaskUseCase>;
   createFocusMask: ReturnType<typeof createFocusMaskUseCase>;
+  createLinearGradientMask: ReturnType<typeof createLinearGradientMaskUseCase>;
+  createRadialGradientMask: ReturnType<typeof createRadialGradientMaskUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -31,6 +35,8 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     applyBrushStroke: createApplyBrushStrokeUseCase(),
     createColorMask: createColorMaskUseCase(),
     createFocusMask: createFocusMaskUseCase(),
+    createLinearGradientMask: createLinearGradientMaskUseCase(),
+    createRadialGradientMask: createRadialGradientMaskUseCase(),
   };
 
   return photoEditorModule;
