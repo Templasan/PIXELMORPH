@@ -10,6 +10,7 @@ import {
   createApplyCloneStrokeUseCase,
   createApplyLiquifyStrokeUseCase,
   createComputeWatermarkRenderingUseCase,
+  createValidateQRCodeUseCase,
 } from './application';
 
 export * from './spike';
@@ -26,6 +27,7 @@ type PhotoEditorModule = {
   applyCloneStroke: ReturnType<typeof createApplyCloneStrokeUseCase>;
   applyLiquifyStroke: ReturnType<typeof createApplyLiquifyStrokeUseCase>;
   computeWatermarkRendering: ReturnType<typeof createComputeWatermarkRenderingUseCase>;
+  validateQRCode: ReturnType<typeof createValidateQRCodeUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -46,6 +48,7 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     applyCloneStroke: createApplyCloneStrokeUseCase(),
     applyLiquifyStroke: createApplyLiquifyStrokeUseCase(),
     computeWatermarkRendering: createComputeWatermarkRenderingUseCase(),
+    validateQRCode: createValidateQRCodeUseCase(),
   };
 
   return photoEditorModule;

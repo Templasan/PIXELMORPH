@@ -7,3 +7,4 @@ export { createLinearGradientMaskUseCase, createRadialGradientMaskUseCase } from
 export { createApplyCloneStrokeUseCase } from './ApplyCloneStrokeUseCase';
 export { createApplyLiquifyStrokeUseCase } from './ApplyLiquifyStrokeUseCase';
 export { createComputeWatermarkRenderingUseCase } from './ComputeWatermarkRenderingUseCase';
+export { createValidateQRCodeUseCase } from './ValidateQRCodeUseCase';
