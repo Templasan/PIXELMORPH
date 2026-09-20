@@ -8,6 +8,7 @@ import {
   createLinearGradientMaskUseCase,
   createRadialGradientMaskUseCase,
   createApplyCloneStrokeUseCase,
+  createApplyLiquifyStrokeUseCase,
 } from './application';
 
 export * from './spike';
@@ -22,6 +23,7 @@ type PhotoEditorModule = {
   createLinearGradientMask: ReturnType<typeof createLinearGradientMaskUseCase>;
   createRadialGradientMask: ReturnType<typeof createRadialGradientMaskUseCase>;
   applyCloneStroke: ReturnType<typeof createApplyCloneStrokeUseCase>;
+  applyLiquifyStroke: ReturnType<typeof createApplyLiquifyStrokeUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -40,6 +42,7 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     createLinearGradientMask: createLinearGradientMaskUseCase(),
     createRadialGradientMask: createRadialGradientMaskUseCase(),
     applyCloneStroke: createApplyCloneStrokeUseCase(),
+    applyLiquifyStroke: createApplyLiquifyStrokeUseCase(),
   };
 
   return photoEditorModule;
