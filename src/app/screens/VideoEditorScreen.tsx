@@ -48,7 +48,9 @@ import {
   clampFadeMs,
   setPipTransform,
   setStabilization,
+  setSphericalOrientation,
 } from '@modules/video-editor';
+import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { pickMultipleImagesFromGallery } from '@modules/device-media';
 
@@ -257,6 +259,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [pipY, setPipY] = useState(0.7);
   const [pipWidth, setPipWidth] = useState(0.3);
   const [pipHeight, setPipHeight] = useState(0.3);
+  // RF-021: 360° video detection
+  const [sphericalInfo, setSphericalInfo] = useState<SphericalInfo>({ isSpherical: false });
 
   useEffect(() => {
     if (!projectId) return;
@@ -335,6 +339,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     }, 100);
     return () => clearInterval(interval);
   }, [playing, totalDurationMs, loopReview]);
+
+  // RF-021: detect if selected clip is 360° video
+  useEffect(() => {
+    if (!selected) {
+      setSphericalInfo({ isSpherical: false });
+      return;
+    }
+    const info = detectSphericalFromUri(selected.clip.sourceUri);
+    setSphericalInfo(info);
+  }, [selected]);
 
   const onBodyLayout = useCallback((e: LayoutChangeEvent) => {
     setBodyWidth(e.nativeEvent.layout.width - TRACK_HEADER_WIDTH);
@@ -1110,6 +1124,159 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       }}
                     />
                   </View>
+                  {sphericalInfo.isSpherical && (
+                    <>
+                      <Text
+                        style={{
+                          color: colors.texto,
+                          fontSize: 11,
+                          fontWeight: '600',
+                          marginTop: 8,
+                          marginBottom: 4,
+                        }}
+                      >
+                        📹 Orientação 360°
+                      </Text>
+                      <Slider
+                        label="Pitch (cima/baixo)"
+                        value={selected.clip.sphericalPitch ?? 0}
+                        min={-90}
+                        max={90}
+                        bipolar
+                        onChange={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            v,
+                            selected.clip.sphericalYaw ?? 0,
+                            selected.clip.sphericalRoll ?? 0
+                          );
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          setTracks(after);
+                        }}
+                        onSlidingComplete={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            v,
+                            selected.clip.sphericalYaw ?? 0,
+                            selected.clip.sphericalRoll ?? 0
+                          );
+                          const before = tracksRef.current;
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          commitTracks(before, after);
+                        }}
+                      />
+                      <Slider
+                        label="Yaw (esq/dir)"
+                        value={selected.clip.sphericalYaw ?? 0}
+                        min={-180}
+                        max={180}
+                        bipolar
+                        onChange={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            selected.clip.sphericalPitch ?? 0,
+                            v,
+                            selected.clip.sphericalRoll ?? 0
+                          );
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          setTracks(after);
+                        }}
+                        onSlidingComplete={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            selected.clip.sphericalPitch ?? 0,
+                            v,
+                            selected.clip.sphericalRoll ?? 0
+                          );
+                          const before = tracksRef.current;
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          commitTracks(before, after);
+                        }}
+                      />
+                      <Slider
+                        label="Roll (rotação)"
+                        value={selected.clip.sphericalRoll ?? 0}
+                        min={-180}
+                        max={180}
+                        bipolar
+                        onChange={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            selected.clip.sphericalPitch ?? 0,
+                            selected.clip.sphericalYaw ?? 0,
+                            v
+                          );
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          setTracks(after);
+                        }}
+                        onSlidingComplete={(v: number) => {
+                          const updated = setSphericalOrientation(
+                            selected.clip,
+                            selected.clip.sphericalPitch ?? 0,
+                            selected.clip.sphericalYaw ?? 0,
+                            v
+                          );
+                          const before = tracksRef.current;
+                          const after = tracksRef.current.map((t) =>
+                            t.id === selected.track.id
+                              ? {
+                                  ...t,
+                                  clips: t.clips.map((c) =>
+                                    c.id === selected.clip.id ? updated : c
+                                  ),
+                                }
+                              : t
+                          );
+                          commitTracks(before, after);
+                        }}
+                      />
+                    </>
+                  )}
                 </View>
               )}
               {clipTab === 'Áudio' && selected.track.kind === 'audio' && (

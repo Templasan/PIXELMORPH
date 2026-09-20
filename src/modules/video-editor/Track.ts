@@ -41,6 +41,10 @@ export interface Clip {
   pipSize?: { width: number; height: number }; // 0..1 relative to canvas
   /** RF-009: video stabilization via sensor smoothing. */
   stabilization?: boolean;
+  /** RF-021: 360° video orientation (pitch, yaw, roll in degrees). */
+  sphericalPitch?: number; // -90 to 90
+  sphericalYaw?: number; // -180 to 180
+  sphericalRoll?: number; // -180 to 180
 }
 
 export interface Track {
@@ -116,5 +120,19 @@ export function setStabilization(clip: Clip, enabled: boolean): Clip {
   return {
     ...clip,
     stabilization: enabled,
+  };
+}
+
+export function setSphericalOrientation(
+  clip: Clip,
+  pitch: number,
+  yaw: number,
+  roll: number
+): Clip {
+  return {
+    ...clip,
+    sphericalPitch: Math.max(-90, Math.min(90, pitch)),
+    sphericalYaw: Math.max(-180, Math.min(180, yaw)),
+    sphericalRoll: Math.max(-180, Math.min(180, roll)),
   };
 }
