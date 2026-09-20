@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   CameraView,
   type CameraType,
@@ -14,6 +15,16 @@ import { colors, monoFontFamily } from '@core/theme';
 import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
 import type { BasicAdjustments } from '@modules/photo-editor/color';
+import {
+  createARAnchor,
+  updateARPosition,
+  updateARAppearance,
+  useARTracking,
+  getARViewerUri,
+  type ARAnchor,
+  type ARAnchorType,
+  type ARSession,
+} from '@modules/camera/ar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 
@@ -143,8 +154,38 @@ export default function CameraScreen({ navigation }: Props) {
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastCaptureUri, setLastCaptureUri] = useState<string | null>(null);
+  // RF-024: AR anchoring system
+  const [arSession, setArSession] = useState<ARSession>({
+    anchors: [],
+    gyroOffsetX: 0,
+    gyroOffsetY: 0,
+    enabled: false,
+  });
+  const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
+  const arOffsets = useARTracking(arSession.enabled, 0.08);
+
+  // Sync anchors with WebView
+  useEffect(() => {
+    if (mode !== 'AR' || !webViewRef.current) return;
+
+    arSession.anchors.forEach((anchor) => {
+      const jsCode = `
+        window.addARObject(
+          '${anchor.id}',
+          '${anchor.type}',
+          ${anchor.x},
+          ${anchor.y},
+          ${anchor.scale},
+          ${anchor.rotation},
+          '${anchor.color}'
+        );
+      `;
+      webViewRef.current?.injectJavaScript(jsCode);
+    });
+  }, [arSession.anchors, mode]);
 
   const cameraRef = useRef<CameraView | null>(null);
+  const webViewRef = useRef<WebView | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
@@ -331,14 +372,29 @@ export default function CameraScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.previewWrap}>
-        <CameraView
-          ref={cameraRef}
-          style={styles.preview}
-          facing={facing}
-          enableTorch={torch}
-          mode={mode === 'VÍDEO' ? 'video' : 'picture'}
-          mute={false}
-        />
+        {mode === 'AR' ? (
+          <WebView
+            ref={webViewRef}
+            style={styles.preview}
+            source={{ uri: getARViewerUri() }}
+            onMessage={(event) => {
+              // Handle messages from WebView
+            }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            scalesPageToFit={false}
+          />
+        ) : (
+          <CameraView
+            ref={cameraRef}
+            style={styles.preview}
+            facing={facing}
+            enableTorch={torch}
+            mode={mode === 'VÍDEO' ? 'video' : 'picture'}
+            mute={false}
+          />
+        )}
         <View
           pointerEvents="none"
           style={[
@@ -540,6 +596,82 @@ export default function CameraScreen({ navigation }: Props) {
               >
                 <Text style={[styles.stopActionText, styles.stopActionTextPrimary]}>
                   Compor Vídeo
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
+
+      {mode === 'AR' && (
+        <View style={styles.arControlPanel}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '600' }}>
+              📍 {arSession.anchors.length} âncoras
+            </Text>
+            <Pressable
+              onPress={() => {
+                const newAnchor = createARAnchor('circle', 0.5, 0.5);
+                setArSession((s) => ({
+                  ...s,
+                  anchors: [...s.anchors, newAnchor],
+                }));
+                setSelectedAnchorId(newAnchor.id);
+              }}
+              style={{ paddingHorizontal: 8 }}
+            >
+              <Icon name="plus" size={20} color={colors.acento} />
+            </Pressable>
+          </View>
+
+          {selectedAnchorId && arSession.anchors.find((a) => a.id === selectedAnchorId) && (
+            <View style={{ gap: 8, paddingHorizontal: 12, paddingBottom: 8 }}>
+              <Slider
+                label="Escala"
+                value={(arSession.anchors.find((a) => a.id === selectedAnchorId)?.scale ?? 1) * 100}
+                min={50}
+                max={200}
+                unit="%"
+                onChange={(v: number) => {
+                  const anchor = arSession.anchors.find((a) => a.id === selectedAnchorId);
+                  if (!anchor) return;
+                  const updated = updateARAppearance(anchor, v / 100, anchor.rotation, anchor.color);
+                  setArSession((s) => ({
+                    ...s,
+                    anchors: s.anchors.map((a) => (a.id === selectedAnchorId ? updated : a)),
+                  }));
+                }}
+                labelWidth={50}
+              />
+              <Pressable
+                onPress={() => {
+                  const idx = arSession.anchors.findIndex((a) => a.id === selectedAnchorId);
+                  if (idx >= 0) {
+                    setArSession((s) => ({
+                      ...s,
+                      anchors: s.anchors.filter((_, i) => i !== idx),
+                    }));
+                    setSelectedAnchorId(null);
+                  }
+                }}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  backgroundColor: colors.perigo,
+                  borderRadius: 4,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.branco, fontSize: 12, fontWeight: '600' }}>
+                  Remover Âncora
                 </Text>
               </Pressable>
             </View>
@@ -848,5 +980,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.95)',
     paddingHorizontal: 16,
     paddingBottom: 10,
+  },
+  arControlPanel: {
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    borderTopWidth: 1,
+    borderTopColor: colors.linha,
   },
 });
