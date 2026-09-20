@@ -31,7 +31,7 @@ import {
 } from '@shopify/react-native-skia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Icon, ExportSheet } from '@core/ui';
+import { Icon, ExportSheet, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
@@ -46,6 +46,12 @@ import {
   useImageHistogram,
 } from '@modules/photo-editor/color';
 import type { Mask } from '@modules/photo-editor/domain';
+import {
+  detectStereoscopicFromUri,
+  detectStereoscopicFromDimensions,
+  useGyroParallax,
+  type StereoscopicInfo,
+} from '@modules/photo-editor/stereoscopic';
 import {
   computeHomography,
   orientationToTransform,
@@ -322,6 +328,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
   const [currentMask, setCurrentMask] = useState<Mask | null>(null);
+  // RF-071: stereoscopic detection and parallax effect state
+  const [stereoInfo, setStereoInfo] = useState<StereoscopicInfo>({ isStereoscopic: false });
+  const [gyroParallaxEnabled, setGyroParallaxEnabled] = useState(false);
   // Real projects have no photo to show until their asset loads — falling back to the demo
   // URI here would fire a slow network fetch that can resolve *after* the real one and clobber
   // it (useImage race). Only the no-project spike entry point gets the demo photo immediately.
@@ -386,6 +395,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   );
   const histogram = useImageHistogram(skiaImage);
   const liveHistogram = useMemo(() => histogram.compute(uniforms), [histogram, uniforms]);
+
+  // RF-071: gyro-responsive parallax for stereoscopic photos
+  const parallaxOffset = useGyroParallax(
+    gyroParallaxEnabled && stereoInfo.isStereoscopic,
+    20
+  );
 
   // US-05: rotation/mirror/perspective geometry — a separate transform stage applied
   // around the color-adjusted image, real Skia matrices (not a cosmetic overlay).
@@ -453,6 +468,16 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLayerId]);
+
+  // RF-071: detect stereoscopic photos automatically
+  useEffect(() => {
+    if (!photoUri) {
+      setStereoInfo({ isStereoscopic: false });
+      return;
+    }
+    const info = detectStereoscopicFromUri(photoUri);
+    setStereoInfo(info);
+  }, [photoUri]);
 
   const submitTextLayer = useCallback(() => {
     if (!textDraft.content.trim()) return;
@@ -868,7 +893,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             {skiaImage && adjustmentsEffect ? (
               <Canvas ref={canvasRef} style={StyleSheet.absoluteFill}>
                 <Group
-                  transform={[{ rotate: totalRotationRad }]}
+                  transform={[
+                    { rotate: totalRotationRad },
+                    ...(parallaxOffset.x !== 0 || parallaxOffset.y !== 0
+                      ? [{ translateX: parallaxOffset.x }, { translateY: parallaxOffset.y }]
+                      : []),
+                  ]}
                   origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
                 >
                   {renderPhotoLayer(false, false, 1, 'base', true)}
@@ -1256,6 +1286,32 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               />
             )}
           </ScrollView>
+        </View>
+      )}
+
+      {stereoInfo.isStereoscopic && (
+        <View
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            backgroundColor: colors.background2,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: colors.texto1,
+              fontSize: fontSize.sm,
+              fontWeight: '500',
+            }}
+          >
+            📷 Efeito 3D ({stereoInfo.format ?? 'estéreo'})
+          </Text>
+          <Switch value={gyroParallaxEnabled} onChange={setGyroParallaxEnabled} />
         </View>
       )}
 
