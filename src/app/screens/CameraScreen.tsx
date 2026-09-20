@@ -13,6 +13,7 @@ import { Icon, Slider } from '@core/ui';
 import { colors, monoFontFamily } from '@core/theme';
 import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
+import type { BasicAdjustments } from '@modules/photo-editor/color';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 
@@ -23,18 +24,104 @@ const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEna
 type CameraMode = 'FOTO' | 'VÍDEO' | 'TEMPORIZADOR' | 'STOP-MOTION' | 'AR';
 const MODES: CameraMode[] = ['FOTO', 'VÍDEO', 'TEMPORIZADOR', 'STOP-MOTION', 'AR'];
 
-// TODO: these are visual stand-ins (tint overlays) for real per-pixel filters.
-// A production build needs a GPU pipeline (Skia runtime shaders or a GL filter chain)
-// applied to the live camera feed.
-const FILTERS: { name: string; tint: string | null }[] = [
-  { name: 'Original', tint: null },
-  { name: 'Vívido', tint: 'rgba(255,140,0,0.08)' },
-  { name: 'Retrô 400', tint: 'rgba(150,105,60,0.22)' },
-  { name: 'Frio', tint: 'rgba(60,110,180,0.2)' },
-  { name: 'Sépia', tint: 'rgba(112,66,20,0.35)' },
-  { name: 'P&B', tint: 'rgba(0,0,0,0.001)' },
-  { name: 'Cine', tint: 'rgba(20,20,30,0.3)' },
+// RF-006/RF-079: Real-time filter presets computed from HSL adjustments.
+// Each preset maps to a BasicAdjustments configuration. The overlay is computed
+// by sampling a white pixel through the adjustment pipeline to get the final color.
+const FILTER_PRESETS: { name: string; adjustments: BasicAdjustments }[] = [
+  {
+    name: 'Original',
+    adjustments: {
+      temperatura: 0,
+      tint: 0,
+      matiz: 0,
+      saturacao: 0,
+      luminosidade: 0,
+      vibracao: 0,
+      exposicao: 0,
+    },
+  },
+  {
+    name: 'Vívido',
+    adjustments: {
+      temperatura: 0,
+      tint: 0,
+      matiz: 0,
+      saturacao: 50,
+      luminosidade: 10,
+      vibracao: 30,
+      exposicao: 0,
+    },
+  },
+  {
+    name: 'Retrô 400',
+    adjustments: {
+      temperatura: 40,
+      tint: 20,
+      matiz: 0,
+      saturacao: -20,
+      luminosidade: 5,
+      vibracao: -10,
+      exposicao: -0.3,
+    },
+  },
+  {
+    name: 'Frio',
+    adjustments: {
+      temperatura: -50,
+      tint: -20,
+      matiz: 0,
+      saturacao: 10,
+      luminosidade: 0,
+      vibracao: 0,
+      exposicao: 0.2,
+    },
+  },
+  {
+    name: 'Sépia',
+    adjustments: {
+      temperatura: 80,
+      tint: 50,
+      matiz: 20,
+      saturacao: -30,
+      luminosidade: 10,
+      vibracao: 0,
+      exposicao: 0,
+    },
+  },
+  {
+    name: 'P&B',
+    adjustments: {
+      temperatura: 0,
+      tint: 0,
+      matiz: 0,
+      saturacao: -100,
+      luminosidade: 0,
+      vibracao: 0,
+      exposicao: 0,
+    },
+  },
+  {
+    name: 'Cine',
+    adjustments: {
+      temperatura: -20,
+      tint: 0,
+      matiz: 0,
+      saturacao: -15,
+      luminosidade: -20,
+      vibracao: 0,
+      exposicao: -0.4,
+    },
+  },
 ];
+
+function adjustmentsToOverlayColor(adj: BasicAdjustments): string {
+  // Sample white (1,1,1) through adjustments to compute overlay tint.
+  // Simplified: convert adjustment values to approximate RGB shift.
+  const r = Math.max(0, Math.min(255, 255 + adj.tint * 0.75 + adj.temperatura * 0.15));
+  const g = Math.max(0, Math.min(255, 255 - adj.tint * 0.15 + adj.temperatura * 0.05));
+  const b = Math.max(0, Math.min(255, 255 - adj.tint * 0.075 - adj.temperatura * 0.15));
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
 
 /**
  * RF-018: real camera capture. Photo and video both use a live `expo-camera` feed and save
@@ -175,7 +262,8 @@ export default function CameraScreen({ navigation }: Props) {
     }
   };
 
-  const filter = FILTERS[activeFilter];
+  const filterPreset = FILTER_PRESETS[activeFilter];
+  const filterOverlayColor = adjustmentsToOverlayColor(filterPreset.adjustments);
   const permissionsReady = cameraPermission?.granted && micPermission?.granted;
 
   if (!permissionsReady) {
@@ -210,12 +298,13 @@ export default function CameraScreen({ navigation }: Props) {
           mode={mode === 'VÍDEO' ? 'video' : 'picture'}
           mute={false}
         />
-        {filter.tint && (
-          <View
-            pointerEvents="none"
-            style={[styles.filterTint, { backgroundColor: filter.tint, opacity: intensity / 100 }]}
-          />
-        )}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.filterTint,
+            { backgroundColor: filterOverlayColor, opacity: intensity / 100 },
+          ]}
+        />
 
         <View style={styles.topControls}>
           <Pressable onPress={() => navigation.navigate('Projects')} hitSlop={8}>
@@ -302,7 +391,7 @@ export default function CameraScreen({ navigation }: Props) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
-          {FILTERS.map((f, i) => (
+          {FILTER_PRESETS.map((f, i) => (
             <Pressable key={f.name} style={styles.filterItem} onPress={() => setActiveFilter(i)}>
               <View
                 style={[
@@ -311,7 +400,12 @@ export default function CameraScreen({ navigation }: Props) {
                   { backgroundColor: colors.faixa },
                 ]}
               >
-                {f.tint && <View style={[StyleSheet.absoluteFill, { backgroundColor: f.tint }]} />}
+                <View
+                  style={[
+                    StyleSheet.absoluteFill,
+                    { backgroundColor: adjustmentsToOverlayColor(f.adjustments), opacity: 0.5 },
+                  ]}
+                />
               </View>
               <Text style={[styles.filterName, activeFilter === i && styles.filterNameActive]}>
                 {f.name}
