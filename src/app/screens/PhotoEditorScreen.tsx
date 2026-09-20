@@ -80,6 +80,7 @@ import { EffectsDrawer, type DoubleExposureImage } from './photo-editor/EffectsD
 import { ElementsDrawer, type ShapeDraft, type TextDraft } from './photo-editor/ElementsDrawer';
 import { AIDrawer } from './photo-editor/AIDrawer';
 import { PresetsDrawer } from './photo-editor/PresetsDrawer';
+import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
@@ -262,6 +263,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [projectPhotoUri, setProjectPhotoUri] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareSplit, setCompareSplit] = useState(50);
   const [canvasWidth, setCanvasWidth] = useState(0);
@@ -830,6 +832,11 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         <Pressable onPress={handleRedo} disabled={!history.canRedo} hitSlop={6}>
           <Icon name="redo" size={18} color={history.canRedo ? colors.icone : colors.linha} />
         </Pressable>
+        {projectId && (
+          <Pressable onPress={() => setBatchEditOpen(true)} hitSlop={6}>
+            <Icon name="copy" size={18} color={colors.icone} />
+          </Pressable>
+        )}
         <Pressable style={styles.exportButton} onPress={() => setExportOpen(true)}>
           <Text style={styles.exportButtonText}>EXPORTAR</Text>
         </Pressable>
@@ -1257,6 +1264,17 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           })}
         </ScrollView>
       </View>
+
+      {batchEditOpen && projectId && (
+        <BatchEditSheet
+          projectId={projectId}
+          currentAdjustments={adjustments}
+          onClose={() => setBatchEditOpen(false)}
+          onSuccess={() => {
+            // Optionally reload data if needed
+          }}
+        />
+      )}
 
       {exportOpen && (
         <ExportSheet
