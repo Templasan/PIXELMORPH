@@ -11,6 +11,8 @@ import {
   createApplyLiquifyStrokeUseCase,
   createComputeWatermarkRenderingUseCase,
   createValidateQRCodeUseCase,
+  createAddRecentAdjustmentUseCase,
+  createListRecentAdjustmentsUseCase,
 } from './application';
 
 export * from './spike';
@@ -28,6 +30,8 @@ type PhotoEditorModule = {
   applyLiquifyStroke: ReturnType<typeof createApplyLiquifyStrokeUseCase>;
   computeWatermarkRendering: ReturnType<typeof createComputeWatermarkRenderingUseCase>;
   validateQRCode: ReturnType<typeof createValidateQRCodeUseCase>;
+  addRecentAdjustment: ReturnType<typeof createAddRecentAdjustmentUseCase>;
+  listRecentAdjustments: ReturnType<typeof createListRecentAdjustmentsUseCase>;
 };
 
 let photoEditorModule: PhotoEditorModule | null = null;
@@ -36,6 +40,8 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   if (photoEditorModule) return photoEditorModule;
 
   const presetsRepo = new AsyncStoragePresetsRepository();
+  const { AsyncStorageRecentAdjustmentsRepository } = require('@infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository');
+  const recentRepo = new AsyncStorageRecentAdjustmentsRepository();
 
   photoEditorModule = {
     savePreset: createSavePresetUseCase(presetsRepo),
@@ -49,6 +55,8 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     applyLiquifyStroke: createApplyLiquifyStrokeUseCase(),
     computeWatermarkRendering: createComputeWatermarkRenderingUseCase(),
     validateQRCode: createValidateQRCodeUseCase(),
+    addRecentAdjustment: createAddRecentAdjustmentUseCase(recentRepo),
+    listRecentAdjustments: createListRecentAdjustmentsUseCase(recentRepo),
   };
 
   return photoEditorModule;
