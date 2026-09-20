@@ -13,6 +13,7 @@ module.exports = {
     '^@modules/(.*)$': '<rootDir>/src/modules/$1',
     '^@infrastructure/(.*)$': '<rootDir>/src/infrastructure/$1',
     '^@app/(.*)$': '<rootDir>/src/app/$1',
+    '^expo-sensors$': '<rootDir>/tests/mocks/expo-sensors.ts',
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
