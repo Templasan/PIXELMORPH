@@ -39,6 +39,7 @@ import { errorLogger } from '@core/reliability';
 import { encodeImage } from '@modules/export';
 import { writeImageToCache } from '@modules/device-media';
 import { composeCollage, loadSkImage, type CollageLayout } from '@modules/photo-editor/collage';
+import { composePanorama } from '@modules/photo-editor/panorama';
 import {
   ADJUSTMENTS_SKSL,
   CURVE_IDENTITY,
@@ -86,6 +87,7 @@ import { EffectsDrawer, type DoubleExposureImage } from './photo-editor/EffectsD
 import { ElementsDrawer, type ShapeDraft, type TextDraft } from './photo-editor/ElementsDrawer';
 import { AIDrawer } from './photo-editor/AIDrawer';
 import { PresetsDrawer } from './photo-editor/PresetsDrawer';
+import { PanoramaDrawer } from './photo-editor/PanoramaDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
@@ -102,6 +104,7 @@ type Tool =
   | 'elementos'
   | 'ia'
   | 'presets'
+  | 'panorama'
   | null;
 
 const TOOLBAR = [
@@ -114,6 +117,7 @@ const TOOLBAR = [
   { id: 'elementos', icon: 'type', label: 'Elementos' },
   { id: 'ia', icon: 'robot', label: 'IA' },
   { id: 'presets', icon: 'preset', label: 'Presets' },
+  { id: 'panorama', icon: 'camera', label: 'Panorama' },
 ] as const;
 
 // Fallback only for the no-project spike entry point — every real project uses its own
@@ -330,6 +334,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // RF-071: stereoscopic detection and parallax effect state
   const [stereoInfo, setStereoInfo] = useState<StereoscopicInfo>({ isStereoscopic: false });
   const [gyroParallaxEnabled, setGyroParallaxEnabled] = useState(false);
+  // US-28: panorama stitching state
+  const [selectedPanoramaImages, setSelectedPanoramaImages] = useState<
+    Array<{ uri: string; id: string }>
+  >([]);
+  const [panoramaOffsets, setPanoramaOffsets] = useState<number[]>([]);
+  const [panoramaOverlapWidth, setPanoramaOverlapWidth] = useState(50);
+  const [isStitching, setIsStitching] = useState(false);
   // Real projects have no photo to show until their asset loads — falling back to the demo
   // URI here would fire a slow network fetch that can resolve *after* the real one and clobber
   // it (useImage race). Only the no-project spike entry point gets the demo photo immediately.
@@ -588,6 +599,90 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     },
     [navigation]
   );
+
+  // US-28: panorama stitching handlers
+  const handleAddPanoramaImage = useCallback(() => {
+    if (!photoUri) return;
+    const newId = `panorama_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    setSelectedPanoramaImages((prev) => [...prev, { uri: photoUri, id: newId }]);
+    setPanoramaOffsets((prev) => [...prev, 0]);
+  }, [photoUri]);
+
+  const handleRemovePanoramaImage = useCallback((id: string) => {
+    setSelectedPanoramaImages((prev) => prev.filter((img) => img.id !== id));
+    setPanoramaOffsets((prev) => {
+      const filtered = [...prev];
+      const idx = selectedPanoramaImages.findIndex((img) => img.id === id);
+      if (idx >= 0) filtered.splice(idx, 1);
+      return filtered;
+    });
+  }, [selectedPanoramaImages]);
+
+  const handlePanoramaOffsetChange = useCallback((index: number, offset: number) => {
+    setPanoramaOffsets((prev) => {
+      const updated = [...prev];
+      updated[index] = offset;
+      return updated;
+    });
+  }, []);
+
+  const handlePanoramaOverlapChange = useCallback((overlap: number) => {
+    setPanoramaOverlapWidth(overlap);
+  }, []);
+
+  const submitPanorama = useCallback(async () => {
+    if (selectedPanoramaImages.length < 2) {
+      Alert.alert('Panorama', 'Selecione pelo menos 2 imagens');
+      return;
+    }
+
+    setIsStitching(true);
+    try {
+      const images: Array<{ image: SkImage; offsetX: number }> = [];
+      for (let i = 0; i < selectedPanoramaImages.length; i++) {
+        const img = await loadSkImage(selectedPanoramaImages[i].uri);
+        images.push({
+          image: img,
+          offsetX: panoramaOffsets[i] ?? 0,
+        });
+      }
+
+      const stitched = composePanorama(images, {
+        overlapWidth: panoramaOverlapWidth,
+        outputHeight: 800,
+      });
+
+      const encoded = encodeImage(stitched, 'JPEG', 90);
+      const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
+
+      const mod = createProjectsModule();
+      const project = await mod.createProject.execute('Panorama', 'photo');
+      await mod.addMediaAsset.execute(
+        project.id,
+        createMediaAsset(
+          `asset_${Date.now()}`,
+          'image',
+          fileUri,
+          fileUri,
+          createMediaMetadata('image/jpeg', {
+            width: encoded.width,
+            height: encoded.height,
+            fileSizeBytes: encoded.bytes.length,
+          })
+        )
+      );
+
+      setSelectedPanoramaImages([]);
+      setPanoramaOffsets([]);
+      setActiveTool(null);
+      navigation.push('PhotoEditor', { projectId: project.id });
+    } catch (error) {
+      errorLogger.log(error, 'PhotoEditorScreen.submitPanorama');
+      Alert.alert('Não foi possível criar o panorama', 'Tente novamente.');
+    } finally {
+      setIsStitching(false);
+    }
+  }, [selectedPanoramaImages, panoramaOffsets, panoramaOverlapWidth, navigation]);
 
   // Selecting an existing shape layer loads its real style into the Formas form for editing.
   useEffect(() => {
@@ -1282,6 +1377,19 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               <PresetsDrawer
                 adjustments={adjustments}
                 onApplyPreset={(adj) => setAdjustments((prev) => ({ ...prev, ...adj }))}
+              />
+            )}
+            {activeTool === 'panorama' && (
+              <PanoramaDrawer
+                selectedImages={selectedPanoramaImages}
+                onAddImage={handleAddPanoramaImage}
+                onRemoveImage={handleRemovePanoramaImage}
+                onOffsetChange={handlePanoramaOffsetChange}
+                onOverlapChange={handlePanoramaOverlapChange}
+                onStitch={submitPanorama}
+                overlapWidth={panoramaOverlapWidth}
+                offsets={panoramaOffsets}
+                isStitching={isStitching}
               />
             )}
           </ScrollView>
