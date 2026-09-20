@@ -391,6 +391,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     return null;
   }, [tracks, currentTimeMs]);
 
+  const pipClip = useMemo(() => {
+    if (!pipClipId) return null;
+    const clip = findClip(tracks, pipClipId);
+    return clip?.clip ?? null;
+  }, [tracks, pipClipId]);
+
   const transitionBlend = useMemo(() => {
     if (!currentClip?.transitionIn) return null;
     const t = currentTimeMs - currentClip.startMs;
@@ -720,6 +726,22 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               ]}
             />
           ) : null}
+          {pipClip && pipClip.pipPosition && pipClip.pipSize && (
+            <Image
+              source={{ uri: pipClip.sourceUri }}
+              style={[
+                styles.previewImage,
+                {
+                  left: `${pipClip.pipPosition.x * 100}%`,
+                  top: `${pipClip.pipPosition.y * 100}%`,
+                  width: `${pipClip.pipSize.width * 100}%`,
+                  height: `${pipClip.pipSize.height * 100}%`,
+                  borderWidth: 2,
+                  borderColor: colors.acento,
+                },
+              ]}
+            />
+          )}
           <View style={styles.qualityBadge}>
             <Text style={styles.qualityBadgeText}>
               {project?.assets[0]?.metadata.width ?? 3840}×
