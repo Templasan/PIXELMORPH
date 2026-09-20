@@ -40,26 +40,58 @@ export default function LoginScreen({ navigate }: Props) {
 
   if (step === '2fa') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A', padding: '0 24px' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-          <div style={{ width: 64, height: 64, border: '2px solid #3A8FDE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          background: '#1A1A1A',
+          padding: '0 24px',
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 24,
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              border: '2px solid #3A8FDE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <Icon name="shield" size={32} color="#3A8FDE" />
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#E4E4E4' }}>Verificação em duas etapas</div>
-            <div style={{ fontSize: 13, color: '#8E8E8E', marginTop: 4 }}>Digite o código enviado para seu e-mail</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#E4E4E4' }}>
+              Verificação em duas etapas
+            </div>
+            <div style={{ fontSize: 13, color: '#8E8E8E', marginTop: 4 }}>
+              Digite o código enviado para seu e-mail
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {code.map((v, i) => (
               <input
                 key={i}
-                ref={el => { refs.current[i] = el; }}
+                ref={(el) => {
+                  refs.current[i] = el;
+                }}
                 type="text"
                 inputMode="numeric"
                 maxLength={1}
                 value={v}
-                onChange={e => handleCodeChange(i, e.target.value)}
-                onKeyDown={e => handleCodeKey(i, e)}
+                onChange={(e) => handleCodeChange(i, e.target.value)}
+                onKeyDown={(e) => handleCodeKey(i, e)}
                 style={{
                   width: 48,
                   height: 48,
@@ -99,7 +131,15 @@ export default function LoginScreen({ navigate }: Props) {
           >
             Verificar
           </button>
-          <button style={{ fontSize: 12, color: '#3A8FDE', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <button
+            style={{
+              fontSize: 12,
+              color: '#3A8FDE',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
             Usar app autenticador
           </button>
         </div>
@@ -108,23 +148,50 @@ export default function LoginScreen({ navigate }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A', padding: '0 24px' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#1A1A1A',
+        padding: '0 24px',
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 24,
+        }}
+      >
         {/* Logo */}
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#E4E4E4', letterSpacing: '-0.5px' }}>PixelMorph</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: '#E4E4E4', letterSpacing: '-0.5px' }}>
+            PixelMorph
+          </div>
           <div style={{ fontSize: 13, color: '#8E8E8E', marginTop: 2 }}>Editor de foto e vídeo</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8E8E8E', marginBottom: 6 }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: '#8E8E8E',
+                marginBottom: 6,
+              }}
+            >
               E-mail
             </label>
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="usuario@email.com"
               style={{
                 width: '100%',
@@ -140,14 +207,23 @@ export default function LoginScreen({ navigate }: Props) {
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8E8E8E', marginBottom: 6 }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: '#8E8E8E',
+                marginBottom: 6,
+              }}
+            >
               Senha
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPw ? 'text' : 'password'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 style={{
                   width: '100%',
@@ -163,13 +239,32 @@ export default function LoginScreen({ navigate }: Props) {
               />
               <button
                 onClick={() => setShowPw(!showPw)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
               >
                 <Icon name={showPw ? 'eyeOff' : 'eye'} size={18} color="#8E8E8E" />
               </button>
             </div>
           </div>
-          <button style={{ alignSelf: 'flex-start', fontSize: 12, color: '#3A8FDE', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button
+            style={{
+              alignSelf: 'flex-start',
+              fontSize: 12,
+              color: '#3A8FDE',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
             Esqueci minha senha
           </button>
         </div>
@@ -219,10 +314,16 @@ export default function LoginScreen({ navigate }: Props) {
       </div>
 
       <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center', gap: 24 }}>
-        {['PT', 'EN', 'ES'].map(lang => (
+        {['PT', 'EN', 'ES'].map((lang) => (
           <button
             key={lang}
-            style={{ fontSize: 12, color: lang === 'PT' ? '#E4E4E4' : '#8E8E8E', background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{
+              fontSize: 12,
+              color: lang === 'PT' ? '#E4E4E4' : '#8E8E8E',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             {lang}
           </button>

@@ -8,7 +8,9 @@ interface Props {
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div style={{ padding: '16px 16px 6px', fontSize: 11, letterSpacing: '0.08em', color: '#8E8E8E' }}>
+    <div
+      style={{ padding: '16px 16px 6px', fontSize: 11, letterSpacing: '0.08em', color: '#8E8E8E' }}
+    >
       {label}
     </div>
   );
@@ -65,7 +67,10 @@ function ToggleCtrl() {
   const [on, setOn] = useState(true);
   return (
     <button
-      onClick={e => { e.stopPropagation(); setOn(v => !v); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setOn((v) => !v);
+      }}
       style={{
         width: 40,
         height: 22,
@@ -88,13 +93,31 @@ export default function AccountScreen({ navigate }: Props) {
   const M: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}
+    >
       {/* Top bar */}
-      <div style={{ height: 52, background: '#252525', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <button onClick={() => navigate('projects')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+      <div
+        style={{
+          height: 52,
+          background: '#252525',
+          borderBottom: '1px solid #3C3C3C',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={() => navigate('projects')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           <Icon name="chevronLeft" size={22} color="#B0B0B0" />
         </button>
-        <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4' }}>Conta e preferências</span>
+        <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4' }}>
+          Conta e preferências
+        </span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -102,7 +125,15 @@ export default function AccountScreen({ navigate }: Props) {
         <SectionHeader label="CONTA" />
         <div style={{ borderTop: '1px solid #3C3C3C' }}>
           {/* Profile row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '1px solid #3C3C3C' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '12px 16px',
+              borderBottom: '1px solid #3C3C3C',
+            }}
+          >
             <div
               style={{
                 width: 48,
@@ -122,7 +153,9 @@ export default function AccountScreen({ navigate }: Props) {
             </div>
             <div>
               <div style={{ fontSize: 16, color: '#E4E4E4', fontWeight: 500 }}>João Silva</div>
-              <div style={{ fontSize: 12, color: '#8E8E8E', marginTop: 2 }}>joao@pixelmorph.com</div>
+              <div style={{ fontSize: 12, color: '#8E8E8E', marginTop: 2 }}>
+                joao@pixelmorph.com
+              </div>
             </div>
           </div>
           <Row label="Alterar senha" action="arrow" />
@@ -144,22 +177,46 @@ export default function AccountScreen({ navigate }: Props) {
         {/* EDIÇÃO */}
         <SectionHeader label="EDIÇÃO" />
         <div style={{ borderTop: '1px solid #3C3C3C' }}>
-          <Row label="Salvamento automático de rascunhos" sub="A cada alteração significativa" action="toggle" />
-          <Row label="Histórico ilimitado de desfazer" sub="Preservado entre sessões até excluir o projeto" action="toggle" />
+          <Row
+            label="Salvamento automático de rascunhos"
+            sub="A cada alteração significativa"
+            action="toggle"
+          />
+          <Row
+            label="Histórico ilimitado de desfazer"
+            sub="Preservado entre sessões até excluir o projeto"
+            action="toggle"
+          />
           <Row label="Qualidade da pré-visualização" value="Alta" action="arrow" />
         </div>
 
         {/* PRIVACIDADE */}
         <SectionHeader label="PRIVACIDADE" />
         <div style={{ borderTop: '1px solid #3C3C3C' }}>
-          <Row label="Processar IA no dispositivo" sub="Detecção facial e correções não saem do aparelho" action="toggle" />
-          <Row label="Assinar edições publicadas" sub="Adiciona nome e data verificáveis, não removíveis" action="toggle" />
+          <Row
+            label="Processar IA no dispositivo"
+            sub="Detecção facial e correções não saem do aparelho"
+            action="toggle"
+          />
+          <Row
+            label="Assinar edições publicadas"
+            sub="Adiciona nome e data verificáveis, não removíveis"
+            action="toggle"
+          />
         </div>
 
         {/* SOBRE */}
         <SectionHeader label="SOBRE" />
         <div style={{ borderTop: '1px solid #3C3C3C' }}>
-          <div style={{ display: 'flex', alignItems: 'center', minHeight: 56, padding: '0 16px', borderBottom: '1px solid #3C3C3C' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              minHeight: 56,
+              padding: '0 16px',
+              borderBottom: '1px solid #3C3C3C',
+            }}
+          >
             <span style={{ flex: 1, fontSize: 14, color: '#E4E4E4' }}>Versão</span>
             <span style={{ ...M, fontSize: 13, color: '#8E8E8E' }}>2.4.1</span>
           </div>

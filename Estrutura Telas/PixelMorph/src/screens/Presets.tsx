@@ -130,10 +130,32 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A', position: 'relative' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#1A1A1A',
+        position: 'relative',
+      }}
+    >
       {/* Top bar */}
-      <div style={{ height: 52, background: '#252525', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <button onClick={onOpenDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+      <div
+        style={{
+          height: 52,
+          background: '#252525',
+          borderBottom: '1px solid #3C3C3C',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={onOpenDrawer}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           <Icon name="menu" size={22} color="#B0B0B0" />
         </button>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4', flex: 1 }}>Presets</span>
@@ -143,8 +165,15 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #3C3C3C', background: '#252525', flexShrink: 0 }}>
-        {TABS.map(tab => (
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid #3C3C3C',
+          background: '#252525',
+          flexShrink: 0,
+        }}
+      >
+        {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -169,7 +198,7 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
       {/* Grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {presets.map(preset => (
+          {presets.map((preset) => (
             <button
               key={preset.id}
               onPointerDown={() => handlePointerDown(preset)}
@@ -191,7 +220,12 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
                 <img
                   src={`https://images.unsplash.com/${preset.img}?w=180&h=100&fit=crop&auto=format`}
                   alt={preset.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', filter: preset.filter }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: preset.filter,
+                  }}
                 />
               </div>
               <div style={{ padding: '8px 10px 10px' }}>
@@ -230,7 +264,10 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
 
       {/* Context menu */}
       {contextPreset && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }} onClick={() => setContextPreset(null)}>
+        <div
+          style={{ position: 'absolute', inset: 0, zIndex: 50 }}
+          onClick={() => setContextPreset(null)}
+        >
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
           <div
             style={{
@@ -243,27 +280,54 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
               width: 200,
               zIndex: 1,
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #3C3C3C', fontSize: 13, color: '#E4E4E4', fontWeight: 500 }}>
+            <div
+              style={{
+                padding: '10px 16px',
+                borderBottom: '1px solid #3C3C3C',
+                fontSize: 13,
+                color: '#E4E4E4',
+                fontWeight: 500,
+              }}
+            >
               {contextPreset.name}
             </div>
             {[
               { label: 'Renomear', color: '#E4E4E4' },
               { label: 'Duplicar', color: '#E4E4E4' },
               { label: 'Exportar', color: '#E4E4E4' },
-            ].map(item => (
+            ].map((item) => (
               <button
                 key={item.label}
                 onClick={() => setContextPreset(null)}
-                style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: item.color, textAlign: 'left', borderBottom: '1px solid #3C3C3C' }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: item.color,
+                  textAlign: 'left',
+                  borderBottom: '1px solid #3C3C3C',
+                }}
               >
                 {item.label}
               </button>
             ))}
             <button
               onClick={() => setContextPreset(null)}
-              style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#D25252', textAlign: 'left' }}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: '#D25252',
+                textAlign: 'left',
+              }}
             >
               Excluir
             </button>
@@ -273,7 +337,10 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
 
       {/* Bottom sheet */}
       {sheetPreset && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }} onClick={() => setSheetPreset(null)}>
+        <div
+          style={{ position: 'absolute', inset: 0, zIndex: 50 }}
+          onClick={() => setSheetPreset(null)}
+        >
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
           <div
             style={{
@@ -285,21 +352,40 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
               borderTop: '1px solid #3C3C3C',
               zIndex: 1,
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Sheet header */}
-            <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 15, fontWeight: 600, color: '#E4E4E4' }}>{sheetPreset.name}</span>
-              <button onClick={() => setSheetPreset(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <div
+              style={{
+                padding: '14px 16px 12px',
+                borderBottom: '1px solid #3C3C3C',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: 15, fontWeight: 600, color: '#E4E4E4' }}>
+                {sheetPreset.name}
+              </span>
+              <button
+                onClick={() => setSheetPreset(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
                 <Icon name="x" size={18} color="#8E8E8E" />
               </button>
             </div>
             {/* Details */}
             <div style={{ padding: '8px 0' }}>
-              {sheetPreset.details.map(d => (
+              {sheetPreset.details.map((d) => (
                 <div
                   key={d.label}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', borderBottom: '1px solid #3C3C3C' }}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '9px 16px',
+                    borderBottom: '1px solid #3C3C3C',
+                  }}
                 >
                   <span style={{ fontSize: 13, color: '#E4E4E4' }}>{d.label}</span>
                   <span style={{ ...M, fontSize: 13, color: '#3A8FDE' }}>{d.value}</span>
@@ -310,13 +396,30 @@ export default function PresetsScreen({ onOpenDrawer }: Props) {
             <div style={{ display: 'flex', gap: 10, padding: '12px 16px 20px' }}>
               <button
                 onClick={() => setSheetPreset(null)}
-                style={{ flex: 1, height: 40, background: 'none', border: '1px solid #3C3C3C', color: '#E4E4E4', fontSize: 13, cursor: 'pointer' }}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  background: 'none',
+                  border: '1px solid #3C3C3C',
+                  color: '#E4E4E4',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
               >
                 Aplicar a uma mídia
               </button>
               <button
                 onClick={() => setSheetPreset(null)}
-                style={{ flex: 1, height: 40, background: '#3A8FDE', border: 'none', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  background: '#3A8FDE',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
               >
                 Aplicar em lote
               </button>

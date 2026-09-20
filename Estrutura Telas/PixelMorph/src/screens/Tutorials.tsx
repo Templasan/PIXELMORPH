@@ -53,17 +53,32 @@ const tutorials = [
 ];
 
 const stepDescs = [
-  { title: 'Abrir projeto', text: 'Selecione um projeto na tela de Projetos para começar a edição.' },
-  { title: 'Acessar ajustes', text: 'Toque no ícone de sliders na barra inferior para abrir os ajustes.' },
-  { title: 'Abrir as máscaras', text: 'Toque em Máscaras para pintar um ajuste apenas no céu desta foto.' },
-  { title: 'Selecionar pincéis', text: 'Escolha o tamanho e a dureza do pincel para mascarar a área desejada.' },
-  { title: 'Ajustar temperatura', text: 'Arraste o slider de temperatura para deixar o céu mais frio.' },
+  {
+    title: 'Abrir projeto',
+    text: 'Selecione um projeto na tela de Projetos para começar a edição.',
+  },
+  {
+    title: 'Acessar ajustes',
+    text: 'Toque no ícone de sliders na barra inferior para abrir os ajustes.',
+  },
+  {
+    title: 'Abrir as máscaras',
+    text: 'Toque em Máscaras para pintar um ajuste apenas no céu desta foto.',
+  },
+  {
+    title: 'Selecionar pincéis',
+    text: 'Escolha o tamanho e a dureza do pincel para mascarar a área desejada.',
+  },
+  {
+    title: 'Ajustar temperatura',
+    text: 'Arraste o slider de temperatura para deixar o céu mais frio.',
+  },
   { title: 'Revisar máscara', text: 'Ative "Mostrar máscara" para verificar as bordas pintadas.' },
   { title: 'Exportar', text: 'Toque em Exportar e escolha o formato e resolução.' },
 ];
 
 interface TutorialOverlayProps {
-  tutorial: typeof tutorials[0];
+  tutorial: (typeof tutorials)[0];
   onClose: () => void;
 }
 
@@ -79,7 +94,13 @@ function TutorialOverlay({ tutorial, onClose }: TutorialOverlayProps) {
       <img
         src={`https://images.unsplash.com/${tutorial.img}?w=390&h=844&fit=crop&auto=format`}
         alt=""
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
       />
       {/* Dark veil */}
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.70)' }} />
@@ -142,17 +163,31 @@ function TutorialOverlay({ tutorial, onClose }: TutorialOverlayProps) {
         />
 
         {/* Header row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 10,
+          }}
+        >
           <span style={{ ...M, fontSize: 10, color: '#8E8E8E', letterSpacing: '0.08em' }}>
             PASSO {step + 1} DE {total}
           </span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
             <Icon name="x" size={16} color="#8E8E8E" />
           </button>
         </div>
 
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#E4E4E4', marginBottom: 6 }}>{desc.title}</div>
-        <div style={{ fontSize: 12, color: '#8E8E8E', lineHeight: 1.5, marginBottom: 12 }}>{desc.text}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#E4E4E4', marginBottom: 6 }}>
+          {desc.title}
+        </div>
+        <div style={{ fontSize: 12, color: '#8E8E8E', lineHeight: 1.5, marginBottom: 12 }}>
+          {desc.text}
+        </div>
 
         {/* Segmented progress */}
         <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
@@ -172,13 +207,20 @@ function TutorialOverlay({ tutorial, onClose }: TutorialOverlayProps) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <button
             onClick={onClose}
-            style={{ fontSize: 11, color: '#8E8E8E', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            style={{
+              fontSize: 11,
+              color: '#8E8E8E',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
           >
             Pular tutorial
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={() => setStep(s => Math.max(0, s - 1))}
+              onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
               style={{
                 fontSize: 12,
@@ -193,7 +235,7 @@ function TutorialOverlay({ tutorial, onClose }: TutorialOverlayProps) {
             </button>
             <button
               onClick={() => {
-                if (step < total - 1) setStep(s => s + 1);
+                if (step < total - 1) setStep((s) => s + 1);
                 else onClose();
               }}
               style={{
@@ -216,26 +258,53 @@ function TutorialOverlay({ tutorial, onClose }: TutorialOverlayProps) {
 
 export default function TutorialsScreen({ onOpenDrawer }: Props) {
   const [activeTab, setActiveTab] = useState('TRILHAS');
-  const [activeTutorial, setActiveTutorial] = useState<typeof tutorials[0] | null>(null);
+  const [activeTutorial, setActiveTutorial] = useState<(typeof tutorials)[0] | null>(null);
   const M: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 
-  const list = activeTab === 'CONCLUÍDOS'
-    ? tutorials.filter(t => t.done === t.steps)
-    : tutorials;
+  const list = activeTab === 'CONCLUÍDOS' ? tutorials.filter((t) => t.done === t.steps) : tutorials;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A', position: 'relative' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#1A1A1A',
+        position: 'relative',
+      }}
+    >
       {/* Top bar */}
-      <div style={{ height: 52, background: '#252525', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <button onClick={onOpenDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+      <div
+        style={{
+          height: 52,
+          background: '#252525',
+          borderBottom: '1px solid #3C3C3C',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={onOpenDrawer}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           <Icon name="menu" size={22} color="#B0B0B0" />
         </button>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4', flex: 1 }}>Tutoriais</span>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #3C3C3C', background: '#252525', flexShrink: 0 }}>
-        {TABS.map(tab => (
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid #3C3C3C',
+          background: '#252525',
+          flexShrink: 0,
+        }}
+      >
+        {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -259,7 +328,7 @@ export default function TutorialsScreen({ onOpenDrawer }: Props) {
 
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {list.map(t => (
+        {list.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTutorial(t)}
@@ -277,7 +346,15 @@ export default function TutorialsScreen({ onOpenDrawer }: Props) {
             }}
           >
             {/* Thumbnail */}
-            <div style={{ flexShrink: 0, width: 72, height: 56, overflow: 'hidden', border: '1px solid #3C3C3C' }}>
+            <div
+              style={{
+                flexShrink: 0,
+                width: 72,
+                height: 56,
+                overflow: 'hidden',
+                border: '1px solid #3C3C3C',
+              }}
+            >
               <img
                 src={`https://images.unsplash.com/${t.img}?w=72&h=56&fit=crop&auto=format`}
                 alt={t.title}
@@ -288,9 +365,13 @@ export default function TutorialsScreen({ onOpenDrawer }: Props) {
             {/* Info */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, color: '#E4E4E4', marginBottom: 4 }}>{t.title}</div>
-              <div style={{ ...M, fontSize: 11, color: '#8E8E8E', marginBottom: t.done > 0 ? 8 : 0 }}>
+              <div
+                style={{ ...M, fontSize: 11, color: '#8E8E8E', marginBottom: t.done > 0 ? 8 : 0 }}
+              >
                 {t.steps} passos · {t.minutes} min
-                {t.done === 0 && <span style={{ marginLeft: 6, color: '#5FB98F' }}>· Não iniciado</span>}
+                {t.done === 0 && (
+                  <span style={{ marginLeft: 6, color: '#5FB98F' }}>· Não iniciado</span>
+                )}
               </div>
               {t.done > 0 && (
                 <div>
@@ -301,7 +382,11 @@ export default function TutorialsScreen({ onOpenDrawer }: Props) {
                     {Array.from({ length: t.steps }).map((_, i) => (
                       <div
                         key={i}
-                        style={{ flex: 1, height: 3, background: i < t.done ? '#3A8FDE' : '#3C3C3C' }}
+                        style={{
+                          flex: 1,
+                          height: 3,
+                          background: i < t.done ? '#3A8FDE' : '#3C3C3C',
+                        }}
                       />
                     ))}
                   </div>

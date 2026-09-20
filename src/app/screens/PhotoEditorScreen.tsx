@@ -1228,7 +1228,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               />
             )}
             {activeTool === 'ia' && <AIDrawer />}
-            {activeTool === 'presets' && <PresetsDrawer />}
+            {activeTool === 'presets' && (
+              <PresetsDrawer
+                adjustments={adjustments}
+                onApplyPreset={(adj) => setAdjustments((prev) => ({ ...prev, ...adj }))}
+              />
+            )}
           </ScrollView>
         </View>
       )}

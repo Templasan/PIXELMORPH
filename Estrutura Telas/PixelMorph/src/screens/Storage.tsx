@@ -55,17 +55,40 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
 
   function SectionHeader({ label }: { label: string }) {
     return (
-      <div style={{ padding: '14px 16px 6px', fontSize: 11, letterSpacing: '0.08em', color: '#8E8E8E' }}>
+      <div
+        style={{
+          padding: '14px 16px 6px',
+          fontSize: 11,
+          letterSpacing: '0.08em',
+          color: '#8E8E8E',
+        }}
+      >
         {label}
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}
+    >
       {/* Top bar */}
-      <div style={{ height: 52, background: '#252525', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <button onClick={onOpenDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+      <div
+        style={{
+          height: 52,
+          background: '#252525',
+          borderBottom: '1px solid #3C3C3C',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={onOpenDrawer}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           <Icon name="menu" size={22} color="#B0B0B0" />
         </button>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4' }}>Armazenamento</span>
@@ -78,9 +101,14 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
             4,2 GB de 10 GB usados
           </div>
           {/* Segmented bar */}
-          <div style={{ display: 'flex', height: 12, overflow: 'hidden', gap: 1, marginBottom: 10 }}>
+          <div
+            style={{ display: 'flex', height: 12, overflow: 'hidden', gap: 1, marginBottom: 10 }}
+          >
             {segmentWidths.map((w, i) => (
-              <div key={i} style={{ width: `${w}%`, height: '100%', background: segmentColors[i] }} />
+              <div
+                key={i}
+                style={{ width: `${w}%`, height: '100%', background: segmentColors[i] }}
+              />
             ))}
             <div style={{ flex: 1, background: '#2F2F2F', border: '1px solid #3C3C3C' }} />
           </div>
@@ -97,17 +125,32 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
 
         {/* Categories */}
         <div>
-          {categories.map(cat => (
+          {categories.map((cat) => (
             <div
               key={cat.label}
-              style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #3C3C3C', gap: 12 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: '1px solid #3C3C3C',
+                gap: 12,
+              }}
             >
               <Icon name={cat.icon} size={18} color="#B0B0B0" />
               <span style={{ flex: 1, fontSize: 13, color: '#E4E4E4' }}>{cat.label}</span>
               <span style={{ ...M, fontSize: 13, color: '#8E8E8E' }}>{cat.size}</span>
               {cat.action && (
                 <button
-                  style={{ marginLeft: 10, fontSize: 12, color: '#3A8FDE', background: 'none', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
+                  style={{
+                    marginLeft: 10,
+                    fontSize: 12,
+                    color: '#3A8FDE',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {cat.action}
                 </button>
@@ -120,16 +163,34 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
         <SectionHeader label="RECURSOS SOB DEMANDA" />
         <div style={{ padding: '0 16px 10px', borderBottom: '1px solid #3C3C3C' }}>
           <p style={{ fontSize: 11, color: '#8E8E8E', lineHeight: 1.5, marginBottom: 10 }}>
-            O app ocupa 180 MB na instalação. Filtros, overlays e modelos de IA são baixados conforme o uso.
+            O app ocupa 180 MB na instalação. Filtros, overlays e modelos de IA são baixados
+            conforme o uso.
           </p>
-          {onDemand.map(item => (
+          {onDemand.map((item) => (
             <div
               key={item.label}
-              style={{ display: 'flex', alignItems: 'center', paddingTop: 10, paddingBottom: 10, borderTop: '1px solid #3C3C3C' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                paddingTop: 10,
+                paddingBottom: 10,
+                borderTop: '1px solid #3C3C3C',
+              }}
             >
               <span style={{ flex: 1, fontSize: 13, color: '#E4E4E4' }}>{item.label}</span>
-              <span style={{ ...M, fontSize: 13, color: '#8E8E8E', marginRight: 12 }}>{item.size}</span>
-              <button style={{ fontSize: 12, color: '#D25252', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <span style={{ ...M, fontSize: 13, color: '#8E8E8E', marginRight: 12 }}>
+                {item.size}
+              </span>
+              <button
+                style={{
+                  fontSize: 12,
+                  color: '#D25252',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
                 Remover
               </button>
             </div>
@@ -142,9 +203,11 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, color: '#E4E4E4' }}>Backup automático</div>
-              <div style={{ fontSize: 11, color: '#8E8E8E', marginTop: 2 }}>Último backup: hoje, 13:40</div>
+              <div style={{ fontSize: 11, color: '#8E8E8E', marginTop: 2 }}>
+                Último backup: hoje, 13:40
+              </div>
             </div>
-            <Toggle on={backupEnabled} onChange={() => setBackupEnabled(v => !v)} />
+            <Toggle on={backupEnabled} onChange={() => setBackupEnabled((v) => !v)} />
           </div>
           <div style={{ padding: '0 16px 14px' }}>
             <button
@@ -166,7 +229,15 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
         {/* Diagnostics */}
         <SectionHeader label="DIAGNÓSTICO" />
         <div style={{ borderTop: '1px solid #3C3C3C' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12, borderBottom: '1px solid #3C3C3C' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px 16px',
+              gap: 12,
+              borderBottom: '1px solid #3C3C3C',
+            }}
+          >
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, color: '#E4E4E4' }}>Registros locais</div>
               <div style={{ fontSize: 11, color: '#8E8E8E', marginTop: 2 }}>
@@ -175,8 +246,10 @@ export default function StorageScreen({ onOpenDrawer }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12 }}>
-            <span style={{ flex: 1, fontSize: 13, color: '#E4E4E4' }}>Enviar relatórios anonimamente</span>
-            <Toggle on={reportsEnabled} onChange={() => setReportsEnabled(v => !v)} />
+            <span style={{ flex: 1, fontSize: 13, color: '#E4E4E4' }}>
+              Enviar relatórios anonimamente
+            </span>
+            <Toggle on={reportsEnabled} onChange={() => setReportsEnabled((v) => !v)} />
           </div>
         </div>
       </div>

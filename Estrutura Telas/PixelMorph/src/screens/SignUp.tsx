@@ -16,7 +16,8 @@ export default function SignUpScreen({ navigate }: Props) {
   const [terms, setTerms] = useState(false);
 
   const passwordsMatch = confirm === '' || password === confirm;
-  const canSubmit = name.trim() && email.trim() && password.length >= 8 && password === confirm && terms;
+  const canSubmit =
+    name.trim() && email.trim() && password.length >= 8 && password === confirm && terms;
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
@@ -41,10 +42,26 @@ export default function SignUpScreen({ navigate }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#1A1A1A' }}
+    >
       {/* Top bar */}
-      <div style={{ height: 52, background: '#252525', borderBottom: '1px solid #3C3C3C', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <button onClick={() => navigate('login')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+      <div
+        style={{
+          height: 52,
+          background: '#252525',
+          borderBottom: '1px solid #3C3C3C',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={() => navigate('login')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
           <Icon name="chevronLeft" size={22} color="#B0B0B0" />
         </button>
         <span style={{ fontSize: 16, fontWeight: 600, color: '#E4E4E4' }}>Criar conta</span>
@@ -52,8 +69,12 @@ export default function SignUpScreen({ navigate }: Props) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 32px' }}>
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#E4E4E4', letterSpacing: '-0.3px' }}>PixelMorph</div>
-          <div style={{ fontSize: 13, color: '#8E8E8E', marginTop: 2 }}>Crie sua conta gratuitamente</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#E4E4E4', letterSpacing: '-0.3px' }}>
+            PixelMorph
+          </div>
+          <div style={{ fontSize: 13, color: '#8E8E8E', marginTop: 2 }}>
+            Crie sua conta gratuitamente
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -63,7 +84,7 @@ export default function SignUpScreen({ navigate }: Props) {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               placeholder="Seu nome"
               style={inputStyle}
             />
@@ -75,7 +96,7 @@ export default function SignUpScreen({ navigate }: Props) {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="usuario@email.com"
               style={inputStyle}
             />
@@ -88,13 +109,22 @@ export default function SignUpScreen({ navigate }: Props) {
               <input
                 type={showPw ? 'text' : 'password'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
                 style={{ ...inputStyle, padding: '0 40px 0 12px' }}
               />
               <button
-                onClick={() => setShowPw(v => !v)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onClick={() => setShowPw((v) => !v)}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
               >
                 <Icon name={showPw ? 'eyeOff' : 'eye'} size={18} color="#8E8E8E" />
               </button>
@@ -102,20 +132,31 @@ export default function SignUpScreen({ navigate }: Props) {
             {/* Strength bar */}
             {password.length > 0 && (
               <div style={{ marginTop: 6, display: 'flex', gap: 3 }}>
-                {[1, 2, 3, 4].map(i => {
-                  const strength = password.length < 6 ? 1 : password.length < 8 ? 2 : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4 : 3;
+                {[1, 2, 3, 4].map((i) => {
+                  const strength =
+                    password.length < 6
+                      ? 1
+                      : password.length < 8
+                        ? 2
+                        : /[A-Z]/.test(password) && /[0-9]/.test(password)
+                          ? 4
+                          : 3;
                   return (
                     <div
                       key={i}
                       style={{
                         flex: 1,
                         height: 3,
-                        background: i <= strength
-                          ? strength === 1 ? '#D25252'
-                            : strength === 2 ? '#D2A05E'
-                            : strength === 3 ? '#3A8FDE'
-                            : '#5FB98F'
-                          : '#3C3C3C',
+                        background:
+                          i <= strength
+                            ? strength === 1
+                              ? '#D25252'
+                              : strength === 2
+                                ? '#D2A05E'
+                                : strength === 3
+                                  ? '#3A8FDE'
+                                  : '#5FB98F'
+                            : '#3C3C3C',
                       }}
                     />
                   );
@@ -131,7 +172,7 @@ export default function SignUpScreen({ navigate }: Props) {
               <input
                 type={showConfirm ? 'text' : 'password'}
                 value={confirm}
-                onChange={e => setConfirm(e.target.value)}
+                onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Repita a senha"
                 style={{
                   ...inputStyle,
@@ -140,21 +181,41 @@ export default function SignUpScreen({ navigate }: Props) {
                 }}
               />
               <button
-                onClick={() => setShowConfirm(v => !v)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onClick={() => setShowConfirm((v) => !v)}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
               >
                 <Icon name={showConfirm ? 'eyeOff' : 'eye'} size={18} color="#8E8E8E" />
               </button>
             </div>
             {!passwordsMatch && (
-              <div style={{ fontSize: 11, color: '#D25252', marginTop: 4 }}>As senhas não coincidem</div>
+              <div style={{ fontSize: 11, color: '#D25252', marginTop: 4 }}>
+                As senhas não coincidem
+              </div>
             )}
           </div>
 
           {/* Terms */}
           <button
-            onClick={() => setTerms(v => !v)}
-            style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+            onClick={() => setTerms((v) => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              textAlign: 'left',
+            }}
           >
             <div
               style={{
@@ -172,16 +233,16 @@ export default function SignUpScreen({ navigate }: Props) {
               {terms && <Icon name="check" size={12} color="#fff" />}
             </div>
             <span style={{ fontSize: 12, color: '#8E8E8E', lineHeight: 1.5 }}>
-              Li e aceito os{' '}
-              <span style={{ color: '#3A8FDE' }}>Termos de uso</span>
-              {' '}e a{' '}
+              Li e aceito os <span style={{ color: '#3A8FDE' }}>Termos de uso</span> e a{' '}
               <span style={{ color: '#3A8FDE' }}>Política de privacidade</span>
             </span>
           </button>
 
           {/* Submit */}
           <button
-            onClick={() => { if (canSubmit) navigate('login'); }}
+            onClick={() => {
+              if (canSubmit) navigate('login');
+            }}
             style={{
               width: '100%',
               height: 44,
@@ -203,10 +264,15 @@ export default function SignUpScreen({ navigate }: Props) {
           <div style={{ textAlign: 'center' }}>
             <button
               onClick={() => navigate('login')}
-              style={{ fontSize: 13, color: '#8E8E8E', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{
+                fontSize: 13,
+                color: '#8E8E8E',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              Já tenho conta.{' '}
-              <span style={{ color: '#3A8FDE' }}>Entrar</span>
+              Já tenho conta. <span style={{ color: '#3A8FDE' }}>Entrar</span>
             </button>
           </div>
         </div>

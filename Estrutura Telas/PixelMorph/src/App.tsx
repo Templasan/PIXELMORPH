@@ -14,7 +14,19 @@ import HelpScreen from './screens/Help';
 import ExportModal from './screens/Export';
 import SideDrawer from './components/SideDrawer';
 
-export type Screen = 'login' | 'projects' | 'camera' | 'photoEditor' | 'videoEditor' | 'community' | 'tutorials' | 'presets' | 'storage' | 'account' | 'help' | 'signup';
+export type Screen =
+  | 'login'
+  | 'projects'
+  | 'camera'
+  | 'photoEditor'
+  | 'videoEditor'
+  | 'community'
+  | 'tutorials'
+  | 'presets'
+  | 'storage'
+  | 'account'
+  | 'help'
+  | 'signup';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
@@ -30,10 +42,23 @@ export default function App() {
 
   return (
     <div
-      style={{ background: '#0D0D0D', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{
+        background: '#0D0D0D',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
       <div
-        style={{ width: 390, height: 844, position: 'relative', overflow: 'hidden', background: '#1A1A1A', flexShrink: 0 }}
+        style={{
+          width: 390,
+          height: 844,
+          position: 'relative',
+          overflow: 'hidden',
+          background: '#1A1A1A',
+          flexShrink: 0,
+        }}
       >
         {screen === 'login' && <LoginScreen navigate={navigate} />}
         {screen === 'projects' && (

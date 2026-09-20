@@ -43,7 +43,15 @@ export default function SideDrawer({ open, onClose, navigate, currentScreen }: P
         }}
       >
         {/* Profile header */}
-        <div style={{ height: 72, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #3C3C3C' }}>
+        <div
+          style={{
+            height: 72,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 16px',
+            borderBottom: '1px solid #3C3C3C',
+          }}
+        >
           <div
             style={{
               width: 40,
@@ -97,16 +105,46 @@ export default function SideDrawer({ open, onClose, navigate, currentScreen }: P
           <div style={{ borderTop: '1px solid #3C3C3C', marginTop: 8, paddingTop: 8 }}>
             <button
               onClick={() => navigate('account' as Screen)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', fontSize: 14, color: currentScreen === 'account' ? '#3A8FDE' : '#E4E4E4', background: currentScreen === 'account' ? 'rgba(58,143,222,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 16px',
+                fontSize: 14,
+                color: currentScreen === 'account' ? '#3A8FDE' : '#E4E4E4',
+                background: currentScreen === 'account' ? 'rgba(58,143,222,0.1)' : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              <Icon name="settings" size={20} color={currentScreen === 'account' ? '#3A8FDE' : '#B0B0B0'} />
+              <Icon
+                name="settings"
+                size={20}
+                color={currentScreen === 'account' ? '#3A8FDE' : '#B0B0B0'}
+              />
               Conta e preferências
             </button>
             <button
               onClick={() => navigate('help' as Screen)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', fontSize: 14, color: currentScreen === 'help' ? '#3A8FDE' : '#E4E4E4', background: currentScreen === 'help' ? 'rgba(58,143,222,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 16px',
+                fontSize: 14,
+                color: currentScreen === 'help' ? '#3A8FDE' : '#E4E4E4',
+                background: currentScreen === 'help' ? 'rgba(58,143,222,0.1)' : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              <Icon name="help" size={20} color={currentScreen === 'help' ? '#3A8FDE' : '#B0B0B0'} />
+              <Icon
+                name="help"
+                size={20}
+                color={currentScreen === 'help' ? '#3A8FDE' : '#B0B0B0'}
+              />
               Ajuda
             </button>
           </div>
@@ -114,7 +152,14 @@ export default function SideDrawer({ open, onClose, navigate, currentScreen }: P
 
         {/* Storage footer */}
         <div style={{ padding: '12px 16px', borderTop: '1px solid #3C3C3C' }}>
-          <div style={{ fontSize: 12, color: '#8E8E8E', marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: '#8E8E8E',
+              marginBottom: 6,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
             4,2 GB de 10 GB usados
           </div>
           <div style={{ height: 2, background: '#3C3C3C' }}>
