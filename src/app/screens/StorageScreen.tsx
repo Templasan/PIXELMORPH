@@ -7,7 +7,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, SideDrawer, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
-import { createProjectsModule } from '@modules/projects';
+import { useAppModules } from '../hooks';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -42,6 +42,7 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export default function StorageScreen({ navigation }: Props) {
+  const { projects } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [backupEnabled, setBackupEnabled] = useState(true);
   const [reportsEnabled, setReportsEnabled] = useState(true);
@@ -67,8 +68,7 @@ export default function StorageScreen({ navigation }: Props) {
   const handleVerifyIntegrity = async () => {
     setCheckingIntegrity(true);
     try {
-      const { repository } = createProjectsModule();
-      const results = await repository.verifyAllIntegrity();
+      const results = await projects.repository.verifyAllIntegrity();
       const restored = results.filter((r) => r.result === 'restored');
       const unrecoverable = results.filter((r) => r.result === 'unrecoverable');
 
