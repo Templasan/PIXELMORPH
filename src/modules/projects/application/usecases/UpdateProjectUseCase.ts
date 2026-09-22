@@ -7,9 +7,7 @@ export interface UpdateProjectInput {
   type?: ProjectType;
   status?: ProjectStatus;
   thumbnailUri?: string;
-  /** RF-070: deadline for a pending project reminder. Pass null to clear it. */
   dueDate?: Date | null;
-  /** RF-070: reminder priority. Pass null to clear it. */
   priority?: ProjectPriority | null;
 }
 

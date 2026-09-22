@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
+
 import {
   CameraView,
   type CameraType,
@@ -17,12 +28,9 @@ import { errorLogger } from '@core/reliability';
 import type { BasicAdjustments } from '@modules/photo-editor/color';
 import {
   createARAnchor,
-  updateARPosition,
   updateARAppearance,
   useARTracking,
   getARViewerUri,
-  type ARAnchor,
-  type ARAnchorType,
   type ARSession,
 } from '@modules/camera/ar';
 
@@ -125,6 +133,11 @@ const FILTER_PRESETS: { name: string; adjustments: BasicAdjustments }[] = [
   },
 ];
 
+/**
+ * Original vector artwork (no stock/licensed photo) used as the shared "sample photo" behind
+ * every filter thumbnail, matching how real camera apps preview a look on an actual image
+ * instead of a flat color swatch.
+ */
 function adjustmentsToOverlayColor(adj: BasicAdjustments): string {
   // Sample white (1,1,1) through adjustments to compute overlay tint.
   // Simplified: convert adjustment values to approximate RGB shift.
@@ -162,7 +175,25 @@ export default function CameraScreen({ navigation }: Props) {
     enabled: false,
   });
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
-  const arOffsets = useARTracking(arSession.enabled, 0.08);
+  useARTracking(arSession.enabled, 0.08);
+
+  // Tap-to-focus square: expo-camera's Android backend has no manual focus-point API
+  // (CameraX already runs continuous autofocus on its own), so this is the visual
+  // affordance without a native refocus call behind it — same honesty as the AR
+  // "static illustration" note below.
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
+  const focusAnim = useRef(new Animated.Value(0)).current;
+  const handleFocusTap = (event: GestureResponderEvent) => {
+    const { locationX, locationY } = event.nativeEvent;
+    setFocusPoint({ x: locationX, y: locationY });
+    focusAnim.setValue(1);
+    Animated.timing(focusAnim, {
+      toValue: 0,
+      duration: 400,
+      delay: 500,
+      useNativeDriver: true,
+    }).start(() => setFocusPoint(null));
+  };
 
   // Sync anchors with WebView
   useEffect(() => {
@@ -185,7 +216,7 @@ export default function CameraScreen({ navigation }: Props) {
   }, [arSession.anchors, mode]);
 
   const cameraRef = useRef<CameraView | null>(null);
-  const webViewRef = useRef<WebView | null>(null);
+  const webViewRef = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
@@ -377,7 +408,7 @@ export default function CameraScreen({ navigation }: Props) {
             ref={webViewRef}
             style={styles.preview}
             source={{ uri: getARViewerUri() }}
-            onMessage={(event) => {
+            onMessage={(_event: any) => {
               // Handle messages from WebView
             }}
             javaScriptEnabled={true}
@@ -386,22 +417,49 @@ export default function CameraScreen({ navigation }: Props) {
             scalesPageToFit={false}
           />
         ) : (
-          <CameraView
-            ref={cameraRef}
-            style={styles.preview}
-            facing={facing}
-            enableTorch={torch}
-            mode={mode === 'VÍDEO' ? 'video' : 'picture'}
-            mute={false}
+          <Pressable style={styles.preview} onPress={handleFocusTap}>
+            <CameraView
+              ref={cameraRef}
+              style={styles.preview}
+              facing={facing}
+              enableTorch={torch}
+              mode={mode === 'VÍDEO' ? 'video' : 'picture'}
+              mute={false}
+            />
+          </Pressable>
+        )}
+        {filterPreset.name !== 'Original' && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.filterTint,
+              // Camera preview renders via a native SurfaceView, which the OS composites
+              // outside of RN's own view/blend pipeline — mixBlendMode has no effect on it.
+              // Capping alpha keeps this a color wash instead of a solid coat that hides
+              // the whole feed, and skipping it outright for "Original" stops every shot
+              // from picking up a permanent whitish tint.
+              { backgroundColor: filterOverlayColor, opacity: (intensity / 100) * 0.25 },
+            ]}
           />
         )}
-        <View
-          pointerEvents="none"
-          style={[
-            styles.filterTint,
-            { backgroundColor: filterOverlayColor, opacity: intensity / 100 },
-          ]}
-        />
+        {focusPoint && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.focusSquare,
+              {
+                left: focusPoint.x - 32,
+                top: focusPoint.y - 32,
+                opacity: focusAnim,
+                transform: [
+                  {
+                    scale: focusAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
 
         <View style={styles.topControls}>
           <Pressable onPress={() => navigation.navigate('Projects')} hitSlop={8}>
@@ -735,6 +793,13 @@ const styles = StyleSheet.create({
   },
   filterTint: {
     ...StyleSheet.absoluteFill,
+  },
+  focusSquare: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderWidth: 1.5,
+    borderColor: colors.branco,
   },
   topControls: {
     position: 'absolute',

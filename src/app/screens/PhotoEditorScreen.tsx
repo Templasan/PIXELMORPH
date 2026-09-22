@@ -352,7 +352,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   // RF-047/RF-063/RF-059: real GPU color-grading pipeline (see @modules/photo-editor/color)
   // instead of the flat tint overlay this screen used to fake it with.
-  const skiaImage = useImage(photoUri);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const skiaImage = useImage(photoUri, () => setImageLoadFailed(true));
   const doubleExposureSkImage = useImage(doubleExposureImage?.uri ?? null);
   const adjustmentsEffect = useMemo(() => Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL), []);
   const retroEffect = useMemo(() => Skia.RuntimeEffect.Make(RETRO_EFFECTS_SKSL), []);
@@ -915,6 +916,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                   fit="cover"
                   rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
                 />
+                {/* ADJUSTMENTS_SKSL declares a second `uniform shader maskImage` (only read
+                    when maskActive is set — RF-007 masking isn't wired up here yet). Skia
+                    needs a child bound to every shader uniform to compile the effect at all;
+                    without this the whole thing failed to build and rendered solid black. */}
+                <ImageShader
+                  image={skiaImage}
+                  fit="cover"
+                  rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+                />
               </Shader>
             ) : (
               <ImageShader
@@ -1151,8 +1161,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                   />
                 )}
               </Canvas>
+            ) : imageLoadFailed ? (
+              <View style={styles.photoLoadError}>
+                <Text style={styles.photoLoadErrorText}>
+                  Não foi possível abrir esta foto. O arquivo pode estar corrompido — tente
+                  capturar novamente.
+                </Text>
+              </View>
             ) : (
-              <Image source={{ uri: photoUri ?? '' }} style={styles.photo} />
+              photoUri && <Image source={{ uri: photoUri }} style={styles.photo} />
             )}
             {perspectiveEditMode && (
               <PerspectiveHandles
@@ -1226,13 +1243,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             </View>
           )}
 
-          {compareMode && canvasWidth > 0 && (
+          {compareMode && canvasWidth > 0 && photoUri && (
             <View style={StyleSheet.absoluteFill}>
               <View style={[styles.compareOriginalWrap, { width: `${compareSplit}%` }]}>
-                <Image
-                  source={{ uri: photoUri ?? '' }}
-                  style={[styles.photo, { width: canvasWidth }]}
-                />
+                <Image source={{ uri: photoUri }} style={[styles.photo, { width: canvasWidth }]} />
               </View>
               <GestureDetector gesture={compareDrag}>
                 <View style={[styles.compareHandle, { left: `${compareSplit}%` }]}>
@@ -1537,6 +1551,19 @@ const styles = StyleSheet.create({
   photo: {
     width: PHOTO_WIDTH,
     height: PHOTO_HEIGHT,
+  },
+  photoLoadError: {
+    width: PHOTO_WIDTH,
+    height: PHOTO_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  photoLoadErrorText: {
+    color: colors.texto2,
+    fontSize: fontSize.sm,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   compareOriginalWrap: {
     position: 'absolute',

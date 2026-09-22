@@ -8,7 +8,6 @@ export class DeleteProjectUseCase {
     if (!project) {
       throw new ProjectNotFoundError(id);
     }
-
     await this.repository.delete(id);
   }
 }

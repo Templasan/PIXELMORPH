@@ -1,3 +1,13 @@
+// Domain, Ports, Application, Infrastructure exports
+export * from './domain';
+export * from './ports';
+export * from './application';
+export * from './infrastructure';
+
+// Bootstrap exports (composition root)
+export { ProjectsModuleFactory } from './bootstrap';
+
+// Legacy factory for backward compatibility
 import { LocalProjectRepository } from './infrastructure/repositories/LocalProjectRepository';
 import {
   ListProjectsUseCase,
@@ -12,11 +22,6 @@ import {
   UpdateMediaAssetUseCase,
   ApplyAdjustmentsBatchUseCase,
 } from './application/usecases';
-
-export * from './domain';
-export * from './ports';
-export * from './application';
-export * from './infrastructure';
 
 /** Composition root for the Projects module — wires the local repository to every use case. */
 export function createProjectsModule() {

@@ -8,15 +8,11 @@ export class CreateProjectUseCase {
   async execute(name: string, type: ProjectType): Promise<Project> {
     const id = this.generateId();
     const project = createProject(id, name, type);
-
     await this.repository.create(project);
-
     return project;
   }
 
   private generateId(): string {
-    // Simple UUID v4 generation using built-in crypto
-    // Format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
     let uuid = '';
     for (let i = 0; i < 32; i++) {
       const random = Math.floor(Math.random() * 16);
@@ -27,7 +23,6 @@ export class CreateProjectUseCase {
       } else {
         uuid += random.toString(16);
       }
-
       if ([8, 12, 16, 20].includes(i)) {
         uuid += '-';
       }
