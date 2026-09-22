@@ -2,9 +2,9 @@ import { Skia, type SkImage } from '@shopify/react-native-skia';
 
 /** Color filter implementations using Skia. */
 
-export function applyBrightness(image: SkImage, value: number): SkImage {
+export function applyBrightness(image: SkImage, _value: number): SkImage {
   // value: -100 to 100
-  const factor = 1 + value / 100;
+  const _factor = 1 + _value / 100;
   const surface = Skia.Surface.Make(image.width(), image.height());
   if (!surface) return image;
 
@@ -19,7 +19,7 @@ export function applyBrightness(image: SkImage, value: number): SkImage {
   return surface.makeImageSnapshot();
 }
 
-export function applyContrast(image: SkImage, factor: number): SkImage {
+export function applyContrast(image: SkImage, _factor: number): SkImage {
   // factor: 0.5 to 2.0
   const surface = Skia.Surface.Make(image.width(), image.height());
   if (!surface) return image;
@@ -32,7 +32,7 @@ export function applyContrast(image: SkImage, factor: number): SkImage {
   return surface.makeImageSnapshot();
 }
 
-export function applySaturation(image: SkImage, factor: number): SkImage {
+export function applySaturation(image: SkImage, _factor: number): SkImage {
   // factor: 0 (grayscale) to 2.0 (oversaturated)
   const surface = Skia.Surface.Make(image.width(), image.height());
   if (!surface) return image;
