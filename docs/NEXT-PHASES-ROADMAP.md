@@ -27,25 +27,33 @@ Ready for UI layer integration in PhotoEditorScreen.
 
 ---
 
-## Phase 2: FFmpeg Backend Processing
+## Phase 2: FFmpeg Backend Processing ✅ COMPLETED
 
-**Strategy**: ADR-004 recommends backend approach.
+**Strategy**: ADR-004 Path 1 (Backend Processing) implemented.
 
-**Steps**:
-1. Create backend service (separate project)
-   - Endpoint: POST /api/encode-video
-   - Accept: base64 frames, fps, dimensions, quality
-   - Return: encoded video URL or blob
+**Completed**:
+- ✅ `RemoteVideoEncoderAdapter` - Production-ready video encoder
+  - Submits frames to backend service
+  - Polls for job completion (2s interval, 20 min timeout)
+  - Downloads encoded video to cache
+  - Quality presets: low/medium/high
 
-2. Implement `RemoteVideoEncoderAdapter`
-   - `src/modules/export/infrastructure/adapters/RemoteVideoEncoderAdapter.ts`
-   - Upload frames
-   - Trigger encoding
-   - Poll for completion
-   - Download result
+- ✅ API Specification (BACKEND-FFMPEG-SPEC.md)
+  - POST /api/encode-video (submit job)
+  - GET /api/encode-video/{jobId} (poll status)
+  - Response formats documented
+  - Node.js + Express example provided
 
-3. Wire via configuration
-   - Choose between FFmpegEncoderAdapter (stub) and RemoteVideoEncoderAdapter
+- ✅ Integration Guide (FFMPEG-INTEGRATION-GUIDE.md)
+  - Wiring to CompositionRoot
+  - Frame capture flow
+  - Error handling
+  - Deployment checklist
+
+**Commit**: `91f2a3a`
+
+**Status**: Adapter ready. Requires backend service deployment following spec.
+Alternative paths documented (bare workflow, ffmpeg.wasm).
 
 ---
 
