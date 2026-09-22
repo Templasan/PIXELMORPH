@@ -22,8 +22,9 @@ import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider } from '@core/ui';
+import { useAppModules } from '../hooks';
 import { colors, monoFontFamily } from '@core/theme';
-import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
+import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
 import type { BasicAdjustments } from '@modules/photo-editor/color';
 import {
@@ -156,6 +157,7 @@ function adjustmentsToOverlayColor(adj: BasicAdjustments): string {
  * RF-018 is left out rather than faked with a slider that would not do anything.
  */
 export default function CameraScreen({ navigation }: Props) {
+  const { projects } = useAppModules();
   const [activeFilter, setActiveFilter] = useState(0);
   const [intensity, setIntensity] = useState(100);
   const [mode, setMode] = useState<CameraMode>('FOTO');
@@ -259,12 +261,11 @@ export default function CameraScreen({ navigation }: Props) {
     width: number,
     height: number
   ) => {
-    const mod = createProjectsModule();
-    const project = await mod.createProject.execute(
+    const project = await projects.createProject.execute(
       kind === 'video' ? 'Vídeo da câmera' : 'Foto da câmera',
       kind === 'video' ? 'video' : 'photo'
     );
-    await mod.addMediaAsset.execute(
+    await projects.addMediaAsset.execute(
       project.id,
       createMediaAsset(
         `asset_${Date.now()}`,
@@ -283,11 +284,10 @@ export default function CameraScreen({ navigation }: Props) {
     if (stopFrames.length === 0 || busy) return;
     setBusy(true);
     try {
-      const mod = createProjectsModule();
-      const project = await mod.createProject.execute('Stop-motion', 'video');
+      const project = await projects.createProject.execute('Stop-motion', 'video');
 
       for (let i = 0; i < stopFrames.length; i++) {
-        await mod.addMediaAsset.execute(
+        await projects.addMediaAsset.execute(
           project.id,
           createMediaAsset(
             `stopmotion_${i}`,
