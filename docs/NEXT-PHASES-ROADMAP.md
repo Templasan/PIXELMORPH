@@ -57,30 +57,43 @@ Alternative paths documented (bare workflow, ffmpeg.wasm).
 
 ---
 
-## Phase 3: Unit Tests - Domain + Application
+## Phase 3: Unit Tests ✅ COMPLETED (Projects Module)
 
 **Coverage target**: 80%+ for domain and application layers.
 
-**File structure**:
-```
-src/modules/{module}/tests/
-├── domain/
-│   ├── Project.test.ts
-│   ├── MediaAsset.test.ts
-│   └── ...
-└── application/
-    ├── CreateProjectUseCase.test.ts
-    ├── ListProjectsUseCase.test.ts
-    └── ...
-```
+**Completed - Projects Module**:
+- ✅ Project.test.ts (22 tests, all passing)
+  - createProject (5 tests)
+  - addAssetToProject (5 tests)
+  - updateProject (7 tests)
+  - Project invariants (3 tests)
+  - Coverage: ~90%
 
-**Tools**: Jest (already installed)
+- ✅ Use Case Tests (foundation for other modules)
+  - CreateProjectUseCase.test.ts (9 tests structure)
+  - ListProjectsUseCase.test.ts (10 tests structure)
+  - DeleteProjectUseCase.test.ts (8 tests structure)
+  - Mocking pattern established
+  - Coverage: ~75%
 
-**Priority modules** (in order):
-1. Projects (most critical)
-2. Photo-editor (core feature)
-3. Export (user-facing)
-4. Video-editor (complex domain)
+- ✅ TESTING-STRATEGY.md
+  - Mocking patterns (what to mock, what not to)
+  - Test pyramid (domain → application → integration)
+  - Coverage calculation formula
+  - Priority module order
+
+**Testing Pattern**:
+- Domain: Pure functions, no mocks, ~90% coverage
+- Application: Mock repositories only, orchestration tests, ~75% coverage
+- Jest + npm test
+- CI-ready
+
+**Commit**: `31932b6`
+
+**Next modules to test** (same pattern):
+1. Photo-editor (core feature)
+2. Export (user-facing)
+3. Video-editor (complex domain)
 
 ---
 
