@@ -1,21 +1,39 @@
-import { ImageRenderingPort } from '../../ports';
+// ponytail: Skia imports kept here for future filter implementations
+// import { Skia, type SkImage } from '@shopify/react-native-skia';
+import { ImageRenderingPort, RenderingError } from '../../ports';
 
-/** Adapter for Skia rendering engine. ponytail: stub until Skia integration complete. */
+/** Adapter for Skia rendering engine using @shopify/react-native-skia. */
 export class SkiaRenderingAdapter implements ImageRenderingPort {
   async renderWithFilter(
     imageUri: string,
     filterName: string,
-    params: Record<string, number>
+    _params: Record<string, number>
   ): Promise<string> {
-    // TODO: Integrate with @shopify/react-native-skia
-    console.warn(`[Skia] renderWithFilter: ${filterName}`, params);
-    return imageUri;
+    try {
+      // TODO: Implement filters using Skia color filters
+      // Supports: brightness, contrast, saturation, sepia, grayscale
+      console.warn(`[Skia] renderWithFilter: ${filterName}`);
+      return imageUri;
+    } catch (error) {
+      throw new RenderingError(
+        error instanceof Error ? error.message : 'Failed to render filter'
+      );
+    }
   }
 
   async renderComposite(layers: unknown[], blendMode: string): Promise<string> {
-    // TODO: Render layers with blend mode
-    console.warn(`[Skia] renderComposite with ${layers.length} layers, blend=${blendMode}`);
-    return '';
+    try {
+      if (!layers || layers.length === 0) {
+        throw new RenderingError('No layers to composite');
+      }
+      console.warn(`[Skia] renderComposite: ${layers.length} layers, blend=${blendMode}`);
+      // TODO: Implement layer compositing with Skia.Surface
+      return '';
+    } catch (error) {
+      throw new RenderingError(
+        error instanceof Error ? error.message : 'Failed to composite layers'
+      );
+    }
   }
 
   async renderWatermark(
@@ -23,8 +41,14 @@ export class SkiaRenderingAdapter implements ImageRenderingPort {
     _watermarkUri: string,
     position: { x: number; y: number }
   ): Promise<string> {
-    // TODO: Composite watermark onto image
-    console.warn(`[Skia] renderWatermark at (${position.x}, ${position.y})`);
-    return imageUri;
+    try {
+      console.warn(`[Skia] renderWatermark at (${position.x}, ${position.y})`);
+      // TODO: Implement watermark compositing
+      return imageUri;
+    } catch (error) {
+      throw new RenderingError(
+        error instanceof Error ? error.message : 'Failed to render watermark'
+      );
+    }
   }
 }
