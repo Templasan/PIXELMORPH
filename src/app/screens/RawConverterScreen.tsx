@@ -10,9 +10,10 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider, Button } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
-import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
+import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { ADJUSTMENTS_SKSL, CURVE_IDENTITY, toFullUniforms } from '@modules/photo-editor/color';
 import { errorLogger } from '@core/reliability';
+import { useAppModules } from '../hooks';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RawConverter'>;
 
@@ -80,7 +81,7 @@ export default function RawConverterScreen({ navigation, route }: Props) {
   const [curveBoxWidth, setCurveBoxWidth] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
-  const moduleRef = useRef(createProjectsModule());
+  const { projects } = useAppModules();
   const history = usePersistedHistory(projectId ?? 'raw-converter-pending');
 
   const onCurveBoxLayout = useCallback((e: LayoutChangeEvent) => {
@@ -95,10 +96,10 @@ export default function RawConverterScreen({ navigation, route }: Props) {
     if (projectCreationStarted.current) return;
     projectCreationStarted.current = true;
     let cancelled = false;
-    moduleRef.current.createProject
+    projects.createProject
       .execute(sourceName, 'photo')
       .then((project) =>
-        moduleRef.current.addMediaAsset.execute(
+        projects.addMediaAsset.execute(
           project.id,
           createMediaAsset(
             `asset_${Date.now()}`,
