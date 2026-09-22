@@ -20,7 +20,8 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet, Slider, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
-import { createProjectsModule, type Project } from '@modules/projects';
+import { type Project } from '@modules/projects';
+import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import {
   type Track,
@@ -232,6 +233,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
   const sessionId = projectId ?? 'unsaved-video-session';
   const history = usePersistedHistory(sessionId);
+  const { projects: projectsModule } = useAppModules();
 
   const [project, setProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState('Novo projeto');
@@ -271,7 +273,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!projectId) return;
-    const { getProject } = createProjectsModule();
+    const { getProject } = projectsModule;
     getProject
       .execute(projectId)
       .then((p) => {

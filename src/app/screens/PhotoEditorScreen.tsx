@@ -34,7 +34,8 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, ExportSheet, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
-import { createProjectsModule, createMediaAsset, createMediaMetadata } from '@modules/projects';
+import { createMediaAsset, createMediaMetadata } from '@modules/projects';
+import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import { encodeImage } from '@modules/export';
 import { writeImageToCache } from '@modules/device-media';
@@ -267,6 +268,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // working undo/redo instead of crashing — RF-027 just won't survive across app restarts.
   const sessionId = projectId ?? 'unsaved-photo-session';
   const history = usePersistedHistory(sessionId);
+  const { projects: projectsModule } = useAppModules();
 
   const [projectName, setProjectName] = useState('Novo projeto');
   // RF-028/US-11: the project's own real asset (imported from the device or created by the
@@ -573,7 +575,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         const encoded = encodeImage(composed, 'JPEG', 90);
         const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
 
-        const mod = createProjectsModule();
+        const mod = projectsModule;
         const project = await mod.createProject.execute('Colagem', 'photo');
         await mod.addMediaAsset.execute(
           project.id,
@@ -656,7 +658,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       const encoded = encodeImage(stitched, 'JPEG', 90);
       const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
 
-      const mod = createProjectsModule();
+      const mod = projectsModule;
       const project = await mod.createProject.execute('Panorama', 'photo');
       await mod.addMediaAsset.execute(
         project.id,
@@ -739,7 +741,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!projectId) return;
-    const { getProject } = createProjectsModule();
+    const { getProject } = projectsModule;
     getProject
       .execute(projectId)
       .then((project) => {

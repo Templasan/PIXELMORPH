@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Image,
@@ -17,13 +17,13 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, SideDrawer } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import {
-  createProjectsModule,
   createMediaAsset,
   createMediaMetadata,
   type Project,
   type MediaAsset,
   type ProjectPriority,
 } from '@modules/projects';
+import { useAppModules } from '../hooks';
 import { LocalHistoryRepository, type Operation } from '@core/history';
 import { rawFormatLabel } from '@modules/photo-editor/raw';
 import { pickFromGallery } from '@modules/device-media';
@@ -142,7 +142,7 @@ function formatDateInput(date: Date | undefined): string {
 }
 
 export default function ProjectsScreen({ navigation }: Props) {
-  const moduleRef = useRef(createProjectsModule());
+  const { projects: projectsModule } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('TODOS');
   const [projects, setProjects] = useState<Project[]>([]);
@@ -173,7 +173,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   const updateReminder = useCallback(
     async (patch: { dueDate?: Date | null; priority?: ProjectPriority | null }) => {
       if (!infoProject) return;
-      const updated = await moduleRef.current.updateProject.execute(infoProject.id, patch);
+      const updated = await projectsModule.updateProject.execute(infoProject.id, patch);
       setInfoProject(updated);
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     },
@@ -181,7 +181,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   );
 
   const loadProjects = useCallback(async () => {
-    const mod = moduleRef.current;
+    const mod = projectsModule;
     await seedDemoProjectsIfEmpty(mod);
     const all = await mod.listProjects.execute({ status: 'active' });
     // Most recently modified first.
@@ -205,7 +205,7 @@ export default function ProjectsScreen({ navigation }: Props) {
       const picked = await pickFromGallery();
       if (!picked) return; // user cancelled
 
-      const mod = moduleRef.current;
+      const mod = projectsModule;
       const name = picked.fileName?.replace(/\.[^./]+$/, '') || 'Importado da galeria';
       const project = await mod.createProject.execute(
         name,
