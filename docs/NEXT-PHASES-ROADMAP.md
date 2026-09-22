@@ -6,19 +6,24 @@
 
 ## Phase 1: Skia Filters ✅ COMPLETED
 
-**File**: `src/modules/photo-editor/infrastructure/adapters/SkiaFilters.ts`
+**Files**: 
+- `src/modules/photo-editor/infrastructure/adapters/SkiaFilters.ts` (implementation)
+- `src/modules/photo-editor/infrastructure/adapters/SkiaRenderingAdapter.ts` (integration)
 
-Implementations completed:
-- ✅ Structure created
-- ✅ `applyBrightness()` - Matrix offset for light/dark (-100 to 100)
+Completed:
+- ✅ `applyBrightness()` - Matrix offset (-100 to 100)
 - ✅ `applyContrast()` - Multiplicative matrix (0.5 to 2.0)
-- ✅ `applySaturation()` - Luminance-weighted desaturation (0 to 2.0)
-- ✅ `applyGrayscale()` - Grayscale conversion with standard weights
-- ✅ `applySepia()` - Warm vintage tone effect
+- ✅ `applySaturation()` - Luminance-weighted (0 to 2.0)
+- ✅ `applyGrayscale()` - Standard luminance weights
+- ✅ `applySepia()` - Warm vintage tones
+- ✅ `renderWithFilter()` - Dispatcher for all 5 filters
 
-**Commit**: `b74f397`
+**Commits**: 
+- `b74f397` - Implement Phase 1: Real Skia color filters
+- `f40f6b5` - Integrate Skia filters in SkiaRenderingAdapter
 
-All filters use `Skia.ColorFilter.MakeMatrix()` for hardware acceleration. Ready for integration in `SkiaRenderingAdapter.renderWithFilter()`.
+**Status**: Fully integrated. Filters applied in-memory via Skia surfaces. 
+Ready for UI layer integration in PhotoEditorScreen.
 
 ---
 
