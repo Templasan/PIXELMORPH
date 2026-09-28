@@ -467,7 +467,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     };
   }, [currentClip, currentTimeMs, tracks]);
 
-
   // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
   // is what history.push compares against, matching the pattern used across this app.
   const dragStartRef = useRef<Track[] | null>(null);
@@ -859,296 +858,349 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         </GestureDetector>
 
         <View style={styles.timelineSection}>
-            <ScrollView style={{ flex: 1 }} onLayout={onBodyLayout}>
-              <GestureDetector gesture={rulerGesture}>
-                <View style={styles.ruler}>
-                  {Array.from({ length: 11 }).map((_, i) => (
-                    <View key={i} style={styles.rulerTick}>
-                      <Text style={styles.rulerLabel}>
-                        {formatTimecode((totalDurationMs / 10) * i).slice(0, 5)}
-                      </Text>
-                    </View>
-                  ))}
-                  <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
-                </View>
-              </GestureDetector>
-
-              {tracks.map((track) => {
-                return (
-                  <View key={track.id} style={styles.trackRow}>
-                    <View style={styles.trackHeader}>
-                      <Pressable onPress={() => toggleVisible(track.id)} hitSlop={6}>
-                        <Icon
-                          name={track.visible ? 'eye' : 'eyeOff'}
-                          size={12}
-                          color={track.visible ? colors.texto2 : colors.linha}
-                        />
-                      </Pressable>
-                      <Text style={styles.trackLabel}>{track.name}</Text>
-                      <Pressable onPress={() => toggleLocked(track.id)} hitSlop={6}>
-                        <Icon
-                          name="lock"
-                          size={10}
-                          color={track.locked ? colors.perigo : colors.linha}
-                        />
-                      </Pressable>
-                      <Pressable onPress={() => setAddClipTrackId(track.id)} hitSlop={6}>
-                        <Icon name="plus" size={12} color={colors.texto2} />
-                      </Pressable>
-                    </View>
-
-                    <View style={styles.clipArea}>
-                      <View style={[styles.clipAreaPlayhead, { left: `${playheadPct}%` }]} />
-                      {track.visible &&
-                        track.clips.map((clip) => (
-                          <ClipBlock
-                            key={clip.id}
-                            clip={clip}
-                            track={track}
-                            leftPct={(clip.startMs / totalDurationMs) * 100}
-                            widthPct={(clipDurationMs(clip) / totalDurationMs) * 100}
-                            isSelected={selectedClipId === clip.id}
-                            msPerPx={msPerPx}
-                            onSelect={() => {
-                              setSelectedClipId((id) => (id === clip.id ? null : clip.id));
-                              setClipTab('Aparar');
-                            }}
-                            onBeginDrag={beginDrag}
-                            onMove={(delta) => updateDragMove(track.id, clip.id, delta)}
-                            onTrimIn={(delta) => updateDragTrimIn(track.id, clip.id, delta)}
-                            onTrimOut={(delta) => updateDragTrimOut(track.id, clip.id, delta)}
-                            onEndDrag={endDrag}
-                          />
-                        ))}
-                    </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {selected && (
-            <View style={styles.clipPanel}>
-              <View style={styles.clipTabsRow}>
-                {CLIP_TABS.map((t) => (
-                  <Pressable
-                    key={t}
-                    onPress={() => setClipTab(t)}
-                    disabled={
-                      (t === 'Transição' && !previousOfSelected) ||
-                      (t === 'Áudio' && selected.track.kind !== 'audio')
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.clipTabText,
-                        clipTab === t && styles.clipTabTextActive,
-                        ((t === 'Transição' && !previousOfSelected) ||
-                          (t === 'Áudio' && selected.track.kind !== 'audio')) &&
-                          styles.clipTabTextDisabled,
-                      ]}
-                    >
-                      {t}
+          <ScrollView style={{ flex: 1 }} onLayout={onBodyLayout}>
+            <GestureDetector gesture={rulerGesture}>
+              <View style={styles.ruler}>
+                {Array.from({ length: 11 }).map((_, i) => (
+                  <View key={i} style={styles.rulerTick}>
+                    <Text style={styles.rulerLabel}>
+                      {formatTimecode((totalDurationMs / 10) * i).slice(0, 5)}
                     </Text>
-                  </Pressable>
-                ))}
-                <Pressable
-                  style={{ marginLeft: 'auto' }}
-                  onPress={() => setSelectedClipId(null)}
-                  hitSlop={6}
-                >
-                  <Icon name="x" size={16} color={colors.texto2} />
-                </Pressable>
-              </View>
-              {clipTab === 'Aparar' && (
-                <View style={styles.trimRow}>
-                  <Text style={styles.trimLabel}>Início</Text>
-                  <Pressable onPress={() => nudgeTrimIn(-1)} hitSlop={4}>
-                    <Icon name="minus" size={12} color={colors.texto2} />
-                  </Pressable>
-                  <Text style={styles.trimValue}>{formatTimecode(selected.clip.inPointMs)}</Text>
-                  <Pressable onPress={() => nudgeTrimIn(1)} hitSlop={4}>
-                    <Icon name="plus" size={12} color={colors.texto2} />
-                  </Pressable>
-                  <View style={{ flex: 1 }} />
-                  <Text style={styles.trimLabel}>Fim</Text>
-                  <Pressable onPress={() => nudgeTrimOut(-1)} hitSlop={4}>
-                    <Icon name="minus" size={12} color={colors.texto2} />
-                  </Pressable>
-                  <Text style={styles.trimValue}>{formatTimecode(selected.clip.outPointMs)}</Text>
-                  <Pressable onPress={() => nudgeTrimOut(1)} hitSlop={4}>
-                    <Icon name="plus" size={12} color={colors.texto2} />
-                  </Pressable>
-                </View>
-              )}
-              {clipTab === 'Quadro' && (
-                <View>
-                  <View style={styles.frameRow}>
-                    <Pressable style={styles.frameButton} onPress={() => stepFrame(-1)}>
-                      <Text style={styles.frameButtonText}>−1 quadro</Text>
-                    </Pressable>
-                    <Pressable style={styles.frameButton} onPress={() => stepFrame(1)}>
-                      <Text style={styles.frameButtonText}>+1 quadro</Text>
-                    </Pressable>
-                    <View style={{ marginLeft: 8 }}>
-                      <Switch value={loopReview} onChange={setLoopReview} label="Revisar em loop" />
-                    </View>
                   </View>
-                  <View style={[styles.frameRow, { marginTop: 8 }]}>
-                    <Text style={styles.trimLabel}>Congelar por</Text>
-                    <Pressable
-                      onPress={() => setFreezeHoldMs((v) => Math.max(500, v - 500))}
-                      hitSlop={4}
-                    >
-                      <Icon name="minus" size={12} color={colors.texto2} />
+                ))}
+                <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
+              </View>
+            </GestureDetector>
+
+            {tracks.map((track) => {
+              return (
+                <View key={track.id} style={styles.trackRow}>
+                  <View style={styles.trackHeader}>
+                    <Pressable onPress={() => toggleVisible(track.id)} hitSlop={6}>
+                      <Icon
+                        name={track.visible ? 'eye' : 'eyeOff'}
+                        size={12}
+                        color={track.visible ? colors.texto2 : colors.linha}
+                      />
                     </Pressable>
-                    <Text style={styles.trimValue}>{(freezeHoldMs / 1000).toFixed(1)}s</Text>
-                    <Pressable onPress={() => setFreezeHoldMs((v) => v + 500)} hitSlop={4}>
+                    <Text style={styles.trackLabel}>{track.name}</Text>
+                    <Pressable onPress={() => toggleLocked(track.id)} hitSlop={6}>
+                      <Icon
+                        name="lock"
+                        size={10}
+                        color={track.locked ? colors.perigo : colors.linha}
+                      />
+                    </Pressable>
+                    <Pressable onPress={() => setAddClipTrackId(track.id)} hitSlop={6}>
                       <Icon name="plus" size={12} color={colors.texto2} />
                     </Pressable>
-                    <Pressable style={styles.frameButton} onPress={handleFreeze}>
-                      <Text style={styles.frameButtonText}>❄ Congelar aqui</Text>
-                    </Pressable>
+                  </View>
+
+                  <View style={styles.clipArea}>
+                    <View style={[styles.clipAreaPlayhead, { left: `${playheadPct}%` }]} />
+                    {track.visible &&
+                      track.clips.map((clip) => (
+                        <ClipBlock
+                          key={clip.id}
+                          clip={clip}
+                          track={track}
+                          leftPct={(clip.startMs / totalDurationMs) * 100}
+                          widthPct={(clipDurationMs(clip) / totalDurationMs) * 100}
+                          isSelected={selectedClipId === clip.id}
+                          msPerPx={msPerPx}
+                          onSelect={() => {
+                            setSelectedClipId((id) => (id === clip.id ? null : clip.id));
+                            setClipTab('Aparar');
+                          }}
+                          onBeginDrag={beginDrag}
+                          onMove={(delta) => updateDragMove(track.id, clip.id, delta)}
+                          onTrimIn={(delta) => updateDragTrimIn(track.id, clip.id, delta)}
+                          onTrimOut={(delta) => updateDragTrimOut(track.id, clip.id, delta)}
+                          onEndDrag={endDrag}
+                        />
+                      ))}
                   </View>
                 </View>
-              )}
-              {clipTab === 'Transição' && previousOfSelected && (
-                <View>
-                  <View style={styles.chipRow}>
-                    {TRANSITION_TYPES.map((type) => {
-                      const active = selected.clip.transitionIn?.type === type;
-                      return (
-                        <Pressable
-                          key={type}
-                          style={[styles.chip, active && styles.chipActive]}
-                          onPress={() => {
-                            const before = tracksRef.current;
-                            const duration = clampTransitionDurationMs(
-                              selected.clip.transitionIn?.durationMs ?? DEFAULT_TRANSITION_MS,
-                              previousOfSelected,
-                              selected.clip
-                            );
-                            const after = setTransition(
-                              before,
-                              selected.track.id,
-                              selected.clip.id,
-                              {
-                                type,
-                                durationMs: duration,
-                              }
-                            );
-                            commitTracks(before, after);
-                          }}
-                        >
-                          <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                            {TRANSITION_LABELS[type]}
-                          </Text>
-                        </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {selected && (
+          <View style={styles.clipPanel}>
+            <View style={styles.clipTabsRow}>
+              {CLIP_TABS.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setClipTab(t)}
+                  disabled={
+                    (t === 'Transição' && !previousOfSelected) ||
+                    (t === 'Áudio' && selected.track.kind !== 'audio')
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.clipTabText,
+                      clipTab === t && styles.clipTabTextActive,
+                      ((t === 'Transição' && !previousOfSelected) ||
+                        (t === 'Áudio' && selected.track.kind !== 'audio')) &&
+                        styles.clipTabTextDisabled,
+                    ]}
+                  >
+                    {t}
+                  </Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={{ marginLeft: 'auto' }}
+                onPress={() => setSelectedClipId(null)}
+                hitSlop={6}
+              >
+                <Icon name="x" size={16} color={colors.texto2} />
+              </Pressable>
+            </View>
+            {clipTab === 'Aparar' && (
+              <View style={styles.trimRow}>
+                <Text style={styles.trimLabel}>Início</Text>
+                <Pressable onPress={() => nudgeTrimIn(-1)} hitSlop={4}>
+                  <Icon name="minus" size={12} color={colors.texto2} />
+                </Pressable>
+                <Text style={styles.trimValue}>{formatTimecode(selected.clip.inPointMs)}</Text>
+                <Pressable onPress={() => nudgeTrimIn(1)} hitSlop={4}>
+                  <Icon name="plus" size={12} color={colors.texto2} />
+                </Pressable>
+                <View style={{ flex: 1 }} />
+                <Text style={styles.trimLabel}>Fim</Text>
+                <Pressable onPress={() => nudgeTrimOut(-1)} hitSlop={4}>
+                  <Icon name="minus" size={12} color={colors.texto2} />
+                </Pressable>
+                <Text style={styles.trimValue}>{formatTimecode(selected.clip.outPointMs)}</Text>
+                <Pressable onPress={() => nudgeTrimOut(1)} hitSlop={4}>
+                  <Icon name="plus" size={12} color={colors.texto2} />
+                </Pressable>
+              </View>
+            )}
+            {clipTab === 'Quadro' && (
+              <View>
+                <View style={styles.frameRow}>
+                  <Pressable style={styles.frameButton} onPress={() => stepFrame(-1)}>
+                    <Text style={styles.frameButtonText}>−1 quadro</Text>
+                  </Pressable>
+                  <Pressable style={styles.frameButton} onPress={() => stepFrame(1)}>
+                    <Text style={styles.frameButtonText}>+1 quadro</Text>
+                  </Pressable>
+                  <View style={{ marginLeft: 8 }}>
+                    <Switch value={loopReview} onChange={setLoopReview} label="Revisar em loop" />
+                  </View>
+                </View>
+                <View style={[styles.frameRow, { marginTop: 8 }]}>
+                  <Text style={styles.trimLabel}>Congelar por</Text>
+                  <Pressable
+                    onPress={() => setFreezeHoldMs((v) => Math.max(500, v - 500))}
+                    hitSlop={4}
+                  >
+                    <Icon name="minus" size={12} color={colors.texto2} />
+                  </Pressable>
+                  <Text style={styles.trimValue}>{(freezeHoldMs / 1000).toFixed(1)}s</Text>
+                  <Pressable onPress={() => setFreezeHoldMs((v) => v + 500)} hitSlop={4}>
+                    <Icon name="plus" size={12} color={colors.texto2} />
+                  </Pressable>
+                  <Pressable style={styles.frameButton} onPress={handleFreeze}>
+                    <Text style={styles.frameButtonText}>❄ Congelar aqui</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+            {clipTab === 'Transição' && previousOfSelected && (
+              <View>
+                <View style={styles.chipRow}>
+                  {TRANSITION_TYPES.map((type) => {
+                    const active = selected.clip.transitionIn?.type === type;
+                    return (
+                      <Pressable
+                        key={type}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => {
+                          const before = tracksRef.current;
+                          const duration = clampTransitionDurationMs(
+                            selected.clip.transitionIn?.durationMs ?? DEFAULT_TRANSITION_MS,
+                            previousOfSelected,
+                            selected.clip
+                          );
+                          const after = setTransition(before, selected.track.id, selected.clip.id, {
+                            type,
+                            durationMs: duration,
+                          });
+                          commitTracks(before, after);
+                        }}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {TRANSITION_LABELS[type]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    style={styles.chip}
+                    onPress={() => {
+                      const before = tracksRef.current;
+                      const after = setTransition(
+                        before,
+                        selected.track.id,
+                        selected.clip.id,
+                        undefined
                       );
-                    })}
+                      commitTracks(before, after);
+                    }}
+                  >
+                    <Text style={styles.chipText}>Nenhuma</Text>
+                  </Pressable>
+                </View>
+                {selected.clip.transitionIn && (
+                  <Slider
+                    label="Duração"
+                    value={selected.clip.transitionIn.durationMs}
+                    min={100}
+                    max={clampTransitionDurationMs(99999, previousOfSelected, selected.clip)}
+                    onChange={(v) => applyTransitionDuration(v)}
+                    onSlidingComplete={(v, from) => commitTransitionDuration(v, from)}
+                  />
+                )}
+              </View>
+            )}
+            {clipTab === 'Velocidade' && (
+              <View>
+                <View style={styles.chipRow}>
+                  {SPEED_PRESETS.map((preset) => (
                     <Pressable
-                      style={styles.chip}
+                      key={preset}
+                      style={[
+                        styles.chip,
+                        (selected.clip.speed ?? 1) === preset && styles.chipActive,
+                      ]}
                       onPress={() => {
                         const before = tracksRef.current;
-                        const after = setTransition(
-                          before,
-                          selected.track.id,
-                          selected.clip.id,
-                          undefined
+                        const after = before.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? { ...c, speed: preset } : c
+                                ),
+                              }
+                            : t
                         );
                         commitTracks(before, after);
                       }}
                     >
-                      <Text style={styles.chipText}>Nenhuma</Text>
-                    </Pressable>
-                  </View>
-                  {selected.clip.transitionIn && (
-                    <Slider
-                      label="Duração"
-                      value={selected.clip.transitionIn.durationMs}
-                      min={100}
-                      max={clampTransitionDurationMs(99999, previousOfSelected, selected.clip)}
-                      onChange={(v) => applyTransitionDuration(v)}
-                      onSlidingComplete={(v, from) => commitTransitionDuration(v, from)}
-                    />
-                  )}
-                </View>
-              )}
-              {clipTab === 'Velocidade' && (
-                <View>
-                  <View style={styles.chipRow}>
-                    {SPEED_PRESETS.map((preset) => (
-                      <Pressable
-                        key={preset}
+                      <Text
                         style={[
-                          styles.chip,
-                          (selected.clip.speed ?? 1) === preset && styles.chipActive,
+                          styles.chipText,
+                          (selected.clip.speed ?? 1) === preset && styles.chipTextActive,
                         ]}
-                        onPress={() => {
-                          const before = tracksRef.current;
-                          const after = before.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? { ...c, speed: preset } : c
-                                  ),
-                                }
-                              : t
-                          );
-                          commitTracks(before, after);
-                        }}
                       >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            (selected.clip.speed ?? 1) === preset && styles.chipTextActive,
-                          ]}
-                        >
-                          {preset}x
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                  <Slider
-                    label="Velocidade"
-                    value={selected.clip.speed ?? 1}
-                    min={0.25}
-                    max={4}
-                    step={0.25}
-                    unit="x"
-                    onChange={applySpeed}
-                    onSlidingComplete={commitSpeed}
+                        {preset}x
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Slider
+                  label="Velocidade"
+                  value={selected.clip.speed ?? 1}
+                  min={0.25}
+                  max={4}
+                  step={0.25}
+                  unit="x"
+                  onChange={applySpeed}
+                  onSlidingComplete={commitSpeed}
+                />
+              </View>
+            )}
+            {clipTab === 'Correção' && (
+              <View style={{ gap: 8 }}>
+                <Slider
+                  label="Brilho"
+                  value={selected.clip.colorCorrection ?? 0}
+                  min={-100}
+                  max={100}
+                  bipolar
+                  showSign
+                  onChange={applyColorCorrection}
+                  onSlidingComplete={commitColorCorrection}
+                />
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '500' }}>
+                    Estabilização
+                  </Text>
+                  <Switch
+                    value={selected.clip.stabilization ?? false}
+                    onChange={(v: boolean) => {
+                      const updated = setStabilization(selected.clip, v);
+                      const before = tracksRef.current;
+                      const after = tracksRef.current.map((t) =>
+                        t.id === selected.track.id
+                          ? {
+                              ...t,
+                              clips: t.clips.map((c) => (c.id === selected.clip.id ? updated : c)),
+                            }
+                          : t
+                      );
+                      commitTracks(before, after);
+                    }}
                   />
                 </View>
-              )}
-              {clipTab === 'Correção' && (
-                <View style={{ gap: 8 }}>
-                  <Slider
-                    label="Brilho"
-                    value={selected.clip.colorCorrection ?? 0}
-                    min={-100}
-                    max={100}
-                    bipolar
-                    showSign
-                    onChange={applyColorCorrection}
-                    onSlidingComplete={commitColorCorrection}
-                  />
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingHorizontal: 4,
-                    }}
-                  >
-                    <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '500' }}>
-                      Estabilização
+                {sphericalInfo.isSpherical && (
+                  <>
+                    <Text
+                      style={{
+                        color: colors.texto,
+                        fontSize: 11,
+                        fontWeight: '600',
+                        marginTop: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      📹 Orientação 360°
                     </Text>
-                    <Switch
-                      value={selected.clip.stabilization ?? false}
-                      onChange={(v: boolean) => {
-                        const updated = setStabilization(selected.clip, v);
+                    <Slider
+                      label="Pitch (cima/baixo)"
+                      value={selected.clip.sphericalPitch ?? 0}
+                      min={-90}
+                      max={90}
+                      bipolar
+                      onChange={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          v,
+                          selected.clip.sphericalYaw ?? 0,
+                          selected.clip.sphericalRoll ?? 0
+                        );
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        setTracks(after);
+                      }}
+                      onSlidingComplete={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          v,
+                          selected.clip.sphericalYaw ?? 0,
+                          selected.clip.sphericalRoll ?? 0
+                        );
                         const before = tracksRef.current;
                         const after = tracksRef.current.map((t) =>
                           t.id === selected.track.id
@@ -1163,353 +1215,293 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                         commitTracks(before, after);
                       }}
                     />
-                  </View>
-                  {sphericalInfo.isSpherical && (
-                    <>
-                      <Text
-                        style={{
-                          color: colors.texto,
-                          fontSize: 11,
-                          fontWeight: '600',
-                          marginTop: 8,
-                          marginBottom: 4,
-                        }}
-                      >
-                        📹 Orientação 360°
-                      </Text>
-                      <Slider
-                        label="Pitch (cima/baixo)"
-                        value={selected.clip.sphericalPitch ?? 0}
-                        min={-90}
-                        max={90}
-                        bipolar
-                        onChange={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            v,
-                            selected.clip.sphericalYaw ?? 0,
-                            selected.clip.sphericalRoll ?? 0
-                          );
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          setTracks(after);
-                        }}
-                        onSlidingComplete={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            v,
-                            selected.clip.sphericalYaw ?? 0,
-                            selected.clip.sphericalRoll ?? 0
-                          );
-                          const before = tracksRef.current;
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          commitTracks(before, after);
-                        }}
-                      />
-                      <Slider
-                        label="Yaw (esq/dir)"
-                        value={selected.clip.sphericalYaw ?? 0}
-                        min={-180}
-                        max={180}
-                        bipolar
-                        onChange={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            selected.clip.sphericalPitch ?? 0,
-                            v,
-                            selected.clip.sphericalRoll ?? 0
-                          );
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          setTracks(after);
-                        }}
-                        onSlidingComplete={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            selected.clip.sphericalPitch ?? 0,
-                            v,
-                            selected.clip.sphericalRoll ?? 0
-                          );
-                          const before = tracksRef.current;
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          commitTracks(before, after);
-                        }}
-                      />
-                      <Slider
-                        label="Roll (rotação)"
-                        value={selected.clip.sphericalRoll ?? 0}
-                        min={-180}
-                        max={180}
-                        bipolar
-                        onChange={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            selected.clip.sphericalPitch ?? 0,
-                            selected.clip.sphericalYaw ?? 0,
-                            v
-                          );
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          setTracks(after);
-                        }}
-                        onSlidingComplete={(v: number) => {
-                          const updated = setSphericalOrientation(
-                            selected.clip,
-                            selected.clip.sphericalPitch ?? 0,
-                            selected.clip.sphericalYaw ?? 0,
-                            v
-                          );
-                          const before = tracksRef.current;
-                          const after = tracksRef.current.map((t) =>
-                            t.id === selected.track.id
-                              ? {
-                                  ...t,
-                                  clips: t.clips.map((c) =>
-                                    c.id === selected.clip.id ? updated : c
-                                  ),
-                                }
-                              : t
-                          );
-                          commitTracks(before, after);
-                        }}
-                      />
-                    </>
-                  )}
-                </View>
-              )}
-              {clipTab === 'Áudio' && selected.track.kind === 'audio' && (
-                <View style={{ gap: 4 }}>
-                  <Slider
-                    label="Volume"
-                    value={selected.clip.volume ?? 100}
-                    min={0}
-                    max={100}
-                    unit="%"
-                    onChange={(v) => setClipField('volume', v)}
-                    onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
-                  />
-                  <Slider
-                    label="Fade in"
-                    value={selected.clip.fadeInMs ?? 0}
-                    min={0}
-                    max={clampFadeMs(99999, selected.clip)}
-                    step={100}
-                    unit=" ms"
-                    onChange={(v) => setClipField('fadeInMs', v)}
-                    onSlidingComplete={(v, from) => commitClipField('fadeInMs', v, from)}
-                  />
-                  <Slider
-                    label="Fade out"
-                    value={selected.clip.fadeOutMs ?? 0}
-                    min={0}
-                    max={clampFadeMs(99999, selected.clip)}
-                    step={100}
-                    unit=" ms"
-                    onChange={(v) => setClipField('fadeOutMs', v)}
-                    onSlidingComplete={(v, from) => commitClipField('fadeOutMs', v, from)}
-                  />
-                </View>
-              )}
-              {clipTab === 'Sobreposição' && (
-                <View style={{ gap: 4 }}>
-                  {pipClipId === selected.clip.id ? (
-                    <>
-                      <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '600' }}>
-                        Este clip é sobreposição (PIP)
-                      </Text>
-                      <Slider
-                        label="Posição X"
-                        value={pipX}
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        onChange={setPipX}
-                        onSlidingComplete={(v) => {
-                          const clip = selected.clip;
-                          const updated = setPipTransform(
-                            clip,
-                            { x: v, y: pipY },
-                            { width: pipWidth, height: pipHeight }
-                          );
-                          setClipField('pipPosition', updated.pipPosition);
-                        }}
-                      />
-                      <Slider
-                        label="Posição Y"
-                        value={pipY}
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        onChange={setPipY}
-                        onSlidingComplete={(v) => {
-                          const clip = selected.clip;
-                          const updated = setPipTransform(
-                            clip,
-                            { x: pipX, y: v },
-                            { width: pipWidth, height: pipHeight }
-                          );
-                          setClipField('pipPosition', updated.pipPosition);
-                        }}
-                      />
-                      <Slider
-                        label="Largura"
-                        value={pipWidth}
-                        min={0.1}
-                        max={1}
-                        step={0.05}
-                        onChange={setPipWidth}
-                        onSlidingComplete={(v) => {
-                          const clip = selected.clip;
-                          const updated = setPipTransform(
-                            clip,
-                            { x: pipX, y: pipY },
-                            { width: v, height: pipHeight }
-                          );
-                          setClipField('pipSize', updated.pipSize);
-                        }}
-                      />
-                      <Slider
-                        label="Altura"
-                        value={pipHeight}
-                        min={0.1}
-                        max={1}
-                        step={0.05}
-                        onChange={setPipHeight}
-                        onSlidingComplete={(v) => {
-                          const clip = selected.clip;
-                          const updated = setPipTransform(
-                            clip,
-                            { x: pipX, y: pipY },
-                            { width: pipWidth, height: v }
-                          );
-                          setClipField('pipSize', updated.pipSize);
-                        }}
-                      />
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable
-                          onPress={() => setPipClipId(null)}
-                          style={[styles.button, { flex: 1, backgroundColor: colors.perigo }]}
-                        >
-                          <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
-                            Remover
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={captureAndExportPip}
-                          style={[styles.button, { flex: 1, backgroundColor: colors.ok }]}
-                        >
-                          <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
-                            Exportar Frame
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </>
-                  ) : (
-                    <Pressable
-                      onPress={() => {
-                        setPipClipId(selected.clip.id);
-                        setPipX(0.65);
-                        setPipY(0.65);
-                        setPipWidth(0.3);
-                        setPipHeight(0.3);
+                    <Slider
+                      label="Yaw (esq/dir)"
+                      value={selected.clip.sphericalYaw ?? 0}
+                      min={-180}
+                      max={180}
+                      bipolar
+                      onChange={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          selected.clip.sphericalPitch ?? 0,
+                          v,
+                          selected.clip.sphericalRoll ?? 0
+                        );
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        setTracks(after);
                       }}
-                      style={[styles.button, { backgroundColor: colors.acento }]}
-                    >
-                      <Text style={{ color: '#0D2036', fontWeight: '600', fontSize: 12 }}>
-                        Usar como Sobreposição
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={styles.bottomToolbar}>
-            <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
-              {TOOLBAR_ITEMS.map(({ icon, label, action }) => (
-                <Pressable
-                  key={label}
-                  style={[
-                    styles.toolItem,
-                    action === 'ripple' && rippleMode && styles.toolItemActive,
-                  ]}
-                  onPress={() => handleToolbarAction(action)}
-                  disabled={
-                    (action === 'cut' || action === 'split' || action === 'freeze') && !selected
-                  }
-                >
-                  <Icon
-                    name={icon}
-                    size={18}
-                    color={
-                      (action === 'cut' || action === 'split' || action === 'freeze') && !selected
-                        ? colors.linha
-                        : action === 'ripple' && rippleMode
-                          ? colors.acento
-                          : colors.icone
-                    }
-                  />
-                  <Text style={styles.toolLabel}>{label}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.timelineZoomRow}>
-              <Icon name="search" size={12} color={colors.texto2} />
-              <View style={{ width: 64 }}>
+                      onSlidingComplete={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          selected.clip.sphericalPitch ?? 0,
+                          v,
+                          selected.clip.sphericalRoll ?? 0
+                        );
+                        const before = tracksRef.current;
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        commitTracks(before, after);
+                      }}
+                    />
+                    <Slider
+                      label="Roll (rotação)"
+                      value={selected.clip.sphericalRoll ?? 0}
+                      min={-180}
+                      max={180}
+                      bipolar
+                      onChange={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          selected.clip.sphericalPitch ?? 0,
+                          selected.clip.sphericalYaw ?? 0,
+                          v
+                        );
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        setTracks(after);
+                      }}
+                      onSlidingComplete={(v: number) => {
+                        const updated = setSphericalOrientation(
+                          selected.clip,
+                          selected.clip.sphericalPitch ?? 0,
+                          selected.clip.sphericalYaw ?? 0,
+                          v
+                        );
+                        const before = tracksRef.current;
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        commitTracks(before, after);
+                      }}
+                    />
+                  </>
+                )}
+              </View>
+            )}
+            {clipTab === 'Áudio' && selected.track.kind === 'audio' && (
+              <View style={{ gap: 4 }}>
                 <Slider
-                  label=""
-                  value={timelineZoom}
-                  min={10}
-                  max={200}
-                  onChange={setTimelineZoom}
-                  labelWidth={0}
+                  label="Volume"
+                  value={selected.clip.volume ?? 100}
+                  min={0}
+                  max={100}
+                  unit="%"
+                  onChange={(v) => setClipField('volume', v)}
+                  onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
+                />
+                <Slider
+                  label="Fade in"
+                  value={selected.clip.fadeInMs ?? 0}
+                  min={0}
+                  max={clampFadeMs(99999, selected.clip)}
+                  step={100}
+                  unit=" ms"
+                  onChange={(v) => setClipField('fadeInMs', v)}
+                  onSlidingComplete={(v, from) => commitClipField('fadeInMs', v, from)}
+                />
+                <Slider
+                  label="Fade out"
+                  value={selected.clip.fadeOutMs ?? 0}
+                  min={0}
+                  max={clampFadeMs(99999, selected.clip)}
+                  step={100}
+                  unit=" ms"
+                  onChange={(v) => setClipField('fadeOutMs', v)}
+                  onSlidingComplete={(v, from) => commitClipField('fadeOutMs', v, from)}
                 />
               </View>
+            )}
+            {clipTab === 'Sobreposição' && (
+              <View style={{ gap: 4 }}>
+                {pipClipId === selected.clip.id ? (
+                  <>
+                    <Text style={{ color: colors.texto, fontSize: 12, fontWeight: '600' }}>
+                      Este clip é sobreposição (PIP)
+                    </Text>
+                    <Slider
+                      label="Posição X"
+                      value={pipX}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipX}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: v, y: pipY },
+                          { width: pipWidth, height: pipHeight }
+                        );
+                        setClipField('pipPosition', updated.pipPosition);
+                      }}
+                    />
+                    <Slider
+                      label="Posição Y"
+                      value={pipY}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipY}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: v },
+                          { width: pipWidth, height: pipHeight }
+                        );
+                        setClipField('pipPosition', updated.pipPosition);
+                      }}
+                    />
+                    <Slider
+                      label="Largura"
+                      value={pipWidth}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipWidth}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: pipY },
+                          { width: v, height: pipHeight }
+                        );
+                        setClipField('pipSize', updated.pipSize);
+                      }}
+                    />
+                    <Slider
+                      label="Altura"
+                      value={pipHeight}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={setPipHeight}
+                      onSlidingComplete={(v) => {
+                        const clip = selected.clip;
+                        const updated = setPipTransform(
+                          clip,
+                          { x: pipX, y: pipY },
+                          { width: pipWidth, height: v }
+                        );
+                        setClipField('pipSize', updated.pipSize);
+                      }}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => setPipClipId(null)}
+                        style={[styles.button, { flex: 1, backgroundColor: colors.perigo }]}
+                      >
+                        <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
+                          Remover
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={captureAndExportPip}
+                        style={[styles.button, { flex: 1, backgroundColor: colors.ok }]}
+                      >
+                        <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
+                          Exportar Frame
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      setPipClipId(selected.clip.id);
+                      setPipX(0.65);
+                      setPipY(0.65);
+                      setPipWidth(0.3);
+                      setPipHeight(0.3);
+                    }}
+                    style={[styles.button, { backgroundColor: colors.acento }]}
+                  >
+                    <Text style={{ color: '#0D2036', fontWeight: '600', fontSize: 12 }}>
+                      Usar como Sobreposição
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        <View style={styles.bottomToolbar}>
+          <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+            {TOOLBAR_ITEMS.map(({ icon, label, action }) => (
+              <Pressable
+                key={label}
+                style={[
+                  styles.toolItem,
+                  action === 'ripple' && rippleMode && styles.toolItemActive,
+                ]}
+                onPress={() => handleToolbarAction(action)}
+                disabled={
+                  (action === 'cut' || action === 'split' || action === 'freeze') && !selected
+                }
+              >
+                <Icon
+                  name={icon}
+                  size={18}
+                  color={
+                    (action === 'cut' || action === 'split' || action === 'freeze') && !selected
+                      ? colors.linha
+                      : action === 'ripple' && rippleMode
+                        ? colors.acento
+                        : colors.icone
+                  }
+                />
+                <Text style={styles.toolLabel}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.timelineZoomRow}>
+            <Icon name="search" size={12} color={colors.texto2} />
+            <View style={{ width: 64 }}>
+              <Slider
+                label=""
+                value={timelineZoom}
+                min={10}
+                max={200}
+                onChange={setTimelineZoom}
+                labelWidth={0}
+              />
             </View>
           </View>
+        </View>
       </View>
 
       {addClipTrackId && (
@@ -1533,10 +1525,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           {transitionBlend && (
             <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
           )}
-          <Image
-            source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
-            style={styles.previewImage}
-          />
+          <Image source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }} style={styles.previewImage} />
           <View style={styles.fullscreenTopBar}>
             <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
               <Text style={styles.qualityBadgeText}>

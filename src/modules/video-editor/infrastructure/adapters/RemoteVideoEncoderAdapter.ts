@@ -55,13 +55,7 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
 
     try {
       // Step 1: Upload frames to backend
-      const jobId = await this.submitEncodingJob(
-        frames,
-        fps,
-        width,
-        height,
-        quality
-      );
+      const jobId = await this.submitEncodingJob(frames, fps, width, height, quality);
 
       console.log(`[RemoteFFmpeg] Job ${jobId} submitted`);
 
@@ -78,9 +72,7 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
       console.log(`[RemoteFFmpeg] Job ${jobId} completed, saved to ${outputPath}`);
     } catch (error) {
       if (error instanceof EncodingError) throw error;
-      throw new EncodingError(
-        error instanceof Error ? error.message : 'Remote encoding failed'
-      );
+      throw new EncodingError(error instanceof Error ? error.message : 'Remote encoding failed');
     }
   }
 
@@ -115,9 +107,7 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new EncodingError(
-        `Backend error ${response.status}: ${errorText}`
-      );
+      throw new EncodingError(`Backend error ${response.status}: ${errorText}`);
     }
 
     const data = (await response.json()) as { jobId?: string };
@@ -140,15 +130,12 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
     while (attempts < this.maxPollAttempts) {
       attempts++;
 
-      const response = await fetch(
-        `${this.apiBaseUrl}/api/encode-video/${jobId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        }
-      );
+      const response = await fetch(`${this.apiBaseUrl}/api/encode-video/${jobId}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
 
       if (!response.ok) {
         throw new EncodingError(`Failed to poll job ${jobId}: ${response.status}`);
@@ -191,13 +178,8 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
    * Download encoded video from backend and save to outputPath.
    * ponytail: Currently logs download. Real impl requires device-media integration.
    */
-  private async downloadAndSave(
-    videoUri: string,
-    outputPath: string
-  ): Promise<void> {
-    console.log(
-      `[RemoteFFmpeg] Downloading video from ${videoUri} to ${outputPath}`
-    );
+  private async downloadAndSave(videoUri: string, outputPath: string): Promise<void> {
+    console.log(`[RemoteFFmpeg] Downloading video from ${videoUri} to ${outputPath}`);
 
     // ponytail: Real implementation would:
     // 1. Fetch video blob from videoUri
@@ -209,14 +191,10 @@ export class RemoteVideoEncoderAdapter implements VideoEncoderPort {
 
     const response = await fetch(videoUri);
     if (!response.ok) {
-      throw new EncodingError(
-        `Failed to download encoded video: ${response.status}`
-      );
+      throw new EncodingError(`Failed to download encoded video: ${response.status}`);
     }
 
-    console.log(
-      `[RemoteFFmpeg] Downloaded ${response.headers.get('content-length')} bytes`
-    );
+    console.log(`[RemoteFFmpeg] Downloaded ${response.headers.get('content-length')} bytes`);
   }
 
   /**

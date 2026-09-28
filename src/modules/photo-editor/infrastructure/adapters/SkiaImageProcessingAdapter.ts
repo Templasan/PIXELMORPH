@@ -13,9 +13,7 @@ export class SkiaImageProcessingAdapter implements ImageProcessingPort {
       // TODO: Implement using Skia.Surface.Make + drawImageRect
       return imageUri;
     } catch (error) {
-      throw new RenderingError(
-        error instanceof Error ? error.message : 'Failed to resize image'
-      );
+      throw new RenderingError(error instanceof Error ? error.message : 'Failed to resize image');
     }
   }
 
@@ -26,9 +24,7 @@ export class SkiaImageProcessingAdapter implements ImageProcessingPort {
       // TODO: Implement using canvas.rotate()
       return imageUri;
     } catch (error) {
-      throw new RenderingError(
-        error instanceof Error ? error.message : 'Failed to rotate image'
-      );
+      throw new RenderingError(error instanceof Error ? error.message : 'Failed to rotate image');
     }
   }
 
@@ -47,9 +43,7 @@ export class SkiaImageProcessingAdapter implements ImageProcessingPort {
       // TODO: Implement using drawImageRect
       return imageUri;
     } catch (error) {
-      throw new RenderingError(
-        error instanceof Error ? error.message : 'Failed to crop image'
-      );
+      throw new RenderingError(error instanceof Error ? error.message : 'Failed to crop image');
     }
   }
 
@@ -59,9 +53,7 @@ export class SkiaImageProcessingAdapter implements ImageProcessingPort {
       // TODO: Implement using canvas.scale() with negative values
       return imageUri;
     } catch (error) {
-      throw new RenderingError(
-        error instanceof Error ? error.message : 'Failed to mirror image'
-      );
+      throw new RenderingError(error instanceof Error ? error.message : 'Failed to mirror image');
     }
   }
 }

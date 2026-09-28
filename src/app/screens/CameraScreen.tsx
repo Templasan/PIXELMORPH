@@ -411,9 +411,9 @@ export default function CameraScreen({ navigation }: Props) {
             onMessage={(_event: any) => {
               // Handle messages from WebView
             }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={true}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
             scalesPageToFit={false}
           />
         ) : (

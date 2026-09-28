@@ -3,7 +3,7 @@ export abstract class BaseEntity {
   constructor(
     readonly id: string,
     readonly createdAt: number = Date.now(),
-    readonly updatedAt: number = Date.now(),
+    readonly updatedAt: number = Date.now()
   ) {}
 }
 
@@ -17,7 +17,10 @@ export function createUUID(value: string): UUID {
 
 /** Common error types for domain layer. */
 export class DomainError extends Error {
-  constructor(message: string, readonly code: string = 'DOMAIN_ERROR') {
+  constructor(
+    message: string,
+    readonly code: string = 'DOMAIN_ERROR'
+  ) {
     super(message);
     this.name = 'DomainError';
   }

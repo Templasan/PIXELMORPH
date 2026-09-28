@@ -2,12 +2,20 @@ import { ImageExportOptions, VideoExportOptions, ExportResult } from '../domain'
 
 /** Abstraction for image export. */
 export interface ImageExportPort {
-  exportImage(imageUri: string, options: ImageExportOptions, outputPath: string): Promise<ExportResult>;
+  exportImage(
+    imageUri: string,
+    options: ImageExportOptions,
+    outputPath: string
+  ): Promise<ExportResult>;
 }
 
 /** Abstraction for video export. */
 export interface VideoExportPort {
-  exportVideo(videoUri: string, options: VideoExportOptions, outputPath: string): Promise<ExportResult>;
+  exportVideo(
+    videoUri: string,
+    options: VideoExportOptions,
+    outputPath: string
+  ): Promise<ExportResult>;
 }
 
 /** Abstraction for sharing. */

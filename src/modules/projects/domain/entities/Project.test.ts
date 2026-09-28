@@ -49,7 +49,13 @@ describe('Project Domain Entity', () => {
   describe('addAssetToProject', () => {
     it('should add asset to project', () => {
       const project = createProject(genId(), 'Test', 'photo');
-      const asset = createMediaAsset('a1', 'image', 'uri1', 'uri1', createMediaMetadata('image/png'));
+      const asset = createMediaAsset(
+        'a1',
+        'image',
+        'uri1',
+        'uri1',
+        createMediaMetadata('image/png')
+      );
 
       const updated = addAssetToProject(project, asset);
       expect(updated.assets).toHaveLength(1);
@@ -58,7 +64,13 @@ describe('Project Domain Entity', () => {
 
     it('should maintain immutability', () => {
       const project = createProject(genId(), 'Test', 'photo');
-      const asset = createMediaAsset('a1', 'image', 'uri1', 'uri1', createMediaMetadata('image/png'));
+      const asset = createMediaAsset(
+        'a1',
+        'image',
+        'uri1',
+        'uri1',
+        createMediaMetadata('image/png')
+      );
 
       const updated = addAssetToProject(project, asset);
       expect(project.assets).toHaveLength(0);
@@ -91,7 +103,13 @@ describe('Project Domain Entity', () => {
       const project = createProject(genId(), 'Test', 'photo');
       const originalTime = project.updatedAt.getTime();
 
-      const asset = createMediaAsset('a1', 'image', 'uri1', 'uri1', createMediaMetadata('image/png'));
+      const asset = createMediaAsset(
+        'a1',
+        'image',
+        'uri1',
+        'uri1',
+        createMediaMetadata('image/png')
+      );
       const updated = addAssetToProject(project, asset);
 
       expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(originalTime);

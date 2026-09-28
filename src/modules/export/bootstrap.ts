@@ -1,4 +1,8 @@
-import { ExpoImageExportAdapter, FFmpegVideoExportAdapter, ExpoShareAdapter } from './infrastructure';
+import {
+  ExpoImageExportAdapter,
+  FFmpegVideoExportAdapter,
+  ExpoShareAdapter,
+} from './infrastructure';
 import { ImageExportPort, VideoExportPort, SharePort } from './ports';
 
 /** Composition root for export module. */

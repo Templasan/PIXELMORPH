@@ -1,4 +1,8 @@
-import { FFmpegDecoderAdapter, FFmpegEncoderAdapter, FFmpegAudioProcessingAdapter } from './infrastructure';
+import {
+  FFmpegDecoderAdapter,
+  FFmpegEncoderAdapter,
+  FFmpegAudioProcessingAdapter,
+} from './infrastructure';
 import { VideoDecoderPort, VideoEncoderPort, AudioProcessingPort } from './ports';
 
 /** Composition root for video-editor module. */

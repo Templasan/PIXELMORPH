@@ -1,4 +1,8 @@
-import { PresetsRepository, RecentAdjustmentsRepository, WatermarkPresetsRepository } from '@core/ports';
+import {
+  PresetsRepository,
+  RecentAdjustmentsRepository,
+  WatermarkPresetsRepository,
+} from '@core/ports';
 import {
   createSavePresetUseCase,
   createListPresetsUseCase,
@@ -9,7 +13,11 @@ import {
   createListWatermarkPresetsUseCase,
   createComputeWatermarkRenderingUseCase,
 } from './application/usecases';
-import { SkiaRenderingAdapter, SkiaImageProcessingAdapter, ImageExportAdapter } from './infrastructure';
+import {
+  SkiaRenderingAdapter,
+  SkiaImageProcessingAdapter,
+  ImageExportAdapter,
+} from './infrastructure';
 import { ImageRenderingPort, ImageProcessingPort, ImageExportPort } from './ports';
 
 /** Composition root for photo-editor module. */

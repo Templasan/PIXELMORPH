@@ -1,5 +1,6 @@
 /** AI task type. */
-export type AITaskType = 'background-removal' | 'object-detection' | 'face-detection' | 'style-transfer' | 'upscaling';
+export type AITaskType =
+  'background-removal' | 'object-detection' | 'face-detection' | 'style-transfer' | 'upscaling';
 
 /** AI processing location. */
 export type ProcessingLocation = 'local' | 'remote' | 'auto';
@@ -28,7 +29,7 @@ export interface AIDetection {
   label: string;
   confidence: number;
   bounds: { x: number; y: number; width: number; height: number };
-  landmarks?: Array<{ x: number; y: number }>;
+  landmarks?: { x: number; y: number }[];
 }
 
 /** AI model. */

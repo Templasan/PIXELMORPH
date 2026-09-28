@@ -64,9 +64,7 @@ export class SkiaRenderingAdapter implements ImageRenderingPort {
       );
       return imageUri;
     } catch (error) {
-      throw new RenderingError(
-        error instanceof Error ? error.message : 'Failed to render filter'
-      );
+      throw new RenderingError(error instanceof Error ? error.message : 'Failed to render filter');
     }
   }
 

@@ -1,7 +1,9 @@
 /** Abstraction for video decoding. */
 export interface VideoDecoderPort {
   extractFrame(videoUri: string, timestampMs: number): Promise<string>;
-  getVideoMetadata(videoUri: string): Promise<{ durationMs: number; width: number; height: number }>;
+  getVideoMetadata(
+    videoUri: string
+  ): Promise<{ durationMs: number; width: number; height: number }>;
 }
 
 /** Abstraction for video encoding/export. */

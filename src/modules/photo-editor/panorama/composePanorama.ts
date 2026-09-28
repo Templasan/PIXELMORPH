@@ -10,7 +10,7 @@ export function composePanorama(
 
   // Calcular dimensões totais
   let totalWidth = 0;
-  let maxHeight = options.outputHeight;
+  const maxHeight = options.outputHeight;
 
   images.forEach((img, i) => {
     if (i === 0) {

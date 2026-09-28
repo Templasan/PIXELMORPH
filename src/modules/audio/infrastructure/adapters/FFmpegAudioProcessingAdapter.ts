@@ -2,7 +2,12 @@ import { AudioProcessingPort } from '../../ports';
 
 /** Adapter for FFmpeg audio processing. ponytail: stub until FFmpeg integration. */
 export class FFmpegAudioProcessingAdapter implements AudioProcessingPort {
-  async trim(_audioUri: string, _startMs: number, _endMs: number, _outputPath: string): Promise<void> {
+  async trim(
+    _audioUri: string,
+    _startMs: number,
+    _endMs: number,
+    _outputPath: string
+  ): Promise<void> {
     console.warn('[FFmpeg] trim audio');
     // TODO: Use FFmpeg to trim
   }

@@ -19,9 +19,7 @@ export class AIModelCacheAdapter implements AIModelManagementPort {
     // TODO: Delete from cache
   }
 
-  async getModelStatus(
-    _modelId: string
-  ): Promise<'available' | 'downloading' | 'not-downloaded'> {
+  async getModelStatus(_modelId: string): Promise<'available' | 'downloading' | 'not-downloaded'> {
     console.warn('[ModelCache] getModelStatus');
     return 'not-downloaded';
   }

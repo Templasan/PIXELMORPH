@@ -41,10 +41,10 @@ describe('composePanorama', () => {
   });
 
   test('returns single image when only one provided', () => {
-    const result = composePanorama(
-      [{ ...mockImage, offsetX: 0 }],
-      { overlapWidth: 50, outputHeight: 400 }
-    );
+    const result = composePanorama([{ ...mockImage, offsetX: 0 }], {
+      overlapWidth: 50,
+      outputHeight: 400,
+    });
     expect(result).toBe(mockImage.image);
   });
 
@@ -79,9 +79,7 @@ describe('composePanorama', () => {
   });
 
   test('maintains aspect ratio with output height', () => {
-    const images = [
-      { image: { ...mockImage.image, width: jest.fn(() => 600) }, offsetX: 0 },
-    ];
+    const images = [{ image: { ...mockImage.image, width: jest.fn(() => 600) }, offsetX: 0 }];
 
     const result = composePanorama(images, {
       overlapWidth: 50,

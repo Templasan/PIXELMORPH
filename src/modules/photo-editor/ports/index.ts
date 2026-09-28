@@ -1,8 +1,16 @@
 /** Abstraction for rendering images (Skia, Canvas, etc). */
 export interface ImageRenderingPort {
-  renderWithFilter(imageUri: string, filterName: string, params: Record<string, number>): Promise<string>;
+  renderWithFilter(
+    imageUri: string,
+    filterName: string,
+    params: Record<string, number>
+  ): Promise<string>;
   renderComposite(layers: unknown[], blendMode: string): Promise<string>;
-  renderWatermark(imageUri: string, watermarkUri: string, position: { x: number; y: number }): Promise<string>;
+  renderWatermark(
+    imageUri: string,
+    watermarkUri: string,
+    position: { x: number; y: number }
+  ): Promise<string>;
 }
 
 /** Abstraction for image processing (resizing, rotating, etc). */
