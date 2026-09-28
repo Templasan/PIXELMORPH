@@ -1,8 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import {
   Canvas,
   Fill,
@@ -39,6 +44,7 @@ function histogramToPath(values: number[], height = HISTOGRAM_VIEW_HEIGHT): stri
 
 /** Piecewise-linear curve through (0,0)-(1/3,y1)-(2/3,y2)-(1,1) — mirrors evalCurve() in the shader. */
 function curveToPath(y1: number, y2: number, width: number, height: number): string {
+  'worklet';
   const x0 = 0;
   const x1 = width / 3;
   const x2 = (width * 2) / 3;
@@ -90,57 +96,145 @@ interface AdjustmentsLike {
   [key: string]: number;
 }
 
-interface CurveHandleProps {
-  x: number;
-  value: number;
-  boxHeight: number;
-  onChange: (v: number) => void;
-  onCommitValue: (value: number, previousValue: number) => void;
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+interface CurveGraphProps {
+  y1: number;
+  y2: number;
+  y1Field: string;
+  y2Field: string;
+  color: string;
+  width: number;
+  height: number;
+  onFieldChange: (field: string, value: number) => void;
+  onCommit: (field: string, value: number, previousValue: number) => void;
 }
 
-/** One draggable curve control point — an invisible touch target; the visible dot is drawn in SVG. */
-function CurveHandle({ x, value, boxHeight, onChange, onCommitValue }: CurveHandleProps) {
-  const startValue = useRef(value);
-  const latestValue = useRef(value);
+/**
+ * The curve line + its two draggable control points. Both control points' positions are
+ * driven by shared values updated directly in the pan worklets — no `runOnJS` in the hot
+ * path — so the line/dots track the finger every frame on the UI thread. The (expensive)
+ * `onFieldChange` call that re-runs the color-adjustment shader is throttled to every 3rd
+ * touch-move, same fix as the plain Slider (see core/ui/Slider.tsx).
+ */
+function CurveGraph({
+  y1,
+  y2,
+  y1Field,
+  y2Field,
+  color,
+  width,
+  height,
+  onFieldChange,
+  onCommit,
+}: CurveGraphProps) {
+  const y1SV = useSharedValue(y1);
+  const y2SV = useSharedValue(y2);
+  const dragging1 = useSharedValue(false);
+  const dragging2 = useSharedValue(false);
 
-  const updateFromDeltaY = useCallback(
-    (deltaY: number) => {
-      const next = Math.min(1, Math.max(0, startValue.current - deltaY / boxHeight));
-      latestValue.current = next;
-      onChange(next);
-    },
-    [boxHeight, onChange]
+  useEffect(() => {
+    if (!dragging1.value) y1SV.value = y1;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [y1]);
+  useEffect(() => {
+    if (!dragging2.value) y2SV.value = y2;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [y2]);
+
+  const pathProps = useAnimatedProps(() => ({
+    d: curveToPath(y1SV.value, y2SV.value, width, height),
+  }));
+  const circle1Props = useAnimatedProps(() => ({ cy: height - y1SV.value * height }));
+  const circle2Props = useAnimatedProps(() => ({ cy: height - y2SV.value * height }));
+  const handle1Style = useAnimatedStyle(() => ({ top: height - y1SV.value * height - 14 }));
+  const handle2Style = useAnimatedStyle(() => ({ top: height - y2SV.value * height - 14 }));
+
+  const commitField1 = useCallback(
+    (v: number) => onFieldChange(y1Field, v),
+    [onFieldChange, y1Field]
+  );
+  const commitField2 = useCallback(
+    (v: number) => onFieldChange(y2Field, v),
+    [onFieldChange, y2Field]
+  );
+  const commitEnd1 = useCallback(
+    (v: number, from: number) => onCommit(y1Field, v, from),
+    [onCommit, y1Field]
+  );
+  const commitEnd2 = useCallback(
+    (v: number, from: number) => onCommit(y2Field, v, from),
+    [onCommit, y2Field]
   );
 
-  const commit = useCallback(() => {
-    onCommitValue(latestValue.current, startValue.current);
-  }, [onCommitValue]);
+  const startValue1 = useSharedValue(0);
+  const startValue2 = useSharedValue(0);
+  const frameCounter1 = useSharedValue(0);
+  const frameCounter2 = useSharedValue(0);
 
-  const pan = Gesture.Pan()
+  const pan1 = Gesture.Pan()
     .onBegin(() => {
-      startValue.current = value;
+      startValue1.value = y1SV.value;
+      dragging1.value = true;
+      frameCounter1.value = 0;
     })
     .onUpdate((e) => {
-      runOnJS(updateFromDeltaY)(e.translationY);
+      const next = Math.min(1, Math.max(0, startValue1.value - e.translationY / height));
+      y1SV.value = next;
+      frameCounter1.value += 1;
+      if (frameCounter1.value % 3 === 0) runOnJS(commitField1)(next);
     })
     .onEnd(() => {
-      runOnJS(commit)();
+      dragging1.value = false;
+      runOnJS(commitField1)(y1SV.value);
+      runOnJS(commitEnd1)(y1SV.value, startValue1.value);
     });
 
-  const cy = boxHeight - value * boxHeight;
+  const pan2 = Gesture.Pan()
+    .onBegin(() => {
+      startValue2.value = y2SV.value;
+      dragging2.value = true;
+      frameCounter2.value = 0;
+    })
+    .onUpdate((e) => {
+      const next = Math.min(1, Math.max(0, startValue2.value - e.translationY / height));
+      y2SV.value = next;
+      frameCounter2.value += 1;
+      if (frameCounter2.value % 3 === 0) runOnJS(commitField2)(next);
+    })
+    .onEnd(() => {
+      dragging2.value = false;
+      runOnJS(commitField2)(y2SV.value);
+      runOnJS(commitEnd2)(y2SV.value, startValue2.value);
+    });
+
+  const x1 = width / 3;
+  const x2 = (width * 2) / 3;
 
   return (
-    <GestureDetector gesture={pan}>
-      <View
-        style={{
-          position: 'absolute',
-          left: x - 14,
-          top: cy - 14,
-          width: 28,
-          height: 28,
-        }}
-      />
-    </GestureDetector>
+    <>
+      <Svg
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        style={StyleSheet.absoluteFill}
+      >
+        <AnimatedPath animatedProps={pathProps} fill="none" stroke={color} strokeWidth={2} />
+        <AnimatedCircle cx={x1} animatedProps={circle1Props} r={5} fill={color} />
+        <AnimatedCircle cx={x2} animatedProps={circle2Props} r={5} fill={color} />
+      </Svg>
+      <GestureDetector gesture={pan1}>
+        <Animated.View
+          style={[{ position: 'absolute', left: x1 - 14, width: 28, height: 28 }, handle1Style]}
+        />
+      </GestureDetector>
+      <GestureDetector gesture={pan2}>
+        <Animated.View
+          style={[{ position: 'absolute', left: x2 - 14, width: 28, height: 28 }, handle2Style]}
+        />
+      </GestureDetector>
+    </>
   );
 }
 
@@ -149,6 +243,10 @@ interface AdjustDrawerProps {
   setField: (field: string, value: number) => void;
   /** Called once per completed drag/tap so the caller can record an undo/redo entry. */
   onCommit: (field: string, value: number, previousValue: number) => void;
+  /** Bakes every current Ajustes value into real pixels and resets the sliders/curves to
+   * neutral, so the next edit stacks cumulatively on top instead of staying relative to
+   * the original photo. */
+  onBake: () => void;
   /** RF-047: real live RGB histogram, recomputed by the screen from the decoded image. */
   histogram: RGBHistogram;
   /** RF-063 zoom preview: same decoded image + shader the main canvas uses. */
@@ -162,6 +260,7 @@ export function AdjustDrawer({
   adjustments,
   setField,
   onCommit,
+  onBake,
   histogram,
   skiaImage,
   adjustmentsEffect,
@@ -203,7 +302,19 @@ export function AdjustDrawer({
 
   return (
     <View>
-      <Tabs tabs={TABS} active={tab} onChange={setTab} scrollable />
+      <View style={styles.tabsRow}>
+        <View style={{ flex: 1 }}>
+          <Tabs tabs={TABS} active={tab} onChange={setTab} scrollable />
+        </View>
+        <Pressable
+          style={styles.bakeButton}
+          onPress={onBake}
+          hitSlop={8}
+          accessibilityLabel="Aplicar ajustes e começar do zero"
+        >
+          <Text style={styles.bakeButtonText}>✓</Text>
+        </Pressable>
+      </View>
       {tab === 'Básico' && (
         <View>
           <View style={styles.histogram}>
@@ -243,8 +354,6 @@ export function AdjustDrawer({
           const y1 = adjustments[y1Field];
           const y2 = adjustments[y2Field];
           const color = CURVE_CHANNEL_COLOR[curveChannel];
-          const x1 = curveBoxWidth / 3;
-          const x2 = (curveBoxWidth * 2) / 3;
 
           return (
             <View style={{ padding: 12 }}>
@@ -281,49 +390,17 @@ export function AdjustDrawer({
                   <Line x1="0" y1="100%" x2="100%" y2="0" stroke={colors.texto} strokeWidth={1} />
                 </Svg>
                 {curveBoxWidth > 0 && (
-                  <Svg
-                    width="100%"
+                  <CurveGraph
+                    y1={y1}
+                    y2={y2}
+                    y1Field={y1Field}
+                    y2Field={y2Field}
+                    color={color}
+                    width={curveBoxWidth}
                     height={CURVE_BOX_HEIGHT}
-                    viewBox={`0 0 ${curveBoxWidth} ${CURVE_BOX_HEIGHT}`}
-                    style={StyleSheet.absoluteFill}
-                  >
-                    <Path
-                      d={curveToPath(y1, y2, curveBoxWidth, CURVE_BOX_HEIGHT)}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={2}
-                    />
-                    <Circle
-                      cx={x1}
-                      cy={CURVE_BOX_HEIGHT - y1 * CURVE_BOX_HEIGHT}
-                      r={5}
-                      fill={color}
-                    />
-                    <Circle
-                      cx={x2}
-                      cy={CURVE_BOX_HEIGHT - y2 * CURVE_BOX_HEIGHT}
-                      r={5}
-                      fill={color}
-                    />
-                  </Svg>
-                )}
-                {curveBoxWidth > 0 && (
-                  <>
-                    <CurveHandle
-                      x={x1}
-                      value={y1}
-                      boxHeight={CURVE_BOX_HEIGHT}
-                      onChange={(v) => setField(y1Field, v)}
-                      onCommitValue={(v, from) => onCommit(y1Field, v, from)}
-                    />
-                    <CurveHandle
-                      x={x2}
-                      value={y2}
-                      boxHeight={CURVE_BOX_HEIGHT}
-                      onChange={(v) => setField(y2Field, v)}
-                      onCommitValue={(v, from) => onCommit(y2Field, v, from)}
-                    />
-                  </>
+                    onFieldChange={setField}
+                    onCommit={onCommit}
+                  />
                 )}
               </View>
               <View style={styles.channelRow}>
@@ -355,6 +432,12 @@ export function AdjustDrawer({
                 <Canvas style={StyleSheet.absoluteFill}>
                   <Fill>
                     <Shader source={adjustmentsEffect} uniforms={uniforms}>
+                      {/* ADJUSTMENTS_SKSL declares a second `uniform shader maskImage` (only
+                          read when maskActive is set — masking isn't wired up here yet).
+                          Skia needs a child bound to every shader uniform to compile the
+                          effect at all; without this the whole thing failed to build and
+                          rendered solid black. */}
+                      <ImageShader image={skiaImage} fit="fill" rect={previewRect} />
                       <ImageShader image={skiaImage} fit="fill" rect={previewRect} />
                     </Shader>
                   </Fill>
@@ -400,6 +483,23 @@ export function AdjustDrawer({
 }
 
 const styles = StyleSheet.create({
+  tabsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bakeButton: {
+    width: 36,
+    height: 36,
+    marginRight: 12,
+    backgroundColor: colors.acento,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bakeButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: '#0D2036',
+  },
   histogram: {
     marginHorizontal: 12,
     marginVertical: 8,

@@ -16,16 +16,21 @@ import {
   Canvas,
   Circle,
   Fill,
+  FilterMode,
   Group,
   ImageShader,
   Line,
+  MipmapMode,
   Path,
   Rect,
   Shader,
   Skia,
   type SkImage,
+  type SkRuntimeEffect,
   Text as SkiaText,
+  TileMode,
   matchFont,
+  processUniforms,
   useCanvasRef,
   useImage,
 } from '@shopify/react-native-skia';
@@ -262,6 +267,95 @@ function pointsToPath(points: Point[]): string {
   return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
 }
 
+/** Every field the "Ajustes" drawer's 4 tabs (Básico/Curvas/Detalhe/Cor seletiva) own —
+ * used to reset just those fields on bake, leaving geometry/effects/frame untouched. */
+const ADJUST_DRAWER_FIELDS: readonly string[] = [
+  'temperatura',
+  'tint',
+  'matiz',
+  'saturacao',
+  'luminosidade',
+  'vibracao',
+  'exposicao',
+  'nitidez',
+  'raio',
+  'reducaoRuido',
+  'luminancia',
+  'corIndex',
+  'corTolerancia',
+  'corMatiz',
+  'corSaturacao',
+  'corLuminosidade',
+  'curveMasterY1',
+  'curveMasterY2',
+  'curveRY1',
+  'curveRY2',
+  'curveGY1',
+  'curveGY2',
+  'curveBY1',
+  'curveBY2',
+];
+
+/**
+ * Renders ADJUSTMENTS_SKSL once into an offscreen surface and snapshots the result — the
+ * imperative-Skia equivalent of the live <Shader><ImageShader/></Shader> render used on
+ * screen. Needs the same "child bound to every uniform shader" as the live version: the
+ * SKSL declares `image` and `maskImage`, so the same source shader is passed twice.
+ */
+function bakeAdjustments(
+  image: SkImage,
+  effect: SkRuntimeEffect,
+  uniforms: Record<string, number | number[]>
+): SkImage | null {
+  const surface = Skia.Surface.Make(image.width(), image.height());
+  if (!surface) return null;
+  const imageShader = image.makeShaderCubic(
+    TileMode.Clamp,
+    TileMode.Clamp,
+    FilterMode.Linear,
+    MipmapMode.None
+  );
+  const shader = effect.makeShaderWithChildren(processUniforms(effect, uniforms), [
+    imageShader,
+    imageShader,
+  ]);
+  const paint = Skia.Paint();
+  paint.setShader(shader);
+  const canvas = surface.getCanvas();
+  canvas.drawRect(Skia.XYWHRect(0, 0, image.width(), image.height()), paint);
+  surface.flush();
+  return surface.makeImageSnapshot();
+}
+
+/** Every field "Corrigir perspectiva" owns — reset on bake so the next correction starts
+ * from a fresh identity quad instead of warping an already-warped coordinate space. */
+const PERSPECTIVE_FIELDS: readonly string[] = [
+  'perspX0',
+  'perspY0',
+  'perspX1',
+  'perspY1',
+  'perspX2',
+  'perspY2',
+  'perspX3',
+  'perspY3',
+];
+
+/**
+ * Warps the image through the current homography and snapshots the result — the imperative
+ * equivalent of the live <Group matrix={perspectiveMatrix}><ImageShader/></Group> render.
+ * `Mat3` is already in Skia's row-major 3x3 matrix layout, so it can be passed to
+ * `canvas.concat` directly (see modules/photo-editor/geometry/homography.ts).
+ */
+function bakePerspective(image: SkImage, matrix: readonly number[]): SkImage | null {
+  const surface = Skia.Surface.Make(image.width(), image.height());
+  if (!surface) return null;
+  const canvas = surface.getCanvas();
+  canvas.concat(matrix as number[]);
+  canvas.drawImage(image, 0, 0);
+  surface.flush();
+  return surface.makeImageSnapshot();
+}
+
 export default function PhotoEditorScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
   // Falls back to a fixed key so the spike/dev entry point (no project id) still gets
@@ -274,6 +368,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // RF-028/US-11: the project's own real asset (imported from the device or created by the
   // RAW converter) — falls back to the bundled demo photo only when there is no real asset yet.
   const [projectPhotoUri, setProjectPhotoUri] = useState<string | null>(null);
+  // So a bake can persist its result back onto the right asset via updateMediaAsset.
+  const [primaryAssetId, setPrimaryAssetId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
@@ -338,7 +434,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [gyroParallaxEnabled, setGyroParallaxEnabled] = useState(false);
   // US-28: panorama stitching state
   const [selectedPanoramaImages, setSelectedPanoramaImages] = useState<
-    Array<{ uri: string; id: string }>
+    { uri: string; id: string }[]
   >([]);
   const [panoramaOffsets, setPanoramaOffsets] = useState<number[]>([]);
   const [panoramaOverlapWidth, setPanoramaOverlapWidth] = useState(50);
@@ -641,7 +737,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
     setIsStitching(true);
     try {
-      const images: Array<{ image: SkImage; offsetX: number }> = [];
+      const images: { image: SkImage; offsetX: number }[] = [];
       for (let i = 0; i < selectedPanoramaImages.length; i++) {
         const img = await loadSkImage(selectedPanoramaImages[i].uri);
         images.push({
@@ -748,7 +844,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         if (!project) return;
         setProjectName(project.name);
         const asset = project.assets[0];
-        if (asset) setProjectPhotoUri(asset.workingUri || asset.originalUri);
+        if (asset) {
+          setProjectPhotoUri(asset.workingUri || asset.originalUri);
+          setPrimaryAssetId(asset.id);
+        }
       })
       .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.getProject'));
   }, [projectId]);
@@ -783,6 +882,61 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       setAdjustments((s) => ({ ...s, [op.type]: op.params.to as number }));
     }
   }, [history]);
+
+  // Writes a baked image to a real cache file and, when this is a saved project, persists
+  // it onto the asset's workingUri — shared by every "bake into real pixels" action below.
+  const persistBakedImage = useCallback(
+    async (baked: SkImage) => {
+      const encoded = encodeImage(baked, 'JPEG', 92);
+      try {
+        const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
+        setProjectPhotoUri(fileUri);
+        if (projectId && primaryAssetId) {
+          await projectsModule.updateMediaAsset.execute(projectId, primaryAssetId, {
+            workingUri: fileUri,
+          });
+        }
+      } catch (error) {
+        errorLogger.log(error, 'PhotoEditorScreen.persistBakedImage');
+        setProjectPhotoUri(`data:image/jpeg;base64,${encoded.base64}`);
+      }
+    },
+    [projectId, primaryAssetId, projectsModule]
+  );
+
+  // Cumulative/destructive mode for the Ajustes drawer only: bakes the current color
+  // adjustments (Básico/Curvas/Detalhe/Cor seletiva) into real pixels, then resets those
+  // fields to neutral so the next drag starts a fresh pass on top — geometry/effects/frame
+  // are untouched and keep working the usual (always-relative-to-original) way.
+  const handleBakeAdjustments = useCallback(async () => {
+    if (!skiaImage || !adjustmentsEffect) return;
+    const baked = bakeAdjustments(skiaImage, adjustmentsEffect, uniforms);
+    if (!baked) return;
+    await persistBakedImage(baked);
+    setAdjustments((s) => {
+      const next = { ...s };
+      for (const field of ADJUST_DRAWER_FIELDS) next[field] = DEFAULT_ADJUSTMENTS[field];
+      return next;
+    });
+    history.clearFields(ADJUST_DRAWER_FIELDS);
+  }, [skiaImage, adjustmentsEffect, uniforms, persistBakedImage, history]);
+
+  // Same cumulative pattern for "Corrigir perspectiva": the 4 corner handles always warp
+  // from the identity quad, so a second correction on top of an already-corrected photo
+  // needs the first one baked into real pixels and the corners reset to identity first.
+  const handleBakePerspective = useCallback(async () => {
+    if (!skiaImage || !perspectiveMatrix) return;
+    const baked = bakePerspective(skiaImage, perspectiveMatrix);
+    if (!baked) return;
+    await persistBakedImage(baked);
+    setAdjustments((s) => {
+      const next = { ...s };
+      for (const field of PERSPECTIVE_FIELDS) next[field] = DEFAULT_ADJUSTMENTS[field];
+      return next;
+    });
+    history.clearFields(PERSPECTIVE_FIELDS);
+    setPerspectiveEditMode(false);
+  }, [skiaImage, perspectiveMatrix, persistBakedImage, history]);
 
   const applyExifOrientation = useCallback(async () => {
     if (!photoUri) return;
@@ -1166,8 +1320,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             ) : imageLoadFailed ? (
               <View style={styles.photoLoadError}>
                 <Text style={styles.photoLoadErrorText}>
-                  Não foi possível abrir esta foto. O arquivo pode estar corrompido — tente
-                  capturar novamente.
+                  Não foi possível abrir esta foto. O arquivo pode estar corrompido — tente capturar
+                  novamente.
                 </Text>
               </View>
             ) : (
@@ -1338,6 +1492,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 adjustments={adjustments}
                 setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
                 onCommit={commitAdjustment}
+                onBake={handleBakeAdjustments}
                 histogram={liveHistogram}
                 skiaImage={skiaImage}
                 adjustmentsEffect={adjustmentsEffect}
@@ -1352,6 +1507,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 perspectiveEditMode={perspectiveEditMode}
                 onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
                 onApplyExif={applyExifOrientation}
+                onBakePerspective={handleBakePerspective}
               />
             )}
             {activeTool === 'mascaras' && <MasksDrawer />}
@@ -1483,6 +1639,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           onClose={() => setExportOpen(false)}
           mediaKind="photo"
           getSourceImage={() => canvasRef.current?.makeImageSnapshot() ?? null}
+          onExported={(result) => {
+            if (!projectId) return;
+            projectsModule.updateProject.execute(projectId, {
+              thumbnailUri: `data:image/${result.format.toLowerCase()};base64,${result.base64}`,
+            });
+          }}
         />
       )}
     </SafeAreaView>

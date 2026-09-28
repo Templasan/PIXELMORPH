@@ -37,6 +37,8 @@ interface ExportSheetProps {
   mediaKind?: 'photo' | 'video';
   /** RF-057: real Skia snapshot of the current edit, e.g. `() => canvasRef.current?.makeImageSnapshot() ?? null`. */
   getSourceImage?: () => SkImage | null;
+  /** Called once encoding succeeds, so the caller can mark its project as no longer a draft. */
+  onExported?: (result: EncodedImage) => void;
 }
 
 type ExportTab = 'RÁPIDO' | 'PROFISSIONAL' | "MARCA D'ÁGUA";
@@ -59,7 +61,12 @@ const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '�
  * and HEIC all need an encoder this build doesn't have (FFmpeg-class / native image codecs),
  * and are flagged as such rather than faked.
  */
-export function ExportSheet({ onClose, mediaKind = 'photo', getSourceImage }: ExportSheetProps) {
+export function ExportSheet({
+  onClose,
+  mediaKind = 'photo',
+  getSourceImage,
+  onExported,
+}: ExportSheetProps) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<ExportTab>('RÁPIDO');
   const [format, setFormat] = useState<ImageExportFormat>('JPEG');
@@ -141,6 +148,7 @@ export function ExportSheet({ onClose, mediaKind = 'photo', getSourceImage }: Ex
 
       setResult(encoded);
       setExportState('done');
+      onExported?.(encoded);
     } catch (error) {
       setExportState('error');
       setErrorMessage('Falha ao codificar a imagem.');
@@ -155,6 +163,7 @@ export function ExportSheet({ onClose, mediaKind = 'photo', getSourceImage }: Ex
     targetSizeMB,
     format,
     quality,
+    onExported,
   ]);
 
   return (

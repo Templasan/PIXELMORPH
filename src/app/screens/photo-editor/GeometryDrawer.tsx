@@ -38,6 +38,10 @@ interface GeometryDrawerProps {
   perspectiveEditMode: boolean;
   onTogglePerspectiveEditMode: () => void;
   onApplyExif: () => void;
+  /** Bakes the current perspective correction into real pixels and resets the corners to
+   * identity, so a second correction can be applied on top instead of re-warping the same
+   * (already-corrected) coordinate space. */
+  onBakePerspective: () => void;
 }
 
 /** Geometria drawer: real rotation/mirror/perspective (US-05), not mocked placeholders. */
@@ -48,6 +52,7 @@ export function GeometryDrawer({
   perspectiveEditMode,
   onTogglePerspectiveEditMode,
   onApplyExif,
+  onBakePerspective,
 }: GeometryDrawerProps) {
   const toggleRotation = (deg: number) => {
     const next = adjustments.rotation90 === deg ? 0 : deg;
@@ -106,7 +111,7 @@ export function GeometryDrawer({
           onPress={() => toggleFlip('flipV')}
         >
           <Icon
-            name="flipHorizontal"
+            name="flipVertical"
             size={14}
             color={adjustments.flipV > 0 ? colors.acento : colors.texto2}
           />
@@ -153,6 +158,16 @@ export function GeometryDrawer({
         {perspectiveEditMode && (
           <Pressable style={styles.resetButton} onPress={resetPerspective}>
             <Text style={styles.resetButtonText}>Redefinir</Text>
+          </Pressable>
+        )}
+        {perspectiveEditMode && (
+          <Pressable
+            style={styles.bakeButton}
+            onPress={onBakePerspective}
+            hitSlop={8}
+            accessibilityLabel="Aplicar correção de perspectiva e começar do zero"
+          >
+            <Text style={styles.bakeButtonText}>✓</Text>
           </Pressable>
         )}
       </View>
@@ -252,6 +267,17 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: fontSize.sm,
     color: colors.texto2,
+  },
+  bakeButton: {
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.acento,
+  },
+  bakeButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: '#0D2036',
   },
   hintText: {
     fontSize: fontSize.xs,

@@ -42,6 +42,18 @@ export class HistoryStore {
     return operation;
   }
 
+  /**
+   * Drops past/future operations for the given field names only — used when those fields'
+   * edits get baked into new pixels, so their undo entries (now meaningless: the values
+   * they'd restore no longer describe the image) disappear without touching unrelated
+   * fields' history (e.g. geometry/effects operations stay undoable as before).
+   */
+  clearFields(types: readonly string[]): void {
+    const typeSet = new Set(types);
+    this.past = this.past.filter((op) => !typeSet.has(op.type));
+    this.future = this.future.filter((op) => !typeSet.has(op.type));
+  }
+
   get canUndo(): boolean {
     return this.past.length > 0;
   }

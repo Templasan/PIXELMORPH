@@ -59,11 +59,21 @@ export function usePersistedHistory(sessionId: string) {
     return op;
   }, [persist]);
 
+  const clearFields = useCallback(
+    (types: readonly string[]) => {
+      storeRef.current.clearFields(types);
+      persist();
+      setVersion((v) => v + 1);
+    },
+    [persist]
+  );
+
   return {
     ready,
     push,
     undo,
     redo,
+    clearFields,
     canUndo: storeRef.current.canUndo,
     canRedo: storeRef.current.canRedo,
     log: storeRef.current.log,

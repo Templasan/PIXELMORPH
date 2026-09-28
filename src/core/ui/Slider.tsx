@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, fontSize, monoFontFamily } from '../theme';
 
@@ -53,40 +53,79 @@ export function Slider({
   const [trackWidth, setTrackWidth] = useState(0);
   const startValue = useRef(value);
   const latestValue = useRef(value);
+  const isDragging = useSharedValue(false);
+
+  // Drives the thumb/fill directly on the UI thread — the finger tracks this every frame
+  // with no JS bridge hop, so it stays smooth even while `onChange` below is busy re-running
+  // the (expensive) color-adjustment shader on the JS thread.
+  const pctSV = useSharedValue(max === min ? 0 : ((value - min) / (max - min)) * 100);
+
+  useEffect(() => {
+    if (!isDragging.value) {
+      pctSV.value = max === min ? 0 : ((value - min) / (max - min)) * 100;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, min, max]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setTrackWidth(e.nativeEvent.layout.width);
   }, []);
 
-  const clamp = useCallback(
-    (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step)),
-    [min, max, step]
-  );
-
-  const updateFromX = useCallback(
-    (x: number) => {
-      if (trackWidth <= 0) return;
-      const ratio = Math.min(1, Math.max(0, x / trackWidth));
-      const next = clamp(min + ratio * (max - min));
+  const commitValue = useCallback(
+    (next: number) => {
       latestValue.current = next;
       onChange(next);
     },
-    [trackWidth, min, max, clamp, onChange]
+    [onChange]
   );
 
   const commitSlidingComplete = useCallback(() => {
     onSlidingComplete?.(latestValue.current, startValue.current);
   }, [onSlidingComplete]);
 
+  // Only every 3rd touch-move actually re-renders the (expensive) preview — that's still a
+  // smooth ~20-40Hz update given native gesture callbacks fire at 60-120Hz, and it's the
+  // fix for the real cost here: not the gesture itself, but everything downstream of
+  // `onChange` (React re-render + shader-uniform recompute + GPU redraw) on every touch event.
+  const frameCounter = useSharedValue(0);
+
   const pan = Gesture.Pan()
     .onBegin((e) => {
+      isDragging.value = true;
+      frameCounter.value = 0;
+      if (trackWidth <= 0) return;
+      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
+      const next = Math.min(
+        max,
+        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
+      );
+      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
       startValue.current = value;
-      runOnJS(updateFromX)(e.x);
+      runOnJS(commitValue)(next);
     })
     .onUpdate((e) => {
-      runOnJS(updateFromX)(e.x);
+      if (trackWidth <= 0) return;
+      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
+      const next = Math.min(
+        max,
+        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
+      );
+      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
+      frameCounter.value += 1;
+      if (frameCounter.value % 3 === 0) {
+        runOnJS(commitValue)(next);
+      }
     })
-    .onEnd(() => {
+    .onEnd((e) => {
+      isDragging.value = false;
+      if (trackWidth > 0) {
+        const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
+        const next = Math.min(
+          max,
+          Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
+        );
+        runOnJS(commitValue)(next);
+      }
       runOnJS(commitSlidingComplete)();
     });
 
@@ -95,13 +134,21 @@ export function Slider({
       startValue.current = value;
     })
     .onEnd((e) => {
-      runOnJS(updateFromX)(e.x);
+      if (trackWidth <= 0) return;
+      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
+      const next = Math.min(
+        max,
+        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
+      );
+      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
+      runOnJS(commitValue)(next);
       runOnJS(commitSlidingComplete)();
     });
 
   const gesture = Gesture.Race(pan, tap);
 
-  const pct = max === min ? 0 : ((value - min) / (max - min)) * 100;
+  const fillStyle = useAnimatedStyle(() => ({ width: `${pctSV.value}%` }));
+  const thumbStyle = useAnimatedStyle(() => ({ left: `${pctSV.value}%` }));
 
   return (
     <View style={styles.row}>
@@ -127,9 +174,9 @@ export function Slider({
                 <Rect x={0} y={0} width={trackWidth} height={2} fill="url(#trackGradient)" />
               </Svg>
             )}
-            {!trackColor && !gradientColors && <View style={[styles.fill, { width: `${pct}%` }]} />}
+            {!trackColor && !gradientColors && <Animated.View style={[styles.fill, fillStyle]} />}
             {bipolar && <View style={styles.centerTick} />}
-            <View style={[styles.thumb, { left: `${pct}%` }]} />
+            <Animated.View style={[styles.thumb, thumbStyle]} />
           </View>
         </View>
       </GestureDetector>

@@ -54,7 +54,8 @@ const paths: Record<string, string> = {
   flash: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   sun: 'M12 7a5 5 0 100 10A5 5 0 0012 7zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
   compare: 'M9 19l-7-7 7-7M15 5l7 7-7 7',
-  maximize: 'M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M3 16v3a2 2 0 002 2h3',
+  maximize:
+    'M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M3 16v3a2 2 0 002 2h3',
   triangle: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z',
   upload: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12',
   download: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3',
@@ -63,6 +64,7 @@ const paths: Record<string, string> = {
   ripple: 'M12 9a3 3 0 100 6 3 3 0 000-6zM12 3a9 9 0 100 18A9 9 0 0012 3z',
   type: 'M4 7V4h16v3M9 20h6M12 4v16',
   flipHorizontal: 'M7 4L3 8l4 4M17 4l4 4-4 4M3 8h18M12 3v18',
+  flipVertical: 'M4 7L8 3l4 4M4 17l4 4 4-4M8 3v18M3 12h18',
   mask: 'M12 2a10 10 0 100 20A10 10 0 0012 2zM9 9l6 6M15 9l-6 6',
   retouch: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM15 12a3 3 0 11-6 0 3 3 0 016 0z',
   effects: 'M12 2l1.8 5.4H19l-4.6 3.3 1.8 5.4L12 13l-4.2 3.1 1.8-5.4L5 7.4h5.2L12 2z',

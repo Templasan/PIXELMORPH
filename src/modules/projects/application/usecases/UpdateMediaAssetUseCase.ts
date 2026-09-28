@@ -2,7 +2,7 @@ import { ProjectRepository, ProjectNotFoundError } from '../../ports';
 import { Project, updateProjectAsset, MediaAsset } from '../../domain';
 
 export type UpdateMediaAssetInput = Partial<
-  Omit<MediaAsset, 'id' | 'type' | 'originalUri' | 'workingUri' | 'createdAt'>
+  Omit<MediaAsset, 'id' | 'type' | 'originalUri' | 'createdAt'>
 >;
 
 export class UpdateMediaAssetUseCase {

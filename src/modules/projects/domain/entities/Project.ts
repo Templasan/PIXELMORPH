@@ -79,7 +79,7 @@ export function removeAssetFromProject(project: Project, assetId: string): Proje
 export function updateProjectAsset(
   project: Project,
   assetId: string,
-  updates: Partial<Omit<MediaAsset, 'id' | 'type' | 'originalUri' | 'workingUri' | 'createdAt'>>
+  updates: Partial<Omit<MediaAsset, 'id' | 'type' | 'originalUri' | 'createdAt'>>
 ): Project {
   const assetIndex = project.assets.findIndex((a) => a.id === assetId);
 
@@ -93,7 +93,6 @@ export function updateProjectAsset(
     id: project.assets[assetIndex].id,
     type: project.assets[assetIndex].type,
     originalUri: project.assets[assetIndex].originalUri,
-    workingUri: project.assets[assetIndex].workingUri,
     createdAt: project.assets[assetIndex].createdAt,
     updatedAt: new Date(),
   };
