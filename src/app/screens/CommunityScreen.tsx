@@ -55,6 +55,8 @@ const POSTS = [
 type Post = (typeof POSTS)[number];
 
 const TABS = ['EM ALTA', 'RECENTES', 'MINHAS EDIÇÕES', 'REVISÕES'] as const;
+// TODO: replace with the real logged-in user once auth lands (see SideDrawer).
+const CURRENT_USER: string = 'João Silva';
 const POST_TABS = ['COMENTÁRIOS', 'ÁUDIO', 'AJUSTES USADOS'] as const;
 type PostTab = (typeof POST_TABS)[number];
 
@@ -219,6 +221,20 @@ export default function CommunityScreen({ navigation }: Props) {
     return <PostDetail post={selectedPost} onBack={() => setSelectedPost(null)} />;
   }
 
+  const posts: Post[] = (() => {
+    switch (activeTab) {
+      case 'EM ALTA':
+        return [...POSTS].sort((a, b) => b.rating - a.rating);
+      case 'RECENTES':
+        return [...POSTS].sort((a, b) => b.id - a.id);
+      case 'MINHAS EDIÇÕES':
+        return POSTS.filter((p) => p.author === CURRENT_USER);
+      case 'REVISÕES':
+        // TODO: no pending-review data modeled yet — wire up once the backend exposes it.
+        return [];
+    }
+  })();
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
@@ -233,7 +249,12 @@ export default function CommunityScreen({ navigation }: Props) {
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} scrollable />
 
       <ScrollView style={{ flex: 1 }}>
-        {POSTS.map((post) => (
+        {posts.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>Nada por aqui ainda.</Text>
+          </View>
+        )}
+        {posts.map((post) => (
           <Pressable key={post.id} style={styles.postCard} onPress={() => setSelectedPost(post)}>
             <View style={styles.postAuthorRow}>
               <View style={styles.postAvatar}>
@@ -313,6 +334,15 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: '500',
     color: colors.texto,
+  },
+  emptyState: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontSize: fontSize.sm,
+    color: colors.texto2,
+    textAlign: 'center',
   },
   postCard: {
     borderBottomWidth: 1,

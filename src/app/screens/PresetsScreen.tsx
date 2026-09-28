@@ -137,30 +137,37 @@ export default function PresetsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.grid}>
-        {PRESETS.map((preset) => (
-          <Pressable
-            key={preset.id}
-            style={styles.card}
-            onPress={() => setSheetPreset(preset)}
-            onLongPress={() => setContextPreset(preset)}
-          >
-            {/* TODO: real per-pixel preset preview instead of a plain stock photo. */}
-            <Image
-              source={{
-                uri: `https://images.unsplash.com/${preset.img}?w=360&h=200&fit=crop&auto=format`,
-              }}
-              style={styles.cardThumb}
-            />
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardName}>{preset.name}</Text>
-              <Text style={styles.cardMeta}>
-                {preset.adjustments} ajustes · usado {preset.uses}x
-              </Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
+      {activeTab === 'DA COMUNIDADE' ? (
+        <View style={styles.emptyState}>
+          {/* TODO: no community-sourced presets modeled yet — wire up once the backend exposes it. */}
+          <Text style={styles.emptyStateText}>Nada por aqui ainda.</Text>
+        </View>
+      ) : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.grid}>
+          {PRESETS.map((preset) => (
+            <Pressable
+              key={preset.id}
+              style={styles.card}
+              onPress={() => setSheetPreset(preset)}
+              onLongPress={() => setContextPreset(preset)}
+            >
+              {/* TODO: real per-pixel preset preview instead of a plain stock photo. */}
+              <Image
+                source={{
+                  uri: `https://images.unsplash.com/${preset.img}?w=360&h=200&fit=crop&auto=format`,
+                }}
+                style={styles.cardThumb}
+              />
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardName}>{preset.name}</Text>
+                <Text style={styles.cardMeta}>
+                  {preset.adjustments} ajustes · usado {preset.uses}x
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
 
       {/* TODO: real "create preset from current adjustments" flow. */}
       <Pressable style={styles.fab}>
@@ -278,6 +285,15 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
     padding: 12,
+  },
+  emptyState: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontSize: fontSize.sm,
+    color: colors.texto2,
+    textAlign: 'center',
   },
   card: {
     width: '47%',
