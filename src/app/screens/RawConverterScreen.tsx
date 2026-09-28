@@ -177,6 +177,15 @@ export default function RawConverterScreen({ navigation, route }: Props) {
           <Canvas style={StyleSheet.absoluteFill}>
             <Fill>
               <Shader source={adjustmentsEffect} uniforms={uniforms}>
+                {/* ADJUSTMENTS_SKSL declares a second `uniform shader maskImage` (only read
+                    when maskActive is set — masking isn't wired up here yet). Skia needs a
+                    child bound to every shader uniform to compile the effect at all; without
+                    this the whole thing failed to build and rendered solid black. */}
+                <ImageShader
+                  image={skiaImage}
+                  fit="contain"
+                  rect={{ x: 0, y: 0, width: 320, height: 320 }}
+                />
                 <ImageShader
                   image={skiaImage}
                   fit="contain"
