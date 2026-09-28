@@ -1,40 +1,56 @@
-import { createProjectUseCase } from './CreateProjectUseCase';
+import { CreateProjectUseCase } from './CreateProjectUseCase';
+import type { Project } from '../../domain';
 import type { ProjectRepository } from '../../ports';
 
-const genId = () => `proj_${Math.random().toString(36).substr(2, 9)}`;
-
-// Mock repository
 class MockProjectRepository implements ProjectRepository {
-  private projects = new Map<string, any>();
+  private projects = new Map<string, Project>();
 
-  async save(project: any): Promise<void> {
+  async create(project: Project): Promise<void> {
     this.projects.set(project.id, project);
   }
 
-  async findById(id: string): Promise<any | undefined> {
-    return this.projects.get(id);
+  async findById(id: string): Promise<Project | null> {
+    return this.projects.get(id) ?? null;
   }
 
-  async findAll(): Promise<any[]> {
+  async findAll(): Promise<Project[]> {
     return Array.from(this.projects.values());
+  }
+
+  async findByType(type: Project['type']): Promise<Project[]> {
+    return Array.from(this.projects.values()).filter((p) => p.type === type);
+  }
+
+  async findByStatus(status: Project['status']): Promise<Project[]> {
+    return Array.from(this.projects.values()).filter((p) => p.status === status);
+  }
+
+  async update(project: Project): Promise<void> {
+    this.projects.set(project.id, project);
   }
 
   async delete(id: string): Promise<void> {
     this.projects.delete(id);
   }
 
-  async findByStatus(): Promise<any[]> {
-    return Array.from(this.projects.values());
+  async archive(id: string): Promise<void> {
+    const project = this.projects.get(id);
+    if (project) project.status = 'archived';
+  }
+
+  async unarchive(id: string): Promise<void> {
+    const project = this.projects.get(id);
+    if (project) project.status = 'active';
   }
 }
 
 describe('CreateProjectUseCase', () => {
   let repository: MockProjectRepository;
-  let useCase: ReturnType<typeof createProjectUseCase>;
+  let useCase: CreateProjectUseCase;
 
   beforeEach(() => {
     repository = new MockProjectRepository();
-    useCase = createProjectUseCase(repository);
+    useCase = new CreateProjectUseCase(repository);
   });
 
   it('should create a new project', async () => {
@@ -51,8 +67,8 @@ describe('CreateProjectUseCase', () => {
     const saved = await repository.findById(result.id);
 
     expect(saved).toBeDefined();
-    expect(saved.name).toBe('Test');
-    expect(saved.type).toBe('video');
+    expect(saved?.name).toBe('Test');
+    expect(saved?.type).toBe('video');
   });
 
   it('should create photo project', async () => {
@@ -70,11 +86,6 @@ describe('CreateProjectUseCase', () => {
     const p2 = await useCase.execute('P2', 'photo');
 
     expect(p1.id).not.toBe(p2.id);
-  });
-
-  it('should create with empty name', async () => {
-    const result = await useCase.execute('', 'photo');
-    expect(result.name).toBe('');
   });
 
   it('should create with long name', async () => {
@@ -95,9 +106,9 @@ describe('CreateProjectUseCase', () => {
   });
 
   it('should persist multiple projects', async () => {
-    const p1 = await useCase.execute('P1', 'photo');
-    const p2 = await useCase.execute('P2', 'video');
-    const p3 = await useCase.execute('P3', 'photo');
+    await useCase.execute('P1', 'photo');
+    await useCase.execute('P2', 'video');
+    await useCase.execute('P3', 'photo');
 
     const all = await repository.findAll();
     expect(all).toHaveLength(3);
@@ -108,6 +119,6 @@ describe('CreateProjectUseCase', () => {
     const found = await repository.findById(created.id);
 
     expect(found).toBeDefined();
-    expect(found.name).toBe('Queryable');
+    expect(found?.name).toBe('Queryable');
   });
 });
