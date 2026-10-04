@@ -160,6 +160,11 @@ Before adding a dependency:
 
 ### Media Processing
 *Critical research needed - High risk*
+
+**expo-video** (`~56.1`, MIT, official Expo package for SDK 56) — approved for the video editor preview (US-14/15/16).
+- Why: the timeline preview only showed a still thumbnail; a real player is needed for playback, frame stepping, trim and transition review.
+- Alternatives evaluated: `react-native-video` (same native engine, ExoPlayer/AVPlayer, but a separate native module outside the Expo SDK to keep in sync); `expo-av` (removed from SDK 55); commercial players (THEOplayer, DRM/ads features we don't need). No library is faster than ExoPlayer/AVPlayer, which both wrap.
+- Native code: yes (documented exception) — needs `expo run:android` after install.
 - FFmpeg (video encoding)
 - React Native Skia (rendering)
 - React Native Vision Camera (camera access)

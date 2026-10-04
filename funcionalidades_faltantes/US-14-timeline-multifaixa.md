@@ -17,9 +17,11 @@ Verificação feita em 04/10/2026 no emulador `Pixel_7` (build debug), abrindo o
 - Desfazer/refazer funciona sobre a timeline inteira e é persistido (`history.push('tracks', …)`).
 
 ## Pendências
-- **A prévia não toca o vídeo.** Ao apertar play, o tempo avança (00:00:02:06 depois de 3 s, por um `setInterval`), mas a imagem continua sendo a mesma miniatura estática. Não existe player de vídeo no código (nem `expo-video` nem `expo-av` no `package.json`, só `expo-video-thumbnails`). O mesmo vale para a prévia de transições e de edições de cor.
-- **O projeto "Trilha Serra" abre com duas faixas de vídeo cheias de dados de demonstração.** Não testei a timeline com um vídeo real importado da galeria ou gravado pela câmera.
+- ~~A prévia não toca o vídeo~~ **Resolvido:** a prévia agora usa `expo-video` (`ClipVideo.tsx`) e toca o vídeo real, seguindo o relógio da timeline (pausado = vai ao quadro exato, tocando = corrige desvio acima de 0,35 s). Testado no emulador com um vídeo de 9 s importado da galeria. Aprovado pelo usuário e registrado em `docs/dependencies.md`.
+- **Causa de fundo corrigida:** o clipe apontava para a miniatura JPEG do projeto em vez do arquivo de vídeo (`buildInitialTracks`), então nem a extração de quadros via arquivo funcionava. Também corrigi a duração: vídeos que o seletor informa com duração 0 agora têm a duração lida pelo próprio player (`probeVideoDurationMs`); antes saíam com clipe vazio.
+- **Limites do player:** só o clipe de vídeo sob o cursor toca (não há mixagem de várias faixas de vídeo ao mesmo tempo) e a tela cheia ainda mostra o quadro estático.
+- **Testado com vídeo real importado da galeria** (9 s, 1080×2400). Não testei com vídeo gravado pela câmera do emulador (gera arquivos pretos). O projeto "Trilha Serra" é de demonstração e sua origem é uma imagem.
 - **A timeline fica apertada com um clipe selecionado.** O painel de abas toma o lugar da faixa A1, que some da tela.
 - **Faixa de imagem:** o critério pede faixas de vídeo, imagem, texto e áudio. A timeline inicial só cria V1, TXT e A1. Não vi como adicionar uma faixa dedicada a imagem.
-- **RNF-009:** não medi desempenho com vídeo longo em 4K. Como não há decodificação de vídeo, o teste só faria sentido depois de existir um player.
+- **RNF-009:** ainda não medido (vídeo de 15 min em 4K). Agora que existe player, dá para medir em aparelho real; o emulador não serve para isso.
 - **RF-053** foi marcado como ambíguo no backlog (pode virar RNF de UI/UX). A funcionalidade existe, mas falta validar a classificação.

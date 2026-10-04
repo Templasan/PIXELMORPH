@@ -16,7 +16,7 @@ Verificação feita em 04/10/2026 no emulador `Pixel_7` e lendo o código (`Vide
 - A lógica de cálculo (corte, divisão, congelamento) fica em `frameMath.ts` e `freezeFrame.ts`, fora da tela.
 
 ## Pendências
-- **Sem player real, não dá para "ver" o quadro.** A prévia mostra sempre a mesma miniatura (ver US-14). Navegar quadro a quadro, aparar e congelar mexem só no timecode e nos blocos da timeline, e o usuário não vê o quadro correspondente.
+- ~~Sem player real, não dá para "ver" o quadro~~ **Resolvido:** a prévia agora mostra o quadro real do vídeo (ver US-14). Os botões −1/+1 quadro avançam o timecode e a prévia vai ao quadro exato; testado no emulador (4:21 → 4:23 depois de três toques). O congelamento e o corte continuam só validados no timecode e nos blocos.
 - **Remover objetos indesejados (RF-013) não existe.** Procurei por remoção, "objeto" e inpainting em `VideoEditorScreen.tsx` e não há nada.
 - **Correções pontuais de cor por quadro:** a aba Correção (Brilho etc.) age no clipe inteiro, não em um quadro específico.
 - **Loop de revisão:** o código volta ao início (`if (loopReview) return 0`) ao chegar ao fim da timeline inteira. Não repete só o trecho entre os marcadores de início e fim, como o critério sugere.

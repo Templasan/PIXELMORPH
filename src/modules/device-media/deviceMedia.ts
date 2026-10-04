@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import { createVideoPlayer } from 'expo-video';
 import { IMPORTS_DIR_NAME } from '@core/reliability/storageUsage';
 
 export interface PickedMedia {
@@ -182,4 +183,32 @@ export async function copyToAppStorage(uri: string, fileName?: string | null): P
   const destination = `${dir}${Date.now()}.${extension}`;
   await FileSystem.copyAsync({ from: uri, to: destination });
   return destination;
+}
+
+/**
+ * Real duration of a video file, read by actually loading it in a player. The gallery picker
+ * reports 0 or nothing for some videos (e.g. screen recordings), and the editor sized the clip
+ * from that, so such a clip came out empty. Resolves to undefined if it can't be read in time.
+ */
+export function probeVideoDurationMs(uri: string, timeoutMs = 8000): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const player = createVideoPlayer(uri);
+    let done = false;
+    const finish = (ms: number | undefined) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      subscription.remove();
+      player.release();
+      resolve(ms);
+    };
+    const timer = setTimeout(() => finish(undefined), timeoutMs);
+    const subscription = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') {
+        finish(player.duration > 0 ? Math.round(player.duration * 1000) : undefined);
+      } else if (status === 'error') {
+        finish(undefined);
+      }
+    });
+  });
 }

@@ -23,6 +23,7 @@ import { usePersistedHistory } from '@core/history';
 import { type Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
+import { ClipVideo } from './video-editor/ClipVideo';
 import {
   type Track,
   type Clip,
@@ -111,8 +112,10 @@ function rotatedFrameStyle(rotation: number | undefined, panel: { width: number;
 
 function buildInitialTracks(project: Project | null): Track[] {
   const asset = project?.assets[0];
-  const uri = project?.thumbnailUri ?? asset?.originalUri ?? PLACEHOLDER_URI;
-  const sourceDurationMs = asset?.metadata.durationMs ?? 10000;
+  // The clip must point at the real media file. It used to prefer the project's thumbnail
+  // (a JPEG), so the player and frame extraction never saw the actual video.
+  const uri = asset?.workingUri || asset?.originalUri || project?.thumbnailUri || PLACEHOLDER_URI;
+  const sourceDurationMs = asset?.metadata.durationMs || 10000;
   const v1: Track = {
     id: 'v1',
     name: 'V1',
@@ -480,8 +483,32 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       progress: t / currentClip.transitionIn.durationMs,
       type: currentClip.transitionIn.type,
       fromUri: prev.sourceUri,
+      fromTimeMs: Math.max(0, prev.outPointMs - 40),
     };
   }, [currentClip, currentTimeMs, tracks]);
+
+  // The outgoing clip's source is the real video file now, which <Image> can't draw — take its
+  // last frame as a still, like the playhead frame does for the incoming clip.
+  const [fromFrameUri, setFromFrameUri] = useState<string | null>(null);
+  const fromUri = transitionBlend?.fromUri;
+  const fromTimeMs = transitionBlend?.fromTimeMs ?? 0;
+  useEffect(() => {
+    if (!fromUri) {
+      setFromFrameUri(null);
+      return;
+    }
+    let cancelled = false;
+    VideoThumbnails.getThumbnailAsync(fromUri, { time: fromTimeMs })
+      .then((result) => {
+        if (!cancelled) setFromFrameUri(result.uri);
+      })
+      .catch(() => {
+        if (!cancelled) setFromFrameUri(fromUri);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromUri, fromTimeMs]);
 
   // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
   // is what history.push compares against, matching the pattern used across this app.
@@ -787,7 +814,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         >
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {transitionBlend && (
-              <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
+              <Image
+                source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                style={styles.previewImage}
+              />
             )}
             <Image
               source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
@@ -807,6 +837,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 },
               ]}
             />
+            {currentClip && !currentClip.frozen && !transitionBlend && (
+              <ClipVideo
+                uri={currentClip.sourceUri}
+                sourceTimeMs={sourceTimeMs}
+                playing={playing}
+                rate={currentClip.speed ?? 1}
+                volume={1}
+                style={rotatedFrameStyle(currentClip.rotation, previewSize)}
+              />
+            )}
             {currentClip?.colorCorrection ? (
               <View
                 pointerEvents="none"
@@ -1570,7 +1610,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       >
         <SafeAreaView style={styles.fullscreenPreview} edges={['top', 'bottom']}>
           {transitionBlend && (
-            <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
+            <Image
+              source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+              style={styles.previewImage}
+            />
           )}
           <Image source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }} style={styles.previewImage} />
           <View style={styles.fullscreenTopBar}>

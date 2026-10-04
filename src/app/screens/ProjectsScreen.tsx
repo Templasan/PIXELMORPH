@@ -27,7 +27,7 @@ import {
 import { useAppModules } from '../hooks';
 import { LocalHistoryRepository, type Operation } from '@core/history';
 import { rawFormatLabel } from '@modules/photo-editor/raw';
-import { pickFromGallery } from '@modules/device-media';
+import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
 import { seedDemoProjectsIfEmpty } from '../bootstrap/seedDemoProjects';
 import { RawImportSheet } from './projects/RawImportSheet';
@@ -223,7 +223,10 @@ export default function ProjectsScreen({ navigation }: Props) {
           createMediaMetadata(picked.mimeType, {
             width: picked.width || undefined,
             height: picked.height || undefined,
-            durationMs: picked.durationMs ?? undefined,
+            durationMs:
+              picked.type === 'video'
+                ? picked.durationMs || (await probeVideoDurationMs(picked.uri))
+                : undefined,
             fileSizeBytes: picked.fileSizeBytes ?? undefined,
           })
         )
