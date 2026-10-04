@@ -54,6 +54,8 @@ import {
   setPipTransform,
   setStabilization,
   rotateClip,
+  advancePlayhead,
+  loopBounds,
   setSphericalOrientation,
 } from '@modules/video-editor';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
@@ -354,21 +356,23 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   // A real (if approximated) playhead — this app has no video decoder installed, so play
   // advances elapsed time and swaps the poster image per clip rather than decoding frames.
+  const loopRange = loopReview
+    ? loopBounds(
+        selected ? { startMs: selected.clip.startMs, endMs: clipEndMs(selected.clip) } : null,
+        totalDurationMs
+      )
+    : null;
   useEffect(() => {
     if (!playing) return;
     const interval = setInterval(() => {
       setCurrentTimeMs((t) => {
-        const next = t + 100;
-        if (next >= totalDurationMs) {
-          if (loopReview) return 0;
-          setPlaying(false);
-          return totalDurationMs;
-        }
-        return next;
+        const result = advancePlayhead(t, 100, totalDurationMs, loopRange);
+        if (result.ended) setPlaying(false);
+        return result.timeMs;
       });
     }, 100);
     return () => clearInterval(interval);
-  }, [playing, totalDurationMs, loopReview]);
+  }, [playing, totalDurationMs, loopRange]);
 
   // RF-021: detect if selected clip is 360° video
   // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an

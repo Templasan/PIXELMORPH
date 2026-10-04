@@ -6,6 +6,7 @@ export * from './transitions';
 export * from './freezeFrame';
 export * from './audio';
 export * from './exportPlan';
+export * from './loopRange';
 
 // Hexagonal architecture
 export * from './ports';
