@@ -13,6 +13,7 @@ import { usePersistedHistory } from '@core/history';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { ADJUSTMENTS_SKSL, CURVE_IDENTITY, toFullUniforms } from '@modules/photo-editor/color';
 import { errorLogger } from '@core/reliability';
+import { probeFileMetadata } from '@modules/device-media';
 import { useAppModules } from '../hooks';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RawConverter'>;
@@ -96,9 +97,11 @@ export default function RawConverterScreen({ navigation, route }: Props) {
     if (projectCreationStarted.current) return;
     projectCreationStarted.current = true;
     let cancelled = false;
-    projects.createProject
-      .execute(sourceName, 'photo')
-      .then((project) =>
+    Promise.all([
+      projects.createProject.execute(sourceName, 'photo'),
+      probeFileMetadata(sourceUri, 'image'),
+    ])
+      .then(([project, probed]) =>
         projects.addMediaAsset.execute(
           project.id,
           createMediaAsset(
@@ -106,7 +109,7 @@ export default function RawConverterScreen({ navigation, route }: Props) {
             'image',
             sourceUri,
             sourceUri,
-            createMediaMetadata(rawMimeType)
+            createMediaMetadata(rawMimeType, probed)
           )
         )
       )

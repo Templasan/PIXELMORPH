@@ -26,6 +26,7 @@ import { useAppModules } from '../hooks';
 import { colors, monoFontFamily } from '@core/theme';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
+import { probeFileMetadata } from '@modules/device-media';
 import type { BasicAdjustments } from '@modules/photo-editor/color';
 import {
   createARAnchor,
@@ -265,6 +266,7 @@ export default function CameraScreen({ navigation }: Props) {
       kind === 'video' ? 'Vídeo da câmera' : 'Foto da câmera',
       kind === 'video' ? 'video' : 'photo'
     );
+    const probed = await probeFileMetadata(uri, kind);
     await projects.addMediaAsset.execute(
       project.id,
       createMediaAsset(
@@ -272,7 +274,11 @@ export default function CameraScreen({ navigation }: Props) {
         kind,
         uri,
         uri,
-        createMediaMetadata(kind === 'video' ? 'video/mp4' : 'image/jpeg', { width, height })
+        createMediaMetadata(kind === 'video' ? 'video/mp4' : 'image/jpeg', {
+          width,
+          height,
+          fileSizeBytes: probed.fileSizeBytes,
+        })
       )
     );
     navigation.navigate(kind === 'video' ? 'VideoEditor' : 'PhotoEditor', {

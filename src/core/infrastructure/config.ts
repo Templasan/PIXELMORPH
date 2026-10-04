@@ -18,5 +18,7 @@ export const CONFIG = {
   isDevelopment: ENVIRONMENT === ENV.DEV,
   isStaging: ENVIRONMENT === ENV.STAGING,
   isProduction: ENVIRONMENT === ENV.PROD,
+  /** RNF-017: HTTPS endpoint that receives anonymous error reports. Empty = nothing is sent. */
+  errorReportUrl: process.env.EXPO_PUBLIC_ERROR_REPORT_URL || '',
   logLevel: (process.env.LOG_LEVEL || 'debug') as 'debug' | 'info' | 'warn' | 'error',
 };

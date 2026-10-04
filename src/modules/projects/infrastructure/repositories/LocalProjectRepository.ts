@@ -9,15 +9,29 @@ import {
 import { ProjectMapper } from '../mappers/ProjectMapper';
 import { validateProjectPersistenceDTO } from '../dtos';
 import { ProjectType, ProjectStatus } from '../../domain/types';
+import { deleteBackupFile, readBackupFile, writeBackupFile } from './backupFiles';
 
 const PROJECT_KEY_PREFIX = 'project:';
 const BACKUP_KEY_PREFIX = 'projectBackup:';
+/** RNF-006: when the last automatic backup snapshot was written (ms since epoch). */
+export const LAST_BACKUP_KEY = 'lastBackupAt';
+/** RNF-006: user preference — '0' disables the automatic snapshots, anything else keeps them on. */
+export const AUTO_BACKUP_KEY = 'pixelmorph.autoBackup';
 const PROJECT_LIST_KEY = 'projectList';
 
 /** RNF-006: outcome of checking (and possibly repairing) one project's stored data. */
 export type IntegrityResult = 'ok' | 'restored' | 'unrecoverable' | 'not_found';
 
 export class LocalProjectRepository implements ProjectRepository {
+  /** Writes the backup snapshot for a project unless the user turned automatic backup off. */
+  private async writeBackup(id: string, json: string): Promise<void> {
+    if ((await AsyncStorage.getItem(AUTO_BACKUP_KEY)) === '0') return;
+    await AsyncStorage.setItem(`${BACKUP_KEY_PREFIX}${id}`, json);
+    // Second copy outside AsyncStorage; a failure here must not block saving the project.
+    await writeBackupFile(id, json).catch(() => undefined);
+    await AsyncStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
+  }
+
   async create(project: Project): Promise<void> {
     try {
       const dto = ProjectMapper.toPersistence(project);
@@ -25,7 +39,7 @@ export class LocalProjectRepository implements ProjectRepository {
 
       await AsyncStorage.setItem(`${PROJECT_KEY_PREFIX}${project.id}`, json);
       // RNF-006: seed a backup immediately so even a first-edit corruption is recoverable.
-      await AsyncStorage.setItem(`${BACKUP_KEY_PREFIX}${project.id}`, json);
+      await this.writeBackup(project.id, json);
 
       const list = await this.getProjectList();
       list.push(project.id);
@@ -50,7 +64,15 @@ export class LocalProjectRepository implements ProjectRepository {
       try {
         dto = JSON.parse(json);
       } catch {
-        throw new DataCorruptionError(`Invalid JSON for project '${id}'`);
+        // RNF-006: a corrupted project heals itself from the last backup on open, instead of
+        // waiting for the user to run the manual integrity check.
+        const restored = await this.verifyIntegrity(id);
+        const restoredJson =
+          restored === 'restored' ? await AsyncStorage.getItem(`${PROJECT_KEY_PREFIX}${id}`) : null;
+        if (!restoredJson) {
+          throw new DataCorruptionError(`Invalid JSON for project '${id}'`);
+        }
+        dto = JSON.parse(restoredJson);
       }
 
       return ProjectMapper.toDomain(dto as any);
@@ -108,7 +130,7 @@ export class LocalProjectRepository implements ProjectRepository {
 
       // RNF-006: snapshot the last known-good state before overwriting it.
       const backupDto = ProjectMapper.toPersistence(existing);
-      await AsyncStorage.setItem(`${BACKUP_KEY_PREFIX}${project.id}`, JSON.stringify(backupDto));
+      await this.writeBackup(project.id, JSON.stringify(backupDto));
 
       const dto = ProjectMapper.toPersistence(project);
       const json = JSON.stringify(dto);
@@ -132,6 +154,7 @@ export class LocalProjectRepository implements ProjectRepository {
     try {
       await AsyncStorage.removeItem(`${PROJECT_KEY_PREFIX}${id}`);
       await AsyncStorage.removeItem(`${BACKUP_KEY_PREFIX}${id}`);
+      await deleteBackupFile(id).catch(() => undefined);
 
       const list = await this.getProjectList();
       const newList = list.filter((projectId) => projectId !== id);
@@ -176,8 +199,12 @@ export class LocalProjectRepository implements ProjectRepository {
       return 'ok';
     }
 
-    const backupJson = await AsyncStorage.getItem(`${BACKUP_KEY_PREFIX}${id}`);
-    if (backupJson && this.isValidPersistedJson(backupJson)) {
+    const candidates = [
+      await AsyncStorage.getItem(`${BACKUP_KEY_PREFIX}${id}`),
+      await readBackupFile(id).catch(() => null),
+    ];
+    const backupJson = candidates.find((json) => json && this.isValidPersistedJson(json));
+    if (backupJson) {
       await AsyncStorage.setItem(`${PROJECT_KEY_PREFIX}${id}`, backupJson);
       return 'restored';
     }

@@ -5,11 +5,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { LANGUAGES, useI18n } from '@core/i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
 
 function SectionHeader({ label }: { label: string }) {
-  return <Text style={styles.sectionHeader}>{label}</Text>;
+  const { t } = useI18n();
+  return <Text style={styles.sectionHeader}>{t(label)}</Text>;
 }
 
 function ArrowRow({
@@ -23,13 +25,14 @@ function ArrowRow({
   sub?: string;
   onPress?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <Pressable style={[styles.row, sub && styles.rowTall]} onPress={onPress}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        {sub && <Text style={styles.rowSub}>{sub}</Text>}
+        <Text style={styles.rowLabel}>{t(label)}</Text>
+        {sub && <Text style={styles.rowSub}>{t(sub)}</Text>}
       </View>
-      {value && <Text style={styles.rowValue}>{value}</Text>}
+      {value && <Text style={styles.rowValue}>{t(value)}</Text>}
       <Icon name="chevronRight" size={16} color={colors.linha} />
     </Pressable>
   );
@@ -48,13 +51,14 @@ function ToggleRow({
   toggled: boolean;
   onToggle: (v: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <View style={[styles.row, sub && styles.rowTall]}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        {sub && <Text style={styles.rowSub}>{sub}</Text>}
+        <Text style={styles.rowLabel}>{t(label)}</Text>
+        {sub && <Text style={styles.rowSub}>{t(sub)}</Text>}
       </View>
-      {value && <Text style={styles.rowValue}>{value}</Text>}
+      {value && <Text style={styles.rowValue}>{t(value)}</Text>}
       <Switch value={toggled} onChange={onToggle} />
     </View>
   );
@@ -65,6 +69,7 @@ function Bordered({ children }: { children: ReactNode }) {
 }
 
 export default function AccountScreen({ navigation }: Props) {
+  const { t, language, changeLanguage } = useI18n();
   // TODO: back these toggles with the real preference store instead of local component state.
   const [twoFactor, setTwoFactor] = useState(true);
   const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
@@ -78,7 +83,7 @@ export default function AccountScreen({ navigation }: Props) {
         <Pressable onPress={() => navigation.navigate('Projects')} hitSlop={8}>
           <Icon name="chevronLeft" size={22} />
         </Pressable>
-        <Text style={styles.topBarTitle}>Conta e preferências</Text>
+        <Text style={styles.topBarTitle}>{t('Conta e preferências')}</Text>
       </View>
 
       <ScrollView style={{ flex: 1 }}>
@@ -107,13 +112,18 @@ export default function AccountScreen({ navigation }: Props) {
 
         <SectionHeader label="IDIOMA" />
         <View style={styles.bordered}>
-          {/* TODO: real language picker + on-demand language packs. */}
-          <ArrowRow label="Idioma do app" value="Português (Brasil)" />
-          <View style={styles.languageNote}>
-            <Text style={styles.languageNoteText}>
-              Inglês e Espanhol disponíveis. Outros idiomas são baixados sob demanda.
-            </Text>
-          </View>
+          {LANGUAGES.map((l) => (
+            <Pressable
+              key={l.code}
+              style={styles.row}
+              onPress={() => changeLanguage(l.code)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: language === l.code }}
+            >
+              <Text style={styles.rowLabelFlex}>{l.label}</Text>
+              {language === l.code && <Icon name="check" size={18} color={colors.acento} />}
+            </Pressable>
+          ))}
         </View>
 
         <SectionHeader label="EDIÇÃO" />
@@ -153,7 +163,7 @@ export default function AccountScreen({ navigation }: Props) {
         <SectionHeader label="SOBRE" />
         <Bordered>
           <View style={styles.versionRow}>
-            <Text style={styles.rowLabelFlex}>Versão</Text>
+            <Text style={styles.rowLabelFlex}>{t('Versão')}</Text>
             <Text style={styles.versionValue}>2.4.1</Text>
           </View>
           {/* TODO: real terms / privacy-policy documents. */}
@@ -169,7 +179,7 @@ export default function AccountScreen({ navigation }: Props) {
             style={styles.signOutButton}
             onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
           >
-            <Text style={styles.signOutText}>Sair da conta</Text>
+            <Text style={styles.signOutText}>{t('Sair da conta')}</Text>
           </Pressable>
         </Bordered>
       </ScrollView>

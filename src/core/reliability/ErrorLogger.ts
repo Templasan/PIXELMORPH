@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CONFIG } from '../infrastructure/config';
 
 const LOG_KEY = 'errorLog';
+const REPORT_ENABLED_KEY = 'errorLogReportingEnabled';
+const REPORTED_UP_TO_KEY = 'errorLogReportedUpTo';
 /** RNF-017: local log is capped at 5 MB, with rotation (oldest entries dropped first). */
 export const MAX_LOG_BYTES = 5 * 1024 * 1024;
 
@@ -20,10 +23,9 @@ declare const global: {
 };
 
 /**
- * Local, rotating error log (RNF-017). Real "send anonymously to the developer" transport
- * needs a backend endpoint this project doesn't have (see ARCHITECTURE.md — "No backend
- * implementation (separate project)"), so `reportPending` only marks entries as sent and
- * is explicitly documented as a stand-in for that future call.
+ * Local, rotating error log plus anonymous reporting (RNF-017). Reports go to
+ * `CONFIG.errorReportUrl` over HTTPS only; with no URL configured (this repo has no backend,
+ * see ARCHITECTURE.md) entries simply stay in the local log.
  */
 export class ErrorLogger {
   async log(error: unknown, context?: string, level: LogEntry['level'] = 'error'): Promise<void> {
@@ -91,15 +93,55 @@ export class ErrorLogger {
     });
   }
 
+  async isReportingEnabled(): Promise<boolean> {
+    return (await AsyncStorage.getItem(REPORT_ENABLED_KEY)) !== '0';
+  }
+
   /**
-   * TODO: wire to a real backend endpoint once one exists for this project. For now this
-   * only reflects the user's "enviar relatórios anonimamente" preference locally — no
-   * network call is made, so nothing leaves the device.
+   * Stores the user's "enviar relatórios anonimamente" choice (when `enabled` is given) and,
+   * if reporting is on and an HTTPS endpoint is configured, uploads the entries not yet sent.
+   * Entries carry only timestamp/level/message/stack/context — no user or device id — and
+   * `file://` paths are redacted since they can embed the user's media names. Returns how
+   * many entries were sent; never throws, so it can't disturb the user's editing.
    */
-  async reportPending(_enabled: boolean): Promise<void> {}
+  async reportPending(enabled?: boolean): Promise<number> {
+    try {
+      if (enabled !== undefined) {
+        await AsyncStorage.setItem(REPORT_ENABLED_KEY, enabled ? '1' : '0');
+      }
+      if (!(await this.isReportingEnabled())) return 0;
+
+      const url = CONFIG.errorReportUrl;
+      if (!url.startsWith('https://')) return 0;
+
+      const reportedUpTo = Number(await AsyncStorage.getItem(REPORTED_UP_TO_KEY)) || 0;
+      const pending = (await this.getEntries()).filter((e) => e.timestamp > reportedUpTo);
+      if (pending.length === 0) return 0;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: pending.map(anonymize) }),
+      });
+      if (!response.ok) return 0;
+
+      await AsyncStorage.setItem(REPORTED_UP_TO_KEY, String(pending[pending.length - 1].timestamp));
+      return pending.length;
+    } catch {
+      return 0;
+    }
+  }
 }
 
-function byteLength(str: string): number {
+function redact(text: string | undefined): string | undefined {
+  return text?.replace(/file:\/\/\S+/g, 'file://<redacted>');
+}
+
+function anonymize({ timestamp, level, message, stack, context }: LogEntry): LogEntry {
+  return { timestamp, level, message: redact(message) ?? '', stack: redact(stack), context };
+}
+
+export function byteLength(str: string): number {
   // AsyncStorage values are UTF-16 JS strings; approximate UTF-8 byte size without
   // pulling in a Buffer polyfill (not available in the RN runtime).
   let bytes = 0;

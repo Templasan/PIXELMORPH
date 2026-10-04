@@ -21,3 +21,4 @@ export * from './history';
 
 // Logging
 export * from './reliability';
+export * from './i18n';

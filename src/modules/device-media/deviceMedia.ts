@@ -5,6 +5,7 @@
  * dispositivo" limitation noted earlier this session pointed at.
  */
 
+import { Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -146,4 +147,25 @@ export async function writeImageToCache(
     encoding: FileSystem.EncodingType.Base64,
   });
   return uri;
+}
+
+/**
+ * RF-037: size/dimensions for a file that didn't come through the gallery picker (camera,
+ * RAW import), so the properties panel isn't blank. Best-effort — missing fields stay undefined.
+ */
+export async function probeFileMetadata(
+  uri: string,
+  kind: 'image' | 'video'
+): Promise<{ width?: number; height?: number; fileSizeBytes?: number }> {
+  const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+  const fileSizeBytes = info && info.exists ? info.size : undefined;
+  if (kind === 'video') return { fileSizeBytes };
+  const dims = await new Promise<{ width: number; height: number } | null>((resolve) =>
+    Image.getSize(
+      uri,
+      (width, height) => resolve({ width, height }),
+      () => resolve(null)
+    )
+  );
+  return { fileSizeBytes, ...dims };
 }

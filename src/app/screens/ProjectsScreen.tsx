@@ -16,6 +16,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, SideDrawer } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { useI18n } from '@core/i18n';
 import {
   createMediaAsset,
   createMediaMetadata,
@@ -142,6 +143,7 @@ function formatDateInput(date: Date | undefined): string {
 }
 
 export default function ProjectsScreen({ navigation }: Props) {
+  const { t } = useI18n();
   const { projects: projectsModule } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('TODOS');
@@ -296,7 +298,7 @@ export default function ProjectsScreen({ navigation }: Props) {
           <Pressable onPress={exitMultiSelect} hitSlop={8}>
             <Icon name="x" size={22} />
           </Pressable>
-          <Text style={styles.contextTitle}>{selected.length} selecionados</Text>
+          <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
           {/* TODO: implement share / upload actions for the selection. */}
           <Icon name="share" size={20} />
           <Icon name="upload" size={20} />
@@ -306,7 +308,7 @@ export default function ProjectsScreen({ navigation }: Props) {
           <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
             <Icon name="menu" size={22} />
           </Pressable>
-          <Text style={styles.topBarTitle}>Projetos</Text>
+          <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
           {/* TODO: real search + sort. */}
           <Icon name="search" size={20} />
           <View style={{ width: 8 }} />
@@ -315,10 +317,12 @@ export default function ProjectsScreen({ navigation }: Props) {
       )}
 
       <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <Pressable key={t} style={styles.tab} onPress={() => setActiveTab(t)}>
-            <Text style={[styles.tabLabel, activeTab === t && styles.tabLabelActive]}>{t}</Text>
-            <View style={[styles.tabUnderline, activeTab === t && styles.tabUnderlineActive]} />
+        {TABS.map((tab) => (
+          <Pressable key={tab} style={styles.tab} onPress={() => setActiveTab(tab)}>
+            <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+              {t(tab)}
+            </Text>
+            <View style={[styles.tabUnderline, activeTab === tab && styles.tabUnderlineActive]} />
           </Pressable>
         ))}
       </View>
@@ -334,18 +338,21 @@ export default function ProjectsScreen({ navigation }: Props) {
             <View style={styles.reminderStripe} />
             <View style={{ padding: 8, paddingHorizontal: 12 }}>
               <Text style={styles.reminderTitle}>
-                {pendingProjects.length}{' '}
-                {pendingProjects.length === 1 ? 'projeto pendente' : 'projetos pendentes'}
+                {pendingProjects.length === 1
+                  ? t('{n} projeto pendente', { n: pendingProjects.length })
+                  : t('{n} projetos pendentes', { n: pendingProjects.length })}
               </Text>
               <Text style={styles.reminderSubtitle}>
                 {nearest.name}{' '}
                 {(() => {
                   const days = daysUntil(nearest.dueDate!);
-                  if (days < 0) return `atrasado há ${Math.abs(days)} dia(s)`;
-                  if (days === 0) return 'vence hoje';
-                  return `vence em ${days} dia(s)`;
+                  if (days < 0) return t('atrasado há {n} dia(s)', { n: Math.abs(days) });
+                  if (days === 0) return t('vence hoje');
+                  return t('vence em {n} dia(s)', { n: days });
                 })()}
-                {nearest.priority ? ` · Prioridade ${priorityLabel[nearest.priority]}` : ''}
+                {nearest.priority
+                  ? ` · ${t('Prioridade {p}', { p: t(priorityLabel[nearest.priority]) })}`
+                  : ''}
               </Text>
             </View>
           </View>
@@ -353,7 +360,7 @@ export default function ProjectsScreen({ navigation }: Props) {
 
         {!loading && filtered.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>Nenhum projeto nesta categoria ainda.</Text>
+            <Text style={styles.emptyStateText}>{t('Nenhum projeto nesta categoria ainda.')}</Text>
           </View>
         )}
 
@@ -453,7 +460,7 @@ export default function ProjectsScreen({ navigation }: Props) {
 
       {multiSelect && selected.length > 0 && (
         <View style={styles.batchSheet}>
-          <Text style={styles.batchLabel}>APLICAR EM LOTE</Text>
+          <Text style={styles.batchLabel}>{t('APLICAR EM LOTE')}</Text>
           <View style={styles.batchChips}>
             {BATCH_PRESETS.map((p) => (
               // TODO: apply the real preset to the selected projects.
@@ -472,7 +479,9 @@ export default function ProjectsScreen({ navigation }: Props) {
           ) : (
             <Pressable style={styles.batchButton} onPress={applyBatch}>
               <Text style={styles.batchButtonText}>
-                APLICAR EM {selected.length} {selected.length === 1 ? 'ITEM' : 'ITENS'}
+                {selected.length === 1
+                  ? t('APLICAR EM {n} ITEM', { n: selected.length })
+                  : t('APLICAR EM {n} ITENS', { n: selected.length })}
               </Text>
             </Pressable>
           )}
@@ -483,10 +492,10 @@ export default function ProjectsScreen({ navigation }: Props) {
         <View style={styles.infoSheet}>
           <View style={styles.infoHeader}>
             <View style={{ flexDirection: 'row', gap: 16 }}>
-              {INFO_TABS.map((t) => (
-                <Pressable key={t} onPress={() => setInfoTab(t)}>
-                  <Text style={[styles.infoTabLabel, infoTab === t && styles.infoTabLabelActive]}>
-                    {t}
+              {INFO_TABS.map((tab) => (
+                <Pressable key={tab} onPress={() => setInfoTab(tab)}>
+                  <Text style={[styles.infoTabLabel, infoTab === tab && styles.infoTabLabelActive]}>
+                    {t(tab)}
                   </Text>
                 </Pressable>
               ))}
@@ -500,19 +509,19 @@ export default function ProjectsScreen({ navigation }: Props) {
               (() => {
                 const asset = primaryAsset(infoProject);
                 const rows: [string, string][] = [
-                  ['Nome', infoProject.name],
-                  ['Tipo', formatTypeLabel(infoProject)],
+                  [t('Nome'), infoProject.name],
+                  [t('Tipo'), formatTypeLabel(infoProject)],
                   [
-                    'Dimensões',
+                    t('Dimensões'),
                     asset?.metadata.width && asset.metadata.height
                       ? `${asset.metadata.width} × ${asset.metadata.height}`
                       : '—',
                   ],
-                  ['Tamanho', formatFileSize(asset?.metadata.fileSizeBytes)],
-                  ['Codificação', asset?.metadata.mimeType ?? '—'],
-                  ['Taxa de bits', infoProject.type === 'video' ? formatBitRate(asset) : '—'],
-                  ['Modificado em', dateFormatter.format(infoProject.updatedAt)],
-                  ['Criado em', dateFormatter.format(infoProject.createdAt)],
+                  [t('Tamanho'), formatFileSize(asset?.metadata.fileSizeBytes)],
+                  [t('Codificação'), asset?.metadata.mimeType ?? '—'],
+                  [t('Taxa de bits'), infoProject.type === 'video' ? formatBitRate(asset) : '—'],
+                  [t('Modificado em'), dateFormatter.format(infoProject.updatedAt)],
+                  [t('Criado em'), dateFormatter.format(infoProject.createdAt)],
                 ];
                 return (
                   <>
@@ -523,7 +532,7 @@ export default function ProjectsScreen({ navigation }: Props) {
                       </View>
                     ))}
                     <View style={styles.reminderEditor}>
-                      <Text style={styles.sectionLabel}>LEMBRETE</Text>
+                      <Text style={styles.sectionLabel}>{t('LEMBRETE')}</Text>
                       <View style={styles.priorityChips}>
                         {PRIORITY_OPTIONS.map((p) => (
                           <Pressable
@@ -544,7 +553,7 @@ export default function ProjectsScreen({ navigation }: Props) {
                                 infoProject.priority === p && styles.priorityChipTextActive,
                               ]}
                             >
-                              {priorityLabel[p]}
+                              {t(priorityLabel[p])}
                             </Text>
                           </Pressable>
                         ))}
@@ -554,7 +563,7 @@ export default function ProjectsScreen({ navigation }: Props) {
                           style={styles.dueDateInput}
                           value={dueDateInput}
                           onChangeText={setDueDateInput}
-                          placeholder="DD/MM/AAAA"
+                          placeholder={t('DD/MM/AAAA')}
                           placeholderTextColor={colors.texto2}
                           keyboardType="number-pad"
                         />
@@ -563,13 +572,13 @@ export default function ProjectsScreen({ navigation }: Props) {
                           onPress={() => {
                             const parsed = parseDateInput(dueDateInput);
                             if (!parsed) {
-                              Alert.alert('Data inválida', 'Use o formato DD/MM/AAAA.');
+                              Alert.alert(t('Data inválida'), t('Use o formato DD/MM/AAAA.'));
                               return;
                             }
                             updateReminder({ dueDate: parsed });
                           }}
                         >
-                          <Text style={styles.dueDateButtonText}>Salvar prazo</Text>
+                          <Text style={styles.dueDateButtonText}>{t('Salvar prazo')}</Text>
                         </Pressable>
                         {infoProject.dueDate && (
                           <Pressable
@@ -579,7 +588,7 @@ export default function ProjectsScreen({ navigation }: Props) {
                               updateReminder({ dueDate: null });
                             }}
                           >
-                            <Text style={styles.dueDateButtonText}>Remover</Text>
+                            <Text style={styles.dueDateButtonText}>{t('Remover')}</Text>
                           </Pressable>
                         )}
                       </View>
@@ -599,7 +608,7 @@ export default function ProjectsScreen({ navigation }: Props) {
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>
-                  Nenhuma edição registrada ainda para este projeto.
+                  {t('Nenhuma edição registrada ainda para este projeto.')}
                 </Text>
               </View>
             )}

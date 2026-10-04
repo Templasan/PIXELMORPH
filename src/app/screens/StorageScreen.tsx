@@ -7,35 +7,20 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, SideDrawer, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
+import {
+  clearCache,
+  formatBytes,
+  getStorageUsage,
+  type StorageUsage,
+} from '@core/reliability/storageUsage';
+import { useI18n } from '@core/i18n';
 import { useAppModules } from '../hooks';
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { AUTO_BACKUP_KEY, LAST_BACKUP_KEY } from '@modules/projects';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Storage'>;
 
-// TODO: replace with real on-device storage usage.
-const CATEGORIES = [
-  { icon: 'folder', label: 'Projetos', size: '2,8 GB', action: null },
-  { icon: 'image', label: 'Rascunhos', size: '410 MB', action: null },
-  { icon: 'film', label: 'Cache de pré-visualização', size: '680 MB', action: 'Limpar' },
-  { icon: 'download', label: 'Recursos extras', size: '340 MB', action: 'Gerenciar' },
-  { icon: 'save', label: 'Backups', size: '120 MB', action: null },
-  { icon: 'info', label: 'Registros de erro', size: '4,1 MB', action: 'Limpar' },
-] as const;
-
-const ON_DEMAND = [
-  { label: 'Filtros artísticos', size: '140 MB' },
-  { label: 'Overlays e texturas', size: '120 MB' },
-  { label: 'Modelos de IA local', size: '80 MB' },
-];
-
 const SEGMENT_COLORS = [colors.acento, colors.ok, colors.alerta, '#8E5FB9', colors.perigo];
-const SEGMENT_LABELS = ['Projetos', 'Rascunhos', 'Cache', 'Recursos', 'Outros'];
-const SEGMENT_WIDTHS = [40, 8, 14, 7, 3];
 
 function SectionHeader({ label }: { label: string }) {
   return <Text style={styles.sectionHeader}>{label}</Text>;
@@ -44,16 +29,30 @@ function SectionHeader({ label }: { label: string }) {
 export default function StorageScreen({ navigation }: Props) {
   const { projects } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [backupEnabled, setBackupEnabled] = useState(true);
+  const { t } = useI18n();
+  const [backupEnabled, setBackupEnabledState] = useState(true);
+  const [lastBackupAt, setLastBackupAt] = useState<number | null>(null);
   const [reportsEnabled, setReportsEnabled] = useState(true);
-  const [errorLogSize, setErrorLogSize] = useState(0);
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
   const [checkingIntegrity, setCheckingIntegrity] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setUsage(await getStorageUsage());
+    setLastBackupAt(Number(await AsyncStorage.getItem(LAST_BACKUP_KEY)) || null);
+    setBackupEnabledState((await AsyncStorage.getItem(AUTO_BACKUP_KEY)) !== '0');
+    setReportsEnabled(await errorLogger.isReportingEnabled());
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      errorLogger.getSizeBytes().then(setErrorLogSize);
-    }, [])
+      refresh();
+    }, [refresh])
   );
+
+  const setBackupEnabled = async (value: boolean) => {
+    setBackupEnabledState(value);
+    await AsyncStorage.setItem(AUTO_BACKUP_KEY, value ? '1' : '0');
+  };
 
   const handleReportsToggle = (value: boolean) => {
     setReportsEnabled(value);
@@ -62,8 +61,34 @@ export default function StorageScreen({ navigation }: Props) {
 
   const handleClearLogs = async () => {
     await errorLogger.clear();
-    setErrorLogSize(0);
+    refresh();
   };
+
+  const handleClearCache = async () => {
+    await clearCache();
+    refresh();
+  };
+
+  const categories = usage
+    ? [
+        { icon: 'folder', label: 'Projetos', bytes: usage.projectsBytes, action: null },
+        { icon: 'image', label: 'Histórico de edições', bytes: usage.historyBytes, action: null },
+        {
+          icon: 'film',
+          label: 'Cache de pré-visualização',
+          bytes: usage.cacheBytes,
+          action: { label: 'Limpar', run: handleClearCache },
+        },
+        { icon: 'save', label: 'Backups', bytes: usage.backupsBytes, action: null },
+        {
+          icon: 'info',
+          label: 'Registros de erro',
+          bytes: usage.logBytes,
+          action: { label: 'Limpar', run: handleClearLogs },
+        },
+      ]
+    : [];
+  const errorLogSize = usage?.logBytes ?? 0;
 
   const handleVerifyIntegrity = async () => {
     setCheckingIntegrity(true);
@@ -74,19 +99,21 @@ export default function StorageScreen({ navigation }: Props) {
 
       if (restored.length === 0 && unrecoverable.length === 0) {
         Alert.alert(
-          'Integridade verificada',
-          `${results.length} projeto(s) verificado(s). Nenhum problema encontrado.`
+          t('Integridade verificada'),
+          t('{n} projeto(s) verificado(s). Nenhum problema encontrado.', { n: results.length })
         );
       } else {
         const lines = [
-          restored.length > 0 ? `${restored.length} restaurado(s) do backup.` : null,
-          unrecoverable.length > 0 ? `${unrecoverable.length} não puderam ser recuperados.` : null,
+          restored.length > 0 ? t('{n} restaurado(s) do backup.', { n: restored.length }) : null,
+          unrecoverable.length > 0
+            ? t('{n} não puderam ser recuperados.', { n: unrecoverable.length })
+            : null,
         ].filter(Boolean);
-        Alert.alert('Integridade verificada', lines.join('\n'));
+        Alert.alert(t('Integridade verificada'), lines.join('\n'));
       }
     } catch (error) {
       await errorLogger.log(error, 'verifyAllIntegrity');
-      Alert.alert('Erro', 'Não foi possível verificar a integridade dos projetos agora.');
+      Alert.alert(t('Erro'), t('Não foi possível verificar a integridade dos projetos agora.'));
     } finally {
       setCheckingIntegrity(false);
     }
@@ -98,69 +125,72 @@ export default function StorageScreen({ navigation }: Props) {
         <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
           <Icon name="menu" size={22} />
         </Pressable>
-        <Text style={styles.topBarTitle}>Armazenamento</Text>
+        <Text style={styles.topBarTitle}>{t('Armazenamento')}</Text>
       </View>
 
       <ScrollView style={{ flex: 1 }}>
         <View style={styles.usageSection}>
-          <Text style={styles.usageText}>4,2 GB de 10 GB usados</Text>
+          <Text style={styles.usageText}>
+            {usage
+              ? t('{used} usados pelo app · {free} livres no aparelho', {
+                  used: formatBytes(usage.usedBytes),
+                  free: formatBytes(usage.freeDiskBytes),
+                })
+              : '…'}
+          </Text>
           <View style={styles.segmentBar}>
-            {SEGMENT_WIDTHS.map((w, i) => (
-              <View key={i} style={{ width: `${w}%`, backgroundColor: SEGMENT_COLORS[i] }} />
+            {categories.map((cat, i) => (
+              <View
+                key={cat.label}
+                style={{
+                  flex: Math.max(cat.bytes, 1),
+                  backgroundColor: SEGMENT_COLORS[i % SEGMENT_COLORS.length],
+                }}
+              />
             ))}
-            <View style={styles.segmentRemainder} />
           </View>
           <View style={styles.legendRow}>
-            {SEGMENT_LABELS.map((label, i) => (
-              <View key={label} style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS[i] }]} />
-                <Text style={styles.legendText}>{label}</Text>
+            {categories.map((cat, i) => (
+              <View key={cat.label} style={styles.legendItem}>
+                <View
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: SEGMENT_COLORS[i % SEGMENT_COLORS.length] },
+                  ]}
+                />
+                <Text style={styles.legendText}>{t(cat.label)}</Text>
               </View>
             ))}
           </View>
         </View>
 
         <View>
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <View key={cat.label} style={styles.categoryRow}>
               <Icon name={cat.icon} size={18} />
-              <Text style={styles.categoryLabel}>{cat.label}</Text>
-              <Text style={styles.categorySize}>{cat.size}</Text>
+              <Text style={styles.categoryLabel}>{t(cat.label)}</Text>
+              <Text style={styles.categorySize}>{formatBytes(cat.bytes)}</Text>
               {cat.action && (
-                // TODO: implement clear-cache / manage-resources actions.
-                <Pressable>
-                  <Text style={styles.categoryAction}>{cat.action}</Text>
+                <Pressable onPress={cat.action.run}>
+                  <Text style={styles.categoryAction}>{t(cat.action.label)}</Text>
                 </Pressable>
               )}
             </View>
           ))}
         </View>
 
-        <SectionHeader label="RECURSOS SOB DEMANDA" />
-        <View style={styles.onDemandSection}>
-          <Text style={styles.onDemandIntro}>
-            O app ocupa 180 MB na instalação. Filtros, overlays e modelos de IA são baixados
-            conforme o uso.
-          </Text>
-          {ON_DEMAND.map((item) => (
-            <View key={item.label} style={styles.onDemandRow}>
-              <Text style={styles.onDemandLabel}>{item.label}</Text>
-              <Text style={styles.onDemandSize}>{item.size}</Text>
-              {/* TODO: implement remove-downloaded-resource action. */}
-              <Pressable>
-                <Text style={styles.removeText}>Remover</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
-
-        <SectionHeader label="BACKUP" />
+        <SectionHeader label={t('BACKUP')} />
         <View style={styles.bordered}>
           <View style={styles.backupRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Backup automático</Text>
-              {/* TODO: real last-backup timestamp. */}
-              <Text style={styles.rowSub}>Último backup: hoje, 13:40</Text>
+              <Text style={styles.rowLabel}>{t('Backup automático')}</Text>
+              <Text style={styles.rowSub}>
+                {lastBackupAt
+                  ? t('Último backup: {when}', {
+                      when: new Date(lastBackupAt).toLocaleString('pt-BR'),
+                    })
+                  : t('Nenhum backup ainda')}
+              </Text>
             </View>
             <Switch value={backupEnabled} onChange={setBackupEnabled} />
           </View>
@@ -170,26 +200,26 @@ export default function StorageScreen({ navigation }: Props) {
             disabled={checkingIntegrity}
           >
             <Text style={styles.integrityButtonText}>
-              {checkingIntegrity ? 'Verificando…' : 'Verificar integridade dos projetos'}
+              {checkingIntegrity ? t('Verificando…') : t('Verificar integridade dos projetos')}
             </Text>
           </Pressable>
         </View>
 
-        <SectionHeader label="DIAGNÓSTICO" />
+        <SectionHeader label={t('DIAGNÓSTICO')} />
         <View style={styles.bordered}>
           <View style={styles.diagRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Registros locais</Text>
+              <Text style={styles.rowLabel}>{t('Registros locais')}</Text>
               <Text style={styles.rowSub}>
-                {formatBytes(errorLogSize)} · limite de 5 MB com rotação automática
+                {formatBytes(errorLogSize)} · {t('limite de 5 MB com rotação automática')}
               </Text>
             </View>
             <Pressable onPress={handleClearLogs}>
-              <Text style={styles.categoryAction}>Limpar</Text>
+              <Text style={styles.categoryAction}>{t('Limpar')}</Text>
             </Pressable>
           </View>
           <View style={styles.diagRowLast}>
-            <Text style={styles.rowLabelFlex}>Enviar relatórios anonimamente</Text>
+            <Text style={styles.rowLabelFlex}>{t('Enviar relatórios anonimamente')}</Text>
             <Switch value={reportsEnabled} onChange={handleReportsToggle} />
           </View>
         </View>

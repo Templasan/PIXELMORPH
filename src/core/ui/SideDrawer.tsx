@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
 import { colors, fontSize, monoFontFamily } from '../theme';
 import { Icon } from './Icon';
 import type { RootStackParamList } from '../../app/navigation/RootNavigator';
+import { useI18n } from '../i18n';
+import { formatBytes, getStorageUsage, type StorageUsage } from '../reliability/storageUsage';
 
 export type DrawerScreenName = Extract<
   keyof RootStackParamList,
@@ -37,7 +40,14 @@ interface SideDrawerProps {
  * Rendered as an absolute overlay by each screen — this is UI state, not a route.
  */
 export function SideDrawer({ open, onClose, navigation, current }: SideDrawerProps) {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+
+  useEffect(() => {
+    if (open) getStorageUsage().then(setUsage);
+  }, [open]);
+
   if (!open) return null;
 
   const go = (screen: DrawerScreenName) => {
@@ -72,7 +82,9 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
                 style={[styles.item, isActive && styles.itemActive]}
               >
                 <Icon name={icon} size={20} color={isActive ? colors.acento : colors.icone} />
-                <Text style={[styles.itemLabel, isActive && styles.itemLabelActive]}>{label}</Text>
+                <Text style={[styles.itemLabel, isActive && styles.itemLabelActive]}>
+                  {t(label)}
+                </Text>
               </Pressable>
             );
           })}
@@ -89,7 +101,7 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
               color={current === 'Account' ? colors.acento : colors.icone}
             />
             <Text style={[styles.itemLabel, current === 'Account' && styles.itemLabelActive]}>
-              Conta e preferências
+              {t('Conta e preferências')}
             </Text>
           </Pressable>
           <Pressable
@@ -98,15 +110,29 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
           >
             <Icon name="help" size={20} color={current === 'Help' ? colors.acento : colors.icone} />
             <Text style={[styles.itemLabel, current === 'Help' && styles.itemLabelActive]}>
-              Ajuda
+              {t('Ajuda')}
             </Text>
           </Pressable>
         </ScrollView>
 
         <View style={styles.storageFooter}>
-          <Text style={styles.storageText}>4,2 GB de 10 GB usados</Text>
+          <Text style={styles.storageText}>
+            {usage
+              ? t('{used} usados pelo app · {free} livres', {
+                  used: formatBytes(usage.usedBytes),
+                  free: formatBytes(usage.freeDiskBytes),
+                })
+              : ' '}
+          </Text>
           <View style={styles.storageTrack}>
-            <View style={styles.storageFill} />
+            <View
+              style={[
+                styles.storageFill,
+                {
+                  width: `${usage && usage.totalDiskBytes ? Math.max(1, Math.min(100, (usage.usedBytes / usage.totalDiskBytes) * 100)) : 0}%`,
+                },
+              ]}
+            />
           </View>
         </View>
       </View>

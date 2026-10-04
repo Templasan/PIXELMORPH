@@ -14,12 +14,14 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { LANGUAGES, useI18n } from '@core/i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const CODE_LENGTH = 6;
 
 export default function LoginScreen({ navigation }: Props) {
+  const { t, language, changeLanguage } = useI18n();
   const [step, setStep] = useState<'login' | '2fa'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,8 +63,8 @@ export default function LoginScreen({ navigation }: Props) {
             <Icon name="shield" size={32} color={colors.acento} />
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Text style={styles.stepTitle}>Verificação em duas etapas</Text>
-            <Text style={styles.stepSubtitle}>Digite o código enviado para seu e-mail</Text>
+            <Text style={styles.stepTitle}>{t('Verificação em duas etapas')}</Text>
+            <Text style={styles.stepSubtitle}>{t('Digite o código enviado para seu e-mail')}</Text>
           </View>
           <View style={styles.codeRow}>
             {code.map((v, i) => (
@@ -72,7 +74,7 @@ export default function LoginScreen({ navigation }: Props) {
                   inputs.current[i] = el;
                 }}
                 value={v}
-                onChangeText={(t) => handleCodeChange(i, t)}
+                onChangeText={(text) => handleCodeChange(i, text)}
                 onKeyPress={(e) => handleKeyPress(i, e.nativeEvent.key)}
                 keyboardType="number-pad"
                 maxLength={1}
@@ -81,14 +83,14 @@ export default function LoginScreen({ navigation }: Props) {
             ))}
           </View>
           <Text style={styles.timerText}>
-            Reenviar código em{' '}
+            {t('Reenviar código em')}{' '}
             <Text style={styles.timerValue}>00:{String(timer).padStart(2, '0')}</Text>
           </Text>
           <Pressable style={styles.primaryButton} onPress={handleVerify}>
-            <Text style={styles.primaryButtonText}>VERIFICAR</Text>
+            <Text style={styles.primaryButtonText}>{t('VERIFICAR')}</Text>
           </Pressable>
           <Pressable>
-            <Text style={styles.linkText}>Usar app autenticador</Text>
+            <Text style={styles.linkText}>{t('Usar app autenticador')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -108,12 +110,12 @@ export default function LoginScreen({ navigation }: Props) {
           <View style={styles.centerColumn}>
             <View style={{ marginBottom: 8 }}>
               <Text style={styles.logo}>PixelMorph</Text>
-              <Text style={styles.tagline}>Editor de foto e vídeo</Text>
+              <Text style={styles.tagline}>{t('Editor de foto e vídeo')}</Text>
             </View>
 
             <View style={{ gap: 16 }}>
               <View>
-                <Text style={styles.fieldLabel}>E-MAIL</Text>
+                <Text style={styles.fieldLabel}>{t('E-MAIL')}</Text>
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
@@ -125,7 +127,7 @@ export default function LoginScreen({ navigation }: Props) {
                 />
               </View>
               <View>
-                <Text style={styles.fieldLabel}>SENHA</Text>
+                <Text style={styles.fieldLabel}>{t('SENHA')}</Text>
                 <View>
                   <TextInput
                     value={password}
@@ -145,31 +147,30 @@ export default function LoginScreen({ navigation }: Props) {
                 </View>
               </View>
               <Pressable>
-                <Text style={styles.linkText}>Esqueci minha senha</Text>
+                <Text style={styles.linkText}>{t('Esqueci minha senha')}</Text>
               </Pressable>
             </View>
 
             <Pressable style={styles.primaryButton} onPress={handleLogin}>
-              <Text style={styles.primaryButtonText}>ENTRAR</Text>
+              <Text style={styles.primaryButtonText}>{t('ENTRAR')}</Text>
             </Pressable>
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
+              <Text style={styles.dividerText}>{t('ou')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
             <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate('SignUp')}>
-              <Text style={styles.secondaryButtonText}>CRIAR CONTA</Text>
+              <Text style={styles.secondaryButtonText}>{t('CRIAR CONTA')}</Text>
             </Pressable>
           </View>
 
           <View style={styles.langRow}>
-            {(['PT', 'EN', 'ES'] as const).map((lang) => (
-              // TODO: wire up real i18n / locale switching.
-              <Pressable key={lang}>
-                <Text style={[styles.langText, lang === 'PT' && styles.langTextActive]}>
-                  {lang}
+            {LANGUAGES.map((l) => (
+              <Pressable key={l.code} onPress={() => changeLanguage(l.code)}>
+                <Text style={[styles.langText, l.code === language && styles.langTextActive]}>
+                  {l.code.toUpperCase()}
                 </Text>
               </Pressable>
             ))}
