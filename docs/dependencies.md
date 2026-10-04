@@ -165,6 +165,11 @@ Before adding a dependency:
 - Why: the timeline preview only showed a still thumbnail; a real player is needed for playback, frame stepping, trim and transition review.
 - Alternatives evaluated: `react-native-video` (same native engine, ExoPlayer/AVPlayer, but a separate native module outside the Expo SDK to keep in sync); `expo-av` (removed from SDK 55); commercial players (THEOplayer, DRM/ads features we don't need). No library is faster than ExoPlayer/AVPlayer, which both wrap.
 - Native code: yes (documented exception) — needs `expo run:android` after install.
+
+**androidx.media3:media3-transformer / media3-effect** (`1.9.0`, Apache 2.0, Google/AndroidX) — approved for video export (US-16/US-30), used by the local module `modules/pixelmorph-video-export`.
+- Why: join, trim, speed and rotate the timeline into one H.264/AAC mp4 with the hardware encoder.
+- Alternatives evaluated: `ffmpeg-kit` (archived/discontinued by its authors, prohibited by the 6-month maintenance rule); `react-native-video-trim` (FFmpeg underneath); `pulse-editor` (young, unproven). Media3 is maintained by Google, already in the app through `expo-video` (same version, no extra weight beyond the transformer/effect artifacts).
+- Native code: yes (documented exception), Android only. iOS would need an AVFoundation implementation.
 - FFmpeg (video encoding)
 - React Native Skia (rendering)
 - React Native Vision Camera (camera access)

@@ -1,0 +1,80 @@
+import { createClip, type Track } from '../../src/modules/video-editor/Track';
+import {
+  VIDEO_PRESETS,
+  originalPreset,
+  planExport,
+} from '../../src/modules/video-editor/exportPlan';
+
+const clip = (over: Partial<Parameters<typeof createClip>[0]> & { startMs: number }) =>
+  createClip({
+    name: 'c',
+    sourceUri: 'file:///a.mp4',
+    color: '#fff',
+    sourceDurationMs: 10_000,
+    ...over,
+  });
+
+const track = (clips: ReturnType<typeof createClip>[], over: Partial<Track> = {}): Track => ({
+  id: 'v1',
+  name: 'V1',
+  kind: 'video',
+  visible: true,
+  locked: false,
+  clips,
+  ...over,
+});
+
+describe('planExport (US-16 / US-30)', () => {
+  it('returns nothing for a timeline without video clips', () => {
+    expect(planExport([])).toEqual({ clips: [], durationMs: 0 });
+    expect(planExport([track([])])).toEqual({ clips: [], durationMs: 0 });
+    expect(planExport([track([clip({ startMs: 0 })], { visible: false })]).clips).toHaveLength(0);
+  });
+
+  it('orders clips by start time and keeps trim, speed and rotation', () => {
+    const late = { ...clip({ startMs: 5_000, inPointMs: 1_000, outPointMs: 3_000 }), speed: 2 };
+    const early = { ...clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 }), rotation: 90 };
+    const plan = planExport([track([late, early])]);
+
+    expect(plan.clips.map((c) => [c.inMs, c.outMs])).toEqual([
+      [0, 4_000],
+      [1_000, 3_000],
+    ]);
+    expect(plan.clips[0].rotation).toBe(90);
+    expect(plan.clips[1].speed).toBe(2);
+    // 4 s + (2 s source at 2x = 1 s)
+    expect(plan.durationMs).toBe(5_000);
+  });
+
+  it('turns a freeze frame into a still held for its duration', () => {
+    const frozen = {
+      ...clip({ startMs: 0, inPointMs: 2_500, outPointMs: 2_500 }),
+      frozen: true,
+      holdMs: 1_500,
+    };
+    const [piece] = planExport([track([frozen])]).clips;
+    expect(piece).toMatchObject({ kind: 'still', stillTimeMs: 2_500, holdMs: 1_500 });
+  });
+});
+
+describe('video presets (RF-017)', () => {
+  it('has real social resolutions with a bitrate each', () => {
+    for (const p of VIDEO_PRESETS) {
+      expect(p.width).toBeGreaterThan(0);
+      expect(p.height).toBeGreaterThan(0);
+      expect(p.bitrate).toBeGreaterThan(0);
+    }
+    expect(VIDEO_PRESETS.find((p) => p.name === 'Instagram Reels')).toMatchObject({
+      width: 1080,
+      height: 1920,
+    });
+  });
+
+  it('keeps the original shape, never upscales and caps 4K at Full HD', () => {
+    expect(originalPreset(1280, 720)).toMatchObject({ width: 1280, height: 720 });
+    const uhd = originalPreset(3840, 2160);
+    expect(uhd).toMatchObject({ width: 1920, height: 1080 });
+    expect(uhd.width % 2).toBe(0);
+    expect(uhd.height % 2).toBe(0);
+  });
+});

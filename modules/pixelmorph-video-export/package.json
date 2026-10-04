@@ -1,0 +1,8 @@
+{
+  "name": "pixelmorph-video-export",
+  "version": "1.0.0",
+  "description": "Local Expo module: timeline video export with Android Media3 Transformer",
+  "main": "src/index.ts",
+  "license": "UNLICENSED",
+  "private": true
+}

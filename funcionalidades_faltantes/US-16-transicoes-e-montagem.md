@@ -1,21 +1,21 @@
-# US-16 — Transições e montagem de múltiplos clipes: o que falta
+# US-16 — Transições e montagem de múltiplos clipes: situação
 
-Verificação feita em 04/10/2026 no emulador `Pixel_7` e lendo o código (`VideoEditorScreen.tsx`, `transitions.ts`).
+Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`VideoEditorScreen.tsx`, `transitions.ts`, `exportPlan.ts`).
 
 ## Resumo
 
 | Critério | Status |
 |---|---|
 | RF-032 Transições (fade, slide, zoom, wipe) com duração e prévia ao vivo | ⚠️ Parcial |
-| RF-058 Reordenar clipes por arrasto e unir em um único vídeo | ⚠️ Parcial |
+| RF-058 Reordenar clipes por arrasto e unir em um único vídeo | ⚠️ Parcial (união funciona; reordenar não testado) |
 
-## O que vi funcionando
-- `TRANSITION_TYPES` = fade, slide, zoom e wipe (Desvanecimento, Deslize, Zoom, Wipe). A aba Transição tem seletor de tipo, "Nenhuma" e slider de duração, e o clipe mostra um marcador (`transitionMarker`).
-- Os clipes podem ser movidos na timeline por arrasto (`moveClip`) e há botão "+" para adicionar clipes (`AddClipSheet`).
-- A aba Transição só aparece quando o clipe selecionado tem um clipe anterior.
+## O que está funcionando
+- Tipos: desvanecimento, deslize, zoom e wipe, com duração ajustável e marcador no clipe. A aba Transição só aparece quando o clipe tem um clipe anterior.
+- **Unir clipes em um único vídeo (RF-058):** agora é real. A exportação junta os clipes da primeira faixa de vídeo em um mp4 (ver US-30). Testei dividindo um vídeo de 9 s em dois clipes e exportando: o arquivo saiu com ~9 s, sem perda.
+- Os clipes podem ser movidos na timeline por arrasto e há "+" para adicionar clipes (`AddClipSheet`).
 
 ## Pendências
-- **A prévia da transição mistura dois quadros estáticos:** o último quadro do clipe que sai (extraído do arquivo de vídeo, `fromFrameUri`) e o quadro atual do que entra. O vídeo toca de novo quando a transição termina. Não é a transição com os dois vídeos em movimento. Não testei no emulador, só o tipo e a compilação.
-- **Unir os clipes em um único vídeo não é possível:** a exportação de vídeo está indisponível (ver US-30). A tela de exportação diz que unir clipes e aplicar transições exige um codificador nativo (classe FFmpeg) que não está neste build. `FFmpegVideoExportAdapter.ts` é um stub.
-- **Reordenar:** o arrasto move o clipe no tempo, mas não testei o reordenamento entre vários clipes, nem como ele se comporta com transições já aplicadas.
+- **A prévia da transição mistura dois quadros estáticos:** o último quadro do clipe que sai (extraído do arquivo de vídeo) e o quadro atual do que entra. O vídeo volta a tocar quando a transição termina. Não é a transição com os dois vídeos em movimento. Não testei no emulador.
+- **A transição não entra no arquivo exportado:** a união usa corte seco. É o principal item que falta para o RF-032/RF-058 ("transições personalizadas entre eles").
+- **Reordenar:** o arrasto move o clipe no tempo e a exportação segue a ordem de início, mas não testei o reordenamento entre vários clipes.
 - **Não testei ao vivo** a aplicação de uma transição nem a duração.

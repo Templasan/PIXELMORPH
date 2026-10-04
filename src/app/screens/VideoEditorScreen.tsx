@@ -17,13 +17,14 @@ import ViewShot from 'react-native-view-shot';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Icon, ExportSheet, Slider, Switch } from '@core/ui';
+import { Icon, Slider, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { type Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import { ClipVideo } from './video-editor/ClipVideo';
+import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
   type Clip,
@@ -1600,7 +1601,14 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         />
       )}
 
-      {exportOpen && <ExportSheet onClose={() => setExportOpen(false)} mediaKind="video" />}
+      {exportOpen && (
+        <VideoExportSheet
+          tracks={tracks}
+          sourceWidth={project?.assets[0]?.metadata.width}
+          sourceHeight={project?.assets[0]?.metadata.height}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       <Modal
         visible={fullscreenPreview}
