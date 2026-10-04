@@ -151,6 +151,7 @@ interface Adjustments {
   // Cor seletiva (RF-059) — corIndex -1 means "no color selected".
   corIndex: number;
   corTolerancia: number;
+  corDesaturarResto: number;
   corMatiz: number;
   corSaturacao: number;
   corLuminosidade: number;
@@ -217,6 +218,7 @@ const DEFAULT_ADJUSTMENTS: Adjustments = {
   luminancia: 0,
   corIndex: -1,
   corTolerancia: 50,
+  corDesaturarResto: 100,
   corMatiz: 0,
   corSaturacao: 0,
   corLuminosidade: 0,
@@ -283,6 +285,7 @@ const ADJUST_DRAWER_FIELDS: readonly string[] = [
   'luminancia',
   'corIndex',
   'corTolerancia',
+  'corDesaturarResto',
   'corMatiz',
   'corSaturacao',
   'corLuminosidade',
@@ -468,6 +471,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         {
           colorIndex: adjustments.corIndex >= 0 ? adjustments.corIndex : null,
           tolerancia: adjustments.corTolerancia,
+          desaturarResto: adjustments.corDesaturarResto,
           matiz: adjustments.corMatiz,
           saturacao: adjustments.corSaturacao,
           luminosidade: adjustments.corLuminosidade,

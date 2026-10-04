@@ -171,6 +171,19 @@ describe('toFullUniforms (RF-063 detail + RF-059 selective color)', () => {
     expect(green.selectiveDesaturateOthers).toBe(1);
     expect(green.selectiveHue).toBeCloseTo(120 / 360);
   });
+
+  it('lets the user choose how much of the rest of the image is desaturated', () => {
+    const at = (desaturarResto: number) =>
+      toFullUniforms(IDENTITY_BASIC, DEFAULT_DETAIL, {
+        ...DEFAULT_SELECTIVE,
+        colorIndex: 3,
+        desaturarResto,
+      }).selectiveDesaturateOthers;
+
+    expect(at(100)).toBe(1);
+    expect(at(40)).toBeCloseTo(0.4);
+    expect(at(0)).toBe(0);
+  });
 });
 
 describe('applyCurvesRGB (RF-029 tone curves)', () => {

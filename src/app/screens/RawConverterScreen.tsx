@@ -11,7 +11,12 @@ import { Icon, Slider, Button } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
-import { ADJUSTMENTS_SKSL, CURVE_IDENTITY, toFullUniforms } from '@modules/photo-editor/color';
+import {
+  ADJUSTMENTS_SKSL,
+  CURVE_IDENTITY,
+  DEFAULT_SELECTIVE,
+  toFullUniforms,
+} from '@modules/photo-editor/color';
 import { errorLogger } from '@core/reliability';
 import { probeFileMetadata } from '@modules/device-media';
 import { useAppModules } from '../hooks';
@@ -138,7 +143,7 @@ export default function RawConverterScreen({ navigation, route }: Props) {
           exposicao: 0,
         },
         { nitidez: 0, raio: 1, reducaoRuido: 0, luminancia: 0 },
-        { colorIndex: null, tolerancia: 50, matiz: 0, saturacao: 0, luminosidade: 0 },
+        DEFAULT_SELECTIVE,
         {
           master: { y1: curveY1, y2: curveY2 },
           r: CURVE_IDENTITY,

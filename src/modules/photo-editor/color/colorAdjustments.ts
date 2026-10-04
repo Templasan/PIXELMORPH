@@ -47,6 +47,7 @@ export const DEFAULT_DETAIL: DetailAdjustments = {
 export interface SelectiveColorAdjustments {
   colorIndex: number | null; // index into SELECTIVE_HUES; null = feature inactive
   tolerancia: number; // 0..100 — hue-band width
+  desaturarResto: number; // 0..100 — how far everything outside the band is pulled to gray
   matiz: number; // -100..100 — hue shift applied only inside the band
   saturacao: number; // -100..100
   luminosidade: number; // -100..100
@@ -67,6 +68,7 @@ export const SELECTIVE_HUES_DEG = [0, 30, 55, 120, 185, 225, 300];
 export const DEFAULT_SELECTIVE: SelectiveColorAdjustments = {
   colorIndex: null,
   tolerancia: 50,
+  desaturarResto: 100,
   matiz: 0,
   saturacao: 0,
   luminosidade: 0,
@@ -171,7 +173,7 @@ export function toFullUniforms(
     selectiveHue: hueDeg / 360,
     // 0.02..0.27 of the hue wheel (~7deg..~97deg) — wide enough to be usable, never the full wheel.
     selectiveTolerance: 0.02 + (selective.tolerancia / 100) * 0.25,
-    selectiveDesaturateOthers: active ? 1 : 0,
+    selectiveDesaturateOthers: active ? selective.desaturarResto / 100 : 0,
     selectiveHueShift: (selective.matiz / 100) * 0.15,
     selectiveSaturation: selective.saturacao / 100,
     selectiveLuminosity: (selective.luminosidade / 100) * 0.5,

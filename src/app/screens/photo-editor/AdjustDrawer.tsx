@@ -82,6 +82,7 @@ interface AdjustmentsLike {
   luminancia: number;
   corIndex: number;
   corTolerancia: number;
+  corDesaturarResto: number;
   corMatiz: number;
   corSaturacao: number;
   corLuminosidade: number;
@@ -473,6 +474,7 @@ export function AdjustDrawer({
             })}
           </View>
           {slider('Tolerância', 'corTolerancia', { min: 0, max: 100 })}
+          {slider('Dessat. resto', 'corDesaturarResto', { min: 0, max: 100 })}
           {slider('Matiz', 'corMatiz', { min: -100, max: 100 })}
           {slider('Saturação', 'corSaturacao', { min: -100, max: 100 })}
           {slider('Luminosidade', 'corLuminosidade', { min: -100, max: 100 })}
