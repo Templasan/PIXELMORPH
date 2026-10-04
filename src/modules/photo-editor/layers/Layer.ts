@@ -7,12 +7,44 @@
 
 export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape';
 
+/** RF-033: brush tip — round (soft ends), square (square ends, sharp corners), flat (cut ends). */
+export type BrushShape = 'round' | 'square' | 'flat';
+
+export const BRUSH_SHAPES: readonly { id: BrushShape; glyph: string; name: string }[] = [
+  { id: 'round', glyph: '●', name: 'Pincel redondo' },
+  { id: 'square', glyph: '■', name: 'Pincel quadrado' },
+  { id: 'flat', glyph: '▬', name: 'Pincel reto' },
+];
+
+/** Skia stroke cap/join that draws each brush tip. */
+export function brushTip(shape: BrushShape | undefined): {
+  cap: 'round' | 'square' | 'butt';
+  join: 'round' | 'miter' | 'bevel';
+} {
+  if (shape === 'square') return { cap: 'square', join: 'miter' };
+  if (shape === 'flat') return { cap: 'butt', join: 'bevel' };
+  return { cap: 'round', join: 'round' };
+}
+
+/**
+ * RF-033: stroke width for a stylus. `pressures` are the 0..1 samples gathered while drawing
+ * (empty for a finger or a pen that reports none); the average maps to 0.3x..1.7x the base
+ * width, so a medium press (0.5) draws at the base width.
+ */
+export function pressureWidth(baseWidth: number, pressures: readonly number[]): number {
+  const valid = pressures.filter((p) => Number.isFinite(p) && p > 0);
+  if (valid.length === 0) return baseWidth;
+  const average = valid.reduce((a, b) => a + b, 0) / valid.length;
+  return baseWidth * (0.3 + 1.4 * Math.min(1, average));
+}
+
 export interface PaintStroke {
   id: string;
   path: string; // SVG path data, e.g. "M10,10 L12,14 L15,20"
   color: string;
   width: number;
   opacity: number; // 0..1
+  shape?: BrushShape; // defaults to 'round'
 }
 
 /**

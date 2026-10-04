@@ -47,7 +47,9 @@ export async function getStorageUsage(): Promise<StorageUsage> {
     totalDisk,
     freeDisk,
   ] = await Promise.all([
-    bytesOfKeysWithPrefix('project:'),
+    Promise.all([bytesOfKeysWithPrefix('project:'), bytesOfKeysWithPrefix('layers:')]).then(
+      ([a, b]) => a + b
+    ),
     bytesOfKeysWithPrefix('history:'),
     bytesOfKeysWithPrefix('projectBackup:'),
     FileSystem.documentDirectory

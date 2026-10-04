@@ -120,7 +120,9 @@ export function LayersPanel({
                 </Text>
                 <Text style={styles.layerType}>
                   {KIND_LABEL[layer.kind]}
-                  {layer.kind === 'paint' ? ` · ${layer.strokes?.length ?? 0} traços` : ''}
+                  {layer.kind === 'paint'
+                    ? ` · ${layer.strokes?.length ?? 0} ${layer.strokes?.length === 1 ? 'traço' : 'traços'}`
+                    : ''}
                 </Text>
               </View>
               {layer.locked && <Icon name="lock" size={11} color={colors.texto2} />}

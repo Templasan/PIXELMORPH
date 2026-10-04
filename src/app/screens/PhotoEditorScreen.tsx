@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -42,10 +42,12 @@ import { usePersistedHistory } from '@core/history';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
+import { formatBytes } from '@core/reliability/storageUsage';
 import { encodeImage } from '@modules/export';
 import { writeImageToCache } from '@modules/device-media';
 import { composeCollage, loadSkImage, type CollageLayout } from '@modules/photo-editor/collage';
 import { composePanorama } from '@modules/photo-editor/panorama';
+import { rawFormatLabel } from '@modules/photo-editor/raw';
 import {
   ADJUSTMENTS_SKSL,
   CURVE_IDENTITY,
@@ -67,11 +69,17 @@ import {
 import {
   arrowPath,
   createPaintLayer,
+  BRUSH_SHAPES,
+  brushTip,
+  pressureWidth,
+  type BrushShape,
   createShapeLayer,
   createStrokeId,
   createTextLayer,
   duplicateLayer,
   mergeVisiblePaintLayers,
+  loadLayers,
+  saveLayers,
   type EditorLayer,
 } from '@modules/photo-editor/layers';
 import {
@@ -373,6 +381,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [projectPhotoUri, setProjectPhotoUri] = useState<string | null>(null);
   // So a bake can persist its result back onto the right asset via updateMediaAsset.
   const [primaryAssetId, setPrimaryAssetId] = useState<string | null>(null);
+  const [assetInfo, setAssetInfo] = useState<{ format: string; sizeBytes?: number } | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
@@ -399,8 +408,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     ];
   });
   const [selectedLayerId, setSelectedLayerId] = useState('fundo');
+  // Saving waits until the saved layers (if any) have been read, or the defaults would win.
+  const [layersHydrated, setLayersHydrated] = useState(false);
   const [brushColor, setBrushColor] = useState('#E5484D');
   const [brushSize, setBrushSize] = useState(8);
+  const [brushShape, setBrushShape] = useState<BrushShape>('round');
+  const [brushOpacity, setBrushOpacity] = useState(100);
+  // Stylus pressure samples (0..1) of the stroke being drawn — empty for a finger.
+  const pressureRef = useRef<number[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
 
   // US-09: frame/light are drawn from the numeric Adjustments fields (undo-tracked like
@@ -851,10 +866,47 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         if (asset) {
           setProjectPhotoUri(asset.workingUri || asset.originalUri);
           setPrimaryAssetId(asset.id);
+          setAssetInfo({
+            format:
+              rawFormatLabel(asset.metadata.mimeType) ??
+              (asset.metadata.mimeType.split('/')[1] ?? '').toUpperCase(),
+            sizeBytes: asset.metadata.fileSizeBytes,
+          });
         }
       })
       .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.getProject'));
   }, [projectId]);
+
+  // US-08: bring back the layers (paint strokes, text, shapes) saved the last time.
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    loadLayers(projectId)
+      .then((saved) => {
+        if (cancelled) return;
+        if (saved) {
+          setLayers(saved);
+          setSelectedLayerId((id) => (saved.some((l) => l.id === id) ? id : 'fundo'));
+        }
+      })
+      .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.loadLayers'))
+      .finally(() => {
+        if (!cancelled) setLayersHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || !layersHydrated) return;
+    const timer = setTimeout(() => {
+      saveLayers(projectId, layers).catch((error) =>
+        errorLogger.log(error, 'PhotoEditorScreen.saveLayers')
+      );
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [projectId, layers, layersHydrated]);
 
   // RF-027: once the persisted log loads, replay it so reopening the project shows the
   // same adjustments that were last applied — undo/redo genuinely survives close/reopen.
@@ -988,7 +1040,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // RF-033: real digital painting — points are captured as they come in (works the same
   // for a finger or a stylus, since gesture-handler reports both as pointer events) and
   // committed as one vector stroke on release, appended to the active paint layer only.
-  const appendStrokePoint = useCallback((x: number, y: number) => {
+  const appendStrokePoint = useCallback((x: number, y: number, pressure?: number) => {
+    if (pressure) pressureRef.current.push(pressure);
     setCurrentStroke((pts) => [...pts, { x, y }]);
   }, []);
 
@@ -1007,8 +1060,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                       id: createStrokeId(),
                       path,
                       color: brushColor,
-                      width: brushSize,
-                      opacity: 1,
+                      width: pressureWidth(brushSize, pressureRef.current),
+                      opacity: brushOpacity / 100,
+                      shape: brushShape,
                     },
                   ],
                 }
@@ -1016,16 +1070,25 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           )
         );
       }
+      pressureRef.current = [];
       return [];
     });
-  }, [selectedLayerId, brushColor, brushSize]);
+  }, [selectedLayerId, brushColor, brushSize, brushOpacity, brushShape]);
+
+  // The layers panel covers the right half of the canvas while painting — keep the brush
+  // controls in the visible left part (they wrap onto extra rows if needed).
+  const brushBarFit = {
+    maxWidth: Math.max(160, canvasWidth * 0.46),
+    alignSelf: 'flex-start' as const,
+    marginLeft: 8,
+  };
 
   const paintGesture = Gesture.Pan()
     .onBegin((e) => {
-      runOnJS(appendStrokePoint)(e.x, e.y);
+      runOnJS(appendStrokePoint)(e.x, e.y, e.stylusData?.pressure);
     })
     .onUpdate((e) => {
-      runOnJS(appendStrokePoint)(e.x, e.y);
+      runOnJS(appendStrokePoint)(e.x, e.y, e.stylusData?.pressure);
     })
     .onEnd(() => {
       runOnJS(commitStroke)();
@@ -1154,9 +1217,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.techStrip}>
-        {/* TODO: pull real dimensions / color space / bit depth / RAM usage. */}
-        <Text style={styles.techText}>6000 × 4000 · Adobe RGB · 14 bits</Text>
-        <Text style={styles.techText}>RAM 412 MB</Text>
+        {/* Real values from the decoded image and the project's asset — no color space or
+            bit depth is shown because nothing in this build reads them from the file. */}
+        <Text style={styles.techText}>
+          {skiaImage ? `${skiaImage.width()} × ${skiaImage.height()}` : '…'}
+          {assetInfo?.format ? ` · ${assetInfo.format}` : ''}
+        </Text>
+        <Text style={styles.techText}>
+          {assetInfo?.sizeBytes ? formatBytes(assetInfo.sizeBytes) : ''}
+        </Text>
       </View>
 
       <View style={styles.canvasArea}>
@@ -1206,8 +1275,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                           path={s.path}
                           style="stroke"
                           strokeWidth={s.width}
-                          strokeCap="round"
-                          strokeJoin="round"
+                          strokeCap={brushTip(s.shape).cap}
+                          strokeJoin={brushTip(s.shape).join}
                           color={s.color}
                           opacity={s.opacity}
                         />
@@ -1219,9 +1288,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                     path={pointsToPath(currentStroke)}
                     style="stroke"
                     strokeWidth={brushSize}
-                    strokeCap="round"
-                    strokeJoin="round"
+                    strokeCap={brushTip(brushShape).cap}
+                    strokeJoin={brushTip(brushShape).join}
                     color={brushColor}
+                    opacity={brushOpacity / 100}
                   />
                 )}
                 {/* RF-008: real Skia text — a system font (via matchFont), color, optional
@@ -1389,7 +1459,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             )}
           </View>
           {paintModeActive && (
-            <View style={styles.brushBar}>
+            <View style={[styles.brushBar, brushBarFit]}>
               {BRUSH_COLORS.map((c) => (
                 <Pressable
                   key={c}
@@ -1406,6 +1476,38 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               </Pressable>
               <Text style={styles.brushSizeText}>{brushSize}px</Text>
               <Pressable onPress={() => setBrushSize((s) => Math.min(40, s + 2))} hitSlop={6}>
+                <Icon name="plus" size={14} color={colors.texto} />
+              </Pressable>
+            </View>
+          )}
+          {paintModeActive && (
+            <View style={[styles.brushBar, brushBarFit]}>
+              {BRUSH_SHAPES.map((shape) => (
+                <Pressable
+                  key={shape.id}
+                  onPress={() => setBrushShape(shape.id)}
+                  accessibilityLabel={shape.name}
+                  style={[
+                    styles.brushShapeChip,
+                    brushShape === shape.id && styles.brushShapeChipActive,
+                  ]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.brushSizeText,
+                      brushShape === shape.id && { color: colors.acento },
+                    ]}
+                  >
+                    {shape.glyph}
+                  </Text>
+                </Pressable>
+              ))}
+              <Pressable onPress={() => setBrushOpacity((o) => Math.max(10, o - 10))} hitSlop={6}>
+                <Icon name="minus" size={14} color={colors.texto} />
+              </Pressable>
+              <Text style={styles.brushSizeText}>{brushOpacity}%</Text>
+              <Pressable onPress={() => setBrushOpacity((o) => Math.min(100, o + 10))} hitSlop={6}>
                 <Icon name="plus" size={14} color={colors.texto} />
               </Pressable>
             </View>
@@ -1844,6 +1946,7 @@ const styles = StyleSheet.create({
   },
   brushBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
     marginTop: 10,
@@ -1863,6 +1966,16 @@ const styles = StyleSheet.create({
   brushSwatchActive: {
     borderColor: colors.acento,
     borderWidth: 2,
+  },
+  brushShapeChip: {
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  brushShapeChipActive: {
+    borderColor: colors.acento,
   },
   brushSizeText: {
     fontFamily: monoFontFamily,

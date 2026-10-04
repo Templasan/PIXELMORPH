@@ -154,6 +154,8 @@ export class LocalProjectRepository implements ProjectRepository {
     try {
       await AsyncStorage.removeItem(`${PROJECT_KEY_PREFIX}${id}`);
       await AsyncStorage.removeItem(`${BACKUP_KEY_PREFIX}${id}`);
+      // Layers are owned by the photo editor (photo-editor/layers/layerStorage); same key shape.
+      await AsyncStorage.removeItem(`layers:${id}`);
       await deleteBackupFile(id).catch(() => undefined);
 
       const list = await this.getProjectList();
