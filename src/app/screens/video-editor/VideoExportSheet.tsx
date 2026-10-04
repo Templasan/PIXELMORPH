@@ -8,6 +8,7 @@ import {
   exportVideo,
   extractFrame,
   type ExportClip,
+  type ExportOverlay,
 } from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
 import { exportGif } from './gifExporter';
@@ -143,6 +144,19 @@ export function VideoExportSheet({
         }
       }
 
+      // Each transition holds the previous clip's last frame and animates it away.
+      const overlays: ExportOverlay[] = [];
+      for (const transition of plan.transitions) {
+        const frame = await extractFrame(transition.outgoingUri, transition.outgoingTimeMs);
+        overlays.push({
+          uri: frame.uri,
+          startMs: transition.atMs,
+          durationMs: transition.durationMs,
+          type: transition.type,
+          rotation: transition.outgoingRotation,
+        });
+      }
+
       const outputPath = `${FileSystem.cacheDirectory}pixelmorph_export_${Date.now()}.mp4`.replace(
         'file://',
         ''
@@ -154,6 +168,7 @@ export function VideoExportSheet({
           height: preset.height,
           bitrate: preset.bitrate,
           outputPath,
+          overlays,
         },
         (progress) => setState({ phase: 'exporting', progress })
       );
@@ -306,7 +321,7 @@ export function VideoExportSheet({
             <Text style={styles.note}>
               {plan.clips.length === 0
                 ? 'Não há clipes de vídeo na primeira faixa para exportar.'
-                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}. Transições entram como corte seco e só a primeira faixa de vídeo é exportada.`}
+                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. Só a primeira faixa de vídeo é exportada.`}
             </Text>
 
             {exporting && (

@@ -8,6 +8,10 @@ import android.os.Looper
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.OverlaySettings
+import androidx.media3.common.VideoCompositorSettings
+import androidx.media3.common.util.Size
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.effect.Presentation
@@ -100,18 +104,20 @@ class PixelMorphVideoExportModule : Module() {
       return
     }
 
-    val items = options.clips.map { buildItem(it) }
-    val sequence = EditedMediaItemSequence.Builder(*items.toTypedArray()).build()
-    val frameEffects = listOf<Effect>(
-      Presentation.createForWidthAndHeight(
-        options.width,
-        options.height,
-        Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
-      )
+    val fit = Presentation.createForWidthAndHeight(
+      options.width,
+      options.height,
+      Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
     )
-    val composition = Composition.Builder(sequence)
-      .setEffects(Effects(emptyList(), frameEffects))
-      .build()
+    val composition = if (options.overlays.isEmpty()) {
+      val items = options.clips.map { buildItem(it) }
+      val sequence = EditedMediaItemSequence.Builder(*items.toTypedArray()).build()
+      Composition.Builder(sequence)
+        .setEffects(Effects(emptyList(), listOf<Effect>(fit)))
+        .build()
+    } else {
+      buildWithTransitions(options, fit)
+    }
 
     val encoderFactory = DefaultEncoderFactory.Builder(context)
       .apply {
@@ -177,7 +183,62 @@ class PixelMorphVideoExportModule : Module() {
     main.postDelayed(poll, 250)
   }
 
-  private fun buildItem(clip: ExportClip): EditedMediaItem {
+  /**
+   * Two layers: sequence 0 is the timeline, sequence 1 holds a still of the outgoing clip at each
+   * transition (gaps in between). The compositor draws sequence 1 over sequence 0 and moves,
+   * fades or scales it away while the transition runs; elsewhere it is fully transparent.
+   * Both layers are scaled to the output size first, so they line up.
+   */
+  private fun buildWithTransitions(options: ExportOptions, fit: Presentation): Composition {
+    val mainItems = options.clips.map { buildItem(it, fit) }
+    val main = EditedMediaItemSequence.Builder(*mainItems.toTypedArray())
+      .experimentalSetForceVideoTrack(true)
+      .build()
+
+    val overlay = EditedMediaItemSequence.Builder(setOf(androidx.media3.common.C.TRACK_TYPE_VIDEO))
+    var cursorMs = 0L
+    options.overlays.sortedBy { it.startMs }.forEach { o ->
+      val gap = o.startMs - cursorMs
+      if (gap > 0) overlay.addGap(gap * 1000)
+      overlay.addItem(
+        buildItem(
+          ExportClip(uri = o.uri, kind = "image", holdMs = o.durationMs, rotation = o.rotation),
+          fit
+        )
+      )
+      cursorMs = o.startMs + o.durationMs
+    }
+
+    return Composition.Builder(main, overlay.build())
+      .setVideoCompositorSettings(TransitionCompositor(options))
+      .build()
+  }
+
+  /** Output size is fixed; layer 1 is animated inside the transition windows and hidden outside. */
+  private class TransitionCompositor(private val options: ExportOptions) : VideoCompositorSettings {
+    private val windows = options.overlays.map { Triple(it.startMs * 1000, (it.startMs + it.durationMs) * 1000, it) }
+
+    override fun getOutputSize(inputSizes: List<Size>): Size = Size(options.width, options.height)
+
+    override fun getOverlaySettings(inputId: Int, presentationTimeUs: Long): OverlaySettings {
+      if (inputId == 0) return StaticOverlaySettings.Builder().build()
+
+      val window = windows.firstOrNull { presentationTimeUs >= it.first && presentationTimeUs < it.second }
+        ?: return StaticOverlaySettings.Builder().setAlphaScale(0f).build()
+      val p = ((presentationTimeUs - window.first).toFloat() / (window.second - window.first)).coerceIn(0f, 1f)
+      val builder = StaticOverlaySettings.Builder()
+      when (window.third.type) {
+        // The outgoing frame leaves: p goes 0 -> 1 as it fades, slides out or shrinks away.
+        "slide" -> builder.setBackgroundFrameAnchor(-2f * p, 0f)
+        "wipe" -> builder.setBackgroundFrameAnchor(2f * p, 0f)
+        "zoom" -> builder.setAlphaScale(1f - p).setScale(1f + 0.15f * p, 1f + 0.15f * p)
+        else -> builder.setAlphaScale(1f - p)
+      }
+      return builder.build()
+    }
+  }
+
+  private fun buildItem(clip: ExportClip, fit: Presentation? = null): EditedMediaItem {
     val isImage = clip.kind == "image"
     val mediaItem = MediaItem.Builder()
       .setUri(Uri.parse(clip.uri))
@@ -208,6 +269,8 @@ class PixelMorphVideoExportModule : Module() {
       videoEffects.add(SpeedChangeEffect(clip.speed.toFloat()))
       audioProcessors.add(SonicAudioProcessor().apply { setSpeed(clip.speed.toFloat()) })
     }
+
+    if (fit != null) videoEffects.add(fit)
 
     return EditedMediaItem.Builder(mediaItem)
       .setEffects(Effects(audioProcessors, videoEffects))

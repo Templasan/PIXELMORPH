@@ -26,8 +26,8 @@ const track = (clips: ReturnType<typeof createClip>[], over: Partial<Track> = {}
 
 describe('planExport (US-16 / US-30)', () => {
   it('returns nothing for a timeline without video clips', () => {
-    expect(planExport([])).toEqual({ clips: [], durationMs: 0 });
-    expect(planExport([track([])])).toEqual({ clips: [], durationMs: 0 });
+    expect(planExport([])).toEqual({ clips: [], transitions: [], durationMs: 0 });
+    expect(planExport([track([])])).toEqual({ clips: [], transitions: [], durationMs: 0 });
     expect(planExport([track([clip({ startMs: 0 })], { visible: false })]).clips).toHaveLength(0);
   });
 
@@ -76,5 +76,47 @@ describe('video presets (RF-017)', () => {
     expect(uhd).toMatchObject({ width: 1920, height: 1080 });
     expect(uhd.width % 2).toBe(0);
     expect(uhd.height % 2).toBe(0);
+  });
+});
+
+describe('planExport transitions (RF-032)', () => {
+  const withTransition = (
+    c: ReturnType<typeof createClip>,
+    type: 'fade' | 'slide',
+    durationMs: number
+  ) => ({
+    ...c,
+    transitionIn: { type, durationMs },
+  });
+
+  it('records where each transition starts and which frame of the previous clip it holds', () => {
+    const a = clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 });
+    const b = withTransition(
+      clip({ startMs: 4_000, inPointMs: 1_000, outPointMs: 6_000 }),
+      'fade',
+      500
+    );
+    const plan = planExport([track([a, b])]);
+
+    expect(plan.transitions).toHaveLength(1);
+    expect(plan.transitions[0]).toMatchObject({
+      type: 'fade',
+      atMs: 4_000,
+      durationMs: 500,
+      outgoingUri: 'file:///a.mp4',
+      outgoingTimeMs: 3_960,
+    });
+    // transitions overlay the new clip, so the video is not shortened
+    expect(plan.durationMs).toBe(9_000);
+  });
+
+  it('caps a transition at half of the shorter neighbouring clip and ignores one on the first clip', () => {
+    const a = withTransition(clip({ startMs: 0, outPointMs: 1_000 }), 'slide', 5_000);
+    const b = withTransition(clip({ startMs: 1_000, outPointMs: 9_000 }), 'slide', 5_000);
+    const plan = planExport([track([a, b])]);
+
+    expect(plan.transitions).toHaveLength(1);
+    expect(plan.transitions[0].durationMs).toBe(500);
+    expect(plan.transitions[0].atMs).toBe(1_000);
   });
 });

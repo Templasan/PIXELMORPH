@@ -19,6 +19,20 @@ data class ExportClip(
   @Field val rotation: Int = 0
 ) : Record
 
+/**
+ * A still laid over the main timeline for `durationMs` from `startMs` and animated away: the
+ * previous clip's last frame while a transition into the next clip plays.
+ */
+@OptimizedRecord
+data class ExportOverlay(
+  @Field val uri: String,
+  @Field val startMs: Long,
+  @Field val durationMs: Long,
+  /** "fade", "slide", "zoom" or "wipe" */
+  @Field val type: String,
+  @Field val rotation: Int = 0
+) : Record
+
 @OptimizedRecord
 data class ExportOptions(
   @Field val clips: List<ExportClip>,
@@ -26,7 +40,8 @@ data class ExportOptions(
   @Field val height: Int,
   /** Target video bitrate in bits per second; 0 lets the encoder pick. */
   @Field val bitrate: Int = 0,
-  @Field val outputPath: String
+  @Field val outputPath: String,
+  @Field val overlays: List<ExportOverlay> = emptyList()
 ) : Record
 
 @OptimizedRecord

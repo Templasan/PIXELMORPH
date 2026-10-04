@@ -18,8 +18,21 @@ export interface PlannedClip {
   rotation: number;
 }
 
+/** A transition into a clip: the previous clip's last frame is laid over the new clip's start. */
+export interface PlannedTransition {
+  type: 'fade' | 'slide' | 'zoom' | 'wipe';
+  /** Where the incoming clip starts on the finished video. */
+  atMs: number;
+  durationMs: number;
+  /** Frame of the outgoing clip to hold while it fades/slides away. */
+  outgoingUri: string;
+  outgoingTimeMs: number;
+  outgoingRotation: number;
+}
+
 export interface ExportPlan {
   clips: PlannedClip[];
+  transitions: PlannedTransition[];
   /** Length of the finished video. */
   durationMs: number;
 }
@@ -27,12 +40,41 @@ export interface ExportPlan {
 /** First visible video track's clips in time order. Gaps are closed; other tracks are ignored. */
 export function planExport(tracks: readonly Track[]): ExportPlan {
   const track = tracks.find((t) => t.kind === 'video' && t.visible && t.clips.length > 0);
-  if (!track) return { clips: [], durationMs: 0 };
+  if (!track) return { clips: [], transitions: [], durationMs: 0 };
 
   const ordered = [...track.clips].sort((a, b) => a.startMs - b.startMs);
-  const clips = ordered.map(toPlanned).filter((c) => c.holdMs > 0 || c.outMs > c.inMs);
-  const durationMs = ordered.reduce((sum, clip) => sum + clipDurationMs(clip), 0);
-  return { clips, durationMs };
+  const planned = ordered.map((clip) => ({ clip, piece: toPlanned(clip) }));
+  const kept = planned.filter(({ piece }) => piece.holdMs > 0 || piece.outMs > piece.inMs);
+  const clips = kept.map(({ piece }) => piece);
+
+  const transitions: PlannedTransition[] = [];
+  let atMs = 0;
+  kept.forEach(({ clip }, index) => {
+    const length = clipDurationMs(clip);
+    const previous = kept[index - 1]?.clip;
+    if (previous && clip.transitionIn) {
+      // Same rule the editor applies: never longer than half of either neighbouring clip.
+      const durationMs = Math.min(
+        clip.transitionIn.durationMs,
+        clipDurationMs(previous) / 2,
+        length / 2
+      );
+      if (durationMs > 0) {
+        transitions.push({
+          type: clip.transitionIn.type,
+          atMs,
+          durationMs,
+          outgoingUri: previous.sourceUri,
+          // A frame just before the end (the very last instant can be past the final frame).
+          outgoingTimeMs: Math.max(0, previous.outPointMs - 40),
+          outgoingRotation: previous.rotation ?? 0,
+        });
+      }
+    }
+    atMs += length;
+  });
+
+  return { clips, transitions, durationMs: atMs };
 }
 
 function toPlanned(clip: Clip): PlannedClip {

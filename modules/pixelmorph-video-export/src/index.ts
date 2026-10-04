@@ -10,12 +10,21 @@ export interface ExportClip {
   rotation?: number;
 }
 
+export interface ExportOverlay {
+  uri: string;
+  startMs: number;
+  durationMs: number;
+  type: 'fade' | 'slide' | 'zoom' | 'wipe';
+  rotation?: number;
+}
+
 export interface ExportOptions {
   clips: ExportClip[];
   width: number;
   height: number;
   bitrate?: number;
   outputPath: string;
+  overlays?: ExportOverlay[];
 }
 
 export interface ExportResult {
