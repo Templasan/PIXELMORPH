@@ -7,7 +7,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 | Critério | Status |
 |---|---|
 | RF-057 Foto em JPEG, PNG, WebP e HEIC | ⚠️ Parcial (sem HEIC) |
-| RF-061 Vídeo em GIF animado | ❌ Não existe |
+| RF-061 Vídeo em GIF animado | ✅ Funciona (lento) |
 | RF-017 Vídeo com presets de redes sociais | ✅ Funciona (Android) |
 | RNF-013 Compressão inteligente | ✅ Funciona para foto; vídeo usa bitrate por preset |
 | RNF-011 Vídeo de 1 min em Full HD em até 2 min | ⚠️ Promissor, sem medição nesse tamanho |
@@ -19,8 +19,11 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 - **Foto:** JPEG, PNG e WebP com a compressão inteligente, como antes.
 - **Escolha de biblioteca:** o FFmpeg-kit está arquivado pelos autores e o projeto proíbe pacotes sem manutenção. O Media3 Transformer é mantido pelo Google (AndroidX), licença Apache 2.0, e já fazia parte do app por meio do `expo-video`.
 
+- **GIF animado (RF-061):** aba "GIF ANIMADO" na exportação, com quadros por segundo (5/10/15), número de cores (32 a 256) e largura (240/360/480 px). Os quadros saem do arquivo, são reduzidos com Skia e codificados em JS com `modern-gif` (nova dependência aprovada, registrada em `docs/dependencies.md`; o `gifenc`/`omggif` estão sem manutenção desde 2022). Planejamento puro em `gifPlan.ts` (com testes), corta em 15 s.
+- **Testado no emulador e conferido decodificando o arquivo:** vídeo de 7 s com a lista rolando, 5 fps, 240 px: GIF89a válido, 37 quadros 240×533, 970 KB, 32 quadros diferentes (os outros 5 são momentos parados da gravação). O teste achou um bug real, que corrigi: `expo-video-thumbnails` busca só o quadro-chave mais próximo (`OPTION_CLOSEST_SYNC`), então vídeos com poucos quadros-chave (como gravação de tela) davam todos os quadros iguais. O módulo nativo ganhou `extractFrame` com busca exata (`OPTION_CLOSEST`), usado no GIF e nos quadros congelados da exportação.
+
 ## Pendências
-- **GIF animado (RF-061) não existe.** O Media3 não gera GIF. Fazer: montar os quadros e codificar em GIF (por exemplo, extrair quadros com `expo-video-thumbnails` e codificar em JS, ou uma biblioteca GIF mantida). Decisão em aberto.
+- **GIF é lento:** 37 quadros a 240 px levaram 39 s e 95 quadros a 360 px levaram 96 s no emulador, em build de desenvolvimento. A codificação roda na thread JS e trava a tela no fim. Fazer: medir em build release e em aparelho real; se continuar lento, mover a codificação para uma thread nativa.
 - **HEIC não é suportado** (`UNSUPPORTED_IMAGE_FORMATS`). Depende de um codificador nativo que o Skia não tem. Fazer: avaliar, ou deixar fora do escopo.
 - **Transições (fade, slide, zoom, wipe) não entram no arquivo:** a exportação usa corte seco. A prévia mostra a transição, mas o mp4 não. Fazer: efeito de transição por quadro no Media3 (Presentation + OverlayEffect) ou sequência com sobreposição.
 - **Só a primeira faixa de vídeo é exportada.** Faixas de texto, imagem sobreposta, picture-in-picture, correção de brilho, estabilização, 360° e áudio da faixa A1 ainda não são aplicados no arquivo.

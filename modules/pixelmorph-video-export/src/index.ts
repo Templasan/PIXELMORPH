@@ -26,6 +26,11 @@ export interface ExportResult {
 
 interface NativeModule {
   exportVideo(options: ExportOptions): Promise<ExportResult>;
+  extractFrame(
+    uri: string,
+    timeMs: number,
+    maxWidth: number
+  ): Promise<{ uri: string; width: number; height: number }>;
   cancel(): void;
   addListener(
     event: 'onProgress',
@@ -48,4 +53,13 @@ export function exportVideo(
 
 export function cancelVideoExport(): void {
   native.cancel();
+}
+
+/** Exact frame of a video at `timeMs` (not just the nearest keyframe), as a cached JPEG. */
+export function extractFrame(
+  uri: string,
+  timeMs: number,
+  maxWidth = 0
+): Promise<{ uri: string; width: number; height: number }> {
+  return native.extractFrame(uri, Math.max(0, Math.round(timeMs)), maxWidth);
 }

@@ -170,6 +170,11 @@ Before adding a dependency:
 - Why: join, trim, speed and rotate the timeline into one H.264/AAC mp4 with the hardware encoder.
 - Alternatives evaluated: `ffmpeg-kit` (archived/discontinued by its authors, prohibited by the 6-month maintenance rule); `react-native-video-trim` (FFmpeg underneath); `pulse-editor` (young, unproven). Media3 is maintained by Google, already in the app through `expo-video` (same version, no extra weight beyond the transformer/effect artifacts).
 - Native code: yes (documented exception), Android only. iOS would need an AVFoundation implementation.
+
+**modern-gif** (`2.1.0`, MIT, ~165 KB unpacked, last release April 2026) — approved for animated GIF export (US-30 / RF-061).
+- Why: quantises and LZW-encodes RGBA frames into a GIF in pure JS, no native code. Raw buffers work in Hermes (`document`/`Worker` are only touched for image sources and the optional worker mode, which we do not use).
+- Alternatives evaluated: `gifenc` and `omggif` (no release since 2022, fail the 6-month rule); `gif-encoder-2` (2022, Unlicense). Writing our own encoder was rejected: palette quantisation plus LZW is exactly the solved problem this policy says not to reimplement.
+- Cost: encoding runs on the JS thread; see US-30 for the measured speed.
 - FFmpeg (video encoding)
 - React Native Skia (rendering)
 - React Native Vision Camera (camera access)

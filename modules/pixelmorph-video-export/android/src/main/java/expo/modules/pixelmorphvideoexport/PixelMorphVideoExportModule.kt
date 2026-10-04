@@ -1,5 +1,7 @@
 package expo.modules.pixelmorphvideoexport
 
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -52,6 +54,36 @@ class PixelMorphVideoExportModule : Module() {
           promise.reject("ERR_VIDEO_EXPORT", error.message ?: "Video export failed", error)
         }
       }
+    }
+
+    // Exact frame at `timeMs` as a JPEG in the cache dir. expo-video-thumbnails seeks with
+    // OPTION_CLOSEST_SYNC (keyframes only), so frames of a clip with sparse keyframes all came
+    // out identical; OPTION_CLOSEST decodes up to the requested instant.
+    AsyncFunction("extractFrame") { uri: String, timeMs: Long, maxWidth: Int, promise: Promise ->
+      Thread {
+        val retriever = MediaMetadataRetriever()
+        try {
+          retriever.setDataSource(context, Uri.parse(uri))
+          val timeUs = timeMs * 1000
+          val raw = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
+            ?: throw IllegalStateException("No frame at $timeMs ms")
+          val frame = if (maxWidth > 0 && raw.width > maxWidth) {
+            val height = (raw.height.toLong() * maxWidth / raw.width).toInt().coerceAtLeast(1)
+            Bitmap.createScaledBitmap(raw, maxWidth, height, true).also { raw.recycle() }
+          } else {
+            raw
+          }
+          val file = File.createTempFile("pm_frame_", ".jpg", context.cacheDir)
+          file.outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+          promise.resolve(
+            mapOf("uri" to Uri.fromFile(file).toString(), "width" to frame.width, "height" to frame.height)
+          )
+        } catch (error: Throwable) {
+          promise.reject("ERR_EXTRACT_FRAME", error.message ?: "Could not extract frame", error)
+        } finally {
+          retriever.release()
+        }
+      }.start()
     }
 
     Function("cancel") {

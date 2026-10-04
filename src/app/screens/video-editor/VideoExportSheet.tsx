@@ -3,17 +3,21 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import {
   cancelVideoExport,
   exportVideo,
+  extractFrame,
   type ExportClip,
 } from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
+import { exportGif } from './gifExporter';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
 import {
+  GIF_COLOR_OPTIONS,
+  GIF_FPS_OPTIONS,
+  GIF_WIDTH_OPTIONS,
   VIDEO_PRESETS,
   originalPreset,
   planExport,
@@ -32,7 +36,14 @@ interface VideoExportSheetProps {
 type State =
   | { phase: 'idle' }
   | { phase: 'exporting'; progress: number }
-  | { phase: 'done'; uri: string; sizeBytes: number; durationMs: number; tookMs: number }
+  | {
+      phase: 'done';
+      uri: string;
+      sizeBytes: number;
+      summary: string;
+      tookMs: number;
+      note?: string;
+    }
   | { phase: 'error'; message: string };
 
 function formatDuration(ms: number): string {
@@ -56,6 +67,11 @@ export function VideoExportSheet({
   const original = originalPreset(sourceWidth ?? 0, sourceHeight ?? 0);
   const presets: VideoPreset[] = [original, ...VIDEO_PRESETS];
   const [preset, setPreset] = useState<VideoPreset>(original);
+  const [format, setFormat] = useState<'mp4' | 'gif'>('mp4');
+  const [gifFps, setGifFps] = useState<number>(10);
+  const [gifColors, setGifColors] = useState<number>(128);
+  const [gifWidth, setGifWidth] = useState<number>(360);
+  const cancelledRef = useRef(false);
   const [state, setState] = useState<State>({ phase: 'idle' });
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const exportingRef = useRef(false);
@@ -65,7 +81,10 @@ export function VideoExportSheet({
   // Leaving the sheet mid-export stops the encoder instead of leaving it running unseen.
   useEffect(
     () => () => {
-      if (exportingRef.current) cancelVideoExport();
+      if (exportingRef.current) {
+        cancelledRef.current = true;
+        cancelVideoExport();
+      }
     },
     []
   );
@@ -73,17 +92,39 @@ export function VideoExportSheet({
   const startExport = useCallback(async () => {
     if (plan.clips.length === 0 || exportingRef.current) return;
     exportingRef.current = true;
+    cancelledRef.current = false;
     setSaveState('idle');
     setState({ phase: 'exporting', progress: 0 });
     const startedAt = Date.now();
     try {
+      if (format === 'gif') {
+        const gif = await exportGif(
+          plan,
+          {
+            fps: gifFps,
+            maxColors: gifColors,
+            maxWidth: gifWidth,
+            sourceWidth: sourceWidth ?? 0,
+            sourceHeight: sourceHeight ?? 0,
+          },
+          (progress) => setState({ phase: 'exporting', progress }),
+          () => cancelledRef.current
+        );
+        setState({
+          phase: 'done',
+          uri: gif.uri,
+          sizeBytes: gif.sizeBytes,
+          summary: `${gif.width}×${gif.height} · ${gif.frameCount} quadros · GIF`,
+          tookMs: Date.now() - startedAt,
+          note: gif.truncated ? 'O GIF foi cortado em 15 s.' : undefined,
+        });
+        return;
+      }
       const clips: ExportClip[] = [];
       for (const piece of plan.clips) {
         if (piece.kind === 'still') {
           // A freeze frame has no file of its own: pull the frame out as an image to hold.
-          const still = await VideoThumbnails.getThumbnailAsync(piece.sourceUri, {
-            time: piece.stillTimeMs,
-          });
+          const still = await extractFrame(piece.sourceUri, piece.stillTimeMs);
           clips.push({
             uri: still.uri,
             kind: 'image',
@@ -120,10 +161,14 @@ export function VideoExportSheet({
         phase: 'done',
         uri: result.uri,
         sizeBytes: result.sizeBytes,
-        durationMs: result.durationMs || plan.durationMs,
+        summary: `${preset.width}×${preset.height} · ${formatDuration(result.durationMs || plan.durationMs)} · MP4`,
         tookMs: Date.now() - startedAt,
       });
     } catch (error) {
+      if (error instanceof Error && error.message === 'CANCELLED') {
+        setState({ phase: 'idle' });
+        return;
+      }
       errorLogger.log(error, 'VideoExportSheet.export');
       setState({
         phase: 'error',
@@ -132,7 +177,7 @@ export function VideoExportSheet({
     } finally {
       exportingRef.current = false;
     }
-  }, [plan, preset]);
+  }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight]);
 
   const saveToGallery = useCallback(async () => {
     if (state.phase !== 'done') return;
@@ -152,6 +197,26 @@ export function VideoExportSheet({
 
   const exporting = state.phase === 'exporting';
 
+  const chips = (
+    options: readonly number[],
+    value: number,
+    onPick: (n: number) => void,
+    label: (n: number) => string
+  ) => (
+    <View style={styles.formatRow}>
+      {options.map((n) => (
+        <Pressable
+          key={n}
+          style={[styles.formatChip, value === n && styles.rowActive]}
+          onPress={() => onPick(n)}
+          disabled={exporting}
+        >
+          <Text style={[styles.rowName, value === n && styles.rowNameActive]}>{label(n)}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
   return (
     <View style={styles.overlay}>
       <Pressable style={styles.veil} onPress={exporting ? undefined : onClose} />
@@ -168,9 +233,9 @@ export function VideoExportSheet({
             <Icon name="check" size={28} color={colors.ok} />
             <Text style={styles.doneTitle}>Vídeo exportado</Text>
             <Text style={styles.meta}>
-              {preset.width}×{preset.height} · {formatDuration(state.durationMs)} ·{' '}
-              {formatBytes(state.sizeBytes)}
+              {state.summary} · {formatBytes(state.sizeBytes)}
             </Text>
+            {state.note && <Text style={styles.meta}>{state.note}</Text>}
             <Text style={styles.meta}>Gerado em {(state.tookMs / 1000).toFixed(1)} s</Text>
             <Pressable
               style={styles.primary}
@@ -193,23 +258,50 @@ export function VideoExportSheet({
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.body}>
-            <Text style={styles.section}>PRESET</Text>
-            {presets.map((p) => {
-              const active = p.name === preset.name;
-              return (
+            <View style={styles.formatRow}>
+              {(['mp4', 'gif'] as const).map((f) => (
                 <Pressable
-                  key={p.name}
-                  style={[styles.row, active && styles.rowActive]}
-                  onPress={() => setPreset(p)}
+                  key={f}
+                  style={[styles.formatChip, format === f && styles.rowActive]}
+                  onPress={() => setFormat(f)}
                   disabled={exporting}
                 >
-                  <Text style={[styles.rowName, active && styles.rowNameActive]}>{p.name}</Text>
-                  <Text style={styles.rowMeta}>
-                    {p.width}×{p.height} · {(p.bitrate / 1_000_000).toFixed(1)} Mbps
+                  <Text style={[styles.rowName, format === f && styles.rowNameActive]}>
+                    {f === 'mp4' ? 'VÍDEO MP4' : 'GIF ANIMADO'}
                   </Text>
                 </Pressable>
-              );
-            })}
+              ))}
+            </View>
+
+            {format === 'gif' ? (
+              <>
+                <Text style={styles.section}>QUADROS POR SEGUNDO</Text>
+                {chips(GIF_FPS_OPTIONS, gifFps, setGifFps, (n) => `${n} fps`)}
+                <Text style={styles.section}>NÚMERO DE CORES</Text>
+                {chips(GIF_COLOR_OPTIONS, gifColors, setGifColors, (n) => `${n}`)}
+                <Text style={styles.section}>LARGURA</Text>
+                {chips(GIF_WIDTH_OPTIONS, gifWidth, setGifWidth, (n) => `${n}px`)}
+              </>
+            ) : (
+              <Text style={styles.section}>PRESET</Text>
+            )}
+            {format === 'mp4' &&
+              presets.map((p) => {
+                const active = p.name === preset.name;
+                return (
+                  <Pressable
+                    key={p.name}
+                    style={[styles.row, active && styles.rowActive]}
+                    onPress={() => setPreset(p)}
+                    disabled={exporting}
+                  >
+                    <Text style={[styles.rowName, active && styles.rowNameActive]}>{p.name}</Text>
+                    <Text style={styles.rowMeta}>
+                      {p.width}×{p.height} · {(p.bitrate / 1_000_000).toFixed(1)} Mbps
+                    </Text>
+                  </Pressable>
+                );
+              })}
 
             <Text style={styles.note}>
               {plan.clips.length === 0
@@ -228,7 +320,13 @@ export function VideoExportSheet({
             {state.phase === 'error' && <Text style={styles.error}>{state.message}</Text>}
 
             {exporting ? (
-              <Pressable style={styles.secondary} onPress={cancelVideoExport}>
+              <Pressable
+                style={styles.secondary}
+                onPress={() => {
+                  cancelledRef.current = true;
+                  cancelVideoExport();
+                }}
+              >
                 <Text style={styles.secondaryText}>CANCELAR</Text>
               </Pressable>
             ) : (
@@ -281,6 +379,13 @@ const styles = StyleSheet.create({
     borderColor: colors.linha,
   },
   rowActive: { borderColor: colors.acento },
+  formatRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  formatChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
   rowName: { fontSize: fontSize.sm, color: colors.texto },
   rowNameActive: { color: colors.acento },
   rowMeta: { fontSize: fontSize.xs, color: colors.texto2, fontFamily: monoFontFamily },
