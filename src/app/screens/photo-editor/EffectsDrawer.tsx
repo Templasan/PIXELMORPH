@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon, Slider, Tabs } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
+import { errorLogger } from '@core/reliability';
 import { createProjectsModule } from '@modules/projects';
+import { copyToAppStorage, pickImageFromGallery } from '@modules/device-media';
 import type { Project } from '@modules/projects';
 import {
   BLEND_MODE_LABELS,
@@ -39,6 +41,7 @@ interface EffectsAdjustmentsLike {
   overlayType: number;
   overlayIntensity: number;
   overlayOpacity: number;
+  overlayBlend: number;
   [key: string]: number;
 }
 
@@ -55,6 +58,9 @@ interface EffectsDrawerProps {
   doubleExposureImage: DoubleExposureImage | null;
   onPickDoubleExposureImage: (image: DoubleExposureImage) => void;
   onClearDoubleExposureImage: () => void;
+  overlayImage: { name: string; uri: string } | null;
+  onPickOverlayImage: (image: { name: string; uri: string }) => void;
+  onClearOverlayImage: () => void;
   currentProjectId?: string;
 }
 
@@ -72,6 +78,9 @@ export function EffectsDrawer({
   doubleExposureImage,
   onPickDoubleExposureImage,
   onClearDoubleExposureImage,
+  overlayImage,
+  onPickOverlayImage,
+  onClearOverlayImage,
   currentProjectId,
 }: EffectsDrawerProps) {
   const [tab, setTab] = useState<EffectsTab>('Retrô');
@@ -86,6 +95,22 @@ export function EffectsDrawer({
       .then((all) => setProjects(all.filter((p) => p.id !== currentProjectId && p.thumbnailUri)))
       .catch(() => setProjects([]));
   }, [pickerOpen, projects, currentProjectId]);
+
+  /** Picks a photo from the device gallery and keeps a permanent copy of it. */
+  const pickFromDevice = async (): Promise<{ name: string; uri: string } | null> => {
+    try {
+      const picked = await pickImageFromGallery();
+      if (!picked) return null;
+      return {
+        name: picked.fileName ?? 'Imagem da galeria',
+        uri: await copyToAppStorage(picked.uri, picked.fileName),
+      };
+    } catch (error) {
+      errorLogger.log(error, 'EffectsDrawer.pickFromDevice');
+      Alert.alert('Não foi possível importar a imagem', 'Tente novamente.');
+      return null;
+    }
+  };
 
   const slider = (label: string, field: string, opts: { min: number; max: number }) => (
     <Slider
@@ -219,10 +244,22 @@ export function EffectsDrawer({
               </Pressable>
             </View>
           ) : (
-            <Pressable style={styles.pickButton} onPress={() => setPickerOpen((v) => !v)}>
-              <Icon name="image" size={14} color={colors.texto2} />
-              <Text style={styles.pickButtonText}>Escolher imagem do projeto</Text>
-            </Pressable>
+            <>
+              <Pressable style={styles.pickButton} onPress={() => setPickerOpen((v) => !v)}>
+                <Icon name="image" size={14} color={colors.texto2} />
+                <Text style={styles.pickButtonText}>Escolher imagem do projeto</Text>
+              </Pressable>
+              <Pressable
+                style={styles.pickButton}
+                onPress={async () => {
+                  const image = await pickFromDevice();
+                  if (image) onPickDoubleExposureImage({ projectId: 'gallery', ...image });
+                }}
+              >
+                <Icon name="upload" size={14} color={colors.texto2} />
+                <Text style={styles.pickButtonText}>Escolher da galeria do dispositivo</Text>
+              </Pressable>
+            </>
           )}
           {pickerOpen && !doubleExposureImage && (
             <ScrollView
@@ -274,15 +311,33 @@ export function EffectsDrawer({
               {slider('Opacidade', 'overlayOpacity', { min: 0, max: 100 })}
             </>
           )}
-          <View style={styles.disabledRow}>
-            <Icon name="image" size={14} color={colors.linha} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.disabledRowText}>Galeria do dispositivo</Text>
-              <Text style={styles.disabledRowCaption}>
-                Requer o módulo de acesso à galeria, ainda não instalado neste build.
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.groupLabel}>Galeria do dispositivo</Text>
+          {overlayImage ? (
+            <>
+              <View style={styles.pickedRow}>
+                <Image source={{ uri: overlayImage.uri }} style={styles.pickedThumb} />
+                <Text style={styles.pickedName} numberOfLines={1}>
+                  {overlayImage.name}
+                </Text>
+                <Pressable onPress={onClearOverlayImage} hitSlop={6}>
+                  <Icon name="x" size={14} color={colors.texto2} />
+                </Pressable>
+              </View>
+              {chipRow(BLEND_MODE_LABELS, 'overlayBlend', adjustments.overlayBlend)}
+              {slider('Intensidade da imagem', 'overlayIntensity', { min: 0, max: 100 })}
+            </>
+          ) : (
+            <Pressable
+              style={styles.pickButton}
+              onPress={async () => {
+                const image = await pickFromDevice();
+                if (image) onPickOverlayImage(image);
+              }}
+            >
+              <Icon name="upload" size={14} color={colors.texto2} />
+              <Text style={styles.pickButtonText}>Importar overlay da galeria</Text>
+            </Pressable>
+          )}
         </View>
       )}
     </View>

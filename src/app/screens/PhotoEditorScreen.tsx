@@ -80,6 +80,8 @@ import {
   mergeVisiblePaintLayers,
   loadLayers,
   saveLayers,
+  loadEditorImages,
+  saveEditorImages,
   type EditorLayer,
 } from '@modules/photo-editor/layers';
 import {
@@ -197,6 +199,7 @@ interface Adjustments {
   overlayType: number;
   overlayIntensity: number;
   overlayOpacity: number;
+  overlayBlend: number;
   // Efeitos — Molduras (RF-060).
   frameStyle: number;
   frameThickness: number;
@@ -260,6 +263,7 @@ const DEFAULT_ADJUSTMENTS: Adjustments = {
   overlayType: 0,
   overlayIntensity: 60,
   overlayOpacity: 0,
+  overlayBlend: 1, // 'screen' — the usual look for light/dust overlays
   frameStyle: 0,
   frameThickness: 30,
   frameRadius: 30,
@@ -425,6 +429,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [frameGradientColor, setFrameGradientColor] = useState('#FFFFFF');
   const [lightEditMode, setLightEditMode] = useState(false);
   const [doubleExposureImage, setDoubleExposureImage] = useState<DoubleExposureImage | null>(null);
+  const [overlayImage, setOverlayImage] = useState<{ name: string; uri: string } | null>(null);
+  const [imagesHydrated, setImagesHydrated] = useState(false);
 
   // RF-008: the Elementos ▸ Texto form's draft — creates a new text layer, or (when the
   // selection is a text layer) edits it in place.
@@ -471,6 +477,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const skiaImage = useImage(photoUri, () => setImageLoadFailed(true));
   const doubleExposureSkImage = useImage(doubleExposureImage?.uri ?? null);
+  const overlaySkImage = useImage(overlayImage?.uri ?? null);
   const adjustmentsEffect = useMemo(() => Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL), []);
   const retroEffect = useMemo(() => Skia.RuntimeEffect.Make(RETRO_EFFECTS_SKSL), []);
   const uniforms = useMemo(
@@ -898,6 +905,37 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     };
   }, [projectId]);
 
+  // RF-075/RF-028: the double-exposure and overlay images are kept per project too.
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    loadEditorImages(projectId)
+      .then((saved) => {
+        if (cancelled || !saved) return;
+        if (saved.doubleExposure) {
+          setDoubleExposureImage({ projectId: 'saved', ...saved.doubleExposure });
+        }
+        setOverlayImage(saved.overlay);
+      })
+      .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.loadEditorImages'))
+      .finally(() => {
+        if (!cancelled) setImagesHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || !imagesHydrated) return;
+    saveEditorImages(projectId, {
+      doubleExposure: doubleExposureImage
+        ? { name: doubleExposureImage.name, uri: doubleExposureImage.uri }
+        : null,
+      overlay: overlayImage,
+    }).catch((error) => errorLogger.log(error, 'PhotoEditorScreen.saveEditorImages'));
+  }, [projectId, imagesHydrated, doubleExposureImage, overlayImage]);
+
   useEffect(() => {
     if (!projectId || !layersHydrated) return;
     const timer = setTimeout(() => {
@@ -1175,6 +1213,21 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             <Fill>
               <ImageShader
                 image={doubleExposureSkImage}
+                fit="cover"
+                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
+              />
+            </Fill>
+          </Group>
+        )}
+        {/* RF-028: an overlay imported from the device gallery (light leaks, dust, wear). */}
+        {includeDoubleExposure && overlaySkImage && (
+          <Group
+            blendMode={blendModeAt(adjustments.overlayBlend)}
+            opacity={adjustments.overlayIntensity / 100}
+          >
+            <Fill>
+              <ImageShader
+                image={overlaySkImage}
                 fit="cover"
                 rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
               />
@@ -1640,6 +1693,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 doubleExposureImage={doubleExposureImage}
                 onPickDoubleExposureImage={setDoubleExposureImage}
                 onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
+                overlayImage={overlayImage}
+                onPickOverlayImage={setOverlayImage}
+                onClearOverlayImage={() => setOverlayImage(null)}
                 currentProjectId={projectId}
               />
             )}

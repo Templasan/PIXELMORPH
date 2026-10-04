@@ -11,6 +11,7 @@ jest.mock('expo-file-system/legacy', () => ({
   readAsStringAsync: jest.fn(async () => ''),
   getInfoAsync: jest.fn(async () => ({ exists: false })),
   deleteAsync: jest.fn(async () => undefined),
+  copyAsync: jest.fn(async () => undefined),
   readDirectoryAsync: jest.fn(async () => []),
   getTotalDiskCapacityAsync: jest.fn(async () => 0),
   getFreeDiskStorageAsync: jest.fn(async () => 0),

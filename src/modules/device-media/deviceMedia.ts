@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import { IMPORTS_DIR_NAME } from '@core/reliability/storageUsage';
 
 export interface PickedMedia {
   uri: string;
@@ -168,4 +169,17 @@ export async function probeFileMetadata(
     )
   );
   return { fileSizeBytes, ...dims };
+}
+
+/**
+ * Copies a file the user picked (the picker's cache copy can be cleared at any time) into the
+ * app's permanent folder, so effects that reference it keep working after "Limpar cache".
+ */
+export async function copyToAppStorage(uri: string, fileName?: string | null): Promise<string> {
+  const dir = `${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}/`;
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  const extension = (fileName ?? uri).match(/\.(\w{2,5})$/)?.[1] ?? 'jpg';
+  const destination = `${dir}${Date.now()}.${extension}`;
+  await FileSystem.copyAsync({ from: uri, to: destination });
+  return destination;
 }

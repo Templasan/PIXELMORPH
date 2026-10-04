@@ -1,6 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createPaintLayer } from '../../src/modules/photo-editor/layers/Layer';
-import { loadLayers, saveLayers } from '../../src/modules/photo-editor/layers/layerStorage';
+import {
+  loadEditorImages,
+  loadLayers,
+  saveEditorImages,
+  saveLayers,
+} from '../../src/modules/photo-editor/layers/layerStorage';
 import type { EditorLayer } from '../../src/modules/photo-editor/layers/Layer';
 
 const background: EditorLayer = {
@@ -42,5 +47,30 @@ describe('layer storage (US-08 persistence)', () => {
 
     await AsyncStorage.setItem('layers:p1', JSON.stringify([{ id: 'x', kind: 'paint' }]));
     expect(await loadLayers('p1')).toBeNull(); // no background layer
+  });
+});
+
+describe('editor image storage (RF-075 / RF-028)', () => {
+  beforeEach(() => AsyncStorage.clear());
+
+  it('round-trips the double-exposure and overlay images of a project', async () => {
+    const images = {
+      doubleExposure: { name: 'praia.jpg', uri: 'file:///docs/imports/1.jpg' },
+      overlay: { name: 'poeira.png', uri: 'file:///docs/imports/2.png' },
+    };
+    await saveEditorImages('p1', images);
+    expect(await loadEditorImages('p1')).toEqual(images);
+    expect(await loadEditorImages('p2')).toBeNull();
+  });
+
+  it('drops entries that are not valid images and survives corrupted data', async () => {
+    await AsyncStorage.setItem(
+      'editorImages:p1',
+      JSON.stringify({ doubleExposure: { name: 'sem uri' }, overlay: null })
+    );
+    expect(await loadEditorImages('p1')).toEqual({ doubleExposure: null, overlay: null });
+
+    await AsyncStorage.setItem('editorImages:p1', '{not json');
+    expect(await loadEditorImages('p1')).toBeNull();
   });
 });

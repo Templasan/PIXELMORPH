@@ -4,6 +4,8 @@ import { byteLength, errorLogger } from './ErrorLogger';
 
 /** Folder (inside the app's private document directory) that holds the file-based project backups. */
 export const BACKUPS_DIR_NAME = 'backups';
+/** Folder for images the user picked from the gallery for effects (kept, unlike the picker's cache copy). */
+export const IMPORTS_DIR_NAME = 'imports';
 
 // Not re-exported from ./index: it pulls in expo-file-system, which Jest can't load.
 
@@ -47,9 +49,14 @@ export async function getStorageUsage(): Promise<StorageUsage> {
     totalDisk,
     freeDisk,
   ] = await Promise.all([
-    Promise.all([bytesOfKeysWithPrefix('project:'), bytesOfKeysWithPrefix('layers:')]).then(
-      ([a, b]) => a + b
-    ),
+    Promise.all([
+      bytesOfKeysWithPrefix('project:'),
+      bytesOfKeysWithPrefix('layers:'),
+      bytesOfKeysWithPrefix('editorImages:'),
+      FileSystem.documentDirectory
+        ? directoryBytes(`${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}`)
+        : Promise.resolve(0),
+    ]).then((sizes) => sizes.reduce((a, b) => a + b, 0)),
     bytesOfKeysWithPrefix('history:'),
     bytesOfKeysWithPrefix('projectBackup:'),
     FileSystem.documentDirectory
