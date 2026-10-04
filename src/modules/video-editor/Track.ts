@@ -29,6 +29,8 @@ export interface Clip {
   holdMs?: number;
   /** RF-013: a point color correction (brightness, -100..100) applied to this clip only. */
   colorCorrection?: number;
+  /** RF-078: clockwise rotation of the frame in degrees — 0, 90, 180 or 270. Defaults to 0. */
+  rotation?: number;
   /** RF-049: playback rate — 0.25 (4x slow-mo) .. 4 (4x fast-forward). Defaults to 1. */
   speed?: number;
   /** RF-036: background audio track volume, 0..100. Defaults to 100. */
@@ -114,6 +116,12 @@ export function setPipTransform(
       height: Math.max(0.1, Math.min(1, size.height)),
     },
   };
+}
+
+/** RF-078: turns the clip by `deltaDegrees` (a multiple of 90, either direction), staying in 0..270. */
+export function rotateClip(clip: Clip, deltaDegrees: number): Clip {
+  const next = ((((clip.rotation ?? 0) + deltaDegrees) % 360) + 360) % 360;
+  return { ...clip, rotation: next };
 }
 
 export function setStabilization(clip: Clip, enabled: boolean): Clip {

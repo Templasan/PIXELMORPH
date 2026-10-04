@@ -51,6 +51,7 @@ import {
   clampFadeMs,
   setPipTransform,
   setStabilization,
+  rotateClip,
   setSphericalOrientation,
 } from '@modules/video-editor';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
@@ -92,6 +93,22 @@ const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 type ClipTab = (typeof CLIP_TABS)[number];
 
 /** US-14: seeds a real starting timeline from the open project's own asset (real durationMs). */
+/** RF-078: style that turns the preview frame by the clip's rotation, refitting it to the panel. */
+function rotatedFrameStyle(rotation: number | undefined, panel: { width: number; height: number }) {
+  if (!rotation) return null;
+  if (rotation === 180) return { transform: [{ rotate: '180deg' }] };
+  // A quarter turn swaps the frame's box (height becomes width) so 'contain' still fits it.
+  return {
+    left: (panel.width - panel.height) / 2,
+    top: (panel.height - panel.width) / 2,
+    right: undefined,
+    bottom: undefined,
+    width: panel.height,
+    height: panel.width,
+    transform: [{ rotate: `${rotation}deg` }],
+  };
+}
+
 function buildInitialTracks(project: Project | null): Track[] {
   const asset = project?.assets[0];
   const uri = project?.thumbnailUri ?? asset?.originalUri ?? PLACEHOLDER_URI;
@@ -259,6 +276,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // panel) isn't rendered tiny before the user ever touches the divider.
   const [previewRatio, setPreviewRatio] = useState(0.7);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
+  const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [contentHeight, setContentHeight] = useState(1);
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
   const [rippleMode, setRippleMode] = useState(false);
@@ -269,7 +287,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [pipWidth, setPipWidth] = useState(0.3);
   const [pipHeight, setPipHeight] = useState(0.3);
   // RF-021: 360° video detection
-  const [sphericalInfo, setSphericalInfo] = useState<SphericalInfo>({ isSpherical: false });
 
   useEffect(() => {
     if (!projectId) return;
@@ -350,14 +367,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   }, [playing, totalDurationMs, loopReview]);
 
   // RF-021: detect if selected clip is 360° video
-  useEffect(() => {
-    if (!selected) {
-      setSphericalInfo({ isSpherical: false });
-      return;
-    }
-    const info = detectSphericalFromUri(selected.clip.sourceUri);
-    setSphericalInfo(info);
-  }, [selected]);
+  // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an
+  // effect keyed on it that sets state re-rendered forever ("Maximum update depth exceeded").
+  const selectedSourceUri = selected?.clip.sourceUri;
+  const sphericalInfo = useMemo<SphericalInfo>(
+    () => (selectedSourceUri ? detectSphericalFromUri(selectedSourceUri) : { isSpherical: false }),
+    [selectedSourceUri]
+  );
 
   const onBodyLayout = useCallback((e: LayoutChangeEvent) => {
     setBodyWidth(e.nativeEvent.layout.width - TRACK_HEADER_WIDTH);
@@ -769,7 +785,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           options={{ format: 'png', quality: 0.9 }}
           style={{ height: `${previewRatio * 100}%` }}
         >
-          <View style={styles.previewPanel}>
+          <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {transitionBlend && (
               <Image source={{ uri: transitionBlend.fromUri }} style={styles.previewImage} />
             )}
@@ -777,6 +793,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
               style={[
                 styles.previewImage,
+                rotatedFrameStyle(currentClip?.rotation, previewSize),
                 transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
                 transitionBlend?.type === 'slide' && {
                   transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
@@ -1118,6 +1135,36 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             )}
             {clipTab === 'Correção' && (
               <View style={{ gap: 8 }}>
+                <View style={styles.frameRow}>
+                  <Text style={styles.trimLabel}>Rotação</Text>
+                  {([-90, 90] as const).map((delta) => (
+                    <Pressable
+                      key={delta}
+                      style={styles.frameButton}
+                      accessibilityLabel={
+                        delta < 0 ? 'Girar 90° à esquerda' : 'Girar 90° à direita'
+                      }
+                      onPress={() => {
+                        const updated = rotateClip(selected.clip, delta);
+                        const before = tracksRef.current;
+                        const after = tracksRef.current.map((t) =>
+                          t.id === selected.track.id
+                            ? {
+                                ...t,
+                                clips: t.clips.map((c) =>
+                                  c.id === selected.clip.id ? updated : c
+                                ),
+                              }
+                            : t
+                        );
+                        commitTracks(before, after);
+                      }}
+                    >
+                      <Text style={styles.frameButtonText}>{delta < 0 ? '⟲ 90°' : '⟳ 90°'}</Text>
+                    </Pressable>
+                  ))}
+                  <Text style={styles.trimValue}>{selected.clip.rotation ?? 0}°</Text>
+                </View>
                 <Slider
                   label="Brilho"
                   value={selected.clip.colorCorrection ?? 0}

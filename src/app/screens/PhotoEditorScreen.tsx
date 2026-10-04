@@ -948,6 +948,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       const response = await fetch(photoUri);
       const buffer = await response.arrayBuffer();
       const orientation = readExifOrientation(new Uint8Array(buffer));
+      if (orientation === 1) {
+        // Nothing to correct — say so instead of silently committing a no-op edit.
+        Alert.alert(
+          'Auto EXIF',
+          'Esta foto já está na orientação correta (sem rotação nos metadados).'
+        );
+        return;
+      }
       const transform = orientationToTransform(orientation);
       commitAdjustment('rotation90', transform.rotate, adjustments.rotation90);
       commitAdjustment('flipH', transform.flipH ? 1 : 0, adjustments.flipH);
