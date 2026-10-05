@@ -29,7 +29,7 @@ import { LocalHistoryRepository, type Operation } from '@core/history';
 import { rawFormatLabel } from '@modules/photo-editor/raw';
 import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
-import { seedDemoProjectsIfEmpty } from '../bootstrap/seedDemoProjects';
+import { removeDemoProjects } from '../bootstrap/removeDemoProjects';
 import { RawImportSheet } from './projects/RawImportSheet';
 
 const FIELD_LABELS: Record<string, string> = {
@@ -184,7 +184,7 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   const loadProjects = useCallback(async () => {
     const mod = projectsModule;
-    await seedDemoProjectsIfEmpty(mod);
+    await removeDemoProjects(mod);
     const all = await mod.listProjects.execute({ status: 'active' });
     // Most recently modified first.
     all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());

@@ -66,8 +66,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
 const TRACK_HEADER_WIDTH = 72;
 const ONE_FRAME_MS = 1000 / DEFAULT_FPS;
-const PLACEHOLDER_URI =
-  'https://images.unsplash.com/photo-1504700610630-ac6aba3536d3?w=780&h=440&fit=crop&auto=format';
 const TRACK_COLORS: Record<Track['kind'], string> = {
   video: '#152C44',
   image: '#1E3A5C',
@@ -119,7 +117,7 @@ function buildInitialTracks(project: Project | null): Track[] {
   const asset = project?.assets[0];
   // The clip must point at the real media file. It used to prefer the project's thumbnail
   // (a JPEG), so the player and frame extraction never saw the actual video.
-  const uri = asset?.workingUri || asset?.originalUri || project?.thumbnailUri || PLACEHOLDER_URI;
+  const uri = asset?.workingUri || asset?.originalUri || project?.thumbnailUri;
   const sourceDurationMs = asset?.metadata.durationMs || 10000;
   const v1: Track = {
     id: 'v1',
@@ -127,15 +125,18 @@ function buildInitialTracks(project: Project | null): Track[] {
     kind: 'video',
     visible: true,
     locked: false,
-    clips: [
-      createClip({
-        name: project?.name ?? 'Clipe principal',
-        sourceUri: uri,
-        color: TRACK_COLORS.video,
-        startMs: 0,
-        sourceDurationMs,
-      }),
-    ],
+    // No media (project without an asset): an empty track, never a stand-in picture.
+    clips: uri
+      ? [
+          createClip({
+            name: project?.name ?? 'Clipe principal',
+            sourceUri: uri,
+            color: TRACK_COLORS.video,
+            startMs: 0,
+            sourceDurationMs,
+          }),
+        ]
+      : [],
   };
   const txt: Track = {
     id: 'txt',
@@ -835,7 +836,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               />
             )}
             <Image
-              source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }}
+              source={previewFrameUri ? { uri: previewFrameUri } : undefined}
               style={[
                 styles.previewImage,
                 rotatedFrameStyle(currentClip?.rotation, previewSize),
@@ -1639,7 +1640,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               style={styles.previewImage}
             />
           )}
-          <Image source={{ uri: previewFrameUri ?? PLACEHOLDER_URI }} style={styles.previewImage} />
+          <Image
+            source={previewFrameUri ? { uri: previewFrameUri } : undefined}
+            style={styles.previewImage}
+          />
           <View style={styles.fullscreenTopBar}>
             <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
               <Text style={styles.qualityBadgeText}>
