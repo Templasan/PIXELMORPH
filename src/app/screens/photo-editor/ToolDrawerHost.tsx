@@ -9,7 +9,7 @@ import { GeometryDrawer } from './GeometryDrawer';
 import { MasksDrawer } from './MasksDrawer';
 import { RetouchDrawer } from './RetouchDrawer';
 import { EffectsDrawer, type DoubleExposureImage } from './EffectsDrawer';
-import { ElementsDrawer, type ShapeDraft, type TextDraft } from './ElementsDrawer';
+import { ElementsDrawerHost } from './ElementsDrawerHost';
 import { AIDrawer } from './AIDrawer';
 import { PresetsDrawer } from './PresetsDrawer';
 import { PanoramaDrawer } from './PanoramaDrawer';
@@ -40,9 +40,6 @@ interface ToolDrawerHostProps {
   doubleExposureImage: DoubleExposureImage | null;
   overlayImage: { name: string; uri: string } | null;
   currentProjectId: string | undefined;
-  textDraft: TextDraft;
-  selectedLayerKind: string | undefined;
-  shapeDraft: ShapeDraft;
   selectedPanoramaImages: { uri: string; id: string }[];
   panoramaOffsets: number[];
   panoramaOverlapWidth: number;
@@ -53,12 +50,6 @@ interface ToolDrawerHostProps {
   onTogglePerspectiveEditMode: () => void;
   onApplyExif: () => void;
   onBakePerspective: () => void;
-  onChangeTextDraft: (patch: Partial<TextDraft>) => void;
-  onSubmitText: () => void;
-  onChangeShapeDraft: (patch: Partial<ShapeDraft>) => void;
-  onSubmitShape: () => void;
-  onSubmitMeme: (top: string, bottom: string) => void;
-  onAddSticker: (emoji: string) => void;
   onSubmitCollage: (
     layout: any,
     uris: string[],
@@ -91,9 +82,6 @@ export const ToolDrawerHost = memo(function ToolDrawerHost({
   doubleExposureImage,
   overlayImage,
   currentProjectId,
-  textDraft,
-  selectedLayerKind,
-  shapeDraft,
   selectedPanoramaImages,
   panoramaOffsets,
   panoramaOverlapWidth,
@@ -104,12 +92,6 @@ export const ToolDrawerHost = memo(function ToolDrawerHost({
   onTogglePerspectiveEditMode,
   onApplyExif,
   onBakePerspective,
-  onChangeTextDraft,
-  onSubmitText,
-  onChangeShapeDraft,
-  onSubmitShape,
-  onSubmitMeme,
-  onAddSticker,
   onSubmitCollage,
   onChangeFrameColor,
   onChangeFrameGradientColor,
@@ -187,19 +169,7 @@ export const ToolDrawerHost = memo(function ToolDrawerHost({
           </WithAdjustments>
         )}
         {activeTool === 'elementos' && (
-          <ElementsDrawer
-            textDraft={textDraft}
-            onChangeTextDraft={onChangeTextDraft}
-            onSubmitText={onSubmitText}
-            isEditingText={selectedLayerKind === 'text'}
-            shapeDraft={shapeDraft}
-            onChangeShapeDraft={onChangeShapeDraft}
-            onSubmitShape={onSubmitShape}
-            isEditingShape={selectedLayerKind === 'shape'}
-            onSubmitMeme={onSubmitMeme}
-            onAddSticker={onAddSticker}
-            onSubmitCollage={onSubmitCollage}
-          />
+          <ElementsDrawerHost editor={editor} onSubmitCollage={onSubmitCollage} />
         )}
         {activeTool === 'ia' && <AIDrawer />}
         {activeTool === 'presets' && (

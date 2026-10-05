@@ -225,3 +225,21 @@ export function pointsToPath(points: { x: number; y: number }[]): string {
   const [first, ...rest] = points;
   return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
 }
+
+/** RF-008: the Elementos ▸ Texto form — creates a text layer, or edits the selected one. */
+export interface TextDraft {
+  content: string;
+  fontFamily: string;
+  color: string;
+  shadow: boolean;
+  strokeWidth: number;
+  entrada: number;
+  saida: number;
+}
+
+/** RF-044: the Elementos ▸ Formas form — same create-or-edit pattern as text. */
+export interface ShapeDraft {
+  kind: ShapeKind;
+  color: string;
+  strokeWidth: number;
+}

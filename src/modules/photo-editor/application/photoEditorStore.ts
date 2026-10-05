@@ -2,11 +2,15 @@ import { createStore, type Store } from '@core/state';
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
 import {
   createPaintLayer,
+  createShapeLayer,
   createStrokeId,
+  createTextLayer,
   pointsToPath,
   pressureWidth,
   type BrushShape,
   type EditorLayer,
+  type ShapeDraft,
+  type TextDraft,
 } from '../domain/layers';
 
 /** The undo log the store records adjustment edits into (core/history's usePersistedHistory). */
@@ -36,7 +40,17 @@ export interface PhotoEditorState {
   brush: Brush;
   /** Points of the stroke being drawn right now (canvas space). */
   currentStroke: { x: number; y: number }[];
+  /** Elementos forms; they survive closing the drawer and follow the selected layer. */
+  textDraft: TextDraft;
+  shapeDraft: ShapeDraft;
 }
+
+const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
+  circle: 'Círculo',
+  rect: 'Retângulo',
+  line: 'Linha',
+  arrow: 'Seta',
+};
 
 export function defaultLayers(): EditorLayer[] {
   return [
@@ -64,6 +78,16 @@ export function initialPhotoEditorState(): PhotoEditorState {
     selectedLayerId: 'fundo',
     brush: { color: '#E5484D', size: 8, shape: 'round', opacity: 100 },
     currentStroke: [],
+    textDraft: {
+      content: '',
+      fontFamily: 'sans-serif',
+      color: '#FFFFFF',
+      shadow: false,
+      strokeWidth: 0,
+      entrada: 0,
+      saida: 100,
+    },
+    shapeDraft: { kind: 'circle', color: '#FFFFFF', strokeWidth: 4 },
   };
 }
 
@@ -89,6 +113,33 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
     set({ adjustments: { ...get().adjustments, ...patch } });
   const setLayers = (fn: (layers: EditorLayer[]) => EditorLayer[]) =>
     set({ layers: fn(get().layers) });
+  const selectedLayer = () => get().layers.find((l) => l.id === get().selectedLayerId);
+  /** Selects a layer; a text/shape selection loads its real style into the matching form. */
+  function select(selectedLayerId: string) {
+    const layer = get().layers.find((l) => l.id === selectedLayerId);
+    const patch: Partial<PhotoEditorState> = { selectedLayerId };
+    if (layer?.kind === 'text' && layer.text) {
+      const t = layer.text;
+      patch.textDraft = {
+        content: t.content,
+        fontFamily: t.fontFamily,
+        color: t.color,
+        shadow: t.shadow,
+        strokeWidth: t.strokeWidth,
+        entrada: t.entrada,
+        saida: t.saida,
+      };
+    } else if (layer?.kind === 'shape' && layer.shape) {
+      const sh = layer.shape;
+      patch.shapeDraft = { kind: sh.kind, color: sh.color, strokeWidth: sh.strokeWidth };
+    }
+    set(patch);
+  }
+  function addLayers(added: EditorLayer[]) {
+    if (added.length === 0) return;
+    set({ layers: [...get().layers, ...added] });
+    select(added[added.length - 1].id);
+  }
 
   function restore(op: ReturnType<AdjustmentsHistory['undo']>, side: 'from' | 'to') {
     if (op && op.type in DEFAULT_ADJUSTMENTS)
@@ -149,12 +200,86 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       set({ layers: saved, selectedLayerId: keep ? get().selectedLayerId : 'fundo' });
     },
     setLayers,
-    selectLayer: (selectedLayerId: string) => set({ selectedLayerId }),
+    selectLayer: select,
     /** Adds layers and selects the last one added. */
-    addLayers(added: EditorLayer[]) {
-      if (added.length === 0) return;
-      set({ layers: [...get().layers, ...added], selectedLayerId: added[added.length - 1].id });
+    addLayers,
+
+    // ---- Elementos (text, shapes, memes, stickers) ----
+    setTextDraft: (patch: Partial<TextDraft>) =>
+      set({ textDraft: { ...get().textDraft, ...patch } }),
+    /** Form edits apply live to a selected shape, so a colour picked for it is never lost. */
+    setShapeDraft(patch: Partial<ShapeDraft>) {
+      set({ shapeDraft: { ...get().shapeDraft, ...patch } });
+      const sel = selectedLayer();
+      if (sel?.kind === 'shape') {
+        setLayers((layers) =>
+          layers.map((l) =>
+            l.id === sel.id && l.shape ? { ...l, shape: { ...l.shape, ...patch } } : l
+          )
+        );
+      }
     },
+    /** RF-008: creates a text layer, or restyles the selected one (keeping its position). */
+    submitText() {
+      const { textDraft, layers } = get();
+      if (!textDraft.content.trim()) return;
+      const sel = selectedLayer();
+      if (sel?.kind === 'text' && sel.text) {
+        const position = { x: sel.text.x, y: sel.text.y };
+        setLayers((ls) =>
+          ls.map((l) =>
+            l.id === sel.id && l.text ? { ...l, text: { ...l.text, ...textDraft, ...position } } : l
+          )
+        );
+      } else {
+        const n = layers.filter((l) => l.kind === 'text').length + 1;
+        addLayers([createTextLayer(`Texto ${n}`, textDraft.content, textDraft)]);
+      }
+    },
+    /** RF-044: creates a shape layer, or restyles the selected one (keeping its position). */
+    submitShape() {
+      const { shapeDraft, layers } = get();
+      const sel = selectedLayer();
+      if (sel?.kind === 'shape' && sel.shape) {
+        const position = { x: sel.shape.x, y: sel.shape.y };
+        setLayers((ls) =>
+          ls.map((l) =>
+            l.id === sel.id && l.shape
+              ? { ...l, shape: { ...l.shape, ...shapeDraft, ...position } }
+              : l
+          )
+        );
+      } else {
+        const n = layers.filter((l) => l.kind === 'shape').length + 1;
+        addLayers([
+          createShapeLayer(`${SHAPE_NAMES[shapeDraft.kind]} ${n}`, shapeDraft.kind, shapeDraft),
+        ]);
+      }
+    },
+    /** RF-046: a meme is two classic text layers (bold white, black outline) at top/bottom. */
+    submitMeme(top: string, bottom: string) {
+      const style = {
+        fontFamily: 'sans-serif-black',
+        fontSize: 32,
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+      };
+      const added: EditorLayer[] = [];
+      if (top.trim()) {
+        const layer = createTextLayer('Meme (cima)', top, style);
+        layer.text!.y = 0.12;
+        added.push(layer);
+      }
+      if (bottom.trim()) {
+        const layer = createTextLayer('Meme (baixo)', bottom, style);
+        layer.text!.y = 0.88;
+        added.push(layer);
+      }
+      addLayers(added);
+    },
+    /** RF-046: a sticker is an emoji placed as a larger, unstroked text layer. */
+    addSticker: (emoji: string) => addLayers([createTextLayer('Adesivo', emoji, { fontSize: 48 })]),
 
     // ---- painting ----
     setBrush: (patch: Partial<Brush>) => set({ brush: { ...get().brush, ...patch } }),

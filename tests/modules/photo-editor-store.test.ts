@@ -138,3 +138,70 @@ describe('photo editor store', () => {
     expect(state().selectedLayerId).toBe('x2');
   });
 });
+
+describe('photo editor store — Elementos (text, shapes, memes, stickers)', () => {
+  it('submitting text creates a layer, selects it, and loads it back into the form', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: 'Olá', color: '#FF0000' });
+    editor.submitText();
+    const text = state().layers.find((l) => l.kind === 'text')!;
+    expect(text.text).toMatchObject({ content: 'Olá', color: '#FF0000' });
+    expect(state().selectedLayerId).toBe(text.id);
+  });
+
+  it('with a text layer selected, submit restyles it in place (same position, no new layer)', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: 'A' });
+    editor.submitText();
+    const id = state().selectedLayerId;
+    const before = state().layers.find((l) => l.id === id)!.text!;
+    editor.setTextDraft({ content: 'B', color: '#00FF00' });
+    editor.submitText();
+    const texts = state().layers.filter((l) => l.kind === 'text');
+    expect(texts).toHaveLength(1);
+    expect(texts[0].text).toMatchObject({
+      content: 'B',
+      color: '#00FF00',
+      x: before.x,
+      y: before.y,
+    });
+  });
+
+  it('empty text is ignored', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: '   ' });
+    editor.submitText();
+    expect(state().layers.some((l) => l.kind === 'text')).toBe(false);
+  });
+
+  it('selecting a layer loads its style into the form; the draft survives otherwise', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: 'Primeiro', color: '#111111' });
+    editor.submitText();
+    const first = state().selectedLayerId;
+    editor.selectLayer('fundo');
+    editor.setTextDraft({ content: 'rascunho' });
+    expect(state().textDraft.content).toBe('rascunho');
+    editor.selectLayer(first);
+    expect(state().textDraft).toMatchObject({ content: 'Primeiro', color: '#111111' });
+  });
+
+  it('shape form edits apply live to the selected shape', () => {
+    const { editor, state } = setup();
+    editor.setShapeDraft({ kind: 'arrow' });
+    editor.submitShape();
+    const id = state().selectedLayerId;
+    expect(state().layers.find((l) => l.id === id)!.name).toBe('Seta 1');
+    editor.setShapeDraft({ color: '#FF0000' });
+    expect(state().layers.find((l) => l.id === id)!.shape!.color).toBe('#FF0000');
+  });
+
+  it('a meme adds top and bottom text layers; a sticker adds one', () => {
+    const { editor, state } = setup();
+    editor.submitMeme('cima', 'baixo');
+    const memes = state().layers.filter((l) => l.name.startsWith('Meme'));
+    expect(memes.map((l) => l.text!.y)).toEqual([0.12, 0.88]);
+    editor.addSticker('🔥');
+    expect(state().layers.find((l) => l.id === state().selectedLayerId)!.text!.content).toBe('🔥');
+  });
+});

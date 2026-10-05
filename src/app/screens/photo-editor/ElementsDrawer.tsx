@@ -14,6 +14,8 @@ import {
   type ShapeKind,
   COLLAGE_LAYOUTS,
   type CollageLayout,
+  type ShapeDraft,
+  type TextDraft,
 } from '@modules/photo-editor';
 import { pickImageFromGallery } from '@modules/device-media';
 
@@ -42,21 +44,8 @@ const TEXT_COLORS = [colors.texto, colors.acento, colors.perigo, colors.ok, colo
 // reuse the exact same real text-layer pipeline as any other overlaid text.
 const STICKERS = ['👍', '😂', '🔥', '❤️', '😮', '🎉'];
 
-export interface TextDraft {
-  content: string;
-  fontFamily: string;
-  color: string;
-  shadow: boolean;
-  strokeWidth: number;
-  entrada: number;
-  saida: number;
-}
-
-export interface ShapeDraft {
-  kind: ShapeKind;
-  color: string;
-  strokeWidth: number;
-}
+// Draft types live with the layer model; re-exported for existing importers.
+export type { TextDraft, ShapeDraft } from '@modules/photo-editor';
 
 interface ElementsDrawerProps {
   textDraft: TextDraft;
