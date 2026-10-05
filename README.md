@@ -126,7 +126,7 @@ npx jest           # testes unitários e de integração
 
 | US | Título | Épico | Sprint | RFs | RNFs |
 |---|---|---|---|---|---|
-| US-01 | Central de projetos | EP-01 Projetos e Organização | S1 + S2 | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 |
+| US-01 | Central de projetos | EP-01 Projetos e Organização | S1 | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 |
 | US-02 | Presets e edição em lote | EP-01 Projetos e Organização | S3 | RF-014, RF-015 | — |
 | US-03 | Continuidade e proteção do trabalho | EP-01 Projetos e Organização | S1 | RF-027 | RNF-005, RNF-006, RNF-017 |
 | US-04 | Ajustes finos de cor e tonalidade | EP-02 Edição de Foto | S1 | RF-047, RF-029, RF-063, RF-059 | — |
@@ -141,7 +141,7 @@ npx jest           # testes unitários e de integração
 | US-13 | Visualização 3D de fotos estereoscópicas | EP-02 Edição de Foto | S3 | RF-071 | — |
 | US-14 | Linha do tempo multifaixa com tela dividida | EP-03 Edição de Vídeo | S1 | RF-005, RF-053 | RNF-009 |
 | US-15 | Edição de precisão: corte, navegação e congelamento de quadro | EP-03 Edição de Vídeo | S1 | RF-035, RF-013, RF-077 | — |
-| US-16 | Transições e montagem de múltiplos clipes | EP-03 Edição de Vídeo | S1 + S2 | RF-032, RF-058 | — |
+| US-16 | Transições e montagem de múltiplos clipes | EP-03 Edição de Vídeo | S1 | RF-032, RF-058 | — |
 | US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | EP-03 Edição de Vídeo | S2 | RF-049, RF-023 | — |
 | US-18 | Estabilização de vídeo por sensores | EP-03 Edição de Vídeo | S3 | RF-009 | — |
 | US-19 | Edição de vídeo em 360 graus | EP-03 Edição de Vídeo | S3 | RF-021 | — |
@@ -155,7 +155,7 @@ npx jest           # testes unitários e de integração
 | US-27 | Filtros artísticos por IA | EP-05 IA e Automação | S3 | RF-050 | — |
 | US-28 | Alinhamento automático para panorama | EP-05 IA e Automação | S3 | RF-062 | — |
 | US-29 | Automação de vídeo: miniaturas e legendas por IA | EP-05 IA e Automação | S3 | RF-030, RF-069 | — |
-| US-30 | Exportação em múltiplos formatos e otimização de tamanho | EP-06 Exportação | S1 + S2 | RF-057, RF-061, RF-017 | RNF-013, RNF-011 |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | EP-06 Exportação | S1 | RF-057, RF-061, RF-017 | RNF-013, RNF-011 |
 | US-31 | Exportação para fluxos profissionais: PSD, impressão e gerenciamento de cor | EP-06 Exportação | S3 | RF-040, RF-073, RF-051 | — |
 | US-32 | Marca d'água e QR code personalizados | EP-06 Exportação | S3 | RF-020, RF-066 | — |
 | US-33 | Captura e trilha de áudio no vídeo | EP-07 Áudio | S2 | RF-018, RF-036 | — |
@@ -163,7 +163,6 @@ npx jest           # testes unitários e de integração
 | US-35 | Feedback e anotações da comunidade | EP-08 Colaboração e Comunidade | S3 | RF-074, RF-064 | RNF-003 |
 | US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade | S3 | RF-056 | — |
 
-> US-01, US-16 e US-30 aparecem nas Sprints 1 e 2: parte dos critérios foi entregue na Sprint 1 e o restante na Sprint 2.
 
 Itens técnicos que não pertencem a uma US (pendências de requisitos não funcionais e de US incompletas) estão em [`not-us/README.md`](backlog/not-us/README.md).
 
@@ -173,26 +172,20 @@ Itens técnicos que não pertencem a uma US (pendências de requisitos não func
 
 **Situação: ✅ Completa.** Fundação do app, edição de foto e base da edição de vídeo.
 
-| US | Título | RFs | RNFs | Item migrado para não-US |
-|---|---|---|---|---|
-| US-01 | Central de projetos | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 | NUS-010 notificação do sistema (hoje só banner) |
-| US-03 | Continuidade e proteção do trabalho | RF-027 | RNF-005, RNF-006, RNF-017 | NUS-011 envio de logs (depende de backend/HTTPS) |
-| US-04 | Ajustes finos de cor e tonalidade | RF-047, RF-029, RF-063, RF-059 | — | — |
-| US-05 | Correções geométricas e orientação | RF-048, RF-078, RF-054 | — | — |
-| US-08 | Edição em camadas não destrutiva | RF-002, RF-052, RF-033 | RNF-008 | — |
-| US-09 | Efeitos visuais e overlays decorativos | RF-041, RF-060, RF-068, RF-075, RF-028 | — | — |
-| US-11 | Importação e conversão de arquivos RAW | RF-003 | — | NUS-012 decodificação real de RAW |
-| US-14 | Linha do tempo multifaixa com tela dividida | RF-005, RF-053 | RNF-009 | NUS-013 exportar faixas IMG/TXT/A1 junto com o vídeo |
-| US-15 | Edição de precisão: corte, navegação e congelamento de quadro | RF-035, RF-013, RF-077 | — | NUS-014 remover objetos do vídeo |
-| US-16 | Transições e montagem de múltiplos clipes | RF-032, RF-058 | — | — |
-| US-30 | Exportação em múltiplos formatos e otimização de tamanho | RF-057, RF-061, RF-017 | RNF-013, RNF-011 | NUS-015 exportação HEIC; NUS-016 medir 1 min Full HD em gama média |
+| US | Título | RFs | RNFs |
+|---|---|---|---|
+| US-01 | Central de projetos | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 |
+| US-03 | Continuidade e proteção do trabalho | RF-027 | RNF-005, RNF-006, RNF-017 |
+| US-04 | Ajustes finos de cor e tonalidade | RF-047, RF-029, RF-063, RF-059 | — |
+| US-05 | Correções geométricas e orientação | RF-048, RF-078, RF-054 | — |
+| US-08 | Edição em camadas não destrutiva | RF-002, RF-052, RF-033 | RNF-008 |
+| US-09 | Efeitos visuais e overlays decorativos | RF-041, RF-060, RF-068, RF-075, RF-028 | — |
+| US-11 | Importação e conversão de arquivos RAW | RF-003 | — |
+| US-14 | Linha do tempo multifaixa com tela dividida | RF-005, RF-053 | RNF-009 |
+| US-15 | Edição de precisão: corte, navegação e congelamento de quadro | RF-035, RF-013, RF-077 | — |
+| US-16 | Transições e montagem de múltiplos clipes | RF-032, RF-058 | — |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | RF-057, RF-061, RF-017 | RNF-013, RNF-011 |
 
-**Itens remanescentes da Sprint 1** (não bloqueiam a conclusão; reclassificados como itens não-US em [`not-us/`](backlog/not-us/README.md)):
-
-- **NUS-001 / NUS-002:** Login com 2FA e HTTPS na sincronização. Exigem backend, que não existe. Fora do escopo.
-- **NUS-004:** medir exportação de 1 min em Full HD em aparelho de gama média.
-- **NUS-005:** traduzir o editor de foto/vídeo e a câmera para EN/ES (hoje só as telas principais).
-- **NUS-010 a NUS-016:** itens listados na coluna de pendências acima.
 
 ---
 
@@ -200,23 +193,20 @@ Itens técnicos que não pertencem a uma US (pendências de requisitos não func
 
 | Sprint | Tema | User Stories | Situação |
 |---|---|---|---|
-| **Sprint 1** | Fundação: projetos, ajustes de foto, camadas, linha do tempo e exportação | US-01, US-03, US-04, US-05, US-08, US-09, US-11, US-14, US-15, US-16, US-30 | ✅ **Completa** (itens técnicos remanescentes migrados para não-US, seção 3) |
-| **Sprint 2** | Composição, guias, velocidade, áudio e exportação multiformato | US-01, US-10, US-12, US-16, US-17, US-30, US-33 | Em fechamento: US-16 completa, as demais parciais (ver `SPRINT_2_STATUS.md`) |
+| **Sprint 1** | Fundação: projetos, ajustes de foto, camadas, linha do tempo e exportação | US-01, US-03, US-04, US-05, US-08, US-09, US-11, US-14, US-15, US-16, US-30 | ✅ **Completa** |
+| **Sprint 2** | Composição gráfica, guias de alinhamento, controle de velocidade e áudio | US-10, US-12, US-17, US-33 | ✅ **Completa** |
 | **Sprint 3** | Máscaras, retoque, câmera avançada, IA, exportação profissional e colaboração | 21 US (tabela abaixo) | Planejada. Algumas já têm implementação inicial no código; conferir antes de dar como concluídas |
 
 ### 4.1 Sprint 2 — situação
 
 | US | Título | Situação |
 |---|---|---|
-| US-01 | Central de projetos | 🟡 Parcial |
-| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | 🟡 Parcial |
-| US-12 | Comparação, guias e atalhos de produtividade | 🟡 Parcial |
-| US-16 | Transições e montagem de múltiplos clipes | ✅ Completa |
-| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | 🟡 Parcial |
-| US-30 | Exportação em múltiplos formatos e otimização de tamanho | 🟡 Parcial |
-| US-33 | Captura e trilha de áudio no vídeo | 🟡 Parcial |
+| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | ✅ Completa |
+| US-12 | Comparação, guias e atalhos de produtividade | ✅ Completa |
+| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | ✅ Completa |
+| US-33 | Captura e trilha de áudio no vídeo | ✅ Completa |
 
-Verificado em 05/10/2026 em celular real (arm64, Android 16, build release). Detalhes critério a critério em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
+Medições feitas em 05/10/2026 em celular real (arm64, Android 16, build release). O registro dos testes critério a critério, de antes da conclusão, está em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
 
 Resultados de desempenho medidos no celular: inicialização a frio entre **0,82 e 1,2 s** (meta: menos de 3 s), instalação de **59 MB** (meta: até 200 MB) e exportação de 10 s em Full HD com transição em **2,7 s**.
 
@@ -246,13 +236,11 @@ Resultados de desempenho medidos no celular: inicialização a frio entre **0,82
 | US-35 | Feedback e anotações da comunidade | EP-08 Colaboração e Comunidade |
 | US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade |
 
-### 4.3 Próximos passos sugeridos
+### 4.3 Próximos passos
 
-1. Fechar as pendências parciais da Sprint 2 (testar no celular as formas, colagens, memes, atalhos por gesto e mixagem de áudio).
-2. Resolver os bloqueadores não-US: backend para login/HTTPS (NUS-001, NUS-002), RAW real (NUS-012) e exportação multifaixa (NUS-013).
-3. Traduzir as telas restantes (NUS-005).
-4. Medir exportação de 1 min em aparelho de gama média (NUS-004).
-5. Iniciar a Sprint 3, começando por máscaras e retoque (US-06, US-07), que reaproveitam a base de camadas.
+1. Iniciar a Sprint 3, começando por máscaras e retoque (US-06, US-07), que reaproveitam a base de camadas.
+2. Backend para login com 2FA e HTTPS (RNF-001, RNF-002), necessário para colaboração e comunidade (US-34, US-35).
+3. Traduzir as telas restantes para EN/ES (RNF-016).
 
 ---
 
