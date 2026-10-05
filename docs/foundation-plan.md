@@ -350,3 +350,13 @@ Cada achado foi conferido no código pelo Opus antes de entrar aqui; os descarta
 - Confirmado, médio, só em multi-seleção: `renderProject` da lista de Projetos depende do array `selected` → todos os cards re-renderizam a cada toque.
 - Baixo: `LayersPanel` sem `memo` (poucos itens); contagem regressiva da câmera recria o timer a cada segundo (inofensivo).
 - **Descartados (verificados falsos):** "ToolDrawerHost re-renderiza a cada tick de slider" (medido: tela 0 renders) e "tela do vídeo re-renderiza a cada tick do playhead de 100 ms" (o intervalo escreve no `timeStore`; a tela não o assina).
+
+### Passo 1 das varreduras — executado
+| Data | Passo | Commit | Resultado / observações |
+|---|---|---|---|
+| 2026-10-05 | Dependências | `a9725c4` | `react-native-webview` 14.0.1 → 13.16.1 e `expo-sensors` 57.0.3 → 56.0.6 (alinhados ao SDK 56); `base-64` removido. Verificado no emulador: modo AR carrega a WebView e roda o script |
+| 2026-10-05 | Achado (pré-existente) | — | **AR 3D nunca funcionou:** `assets/ar-viewer.html` carrega `three@r128` e `ar.js@3.4.5` de CDN — as duas URLs dão 404 (versão `r128` não existe no npm; caminho do AR.js errado). A tela mostra só a grade estática + "THREE is not defined". Correção: empacotar three.js/AR.js no app (offline) — US-23 (Sprint 3) |
+| 2026-10-05 | PiP (vídeo) | `3ac90d4` | Estado dos sliders de PiP sai da tela para o `ClipPanel`. Verificado no emulador |
+| 2026-10-05 | Elementos (foto) | `0b668bd` | Rascunhos de texto/forma e ações (texto, forma, meme, adesivo) no store; sincronização com a seleção no store; rascunho continua sobrevivendo ao fechar a gaveta. +6 testes (391). Tela de foto ~1160 linhas. Verificado no emulador |
+| 2026-10-05 | Multi-seleção em Projetos | — | **Não alterado:** verificado que `ProjectCard` é `memo` com `isSelected` booleano e callbacks estáveis — só o card tocado re-renderiza; o impacto relatado pela varredura era exagerado |
+| 2026-10-05 | Achado (pré-existente) | — | **"Aplicar em lote" em Projetos é falso:** `ProjectsScreen` só anima uma barra de progresso (`TODO` no código) — caminho de mock em produção (`agent-rules.md`). Decisão do time: implementar de verdade (US-02, Sprint 3) ou esconder o botão |
