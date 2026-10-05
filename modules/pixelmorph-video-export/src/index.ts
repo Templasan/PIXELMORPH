@@ -8,14 +8,11 @@ export interface ExportClip {
   holdMs?: number;
   speed?: number;
   rotation?: number;
-}
-
-export interface ExportOverlay {
-  uri: string;
-  startMs: number;
-  durationMs: number;
-  type: 'fade' | 'slide' | 'zoom' | 'wipe';
-  rotation?: number;
+  transitionIn?: 'fade' | 'slide' | 'zoom' | 'wipe' | '';
+  transitionInMs?: number;
+  fadeOutMs?: number;
+  outputMs?: number;
+  startMs?: number;
 }
 
 export interface ExportOptions {
@@ -24,7 +21,6 @@ export interface ExportOptions {
   height: number;
   bitrate?: number;
   outputPath: string;
-  overlays?: ExportOverlay[];
 }
 
 export interface ExportResult {

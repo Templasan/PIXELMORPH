@@ -82,14 +82,11 @@ describe('video presets (RF-017)', () => {
 describe('planExport transitions (RF-032)', () => {
   const withTransition = (
     c: ReturnType<typeof createClip>,
-    type: 'fade' | 'slide',
+    type: 'fade' | 'slide' | 'zoom',
     durationMs: number
-  ) => ({
-    ...c,
-    transitionIn: { type, durationMs },
-  });
+  ) => ({ ...c, transitionIn: { type, durationMs } });
 
-  it('records where each transition starts and which frame of the previous clip it holds', () => {
+  it('puts the transition on the incoming clip and darkens the outgoing one for a fade', () => {
     const a = clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 });
     const b = withTransition(
       clip({ startMs: 4_000, inPointMs: 1_000, outPointMs: 6_000 }),
@@ -98,16 +95,29 @@ describe('planExport transitions (RF-032)', () => {
     );
     const plan = planExport([track([a, b])]);
 
-    expect(plan.transitions).toHaveLength(1);
-    expect(plan.transitions[0]).toMatchObject({
-      type: 'fade',
-      atMs: 4_000,
-      durationMs: 500,
-      outgoingUri: 'file:///a.mp4',
-      outgoingTimeMs: 3_960,
+    expect(plan.transitions).toEqual([{ type: 'fade', atMs: 4_000, durationMs: 500 }]);
+    expect(plan.clips[1]).toMatchObject({
+      transitionIn: 'fade',
+      transitionInMs: 500,
+      outputMs: 5_000,
     });
-    // transitions overlay the new clip, so the video is not shortened
+    expect(plan.clips[0]).toMatchObject({
+      fadeOutMs: 250,
+      transitionIn: '',
+      outputMs: 4_000,
+      startMs: 0,
+    });
+    expect(plan.clips[1].startMs).toBe(4_000);
+    // transitions happen inside the clips, so the video is not shortened
     expect(plan.durationMs).toBe(9_000);
+  });
+
+  it('a slide does not darken the clip that leaves', () => {
+    const a = clip({ startMs: 0, outPointMs: 4_000 });
+    const b = withTransition(clip({ startMs: 4_000, outPointMs: 6_000 }), 'slide', 800);
+    const plan = planExport([track([a, b])]);
+    expect(plan.clips[0].fadeOutMs).toBe(0);
+    expect(plan.clips[1]).toMatchObject({ transitionIn: 'slide', transitionInMs: 800 });
   });
 
   it('caps a transition at half of the shorter neighbouring clip and ignores one on the first clip', () => {
@@ -116,7 +126,7 @@ describe('planExport transitions (RF-032)', () => {
     const plan = planExport([track([a, b])]);
 
     expect(plan.transitions).toHaveLength(1);
-    expect(plan.transitions[0].durationMs).toBe(500);
-    expect(plan.transitions[0].atMs).toBe(1_000);
+    expect(plan.transitions[0]).toMatchObject({ durationMs: 500, atMs: 1_000 });
+    expect(plan.clips[0].transitionIn).toBe('');
   });
 });

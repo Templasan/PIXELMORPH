@@ -16,18 +16,23 @@ export interface PlannedClip {
   holdMs: number;
   speed: number;
   rotation: number;
+  /** How the clip begins ('' = plain cut) and for how long, in finished-video ms. */
+  transitionIn: '' | 'fade' | 'slide' | 'zoom' | 'wipe';
+  transitionInMs: number;
+  /** The clip darkens over this many ms at its end (the next clip fades/zooms in). */
+  fadeOutMs: number;
+  /** Length of this clip in the finished video. */
+  outputMs: number;
+  /** Where this clip starts in the finished video. */
+  startMs: number;
 }
 
-/** A transition into a clip: the previous clip's last frame is laid over the new clip's start. */
+/** A transition at the junction into a clip; used to describe the export to the user. */
 export interface PlannedTransition {
   type: 'fade' | 'slide' | 'zoom' | 'wipe';
   /** Where the incoming clip starts on the finished video. */
   atMs: number;
   durationMs: number;
-  /** Frame of the outgoing clip to hold while it fades/slides away. */
-  outgoingUri: string;
-  outgoingTimeMs: number;
-  outgoingRotation: number;
 }
 
 export interface ExportPlan {
@@ -51,24 +56,24 @@ export function planExport(tracks: readonly Track[]): ExportPlan {
   let atMs = 0;
   kept.forEach(({ clip }, index) => {
     const length = clipDurationMs(clip);
-    const previous = kept[index - 1]?.clip;
+    clips[index].startMs = atMs;
+    const previous = kept[index - 1];
     if (previous && clip.transitionIn) {
       // Same rule the editor applies: never longer than half of either neighbouring clip.
       const durationMs = Math.min(
         clip.transitionIn.durationMs,
-        clipDurationMs(previous) / 2,
+        clipDurationMs(previous.clip) / 2,
         length / 2
       );
       if (durationMs > 0) {
-        transitions.push({
-          type: clip.transitionIn.type,
-          atMs,
-          durationMs,
-          outgoingUri: previous.sourceUri,
-          // A frame just before the end (the very last instant can be past the final frame).
-          outgoingTimeMs: Math.max(0, previous.outPointMs - 40),
-          outgoingRotation: previous.rotation ?? 0,
-        });
+        const type = clip.transitionIn.type;
+        transitions.push({ type, atMs, durationMs });
+        clips[index].transitionIn = type;
+        clips[index].transitionInMs = durationMs;
+        // The clip leaving darkens before a fade/zoom; slides and wipes are a plain cut away.
+        if (type === 'fade' || type === 'zoom') {
+          clips[index - 1].fadeOutMs = durationMs / 2;
+        }
       }
     }
     atMs += length;
@@ -76,6 +81,8 @@ export function planExport(tracks: readonly Track[]): ExportPlan {
 
   return { clips, transitions, durationMs: atMs };
 }
+
+const NO_TRANSITION = { transitionIn: '' as const, transitionInMs: 0, fadeOutMs: 0, startMs: 0 };
 
 function toPlanned(clip: Clip): PlannedClip {
   const rotation = clip.rotation ?? 0;
@@ -89,6 +96,8 @@ function toPlanned(clip: Clip): PlannedClip {
       holdMs: clip.holdMs ?? clipDurationMs(clip),
       speed: 1,
       rotation,
+      ...NO_TRANSITION,
+      outputMs: clip.holdMs ?? clipDurationMs(clip),
     };
   }
   return {
@@ -100,6 +109,8 @@ function toPlanned(clip: Clip): PlannedClip {
     holdMs: 0,
     speed: clip.speed ?? 1,
     rotation,
+    ...NO_TRANSITION,
+    outputMs: clipDurationMs(clip),
   };
 }
 

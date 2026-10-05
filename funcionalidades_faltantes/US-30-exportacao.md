@@ -9,6 +9,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 | RF-057 Foto em JPEG, PNG, WebP e HEIC | ⚠️ Parcial (sem HEIC) |
 | RF-061 Vídeo em GIF animado | ✅ Funciona (lento) |
 | RF-017 Vídeo com presets de redes sociais | ✅ Funciona (Android) |
+| RF-032 (no arquivo) Transições | ⚠️ Simplificadas (sem cruzar os clipes) |
 | RNF-013 Compressão inteligente | ✅ Funciona para foto; vídeo usa bitrate por preset |
 | RNF-011 Vídeo de 1 min em Full HD em até 2 min | ⚠️ Promissor, sem medição nesse tamanho |
 
@@ -25,7 +26,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 ## Pendências
 - **GIF é lento:** 37 quadros a 240 px levaram 39 s e 95 quadros a 360 px levaram 96 s no emulador, em build de desenvolvimento. A codificação roda na thread JS e trava a tela no fim. Fazer: medir em build release e em aparelho real; se continuar lento, mover a codificação para uma thread nativa.
 - **HEIC não é suportado** (`UNSUPPORTED_IMAGE_FORMATS`). Depende de um codificador nativo que o Skia não tem. Fazer: avaliar, ou deixar fora do escopo.
-- **Transições no arquivo: implementadas, NÃO verificadas no aparelho.** O código existe (segunda camada com o último quadro do clipe que sai, animada por um compositor do Media3: fade, deslize, zoom e wipe aproximado por deslize) e compila, e o planejamento tem testes em Jest. Faltou exportar no emulador e conferir os quadros do arquivo; o app chegou a mostrar "1 transição(ões)" na tela de exportação, mas a exportação em si não foi rodada. Riscos a checar: se a camada de cima fica transparente fora da janela da transição, e se o áudio soa certo.
+- **Transições no arquivo: funcionam, em versão simplificada.** Fade, zoom, deslize e wipe aparecem no mp4, mas **não cruzam os dois clipes**: o clipe que sai escurece e o que entra sobe do preto (fade e zoom) ou desliza para dentro (deslize e wipe, ambos entrando pela direita; o wipe ainda não tem direção própria). Fazer: uma transição de verdade, com os dois clipes aparecendo ao mesmo tempo. Tentei com uma segunda camada de vídeo e o compositor do Media3, mas a camada de cima não aparecia nos quadros (a causa não ficou clara) e troquei por efeitos por clipe.
 - **Só a primeira faixa de vídeo é exportada.** Faixas de texto, imagem sobreposta, picture-in-picture, correção de brilho, estabilização, 360° e áudio da faixa A1 ainda não são aplicados no arquivo.
 - **Só Android.** O módulo é Kotlin. O iOS precisaria de uma versão em AVFoundation (o app, por ora, só roda Android).
 - **RNF-011:** só medi um vídeo de 9 s a 720p (5,1 s no emulador, aproximadamente 0,57× o tempo real). Falta medir 1 min em Full HD em aparelho de gama média; o emulador não serve de referência.

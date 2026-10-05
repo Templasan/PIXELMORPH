@@ -16,21 +16,16 @@ data class ExportClip(
   @Field val holdMs: Long = 0,
   @Field val speed: Double = 1.0,
   /** Clockwise degrees: 0, 90, 180, 270. */
-  @Field val rotation: Int = 0
-) : Record
-
-/**
- * A still laid over the main timeline for `durationMs` from `startMs` and animated away: the
- * previous clip's last frame while a transition into the next clip plays.
- */
-@OptimizedRecord
-data class ExportOverlay(
-  @Field val uri: String,
-  @Field val startMs: Long,
-  @Field val durationMs: Long,
-  /** "fade", "slide", "zoom" or "wipe" */
-  @Field val type: String,
-  @Field val rotation: Int = 0
+  @Field val rotation: Int = 0,
+  /** How this clip begins: "fade", "slide", "zoom" or "wipe"; empty for a plain cut. */
+  @Field val transitionIn: String = "",
+  @Field val transitionInMs: Long = 0,
+  /** The clip darkens over its last `fadeOutMs` (used before a "fade"/"zoom" transition). */
+  @Field val fadeOutMs: Long = 0,
+  /** Length of this clip in the finished video, needed to time the fade-out. */
+  @Field val outputMs: Long = 0,
+  /** Where this clip starts in the finished video: Media3 hands effects timeline time, not clip time. */
+  @Field val startMs: Long = 0
 ) : Record
 
 @OptimizedRecord
@@ -40,8 +35,7 @@ data class ExportOptions(
   @Field val height: Int,
   /** Target video bitrate in bits per second; 0 lets the encoder pick. */
   @Field val bitrate: Int = 0,
-  @Field val outputPath: String,
-  @Field val overlays: List<ExportOverlay> = emptyList()
+  @Field val outputPath: String
 ) : Record
 
 @OptimizedRecord

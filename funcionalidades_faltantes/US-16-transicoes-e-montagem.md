@@ -16,6 +16,6 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`VideoEditorSc
 
 ## Pendências
 - **A prévia da transição mistura dois quadros estáticos:** o último quadro do clipe que sai (extraído do arquivo de vídeo) e o quadro atual do que entra. O vídeo volta a tocar quando a transição termina. Não é a transição com os dois vídeos em movimento. Não testei no emulador.
-- **A transição não entra no arquivo exportado:** a união usa corte seco. É o principal item que falta para o RF-032/RF-058 ("transições personalizadas entre eles").
+- **Transições no arquivo exportado: funcionam, simplificadas.** Verifiquei quadro a quadro com o ffmpeg num vídeo de 3 clipes (fade de 1,4 s e deslize de 2 s): o fade escurece o clipe que sai e clareia o que entra, o deslize entra pela direita. Não cruzam os dois clipes ao mesmo tempo, e o wipe usa o mesmo movimento do deslize.
 - **Reordenar:** o arrasto move o clipe no tempo e a exportação segue a ordem de início, mas não testei o reordenamento entre vários clipes.
 - **Não testei ao vivo** a aplicação de uma transição nem a duração.

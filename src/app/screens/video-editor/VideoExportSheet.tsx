@@ -8,7 +8,6 @@ import {
   exportVideo,
   extractFrame,
   type ExportClip,
-  type ExportOverlay,
 } from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
 import { exportGif } from './gifExporter';
@@ -131,6 +130,11 @@ export function VideoExportSheet({
             kind: 'image',
             holdMs: piece.holdMs,
             rotation: piece.rotation,
+            transitionIn: piece.transitionIn,
+            transitionInMs: Math.round(piece.transitionInMs),
+            fadeOutMs: Math.round(piece.fadeOutMs),
+            outputMs: Math.round(piece.outputMs),
+            startMs: Math.round(piece.startMs),
           });
         } else {
           clips.push({
@@ -140,21 +144,13 @@ export function VideoExportSheet({
             outMs: piece.outMs,
             speed: piece.speed,
             rotation: piece.rotation,
+            transitionIn: piece.transitionIn,
+            transitionInMs: Math.round(piece.transitionInMs),
+            fadeOutMs: Math.round(piece.fadeOutMs),
+            outputMs: Math.round(piece.outputMs),
+            startMs: Math.round(piece.startMs),
           });
         }
-      }
-
-      // Each transition holds the previous clip's last frame and animates it away.
-      const overlays: ExportOverlay[] = [];
-      for (const transition of plan.transitions) {
-        const frame = await extractFrame(transition.outgoingUri, transition.outgoingTimeMs);
-        overlays.push({
-          uri: frame.uri,
-          startMs: transition.atMs,
-          durationMs: transition.durationMs,
-          type: transition.type,
-          rotation: transition.outgoingRotation,
-        });
       }
 
       const outputPath = `${FileSystem.cacheDirectory}pixelmorph_export_${Date.now()}.mp4`.replace(
@@ -168,7 +164,6 @@ export function VideoExportSheet({
           height: preset.height,
           bitrate: preset.bitrate,
           outputPath,
-          overlays,
         },
         (progress) => setState({ phase: 'exporting', progress })
       );

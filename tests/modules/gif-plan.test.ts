@@ -10,6 +10,11 @@ const video = (over: Partial<PlannedClip> = {}): PlannedClip => ({
   holdMs: 0,
   speed: 1,
   rotation: 0,
+  transitionIn: '',
+  transitionInMs: 0,
+  fadeOutMs: 0,
+  outputMs: 1000,
+  startMs: 0,
   ...over,
 });
 const plan = (clips: PlannedClip[]): ExportPlan => ({ clips, transitions: [], durationMs: 0 });
