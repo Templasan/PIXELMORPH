@@ -23,7 +23,7 @@ import {
   SELECTIVE_COLOR_NAMES,
   type FullAdjustmentUniforms,
   type RGBHistogram,
-} from '@modules/photo-editor/color';
+} from '@modules/photo-editor';
 
 const HISTOGRAM_VIEW_WIDTH = 256;
 const HISTOGRAM_VIEW_HEIGHT = 56;

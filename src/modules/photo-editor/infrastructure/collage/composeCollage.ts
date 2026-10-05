@@ -6,7 +6,7 @@
 
 import { ClipOp, PaintStyle, Skia, type SkImage } from '@shopify/react-native-skia';
 import { coverFitRect } from '@modules/export';
-import { cellPixelRect, type CollageLayout } from './CollageMath';
+import { cellPixelRect, type CollageLayout } from '../../domain/collage/CollageMath';
 
 export interface CollageOptions {
   borderWidth: number;

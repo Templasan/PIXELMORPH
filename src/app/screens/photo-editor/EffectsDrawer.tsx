@@ -12,7 +12,7 @@ import {
   FRAME_STYLES,
   LIGHT_TYPES,
   OVERLAY_TEXTURE_NAMES,
-} from '@modules/photo-editor/effects';
+} from '@modules/photo-editor';
 
 const TABS = ['Retrô', 'Molduras', 'Iluminação', 'Dupla exposição', 'Overlays'] as const;
 type EffectsTab = (typeof TABS)[number];

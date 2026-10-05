@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon, Slider } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
-import type { EditorLayer } from '@modules/photo-editor/layers';
+import type { EditorLayer } from '@modules/photo-editor';
 
 const KIND_ICON: Record<EditorLayer['kind'], string> = {
   background: 'image',

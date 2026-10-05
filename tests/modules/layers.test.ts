@@ -6,7 +6,7 @@ import {
   duplicateLayer,
   mergeVisiblePaintLayers,
   type EditorLayer,
-} from '@modules/photo-editor/layers';
+} from '@modules/photo-editor/domain/layers';
 
 describe('createShapeLayer', () => {
   it('centers a new shape with sane defaults', () => {

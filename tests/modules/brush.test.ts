@@ -1,4 +1,4 @@
-import { brushTip, pressureWidth } from '../../src/modules/photo-editor/layers/Layer';
+import { brushTip, pressureWidth } from '../../src/modules/photo-editor/domain/layers/Layer';
 
 describe('brushTip (RF-033 brush shapes)', () => {
   it('maps each shape to a distinct cap/join and defaults to round', () => {

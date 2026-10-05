@@ -28,7 +28,7 @@ import {
 } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { LocalHistoryRepository, type Operation } from '@core/history';
-import { rawFormatLabel } from '@modules/photo-editor/raw';
+import { rawFormatLabel } from '@modules/photo-editor/domain';
 import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
 import { RawImportSheet } from './projects/RawImportSheet';

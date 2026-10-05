@@ -4,7 +4,7 @@ import {
   rawFormatFromFilename,
   rawFormatFromMimeType,
   rawFormatLabel,
-} from '@modules/photo-editor/raw';
+} from '@modules/photo-editor/domain/raw';
 
 describe('isRawFilename', () => {
   it('recognizes known camera RAW extensions, case-insensitively', () => {

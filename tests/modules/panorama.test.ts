@@ -1,4 +1,4 @@
-import { composePanorama } from '@modules/photo-editor/panorama';
+import { composePanorama } from '@modules/photo-editor/infrastructure/panorama';
 
 // Mock Skia since it's not available in Jest
 jest.mock('@shopify/react-native-skia', () => ({

@@ -7,7 +7,7 @@ import {
   type SkImage,
   type SkRuntimeEffect,
 } from '@shopify/react-native-skia';
-import { blendModeAt } from '@modules/photo-editor/effects';
+import { blendModeAt } from '@modules/photo-editor';
 
 import { PHOTO_WIDTH as W, PHOTO_HEIGHT as H } from './dims';
 const RECT = { x: 0, y: 0, width: W, height: H };

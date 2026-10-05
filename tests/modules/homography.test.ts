@@ -4,7 +4,7 @@ import {
   invertMat3,
   multiplyMat3,
   squareToQuad,
-} from '@modules/photo-editor/geometry/homography';
+} from '@modules/photo-editor/domain/geometry/homography';
 
 function expectPointClose(a: { x: number; y: number }, b: { x: number; y: number }, eps = 1e-6) {
   expect(Math.abs(a.x - b.x)).toBeLessThan(eps);

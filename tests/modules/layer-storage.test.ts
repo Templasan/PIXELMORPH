@@ -1,12 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createPaintLayer } from '../../src/modules/photo-editor/layers/Layer';
+import { createPaintLayer } from '../../src/modules/photo-editor/domain/layers/Layer';
 import {
   loadEditorImages,
   loadLayers,
   saveEditorImages,
   saveLayers,
-} from '../../src/modules/photo-editor/layers/layerStorage';
-import type { EditorLayer } from '../../src/modules/photo-editor/layers/Layer';
+} from '../../src/modules/photo-editor/infrastructure/layers/layerStorage';
+import type { EditorLayer } from '../../src/modules/photo-editor/domain/layers/Layer';
 
 const background: EditorLayer = {
   id: 'fundo',

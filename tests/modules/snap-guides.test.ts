@@ -1,4 +1,4 @@
-import { snapToGuides } from '@modules/photo-editor/geometry';
+import { snapToGuides } from '@modules/photo-editor/domain/geometry';
 
 describe('snapToGuides', () => {
   it('snaps to the horizontal/vertical center when within the threshold', () => {

@@ -10,7 +10,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { colors } from '@core/theme';
-import type { Point } from '@modules/photo-editor/geometry';
+import type { Point } from '@modules/photo-editor';
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);

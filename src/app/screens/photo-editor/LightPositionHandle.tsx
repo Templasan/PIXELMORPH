@@ -4,7 +4,7 @@ import Svg, { Circle, Line } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { colors } from '@core/theme';
-import { snapToGuides, type SnapTargets } from '@modules/photo-editor/geometry';
+import { snapToGuides, type SnapTargets } from '@modules/photo-editor';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;

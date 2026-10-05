@@ -1,7 +1,7 @@
 import {
   readExifOrientation,
   orientationToTransform,
-} from '@modules/photo-editor/geometry/exifOrientation';
+} from '@modules/photo-editor/domain/geometry/exifOrientation';
 
 /** Builds a minimal JPEG with a real APP1/Exif segment carrying one Orientation tag. */
 function buildJpegWithOrientation(orientation: number, bigEndian = false): Uint8Array {

@@ -28,7 +28,7 @@ import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
 import { probeFileMetadata, uprightDimensions } from '@modules/device-media';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
-import type { BasicAdjustments } from '@modules/photo-editor/color';
+import type { BasicAdjustments } from '@modules/photo-editor';
 import {
   createARAnchor,
   updateARAppearance,

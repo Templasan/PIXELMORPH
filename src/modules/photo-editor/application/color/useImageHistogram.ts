@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlphaType, ColorType, type SkImage } from '@shopify/react-native-skia';
-import { applyFullAdjustmentsRGB, type FullAdjustmentUniforms } from './colorAdjustments';
+import {
+  applyFullAdjustmentsRGB,
+  type FullAdjustmentUniforms,
+} from '../../domain/color/colorAdjustments';
 
 export interface RGBHistogram {
   r: number[];

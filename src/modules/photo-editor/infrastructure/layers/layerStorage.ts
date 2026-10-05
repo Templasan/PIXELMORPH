@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { EditorLayer } from './Layer';
+import type { EditorLayer } from '../../domain/layers/Layer';
 
 /**
  * RF-002/RF-052/RF-033 + RNF-005: the layer stack (paint strokes, text, shapes, visibility,

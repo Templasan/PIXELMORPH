@@ -13,8 +13,7 @@ import {
   type SkRuntimeEffect,
   type useCanvasRef,
 } from '@shopify/react-native-skia';
-import { arrowPath, type BrushShape, type EditorLayer } from '@modules/photo-editor/layers';
-import type { Point } from '@modules/photo-editor/geometry';
+import { arrowPath, type BrushShape, type EditorLayer, type Point } from '@modules/photo-editor';
 import { FrameOverlay } from './FrameOverlay';
 import { LightEffectOverlay } from './LightEffectOverlay';
 import { PaintLayers, CurrentStroke } from './PaintLayers';

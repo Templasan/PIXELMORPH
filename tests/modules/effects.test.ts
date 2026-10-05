@@ -9,7 +9,7 @@ import {
   lensReflectionSpots,
   blendModeAt,
   BLEND_MODES,
-} from '@modules/photo-editor/effects';
+} from '@modules/photo-editor/domain/effects';
 
 describe('applyAgingRGB', () => {
   it('leaves the pixel untouched when blend is 0', () => {

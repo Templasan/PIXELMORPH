@@ -35,28 +35,24 @@ import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
 import { encodeImage } from '@modules/export';
 import { writeImageToCache } from '@modules/device-media';
-import { composeCollage, loadSkImage, type CollageLayout } from '@modules/photo-editor/collage';
-import { composePanorama } from '@modules/photo-editor/panorama';
-import { rawFormatLabel } from '@modules/photo-editor/raw';
 import {
+  type CollageLayout,
+  composeCollage,
+  loadSkImage,
+  composePanorama,
+  rawFormatLabel,
   ADJUSTMENTS_SKSL,
   CURVE_IDENTITY,
   toFullUniforms,
   useImageHistogram,
-} from '@modules/photo-editor/color';
-import type { Mask } from '@modules/photo-editor/domain';
-import {
+  type Mask,
   detectStereoscopicFromUri,
-  useGyroParallax,
   type StereoscopicInfo,
-} from '@modules/photo-editor/stereoscopic';
-import {
+  useGyroParallax,
   computeHomography,
   orientationToTransform,
   readExifOrientation,
   type Point,
-} from '@modules/photo-editor/geometry';
-import {
   createPaintLayer,
   BRUSH_SHAPES,
   pressureWidth,
@@ -71,13 +67,11 @@ import {
   loadEditorImages,
   saveEditorImages,
   type EditorLayer,
-} from '@modules/photo-editor/layers';
-import {
   RETRO_EFFECTS_SKSL,
   toRetroUniforms,
   DEFAULT_DOUBLE_EXPOSURE_BLEND,
   DEFAULT_DOUBLE_EXPOSURE_OPACITY,
-} from '@modules/photo-editor/effects';
+} from '@modules/photo-editor';
 import { AdjustDrawer } from './photo-editor/AdjustDrawer';
 import { GeometryDrawer } from './photo-editor/GeometryDrawer';
 import { PerspectiveHandles } from './photo-editor/PerspectiveHandles';
