@@ -13,6 +13,9 @@
  *   adb install -r app/build/outputs/apk/release/app-release.apk
  *   node scripts/perf/measure.mjs --label baseline [--serial emulator-5554] [--runs 3] [--only a,b]
  *
+ * Limits: Skia canvases draw on their own surface, which gfxinfo does not count — scenarios
+ * measure native UI frames (sliders, drawers, lists), not the cost of redrawing the canvas.
+ *
  * Needs at least one photo project and one video project on the device. Elements are found by
  * their on-screen text / accessibility label (Portuguese UI), never by fixed coordinates.
  * Writes scripts/perf/results/<date>-<label>.json and prints a markdown table.
