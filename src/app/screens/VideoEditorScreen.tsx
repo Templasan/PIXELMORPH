@@ -63,13 +63,14 @@ import {
   loopBounds,
   setSphericalOrientation,
 } from '@modules/video-editor';
+import { applySpeedRamp } from '@modules/video-editor/speedRamp';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { pickMultipleImagesFromGallery } from '@modules/device-media';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
-const TRACK_HEADER_WIDTH = 72;
+const TRACK_HEADER_WIDTH = 92;
 const ONE_FRAME_MS = 1000 / DEFAULT_FPS;
 const TRACK_COLORS: Record<Track['kind'], string> = {
   video: '#152C44',
@@ -968,9 +969,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               <View style={styles.ruler}>
                 {Array.from({ length: 11 }).map((_, i) => (
                   <View key={i} style={styles.rulerTick}>
-                    <Text style={styles.rulerLabel}>
-                      {formatTimecode((totalDurationMs / 10) * i).slice(0, 5)}
-                    </Text>
+                    {i % 2 === 0 && (
+                      <Text style={styles.rulerLabel} numberOfLines={1}>
+                        {formatTimecode((totalDurationMs / 10) * i).slice(3, 8)}
+                      </Text>
+                    )}
                   </View>
                 ))}
                 <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
@@ -988,7 +991,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                         color={track.visible ? colors.texto2 : colors.linha}
                       />
                     </Pressable>
-                    <Text style={styles.trackLabel}>{track.name}</Text>
+                    <Text style={styles.trackLabel} numberOfLines={1}>
+                      {track.name}
+                    </Text>
                     <Pressable onPress={() => toggleLocked(track.id)} hitSlop={6}>
                       <Icon
                         name="lock"
@@ -1219,6 +1224,24 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   onChange={applySpeed}
                   onSlidingComplete={commitSpeed}
                 />
+                <Pressable
+                  style={[styles.chip, { alignSelf: 'flex-start', marginTop: 8 }]}
+                  accessibilityLabel="Suavizar o fim do clipe até 1x"
+                  onPress={() => {
+                    const before = tracksRef.current;
+                    const after = applySpeedRamp(
+                      before,
+                      selected.track.id,
+                      selected.clip.id,
+                      1,
+                      1500,
+                      'end'
+                    );
+                    if (after !== before) commitTracks(before, after);
+                  }}
+                >
+                  <Text style={styles.chipText}>Suavizar fim até 1x (1,5s)</Text>
+                </Pressable>
               </View>
             )}
             {clipTab === 'Correção' && (
@@ -1925,6 +1948,7 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   rulerLabel: {
+    width: 60,
     fontFamily: monoFontFamily,
     fontSize: 9,
     color: colors.texto2,

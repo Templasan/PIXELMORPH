@@ -276,8 +276,11 @@ export function ensureImageTrack(tracks: Track[]): Track[] {
 /** The clip shown at `timeMs`: the topmost visible video/image track wins (later track = higher layer). */
 export function topClipAt(tracks: readonly Track[], timeMs: number): Clip | null {
   const media = tracks.filter((t) => (t.kind === 'video' || t.kind === 'image') && t.visible);
+  // Lookup is end-exclusive; at/after the very end hold the last frame instead of going black.
+  const end = media.reduce((max, t) => Math.max(max, trackDurationMs(t)), 0);
+  const at = end > 0 && timeMs === end ? end - 0.001 : timeMs;
   for (let i = media.length - 1; i >= 0; i -= 1) {
-    const clip = media[i].clips.find((c) => timeMs >= c.startMs && timeMs < clipEndMs(c));
+    const clip = media[i].clips.find((c) => at >= c.startMs && at < clipEndMs(c));
     if (clip) return clip;
   }
   return null;
