@@ -123,6 +123,10 @@ const en: Record<string, string> = {
   Erro: 'Error',
   'Não foi possível verificar a integridade dos projetos agora.':
     'Could not check project integrity right now.',
+  'Algo deu errado nesta tela.': 'Something went wrong on this screen.',
+  'Seu trabalho salvo não foi afetado.': 'Your saved work was not affected.',
+  'Tentar novamente': 'Try again',
+  Voltar: 'Back',
 };
 
 export default en;

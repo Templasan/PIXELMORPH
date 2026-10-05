@@ -5,6 +5,7 @@ import {
   createNativeStackNavigator,
   type NativeStackScreenProps,
 } from '@react-navigation/native-stack';
+import { withScreenBoundary } from './ScreenErrorBoundary';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
@@ -67,6 +68,24 @@ const PhotoEditorScreen = lazyScreen(loaders.PhotoEditor);
 const RawConverterScreen = lazyScreen(loaders.RawConverter);
 const VideoEditorScreen = lazyScreen(loaders.VideoEditor);
 
+// Every route renders inside its own error boundary (ScreenErrorBoundary); built once here so
+// screens are not re-created on each render of the navigator.
+const screens = {
+  Login: withScreenBoundary(LoginScreen, 'Login'),
+  SignUp: withScreenBoundary(SignUpScreen, 'SignUp'),
+  Projects: withScreenBoundary(ProjectsScreen, 'Projects'),
+  Camera: withScreenBoundary(CameraScreen, 'Camera'),
+  PhotoEditor: withScreenBoundary(PhotoEditorScreen, 'PhotoEditor'),
+  RawConverter: withScreenBoundary(RawConverterScreen, 'RawConverter'),
+  VideoEditor: withScreenBoundary(VideoEditorScreen, 'VideoEditor'),
+  Community: withScreenBoundary(CommunityScreen, 'Community'),
+  Tutorials: withScreenBoundary(TutorialsScreen, 'Tutorials'),
+  Presets: withScreenBoundary(PresetsScreen, 'Presets'),
+  Storage: withScreenBoundary(StorageScreen, 'Storage'),
+  Account: withScreenBoundary(AccountScreen, 'Account'),
+  Help: withScreenBoundary(HelpScreen, 'Help'),
+};
+
 export default function RootNavigator() {
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -82,19 +101,19 @@ export default function RootNavigator() {
         animation: 'fade',
       }}
     >
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="SignUp" component={SignUpScreen} />
-      <Stack.Screen name="Projects" component={ProjectsScreen} />
-      <Stack.Screen name="Camera" component={CameraScreen} />
-      <Stack.Screen name="PhotoEditor" component={PhotoEditorScreen} />
-      <Stack.Screen name="RawConverter" component={RawConverterScreen} />
-      <Stack.Screen name="VideoEditor" component={VideoEditorScreen} />
-      <Stack.Screen name="Community" component={CommunityScreen} />
-      <Stack.Screen name="Tutorials" component={TutorialsScreen} />
-      <Stack.Screen name="Presets" component={PresetsScreen} />
-      <Stack.Screen name="Storage" component={StorageScreen} />
-      <Stack.Screen name="Account" component={AccountScreen} />
-      <Stack.Screen name="Help" component={HelpScreen} />
+      <Stack.Screen name="Login" component={screens.Login} />
+      <Stack.Screen name="SignUp" component={screens.SignUp} />
+      <Stack.Screen name="Projects" component={screens.Projects} />
+      <Stack.Screen name="Camera" component={screens.Camera} />
+      <Stack.Screen name="PhotoEditor" component={screens.PhotoEditor} />
+      <Stack.Screen name="RawConverter" component={screens.RawConverter} />
+      <Stack.Screen name="VideoEditor" component={screens.VideoEditor} />
+      <Stack.Screen name="Community" component={screens.Community} />
+      <Stack.Screen name="Tutorials" component={screens.Tutorials} />
+      <Stack.Screen name="Presets" component={screens.Presets} />
+      <Stack.Screen name="Storage" component={screens.Storage} />
+      <Stack.Screen name="Account" component={screens.Account} />
+      <Stack.Screen name="Help" component={screens.Help} />
     </Stack.Navigator>
   );
 }
