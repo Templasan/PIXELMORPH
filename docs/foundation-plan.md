@@ -360,3 +360,23 @@ Cada achado foi conferido no código pelo Opus antes de entrar aqui; os descarta
 | 2026-10-05 | Elementos (foto) | `0b668bd` | Rascunhos de texto/forma e ações (texto, forma, meme, adesivo) no store; sincronização com a seleção no store; rascunho continua sobrevivendo ao fechar a gaveta. +6 testes (391). Tela de foto ~1160 linhas. Verificado no emulador |
 | 2026-10-05 | Multi-seleção em Projetos | — | **Não alterado:** verificado que `ProjectCard` é `memo` com `isSelected` booleano e callbacks estáveis — só o card tocado re-renderiza; o impacto relatado pela varredura era exagerado |
 | 2026-10-05 | Achado (pré-existente) | — | **"Aplicar em lote" em Projetos é falso:** `ProjectsScreen` só anima uma barra de progresso (`TODO` no código) — caminho de mock em produção (`agent-rules.md`). Decisão do time: implementar de verdade (US-02, Sprint 3) ou esconder o botão |
+
+### Decisões do questionário (executadas)
+| Data | Passo | Commit | Resultado / observações |
+|---|---|---|---|
+| 2026-10-05 | Instalar e medir no celular | — | APK `26f81e5` instalado por cima no 24095PCADG (dados mantidos; o reparo de mídia roda na 1ª abertura). Medição só com cenários que não alteram projetos (sem o slider) |
+| 2026-10-05 | AR | `71fa014` | Câmera fica ligada no modo AR; `ARAnchorsLayer` desenha as âncoras sobre ela com paralaxe por giroscópio (assinatura isolada — a tela parou de re-renderizar a 60 Hz). `react-native-webview` removido. Rastreamento de superfície real = ARCore (US-23). Verificado no emulador |
+| 2026-10-05 | `react-native-view-shot` | `71fa014` | Botão "Exportar Frame" do PiP (só mostrava o caminho) e dependência removidos |
+| 2026-10-05 | Lote falso | `086b44c` | Folha "Aplicar em lote" removida (mock em produção); multi-seleção mantida. Teste de i18n passa a cobrir `screens/projects/` |
+
+### Primeira medição no celular real (24095PCADG, release `26f81e5`, mediana de 3)
+| Cenário | Frames | Janky % | p50 ms | p90 ms | p99 ms |
+|---|---|---|---|---|---|
+| Cold start | — | — | 852 | — | — |
+| Abrir editor de foto | 20 | 15 | 26 | 69 | 69 |
+| Abrir/fechar gaveta Ajustes ×5 | 40 | **12,5** | 16 | 27 | 73 |
+| Abrir editor de vídeo | 144 | 3,5 | 9 | 22 | 250 |
+| Arrastar régua da timeline ×5 | 1788 | **0** | 7 | 7 | 9 |
+| Abrir/fechar menu lateral ×5 | 197 | 1,5 | 8 | 12 | 93 |
+
+No aparelho quase tudo cabe no orçamento de 16 ms/frame. **Próximo alvo medido: montar a gaveta de Ajustes** (12,5 % janky, p99 73 ms) e a abertura do editor de foto (p50 26 ms). O slider não foi medido no celular (alteraria um projeto real).
