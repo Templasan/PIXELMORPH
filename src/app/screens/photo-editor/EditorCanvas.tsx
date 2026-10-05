@@ -19,7 +19,7 @@ import { LightEffectOverlay } from './LightEffectOverlay';
 import { PaintLayers, CurrentStroke } from './PaintLayers';
 import { PhotoLayer } from './PhotoLayer';
 import { PHOTO_WIDTH, PHOTO_HEIGHT } from './dims';
-import type { Adjustments } from '../PhotoEditorScreen';
+import type { Adjustments } from '@modules/photo-editor/domain/adjustments';
 
 type PhotoLayerProps = Parameters<typeof PhotoLayer>[0];
 
