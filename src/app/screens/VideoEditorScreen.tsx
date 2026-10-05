@@ -748,11 +748,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     )}
                   </View>
                 ))}
-                <Playhead
-                  store={timeStore}
-                  totalMs={totalDurationMs}
-                  style={styles.rulerPlayhead}
-                />
+                {/* Its own lane over the tick area: a %-left inside the ruler itself would count
+                    from the ruler's edge, ignoring the track-header padding. */}
+                <View style={styles.rulerPlayheadLane} pointerEvents="none">
+                  <Playhead
+                    store={timeStore}
+                    totalMs={totalDurationMs}
+                    style={styles.rulerPlayhead}
+                  />
+                </View>
               </View>
             </GestureDetector>
 
@@ -1137,6 +1141,13 @@ const styles = StyleSheet.create({
     fontFamily: monoFontFamily,
     fontSize: 9,
     color: colors.texto2,
+  },
+  rulerPlayheadLane: {
+    position: 'absolute',
+    left: TRACK_HEADER_WIDTH,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   rulerPlayhead: {
     position: 'absolute',
