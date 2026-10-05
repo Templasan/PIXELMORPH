@@ -297,10 +297,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [contentHeight, setContentHeight] = useState(1);
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
   const [pipClipId, setPipClipId] = useState<string | null>(null);
-  const [pipX, setPipX] = useState(0.7);
-  const [pipY, setPipY] = useState(0.7);
-  const [pipWidth, setPipWidth] = useState(0.3);
-  const [pipHeight, setPipHeight] = useState(0.3);
   // RF-021: 360° video detection
 
   useEffect(() => {
@@ -825,14 +821,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           sphericalInfo={sphericalInfo}
           pipClipId={pipClipId}
           setPipClipId={setPipClipId}
-          pipX={pipX}
-          pipY={pipY}
-          pipWidth={pipWidth}
-          pipHeight={pipHeight}
-          setPipX={setPipX}
-          setPipY={setPipY}
-          setPipWidth={setPipWidth}
-          setPipHeight={setPipHeight}
           captureAndExportPip={captureAndExportPip}
         />
 
