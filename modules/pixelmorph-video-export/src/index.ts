@@ -37,6 +37,7 @@ interface NativeModule {
     timeMs: number,
     maxWidth: number
   ): Promise<{ uri: string; width: number; height: number }>;
+  probeRotation(uri: string): Promise<number | null>;
   cancel(): void;
   addListener(
     event: 'onProgress',
@@ -68,4 +69,9 @@ export function extractFrame(
   maxWidth = 0
 ): Promise<{ uri: string; width: number; height: number }> {
   return native.extractFrame(uri, Math.max(0, Math.round(timeMs)), maxWidth);
+}
+
+/** Rotation tag stored in a video file (0/90/180/270), or null if it cannot be read. */
+export function probeVideoRotation(uri: string): Promise<number | null> {
+  return native.probeRotation(uri);
 }

@@ -7,7 +7,7 @@ Verificação de cada user story da Sprint 1, feita em 04 e 05/10/2026 no emulad
 | [US-01](US-01-central-de-projetos.md) | Central de projetos | ⚠️ | Login/2FA e HTTPS (sem backend), idiomas nas demais telas, notificação do sistema |
 | [US-03](US-03-continuidade-e-protecao.md) | Continuidade e proteção | ⚠️ | Envio de logs só funciona com um endereço HTTPS configurado |
 | [US-04](US-04-ajustes-de-cor-e-tonalidade.md) | Ajustes de cor | ✅ | Cor seletiva só tem 7 cores fixas |
-| [US-05](US-05-correcoes-geometricas.md) | Geometria | ⚠️ | Correção automática de rotação do vídeo pelos metadados |
+| [US-05](US-05-correcoes-geometricas.md) | Geometria | ✅ | Botão único de espelhamento "ambos" (opcional) |
 | [US-08](US-08-camadas-nao-destrutiva.md) | Camadas | ✅ | Caneta (pressão) sem teste em aparelho real |
 | [US-09](US-09-efeitos-e-overlays.md) | Efeitos e overlays | ✅ | Overlays "internos" são texturas geradas por código |
 | [US-11](US-11-importacao-raw.md) | RAW | ⚠️ | Decodificação real de RAW (TODO) |

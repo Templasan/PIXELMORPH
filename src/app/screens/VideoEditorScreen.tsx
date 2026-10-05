@@ -25,6 +25,7 @@ import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import { ClipVideo } from './video-editor/ClipVideo';
 import { LiveTimecode } from './video-editor/LiveTimecode';
+import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
@@ -55,6 +56,7 @@ import {
   setPipTransform,
   setStabilization,
   rotateClip,
+  describeFileOrientation,
   advancePlayhead,
   loopBounds,
   setSphericalOrientation,
@@ -402,6 +404,21 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an
   // effect keyed on it that sets state re-rendered forever ("Maximum update depth exceeded").
   const selectedSourceUri = selected?.clip.sourceUri;
+  // RF-078: what orientation the file was recorded with (the player/export already honour it).
+  const [fileRotation, setFileRotation] = useState<number | null>(null);
+  useEffect(() => {
+    setFileRotation(null);
+    if (!selectedSourceUri) return;
+    let cancelled = false;
+    probeVideoRotation(selectedSourceUri)
+      .then((r) => {
+        if (!cancelled) setFileRotation(r);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSourceUri]);
   const sphericalInfo = useMemo<SphericalInfo>(
     () => (selectedSourceUri ? detectSphericalFromUri(selectedSourceUri) : { isSpherical: false }),
     [selectedSourceUri]
@@ -1245,6 +1262,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   ))}
                   <Text style={styles.trimValue}>{selected.clip.rotation ?? 0}°</Text>
                 </View>
+                {fileRotation !== null && (
+                  <Text style={styles.trimLabel}>{describeFileOrientation(fileRotation)}</Text>
+                )}
                 <Slider
                   label="Brilho"
                   value={selected.clip.colorCorrection ?? 0}

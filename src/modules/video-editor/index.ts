@@ -15,3 +15,4 @@ export * from './infrastructure';
 
 // Bootstrap
 export { VideoEditorModuleFactory } from './bootstrap';
+export * from './orientation';

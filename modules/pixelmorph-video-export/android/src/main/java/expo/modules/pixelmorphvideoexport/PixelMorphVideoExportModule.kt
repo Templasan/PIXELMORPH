@@ -95,6 +95,23 @@ class PixelMorphVideoExportModule : Module() {
       }.start()
     }
 
+    // Rotation tag of a video file (0, 90, 180 or 270): how it was recorded, which the player and
+    // the exporter already apply. Null when the file cannot be read.
+    AsyncFunction("probeRotation") { uri: String, promise: Promise ->
+      Thread {
+        val retriever = MediaMetadataRetriever()
+        try {
+          retriever.setDataSource(context, Uri.parse(uri))
+          val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+          promise.resolve(rotation?.toIntOrNull())
+        } catch (error: Throwable) {
+          promise.resolve(null)
+        } finally {
+          retriever.release()
+        }
+      }.start()
+    }
+
     Function("cancel") {
       main.post {
         current?.cancel()
