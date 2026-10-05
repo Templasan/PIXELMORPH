@@ -1,5 +1,13 @@
-import { createClip, clipDurationMs, clipEndMs, type Track } from '@modules/video-editor/Track';
 import {
+  createClip,
+  clipDurationMs,
+  clipEndMs,
+  type Clip,
+  type Track,
+} from '@modules/video-editor/Track';
+import {
+  ensureImageTrack,
+  topClipAt,
   trackDurationMs,
   timelineDurationMs,
   moveClip,
@@ -613,5 +621,51 @@ describe('clampFadeMs / volumeAtOffset (RF-036)', () => {
   it('scales by the clip volume', () => {
     const quiet = { ...clip, volume: 50 };
     expect(volumeAtOffset(quiet, 5000)).toBeCloseTo(0.5);
+  });
+});
+
+describe('image track and layering (US-14 / RF-005)', () => {
+  const clipAt = (startMs: number, length: number) =>
+    createClip({ name: 'c', sourceUri: 'u', color: '#000', startMs, sourceDurationMs: length });
+  const track = (id: string, kind: Track['kind'], clips: Clip[], visible = true): Track => ({
+    id,
+    name: id,
+    kind,
+    visible,
+    locked: false,
+    clips,
+  });
+
+  it('adds an empty image track after the last video track when none exists', () => {
+    const result = ensureImageTrack([
+      track('v1', 'video', []),
+      track('txt', 'text', []),
+      track('a1', 'audio', []),
+    ]);
+    expect(result.map((t) => t.kind)).toEqual(['video', 'image', 'text', 'audio']);
+  });
+
+  it('leaves a timeline that already has an image track untouched', () => {
+    const tracks = [track('v1', 'video', []), track('img', 'image', [])];
+    expect(ensureImageTrack(tracks)).toBe(tracks);
+  });
+
+  it('shows the image over the video where both have a clip', () => {
+    const video = clipAt(0, 5_000);
+    const image = clipAt(1_000, 2_000);
+    const tracks = [track('v1', 'video', [video]), track('img', 'image', [image])];
+    expect(topClipAt(tracks, 500)?.id).toBe(video.id);
+    expect(topClipAt(tracks, 1_500)?.id).toBe(image.id);
+    expect(topClipAt(tracks, 3_500)?.id).toBe(video.id);
+    expect(topClipAt(tracks, 9_000)).toBeNull();
+  });
+
+  it('ignores a hidden image track', () => {
+    const video = clipAt(0, 5_000);
+    const tracks = [
+      track('v1', 'video', [video]),
+      track('img', 'image', [clipAt(0, 5_000)], false),
+    ];
+    expect(topClipAt(tracks, 1_000)?.id).toBe(video.id);
   });
 });

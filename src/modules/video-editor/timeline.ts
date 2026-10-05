@@ -250,3 +250,35 @@ export function rippleShiftAfter(
       : t
   );
 }
+
+/**
+ * US-14 / RF-005: every timeline has a track for still images (V1 video, IMG image, TXT text,
+ * A1 audio). Projects saved before it existed get an empty one right after their last video
+ * track; a timeline that already has one is returned untouched.
+ */
+export function ensureImageTrack(tracks: Track[]): Track[] {
+  if (tracks.some((t) => t.kind === 'image')) return tracks;
+  const imageTrack: Track = {
+    id: 'img',
+    name: 'IMG',
+    kind: 'image',
+    visible: true,
+    locked: false,
+    clips: [],
+  };
+  let at = 0;
+  tracks.forEach((t, i) => {
+    if (t.kind === 'video') at = i + 1;
+  });
+  return [...tracks.slice(0, at), imageTrack, ...tracks.slice(at)];
+}
+
+/** The clip shown at `timeMs`: the topmost visible video/image track wins (later track = higher layer). */
+export function topClipAt(tracks: readonly Track[], timeMs: number): Clip | null {
+  const media = tracks.filter((t) => (t.kind === 'video' || t.kind === 'image') && t.visible);
+  for (let i = media.length - 1; i >= 0; i -= 1) {
+    const clip = media[i].clips.find((c) => timeMs >= c.startMs && timeMs < clipEndMs(c));
+    if (clip) return clip;
+  }
+  return null;
+}

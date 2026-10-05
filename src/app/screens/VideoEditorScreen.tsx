@@ -56,6 +56,8 @@ import {
   setPipTransform,
   setStabilization,
   rotateClip,
+  ensureImageTrack,
+  topClipAt,
   describeFileOrientation,
   advancePlayhead,
   loopBounds,
@@ -157,7 +159,7 @@ function buildInitialTracks(project: Project | null): Track[] {
     locked: false,
     clips: [],
   };
-  return [v1, txt, a1];
+  return ensureImageTrack([v1, txt, a1]);
 }
 
 interface ClipBlockProps {
@@ -326,7 +328,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       string,
       unknown
     >);
-    setTracks(state.tracks as Track[]);
+    setTracks(ensureImageTrack(state.tracks as Track[]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.ready, initialTracks]);
 
@@ -343,7 +345,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const handleUndo = useCallback(() => {
     const op = history.undo();
     if (op && op.type === 'tracks') {
-      const from = op.params.from as Track[];
+      const from = ensureImageTrack(op.params.from as Track[]);
       tracksRef.current = from;
       setTracks(from);
     }
@@ -352,7 +354,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const handleRedo = useCallback(() => {
     const op = history.redo();
     if (op && op.type === 'tracks') {
-      const to = op.params.to as Track[];
+      const to = ensureImageTrack(op.params.to as Track[]);
       tracksRef.current = to;
       setTracks(to);
     }
@@ -470,18 +472,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   );
 
   // RF-005/RF-032: which clip is "on screen" right now, and whether it's mid-transition.
-  const currentClip = useMemo(() => {
-    const mediaTracks = tracks.filter(
-      (t) => (t.kind === 'video' || t.kind === 'image') && t.visible
-    );
-    for (const track of mediaTracks) {
-      const clip = track.clips.find(
-        (c) => currentTimeMs >= c.startMs && currentTimeMs < clipEndMs(c)
-      );
-      if (clip) return clip;
-    }
-    return null;
-  }, [tracks, currentTimeMs]);
+  const currentClip = useMemo(() => topClipAt(tracks, currentTimeMs), [tracks, currentTimeMs]);
 
   // RF-005: the preview panel showed nothing for real video clips — <Image> can't decode a
   // .mp4 source. Extract an actual frame at the playhead instead. Bucketed to ~5fps so
