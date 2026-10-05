@@ -85,6 +85,24 @@ export async function getStorageUsage(): Promise<StorageUsage> {
   };
 }
 
+let cached: { at: number; usage: Promise<StorageUsage> } | null = null;
+
+/**
+ * getStorageUsage() reads every project value into memory to size it, so screens that only show
+ * a summary (the side menu, opened often) reuse a result up to `maxAgeMs` old. A failed
+ * measurement is not cached.
+ */
+export function getStorageUsageCached(maxAgeMs = 60_000): Promise<StorageUsage> {
+  if (cached && Date.now() - cached.at < maxAgeMs) return cached.usage;
+  const usage = getStorageUsage();
+  const entry = { at: Date.now(), usage };
+  cached = entry;
+  usage.catch(() => {
+    if (cached === entry) cached = null;
+  });
+  return usage;
+}
+
 /** Deletes everything in the app's cache directory (preview renders, picked/cached images). */
 export async function clearCache(): Promise<void> {
   const dir = FileSystem.cacheDirectory;

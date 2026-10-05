@@ -6,7 +6,11 @@ import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { Icon } from '@core/ui';
 import type { RootStackParamList } from './RootNavigator';
 import { useI18n } from '@core/i18n';
-import { formatBytes, getStorageUsage, type StorageUsage } from '@core/reliability/storageUsage';
+import {
+  formatBytes,
+  getStorageUsageCached,
+  type StorageUsage,
+} from '@core/reliability/storageUsage';
 
 export type DrawerScreenName = Extract<
   keyof RootStackParamList,
@@ -45,7 +49,7 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
   const [usage, setUsage] = useState<StorageUsage | null>(null);
 
   useEffect(() => {
-    if (open) getStorageUsage().then(setUsage);
+    if (open) getStorageUsageCached().then(setUsage, () => undefined);
   }, [open]);
 
   if (!open) return null;
