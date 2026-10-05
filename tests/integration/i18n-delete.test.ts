@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { setLanguage, t } from '../../src/core/i18n/i18n';
 
@@ -21,8 +21,13 @@ describe('i18n: delete project texts', () => {
     expect(t('Apagar')).toBe(dict['Apagar']);
   });
 
-  it('every t(...) literal in ProjectsScreen exists in en and es', () => {
-    const src = readFileSync(join(__dirname, '../../src/app/screens/ProjectsScreen.tsx'), 'utf8');
+  it('every t(...) literal in the Projects screen and its parts exists in en and es', () => {
+    const screens = join(__dirname, '../../src/app/screens');
+    const files = [
+      join(screens, 'ProjectsScreen.tsx'),
+      ...readdirSync(join(screens, 'projects')).map((f) => join(screens, 'projects', f)),
+    ];
+    const src = files.map((f) => readFileSync(f, 'utf8')).join(String.fromCharCode(10));
     const used = [...src.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'/g)].map((m) =>
       m[1].replace(/\\'/g, "'")
     );

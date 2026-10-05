@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
 import { SideDrawer } from '../navigation/SideDrawer';
-import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
 import {
   createMediaAsset,
@@ -26,8 +26,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
 const TABS = ['TODOS', 'FOTOS', 'VÍDEOS', 'RASCUNHOS'] as const;
 type Tab = (typeof TABS)[number];
-
-const BATCH_PRESETS = ['P&B', 'Vívido', 'Sépia', 'Frio', 'Cine'];
 
 /** True when a project has never produced a final export — used for the RASCUNHOS tab. */
 function isDraft(project: Project): boolean {
@@ -49,8 +47,6 @@ export default function ProjectsScreen({ navigation }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [multiSelect, setMultiSelect] = useState(false);
   const [infoProject, setInfoProject] = useState<Project | null>(null);
-  const [batchProgress, setBatchProgress] = useState<number | null>(null);
-  const batchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rawImportOpen, setRawImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -231,22 +227,6 @@ export default function ProjectsScreen({ navigation }: Props) {
     [selected, multiSelect, onPressProject, onLongPressProject, openInfo]
   );
 
-  const applyBatch = () => {
-    // TODO: wire to a real batch-preset use case (needs the non-destructive photo
-    // pipeline from US-04/US-08); this only animates a progress bar for now.
-    setBatchProgress(0);
-    batchTimer.current = setInterval(() => {
-      setBatchProgress((prev) => {
-        if (prev === null || prev >= 100) {
-          if (batchTimer.current) clearInterval(batchTimer.current);
-          exitMultiSelect();
-          return null;
-        }
-        return prev + 12;
-      });
-    }, 150);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       {multiSelect ? (
@@ -349,36 +329,6 @@ export default function ProjectsScreen({ navigation }: Props) {
             navigation.navigate('RawConverter', result);
           }}
         />
-      )}
-
-      {multiSelect && selected.length > 0 && (
-        <View style={styles.batchSheet}>
-          <Text style={styles.batchLabel}>{t('APLICAR EM LOTE')}</Text>
-          <View style={styles.batchChips}>
-            {BATCH_PRESETS.map((p) => (
-              // TODO: apply the real preset to the selected projects.
-              <Pressable key={p} style={styles.batchChip}>
-                <Text style={styles.batchChipText}>{p}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {batchProgress !== null ? (
-            <View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${batchProgress}%` }]} />
-              </View>
-              <Text style={styles.progressText}>{batchProgress}%</Text>
-            </View>
-          ) : (
-            <Pressable style={styles.batchButton} onPress={applyBatch}>
-              <Text style={styles.batchButtonText}>
-                {selected.length === 1
-                  ? t('APLICAR EM {n} ITEM', { n: selected.length })
-                  : t('APLICAR EM {n} ITENS', { n: selected.length })}
-              </Text>
-            </Pressable>
-          )}
-        </View>
       )}
 
       {infoProject && (
@@ -510,58 +460,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.painel,
     borderWidth: 1,
     borderColor: colors.linha,
-  },
-  batchSheet: {
-    backgroundColor: colors.barra,
-    borderTopWidth: 1,
-    borderTopColor: colors.linha,
-    padding: 16,
-  },
-  batchLabel: {
-    fontSize: 10,
-    letterSpacing: 1,
-    color: colors.texto2,
-    marginBottom: 8,
-  },
-  batchChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  batchChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  batchChipText: {
-    fontSize: fontSize.xs,
-    color: colors.texto,
-  },
-  batchButton: {
-    height: 36,
-    backgroundColor: colors.acento,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  batchButtonText: {
-    fontSize: fontSize.xs,
-    fontWeight: '600',
-    color: '#0D2036',
-  },
-  progressTrack: {
-    height: 2,
-    backgroundColor: colors.linha,
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.acento,
-  },
-  progressText: {
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
-    color: colors.texto2,
   },
 });
