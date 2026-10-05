@@ -324,3 +324,29 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 3. **Miniaturas pequenas por projeto** em vez de decodificar a mídia original na lista.
 4. **Medir no celular** com `node scripts/perf/measure.mjs --serial <id>`; o emulador chegou ao piso.
 | 2026-10-05 | Medição final | — | Ver §7. Slider: A/B isolou o histograma por amostra; contadores mostraram 13 → 24 atualizações do canvas por arraste (prévia mais fluida); mantido e documentado como trade-off a confirmar no celular |
+
+---
+
+## 9. Varreduras de otimização (3 Haiku, só leitura) — resultados verificados
+
+Cada achado foi conferido no código pelo Opus antes de entrar aqui; os descartados estão listados.
+
+**Dependências**
+- Todas as 30 dependências são MIT. Hermes e New Architecture ativos.
+- **Fora do SDK 56:** `react-native-webview` 14.0.1 (SDK espera 13.16.1, major acima) e `expo-sensors` 57.0.3 (SDK espera ~56.0.6). Risco de incompatibilidade nativa no AR e no paralaxe por giroscópio. Ação: alinhar com `npx expo install react-native-webview expo-sensors` e testar AR + paralaxe.
+- `base-64`: sem nenhum import (Hermes já tem `atob`/`btoa`) → remover.
+- `react-native-view-shot`: usado só pelo botão "Exportar Frame" do PiP no vídeo, que hoje só mostra um alerta com o caminho → remover o botão e a dependência, ou manter se o time quiser a função.
+- React Navigation 6: só manutenção (7 é a atual). Migração não recomendada agora (risco sem ganho medido).
+- Descartado: "babel-preset-expo desatualizado" (instalado 56.0.20; o agente leu o range do package.json).
+
+**Armazenamento**
+- 18 famílias de chaves, 9 arquivos com AsyncStorage direto, sem uma costura única.
+- Conclusão (agente e Opus concordam): **não trocar AsyncStorage agora.** O limite de 2 MB já foi resolvido (partes/segmentos), o hot path (histórico) tem debounce, e MMKV/expo-sqlite custariam migração de dados sem ganho medido. Reavaliar só com medição no celular.
+- Achado: o caso de uso "ajustes recentes" (`AddRecentAdjustmentUseCase`) não é chamado em lugar nenhum → funcionalidade sem uso (remover ou ligar, decisão de produto).
+
+**Re-renders** (frequências corrigidas pelo Opus)
+- Confirmado: sliders de PiP (vídeo) guardam posição em `useState` da tela → a tela de ~1280 linhas re-renderiza a cada tick, só nessa aba. Correção: posição de PiP no clipe via `editor.liveClip`.
+- Confirmado, baixo-médio: `textDraft`/`shapeDraft` (foto) são estado da tela → digitar texto em Elementos re-renderiza a tela a cada tecla; `ToolDrawerHost` recebe ~44 props com arrows inline (o `memo` não segura). Correção: draft dentro do próprio `ElementsDrawer`.
+- Confirmado, médio, só em multi-seleção: `renderProject` da lista de Projetos depende do array `selected` → todos os cards re-renderizam a cada toque.
+- Baixo: `LayersPanel` sem `memo` (poucos itens); contagem regressiva da câmera recria o timer a cada segundo (inofensivo).
+- **Descartados (verificados falsos):** "ToolDrawerHost re-renderiza a cada tick de slider" (medido: tela 0 renders) e "tela do vídeo re-renderiza a cada tick do playhead de 100 ms" (o intervalo escreve no `timeStore`; a tela não o assina).
