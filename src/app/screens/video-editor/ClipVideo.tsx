@@ -1,10 +1,13 @@
-import { useEffect, useState, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useEvent } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 /** Seconds of drift between the timeline clock and the player before we re-seek while playing (a seek blanks the surface, so only for real jumps). */
 const MAX_DRIFT_S = 1.2;
+
+/** Scrubbing asks for a new frame every ~100 ms of media (dozens a second); each seek flushes the decoder, so only one per this many ms goes through. */
+const SEEK_EVERY_MS = 100;
 
 interface ClipVideoProps {
   uri: string;
@@ -64,12 +67,26 @@ export function ClipVideo({
     player.volume = volume;
   }, [player, ready, rate, volume]);
 
+  const lastSeekAt = useRef(0);
+  const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (seekTimer.current) clearTimeout(seekTimer.current);
+    },
+    []
+  );
   useEffect(() => {
     if (!ready) return;
     const target = Math.max(0, sourceTimeMs / 1000);
-    if (!playing || Math.abs(player.currentTime - target) > MAX_DRIFT_S) {
+    if (playing && Math.abs(player.currentTime - target) <= MAX_DRIFT_S) return;
+    // Latest target wins: a re-armed timer still fires at lastSeekAt + SEEK_EVERY_MS.
+    if (seekTimer.current) clearTimeout(seekTimer.current);
+    const wait = Math.max(0, SEEK_EVERY_MS - (Date.now() - lastSeekAt.current));
+    seekTimer.current = setTimeout(() => {
+      seekTimer.current = null;
+      lastSeekAt.current = Date.now();
       player.currentTime = target;
-    }
+    }, wait);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, playing, Math.round(sourceTimeMs / 100)]);
 

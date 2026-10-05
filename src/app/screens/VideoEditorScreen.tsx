@@ -476,13 +476,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const currentClip = useMemo(() => topClipAt(tracks, currentTimeMs), [tracks, currentTimeMs]);
 
   // RF-005: the preview panel showed nothing for real video clips — <Image> can't decode a
-  // .mp4 source. Extract an actual frame at the playhead instead. Bucketed to ~5fps so
-  // scrubbing doesn't fire a native extraction on every pixel of drag.
+  // .mp4 source, so a poster is extracted once per clip. It is NOT re-extracted while the
+  // playhead moves: ClipVideo seeks the live player and draws the frame, and every extra
+  // extraction queues natively (a scrub fired 61 of them, ~4 s each, starving the decoder).
   currentClipRef.current = currentClip;
   const sourceTimeMs = currentClip
     ? currentClip.inPointMs + (currentTimeMs - currentClip.startMs) * (currentClip.speed ?? 1)
     : 0;
-  const frameBucket = Math.round(sourceTimeMs / 200);
   const [previewFrameUri, setPreviewFrameUri] = useState<string | null>(null);
   useEffect(() => {
     // While playing the real player draws the picture; extracting posters would only churn.
@@ -492,7 +492,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       return;
     }
     let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(currentClip.sourceUri, { time: sourceTimeMs })
+    // A frozen clip shows its held frame, not the moving playhead position.
+    const posterTimeMs = currentClip.frozen ? currentClip.inPointMs : sourceTimeMs;
+    VideoThumbnails.getThumbnailAsync(currentClip.sourceUri, { time: posterTimeMs })
       .then((result) => {
         if (!cancelled) setPreviewFrameUri(result.uri);
       })
@@ -504,7 +506,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentClip?.id, currentClip?.sourceUri, frameBucket, playing]);
+  }, [currentClip?.id, currentClip?.sourceUri, playing]);
 
   const pipClip = useMemo(() => {
     if (!pipClipId) return null;
