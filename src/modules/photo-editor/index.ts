@@ -1,4 +1,4 @@
-import { AsyncStoragePresetsRepository } from '@infrastructure/repositories/AsyncStoragePresetsRepository';
+import { AsyncStoragePresetsRepository } from './infrastructure/AsyncStoragePresetsRepository';
 import {
   createSavePresetUseCase,
   createListPresetsUseCase,
@@ -47,11 +47,11 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   const presetsRepo = new AsyncStoragePresetsRepository();
   const {
     AsyncStorageRecentAdjustmentsRepository,
-  } = require('@infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository');
+  } = require('./infrastructure/AsyncStorageRecentAdjustmentsRepository');
   const recentRepo = new AsyncStorageRecentAdjustmentsRepository();
   const {
     AsyncStorageWatermarkPresetsRepository,
-  } = require('@infrastructure/repositories/AsyncStorageWatermarkPresetsRepository');
+  } = require('./infrastructure/AsyncStorageWatermarkPresetsRepository');
   const watermarkPresetsRepo = new AsyncStorageWatermarkPresetsRepository();
 
   photoEditorModule = {

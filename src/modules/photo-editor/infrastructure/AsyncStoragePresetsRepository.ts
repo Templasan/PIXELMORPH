@@ -1,5 +1,5 @@
-import type { Preset } from '@modules/photo-editor/domain/Preset';
-import type { PresetsRepository } from '@core/ports/PresetsRepository';
+import type { Preset } from '../domain/Preset';
+import type { PresetsRepository } from '../ports/PresetsRepository';
 import { JsonListCache } from './JsonListCache';
 
 const PRESETS_KEY = '@pixelmorph/presets';

@@ -11,7 +11,6 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@core/(.*)$': '<rootDir>/src/core/$1',
     '^@modules/(.*)$': '<rootDir>/src/modules/$1',
-    '^@infrastructure/(.*)$': '<rootDir>/src/infrastructure/$1',
     '^@app/(.*)$': '<rootDir>/src/app/$1',
     '^expo-sensors$': '<rootDir>/tests/mocks/expo-sensors.ts',
   },

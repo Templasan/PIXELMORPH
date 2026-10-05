@@ -1,4 +1,4 @@
-import type { WatermarkPresetsRepository } from '@core/ports/WatermarkPresetsRepository';
+import type { WatermarkPresetsRepository } from '../../ports/WatermarkPresetsRepository';
 import type { Watermark } from '../../domain/Watermark';
 import { createWatermarkPreset } from '../../domain/WatermarkPreset';
 import type { WatermarkPreset } from '../../domain/WatermarkPreset';

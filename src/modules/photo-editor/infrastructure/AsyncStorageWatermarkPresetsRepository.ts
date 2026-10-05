@@ -1,5 +1,5 @@
-import type { WatermarkPresetsRepository } from '@core/ports/WatermarkPresetsRepository';
-import type { WatermarkPreset } from '@modules/photo-editor/domain/WatermarkPreset';
+import type { WatermarkPresetsRepository } from '../ports/WatermarkPresetsRepository';
+import type { WatermarkPreset } from '../domain/WatermarkPreset';
 import { JsonListCache } from './JsonListCache';
 
 const WATERMARK_KEY = '@pixelmorph/watermark-presets';

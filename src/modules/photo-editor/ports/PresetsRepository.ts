@@ -1,4 +1,4 @@
-import type { Preset } from '@modules/photo-editor/domain/Preset';
+import type { Preset } from '../domain/Preset';
 
 export interface PresetsRepository {
   save(preset: Preset): Promise<void>;

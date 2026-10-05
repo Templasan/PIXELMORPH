@@ -1,4 +1,4 @@
-import type { PresetsRepository } from '@core/ports/PresetsRepository';
+import type { PresetsRepository } from '../../ports/PresetsRepository';
 import { createPreset } from '../../domain/Preset';
 
 function generateId() {

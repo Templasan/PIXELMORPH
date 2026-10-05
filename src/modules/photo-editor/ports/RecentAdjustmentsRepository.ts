@@ -1,4 +1,4 @@
-import type { RecentAdjustment } from '@modules/photo-editor/domain';
+import type { RecentAdjustment } from '../domain';
 
 export interface RecentAdjustmentsRepository {
   add(adjustment: RecentAdjustment): Promise<void>;

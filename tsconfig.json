@@ -37,9 +37,6 @@
       "@modules/*": [
         "src/modules/*"
       ],
-      "@infrastructure/*": [
-        "src/infrastructure/*"
-      ],
       "@app/*": [
         "src/app/*"
       ],
