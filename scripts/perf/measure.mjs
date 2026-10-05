@@ -11,7 +11,7 @@
  * numbers don't mean anything:
  *   cd android && gradlew assembleRelease -PreactNativeArchitectures=x86_64
  *   adb install -r app/build/outputs/apk/release/app-release.apk
- *   node scripts/perf/measure.mjs --label baseline [--serial emulator-5554]
+ *   node scripts/perf/measure.mjs --label baseline [--serial emulator-5554] [--runs 3] [--only a,b]
  *
  * Needs at least one photo project and one video project on the device. Elements are found by
  * their on-screen text / accessibility label (Portuguese UI), never by fixed coordinates.
@@ -22,7 +22,6 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PKG = 'com.anonymous.pixelmorph';
-const RUNS = 3;
 const RESULTS_DIR = 'scripts/perf/results';
 
 const args = process.argv.slice(2);
@@ -31,6 +30,9 @@ const opt = (name, def) => {
   return i >= 0 ? args[i + 1] : def;
 };
 const LABEL = opt('label', 'run');
+const RUNS = Number(opt('runs', 3));
+/** Comma-separated scenario names to run (default: all). */
+const ONLY = opt('only', '').split(',').filter(Boolean);
 const SERIAL = opt('serial', process.env.ANDROID_SERIAL);
 const SDK = process.env.ANDROID_HOME ?? join(process.env.LOCALAPPDATA ?? '', 'Android', 'Sdk');
 const ADB = join(SDK, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
@@ -244,7 +246,7 @@ const median = (xs) => {
 };
 
 const results = {};
-for (const [name, fn] of SCENARIOS) {
+for (const [name, fn] of SCENARIOS.filter(([n]) => !ONLY.length || ONLY.includes(n))) {
   const runs = [];
   let error;
   for (let r = 0; r < RUNS; r++) {
