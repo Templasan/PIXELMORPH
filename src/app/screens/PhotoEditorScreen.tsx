@@ -581,6 +581,26 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const flipActive = adjustments.flipH > 0 || adjustments.flipV > 0;
   const adjustmentsLayerVisible = layers.find((l) => l.id === 'ajustes')?.visible ?? true;
   const selectedLayer = layers.find((l) => l.id === selectedLayerId);
+  // RF-067: centers (and shape edges) of the other text/shape/sticker layers are snap targets.
+  const otherLayerTargets = useMemo(() => {
+    const t: { x: number[]; y: number[] } = { x: [], y: [] };
+    for (const l of layers) {
+      if (l.id === selectedLayerId || !l.visible) continue;
+      if (l.text) {
+        t.x.push(l.text.x);
+        t.y.push(l.text.y);
+      } else if (l.shape) {
+        const hw = l.shape.size;
+        const hh = (l.shape.size * PHOTO_WIDTH) / PHOTO_HEIGHT;
+        t.x.push(l.shape.x, l.shape.x - hw, l.shape.x + hw);
+        t.y.push(l.shape.y);
+        if (l.shape.kind !== 'line' && l.shape.kind !== 'arrow') {
+          t.y.push(l.shape.y - hh, l.shape.y + hh);
+        }
+      }
+    }
+    return t;
+  }, [layers, selectedLayerId]);
   const paintModeActive =
     activeTool === 'camadas' && selectedLayer?.kind === 'paint' && !selectedLayer.locked;
 
@@ -855,6 +875,21 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shapeDraft, selectedLayer, layers]);
 
+  // Edits to the Formas form apply live to the selected shape, so a colour picked while a
+  // shape is selected is never lost (the selection effect above reloads the draft from the layer).
+  const changeShapeDraft = useCallback(
+    (patch: Partial<ShapeDraft>) => {
+      setShapeDraft((prev) => ({ ...prev, ...patch }));
+      if (selectedLayer?.kind === 'shape') {
+        const id = selectedLayer.id;
+        setLayers((prev) =>
+          prev.map((l) => (l.id === id && l.shape ? { ...l, shape: { ...l.shape, ...patch } } : l))
+        );
+      }
+    },
+    [selectedLayer]
+  );
+
   const setShapePosition = useCallback((id: string, nx: number, ny: number) => {
     setLayers((prev) =>
       prev.map((l) => (l.id === id && l.shape ? { ...l, shape: { ...l.shape, x: nx, y: ny } } : l))
@@ -1057,6 +1092,36 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   const toggleTool = (tool: Exclude<Tool, null>) =>
     setActiveTool((prev) => (prev === tool ? null : tool));
+
+  // RF-076: quick shortcuts without menus (touch; React Native has no hardware-key events
+  // without a native module): 2-finger tap = undo, 3-finger tap = redo, 2-finger double tap =
+  // save (export), 3-finger double tap = next tool.
+  const shortcutGestures = Gesture.Exclusive(
+    Gesture.Tap()
+      .minPointers(3)
+      .numberOfTaps(2)
+      .runOnJS(true)
+      .onEnd((_e: unknown, ok: boolean) => {
+        if (!ok) return;
+        setActiveTool((prev) => {
+          const i = TOOLBAR.findIndex((t) => t.id === prev);
+          return TOOLBAR[(i + 1) % TOOLBAR.length].id;
+        });
+      }),
+    Gesture.Tap()
+      .minPointers(3)
+      .runOnJS(true)
+      .onEnd((_e: unknown, ok: boolean) => ok && handleRedo()),
+    Gesture.Tap()
+      .minPointers(2)
+      .numberOfTaps(2)
+      .runOnJS(true)
+      .onEnd((_e: unknown, ok: boolean) => ok && setExportOpen(true)),
+    Gesture.Tap()
+      .minPointers(2)
+      .runOnJS(true)
+      .onEnd((_e: unknown, ok: boolean) => ok && handleUndo())
+  );
 
   const onCanvasLayout = useCallback((e: LayoutChangeEvent) => {
     setCanvasWidth(e.nativeEvent.layout.width);
@@ -1281,372 +1346,384 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         </Text>
       </View>
 
-      <View style={styles.canvasArea}>
-        <View style={styles.canvasCenter} onLayout={onCanvasLayout}>
-          <View style={styles.photo}>
-            {skiaImage && adjustmentsEffect ? (
-              <Canvas ref={canvasRef} style={StyleSheet.absoluteFill}>
-                <Group
-                  transform={[
-                    { rotate: totalRotationRad },
-                    ...(parallaxOffset.x !== 0 || parallaxOffset.y !== 0
-                      ? [{ translateX: parallaxOffset.x }, { translateY: parallaxOffset.y }]
-                      : []),
-                  ]}
-                  origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
-                >
-                  {renderPhotoLayer(false, false, 1, 'base', true)}
-                  {flipActive &&
-                    renderPhotoLayer(
-                      adjustments.flipH > 0,
-                      adjustments.flipV > 0,
-                      adjustments.mirrorOpacity / 100,
-                      'mirror'
-                    )}
-                </Group>
-                {/* RF-068: positioned in canvas space, like the paint layers below — it stays
+      <GestureDetector gesture={shortcutGestures}>
+        <View style={styles.canvasArea}>
+          <View style={styles.canvasCenter} onLayout={onCanvasLayout}>
+            <View style={styles.photo}>
+              {skiaImage && adjustmentsEffect ? (
+                <Canvas ref={canvasRef} style={StyleSheet.absoluteFill}>
+                  <Group
+                    transform={[
+                      { rotate: totalRotationRad },
+                      ...(parallaxOffset.x !== 0 || parallaxOffset.y !== 0
+                        ? [{ translateX: parallaxOffset.x }, { translateY: parallaxOffset.y }]
+                        : []),
+                    ]}
+                    origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
+                  >
+                    {renderPhotoLayer(false, false, 1, 'base', true)}
+                    {flipActive &&
+                      renderPhotoLayer(
+                        adjustments.flipH > 0,
+                        adjustments.flipV > 0,
+                        adjustments.mirrorOpacity / 100,
+                        'mirror'
+                      )}
+                  </Group>
+                  {/* RF-068: positioned in canvas space, like the paint layers below — it stays
                     where the user placed it regardless of the photo's own rotation. */}
-                {adjustments.lightIntensity > 0 && (
-                  <LightEffectOverlay
-                    type={adjustments.lightType}
-                    x={adjustments.lightX * PHOTO_WIDTH}
-                    y={adjustments.lightY * PHOTO_HEIGHT}
-                    intensity={adjustments.lightIntensity}
-                    width={PHOTO_WIDTH}
-                    height={PHOTO_HEIGHT}
-                  />
-                )}
-                {/* US-08: paint layers live outside the photo's own rotate/flip group —
+                  {adjustments.lightIntensity > 0 && (
+                    <LightEffectOverlay
+                      type={adjustments.lightType}
+                      x={adjustments.lightX * PHOTO_WIDTH}
+                      y={adjustments.lightY * PHOTO_HEIGHT}
+                      intensity={adjustments.lightIntensity}
+                      width={PHOTO_WIDTH}
+                      height={PHOTO_HEIGHT}
+                    />
+                  )}
+                  {/* US-08: paint layers live outside the photo's own rotate/flip group —
                     strokes stay put in canvas space, matching where they were drawn. */}
-                {layers
-                  .filter((l) => l.kind === 'paint' && l.visible)
-                  .map((l) => (
-                    <Group key={l.id} opacity={l.opacity / 100}>
-                      {(l.strokes ?? []).map((s) => (
-                        <Path
-                          key={s.id}
-                          path={s.path}
-                          style="stroke"
-                          strokeWidth={s.width}
-                          strokeCap={brushTip(s.shape).cap}
-                          strokeJoin={brushTip(s.shape).join}
-                          color={s.color}
-                          opacity={s.opacity}
-                        />
-                      ))}
-                    </Group>
-                  ))}
-                {currentStroke.length > 1 && (
-                  <Path
-                    path={pointsToPath(currentStroke)}
-                    style="stroke"
-                    strokeWidth={brushSize}
-                    strokeCap={brushTip(brushShape).cap}
-                    strokeJoin={brushTip(brushShape).join}
-                    color={brushColor}
-                    opacity={brushOpacity / 100}
-                  />
-                )}
-                {/* RF-008: real Skia text — a system font (via matchFont), color, optional
-                    drop shadow and stroke outline all draw for real, so they survive export. */}
-                {layers
-                  .filter((l) => l.kind === 'text' && l.visible && l.text)
-                  .map((l) => {
-                    const t = l.text!;
-                    const font = matchFont({
-                      fontFamily: t.fontFamily,
-                      fontSize: t.fontSize,
-                      fontWeight: 'bold',
-                    });
-                    const textWidth = font.measureText(t.content).width;
-                    const px = t.x * PHOTO_WIDTH - textWidth / 2;
-                    const py = t.y * PHOTO_HEIGHT;
-                    return (
+                  {layers
+                    .filter((l) => l.kind === 'paint' && l.visible)
+                    .map((l) => (
                       <Group key={l.id} opacity={l.opacity / 100}>
-                        {t.shadow && (
-                          <SkiaText
-                            text={t.content}
-                            x={px + 2}
-                            y={py + 2}
-                            font={font}
-                            color="rgba(0,0,0,0.5)"
-                          />
-                        )}
-                        {t.strokeWidth > 0 && (
-                          <SkiaText
-                            text={t.content}
-                            x={px}
-                            y={py}
-                            font={font}
-                            color={t.strokeColor}
-                            style="stroke"
-                            strokeWidth={t.strokeWidth}
-                          />
-                        )}
-                        <SkiaText text={t.content} x={px} y={py} font={font} color={t.color} />
-                      </Group>
-                    );
-                  })}
-                {/* RF-044: real vector shapes — same layer stack, same drag handle pattern. */}
-                {layers
-                  .filter((l) => l.kind === 'shape' && l.visible && l.shape)
-                  .map((l) => {
-                    const s = l.shape!;
-                    const cx = s.x * PHOTO_WIDTH;
-                    const cy = s.y * PHOTO_HEIGHT;
-                    const r = s.size * PHOTO_WIDTH;
-                    return (
-                      <Group key={l.id} opacity={l.opacity / 100}>
-                        {s.kind === 'circle' && (
-                          <Circle
-                            cx={cx}
-                            cy={cy}
-                            r={r}
-                            style="stroke"
-                            strokeWidth={s.strokeWidth}
-                            color={s.color}
-                          />
-                        )}
-                        {s.kind === 'rect' && (
-                          <Rect
-                            x={cx - r}
-                            y={cy - r}
-                            width={r * 2}
-                            height={r * 2}
-                            style="stroke"
-                            strokeWidth={s.strokeWidth}
-                            color={s.color}
-                          />
-                        )}
-                        {s.kind === 'line' && (
-                          <Line
-                            p1={{ x: cx - r, y: cy }}
-                            p2={{ x: cx + r, y: cy }}
-                            strokeWidth={s.strokeWidth}
-                            color={s.color}
-                          />
-                        )}
-                        {s.kind === 'arrow' && (
+                        {(l.strokes ?? []).map((s) => (
                           <Path
-                            path={arrowPath(cx, cy, r)}
+                            key={s.id}
+                            path={s.path}
                             style="stroke"
-                            strokeWidth={s.strokeWidth}
-                            strokeCap="round"
-                            strokeJoin="round"
+                            strokeWidth={s.width}
+                            strokeCap={brushTip(s.shape).cap}
+                            strokeJoin={brushTip(s.shape).join}
                             color={s.color}
+                            opacity={s.opacity}
                           />
-                        )}
+                        ))}
                       </Group>
-                    );
-                  })}
-                {/* RF-060: drawn last so the frame sits on top of the finished piece. */}
-                {adjustments.frameStyle > 0 && (
-                  <FrameOverlay
-                    style={adjustments.frameStyle}
-                    thickness={adjustments.frameThickness}
-                    radius={adjustments.frameRadius}
-                    color={frameColor}
-                    gradientColor={frameGradientColor}
-                    width={PHOTO_WIDTH}
-                    height={PHOTO_HEIGHT}
-                  />
-                )}
-              </Canvas>
-            ) : imageLoadFailed ? (
-              <View style={styles.photoLoadError}>
-                <Text style={styles.photoLoadErrorText}>
-                  Não foi possível abrir esta foto. O arquivo pode estar corrompido — tente capturar
-                  novamente.
-                </Text>
-              </View>
-            ) : (
-              photoUri && <Image source={{ uri: photoUri }} style={styles.photo} />
-            )}
-            {perspectiveEditMode && (
-              <PerspectiveHandles
-                corners={perspectiveCorners}
-                width={PHOTO_WIDTH}
-                height={PHOTO_HEIGHT}
-                onChangeCorner={setPerspCorner}
-                onCommitCorner={commitPerspCorner}
-              />
-            )}
-            {lightEditMode && (
-              <LightPositionHandle
-                x={adjustments.lightX * PHOTO_WIDTH}
-                y={adjustments.lightY * PHOTO_HEIGHT}
-                width={PHOTO_WIDTH}
-                height={PHOTO_HEIGHT}
-                onChange={setLightPosition}
-                onCommitValue={commitLightPosition}
-              />
-            )}
-            {activeTool === 'elementos' && selectedLayer?.kind === 'text' && selectedLayer.text && (
-              <LightPositionHandle
-                x={selectedLayer.text.x * PHOTO_WIDTH}
-                y={selectedLayer.text.y * PHOTO_HEIGHT}
-                width={PHOTO_WIDTH}
-                height={PHOTO_HEIGHT}
-                onChange={(nx, ny) => setTextPosition(selectedLayer.id, nx, ny)}
-                onCommitValue={() => {}}
-                guides
-              />
-            )}
-            {activeTool === 'elementos' &&
-              selectedLayer?.kind === 'shape' &&
-              selectedLayer.shape && (
-                <LightPositionHandle
-                  x={selectedLayer.shape.x * PHOTO_WIDTH}
-                  y={selectedLayer.shape.y * PHOTO_HEIGHT}
+                    ))}
+                  {currentStroke.length > 1 && (
+                    <Path
+                      path={pointsToPath(currentStroke)}
+                      style="stroke"
+                      strokeWidth={brushSize}
+                      strokeCap={brushTip(brushShape).cap}
+                      strokeJoin={brushTip(brushShape).join}
+                      color={brushColor}
+                      opacity={brushOpacity / 100}
+                    />
+                  )}
+                  {/* RF-008: real Skia text — a system font (via matchFont), color, optional
+                    drop shadow and stroke outline all draw for real, so they survive export. */}
+                  {layers
+                    .filter((l) => l.kind === 'text' && l.visible && l.text)
+                    .map((l) => {
+                      const t = l.text!;
+                      const font = matchFont({
+                        fontFamily: t.fontFamily,
+                        fontSize: t.fontSize,
+                        fontWeight: 'bold',
+                      });
+                      const textWidth = font.measureText(t.content).width;
+                      const px = t.x * PHOTO_WIDTH - textWidth / 2;
+                      const py = t.y * PHOTO_HEIGHT;
+                      return (
+                        <Group key={l.id} opacity={l.opacity / 100}>
+                          {t.shadow && (
+                            <SkiaText
+                              text={t.content}
+                              x={px + 2}
+                              y={py + 2}
+                              font={font}
+                              color="rgba(0,0,0,0.5)"
+                            />
+                          )}
+                          {t.strokeWidth > 0 && (
+                            <SkiaText
+                              text={t.content}
+                              x={px}
+                              y={py}
+                              font={font}
+                              color={t.strokeColor}
+                              style="stroke"
+                              strokeWidth={t.strokeWidth}
+                            />
+                          )}
+                          <SkiaText text={t.content} x={px} y={py} font={font} color={t.color} />
+                        </Group>
+                      );
+                    })}
+                  {/* RF-044: real vector shapes — same layer stack, same drag handle pattern. */}
+                  {layers
+                    .filter((l) => l.kind === 'shape' && l.visible && l.shape)
+                    .map((l) => {
+                      const s = l.shape!;
+                      const cx = s.x * PHOTO_WIDTH;
+                      const cy = s.y * PHOTO_HEIGHT;
+                      const r = s.size * PHOTO_WIDTH;
+                      return (
+                        <Group key={l.id} opacity={l.opacity / 100}>
+                          {s.kind === 'circle' && (
+                            <Circle
+                              cx={cx}
+                              cy={cy}
+                              r={r}
+                              style="stroke"
+                              strokeWidth={s.strokeWidth}
+                              color={s.color}
+                            />
+                          )}
+                          {s.kind === 'rect' && (
+                            <Rect
+                              x={cx - r}
+                              y={cy - r}
+                              width={r * 2}
+                              height={r * 2}
+                              style="stroke"
+                              strokeWidth={s.strokeWidth}
+                              color={s.color}
+                            />
+                          )}
+                          {s.kind === 'line' && (
+                            <Line
+                              p1={{ x: cx - r, y: cy }}
+                              p2={{ x: cx + r, y: cy }}
+                              strokeWidth={s.strokeWidth}
+                              color={s.color}
+                            />
+                          )}
+                          {s.kind === 'arrow' && (
+                            <Path
+                              path={arrowPath(cx, cy, r)}
+                              style="stroke"
+                              strokeWidth={s.strokeWidth}
+                              strokeCap="round"
+                              strokeJoin="round"
+                              color={s.color}
+                            />
+                          )}
+                        </Group>
+                      );
+                    })}
+                  {/* RF-060: drawn last so the frame sits on top of the finished piece. */}
+                  {adjustments.frameStyle > 0 && (
+                    <FrameOverlay
+                      style={adjustments.frameStyle}
+                      thickness={adjustments.frameThickness}
+                      radius={adjustments.frameRadius}
+                      color={frameColor}
+                      gradientColor={frameGradientColor}
+                      width={PHOTO_WIDTH}
+                      height={PHOTO_HEIGHT}
+                    />
+                  )}
+                </Canvas>
+              ) : imageLoadFailed ? (
+                <View style={styles.photoLoadError}>
+                  <Text style={styles.photoLoadErrorText}>
+                    Não foi possível abrir esta foto. O arquivo pode estar corrompido — tente
+                    capturar novamente.
+                  </Text>
+                </View>
+              ) : (
+                photoUri && <Image source={{ uri: photoUri }} style={styles.photo} />
+              )}
+              {perspectiveEditMode && (
+                <PerspectiveHandles
+                  corners={perspectiveCorners}
                   width={PHOTO_WIDTH}
                   height={PHOTO_HEIGHT}
-                  onChange={(nx, ny) => setShapePosition(selectedLayer.id, nx, ny)}
-                  onCommitValue={() => {}}
-                  guides
+                  onChangeCorner={setPerspCorner}
+                  onCommitCorner={commitPerspCorner}
                 />
               )}
-            {paintModeActive && (
-              <GestureDetector gesture={paintGesture}>
-                <View style={StyleSheet.absoluteFill} />
-              </GestureDetector>
-            )}
-          </View>
-          {paintModeActive && (
-            <View style={[styles.brushBar, brushBarFit]}>
-              {BRUSH_COLORS.map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => setBrushColor(c)}
-                  style={[
-                    styles.brushSwatch,
-                    { backgroundColor: c },
-                    brushColor === c && styles.brushSwatchActive,
-                  ]}
+              {lightEditMode && (
+                <LightPositionHandle
+                  x={adjustments.lightX * PHOTO_WIDTH}
+                  y={adjustments.lightY * PHOTO_HEIGHT}
+                  width={PHOTO_WIDTH}
+                  height={PHOTO_HEIGHT}
+                  onChange={setLightPosition}
+                  onCommitValue={commitLightPosition}
                 />
-              ))}
-              <Pressable onPress={() => setBrushSize((s) => Math.max(2, s - 2))} hitSlop={6}>
-                <Icon name="minus" size={14} color={colors.texto} />
-              </Pressable>
-              <Text style={styles.brushSizeText}>{brushSize}px</Text>
-              <Pressable onPress={() => setBrushSize((s) => Math.min(40, s + 2))} hitSlop={6}>
-                <Icon name="plus" size={14} color={colors.texto} />
-              </Pressable>
+              )}
+              {activeTool === 'elementos' &&
+                selectedLayer?.kind === 'text' &&
+                selectedLayer.text && (
+                  <LightPositionHandle
+                    x={selectedLayer.text.x * PHOTO_WIDTH}
+                    y={selectedLayer.text.y * PHOTO_HEIGHT}
+                    width={PHOTO_WIDTH}
+                    height={PHOTO_HEIGHT}
+                    onChange={(nx, ny) => setTextPosition(selectedLayer.id, nx, ny)}
+                    onCommitValue={() => {}}
+                    targets={otherLayerTargets}
+                    guides
+                  />
+                )}
+              {activeTool === 'elementos' &&
+                selectedLayer?.kind === 'shape' &&
+                selectedLayer.shape && (
+                  <LightPositionHandle
+                    x={selectedLayer.shape.x * PHOTO_WIDTH}
+                    y={selectedLayer.shape.y * PHOTO_HEIGHT}
+                    width={PHOTO_WIDTH}
+                    height={PHOTO_HEIGHT}
+                    onChange={(nx, ny) => setShapePosition(selectedLayer.id, nx, ny)}
+                    onCommitValue={() => {}}
+                    targets={otherLayerTargets}
+                    guides
+                  />
+                )}
+              {paintModeActive && (
+                <GestureDetector gesture={paintGesture}>
+                  <View style={StyleSheet.absoluteFill} />
+                </GestureDetector>
+              )}
             </View>
-          )}
-          {paintModeActive && (
-            <View style={[styles.brushBar, brushBarFit]}>
-              {BRUSH_SHAPES.map((shape) => (
-                <Pressable
-                  key={shape.id}
-                  onPress={() => setBrushShape(shape.id)}
-                  accessibilityLabel={shape.name}
-                  style={[
-                    styles.brushShapeChip,
-                    brushShape === shape.id && styles.brushShapeChipActive,
-                  ]}
-                >
-                  <Text
-                    numberOfLines={1}
+            {paintModeActive && (
+              <View style={[styles.brushBar, brushBarFit]}>
+                {BRUSH_COLORS.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setBrushColor(c)}
                     style={[
-                      styles.brushSizeText,
-                      brushShape === shape.id && { color: colors.acento },
+                      styles.brushSwatch,
+                      { backgroundColor: c },
+                      brushColor === c && styles.brushSwatchActive,
+                    ]}
+                  />
+                ))}
+                <Pressable onPress={() => setBrushSize((s) => Math.max(2, s - 2))} hitSlop={6}>
+                  <Icon name="minus" size={14} color={colors.texto} />
+                </Pressable>
+                <Text style={styles.brushSizeText}>{brushSize}px</Text>
+                <Pressable onPress={() => setBrushSize((s) => Math.min(40, s + 2))} hitSlop={6}>
+                  <Icon name="plus" size={14} color={colors.texto} />
+                </Pressable>
+              </View>
+            )}
+            {paintModeActive && (
+              <View style={[styles.brushBar, brushBarFit]}>
+                {BRUSH_SHAPES.map((shape) => (
+                  <Pressable
+                    key={shape.id}
+                    onPress={() => setBrushShape(shape.id)}
+                    accessibilityLabel={shape.name}
+                    style={[
+                      styles.brushShapeChip,
+                      brushShape === shape.id && styles.brushShapeChipActive,
                     ]}
                   >
-                    {shape.glyph}
-                  </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.brushSizeText,
+                        brushShape === shape.id && { color: colors.acento },
+                      ]}
+                    >
+                      {shape.glyph}
+                    </Text>
+                  </Pressable>
+                ))}
+                <Pressable onPress={() => setBrushOpacity((o) => Math.max(10, o - 10))} hitSlop={6}>
+                  <Icon name="minus" size={14} color={colors.texto} />
                 </Pressable>
-              ))}
-              <Pressable onPress={() => setBrushOpacity((o) => Math.max(10, o - 10))} hitSlop={6}>
-                <Icon name="minus" size={14} color={colors.texto} />
-              </Pressable>
-              <Text style={styles.brushSizeText}>{brushOpacity}%</Text>
-              <Pressable onPress={() => setBrushOpacity((o) => Math.min(100, o + 10))} hitSlop={6}>
-                <Icon name="plus" size={14} color={colors.texto} />
-              </Pressable>
-            </View>
-          )}
-
-          {compareMode && canvasWidth > 0 && photoUri && (
-            <View style={StyleSheet.absoluteFill}>
-              <View style={[styles.compareOriginalWrap, { width: `${compareSplit}%` }]}>
-                <Image source={{ uri: photoUri }} style={[styles.photo, { width: canvasWidth }]} />
+                <Text style={styles.brushSizeText}>{brushOpacity}%</Text>
+                <Pressable
+                  onPress={() => setBrushOpacity((o) => Math.min(100, o + 10))}
+                  hitSlop={6}
+                >
+                  <Icon name="plus" size={14} color={colors.texto} />
+                </Pressable>
               </View>
-              <GestureDetector gesture={compareDrag}>
-                <View style={[styles.compareHandle, { left: `${compareSplit}%` }]}>
-                  <View style={styles.compareHandleGrip}>
-                    <Icon name="compare" size={14} color={colors.preto} />
-                  </View>
+            )}
+
+            {compareMode && canvasWidth > 0 && photoUri && (
+              <View style={StyleSheet.absoluteFill}>
+                <View style={[styles.compareOriginalWrap, { width: `${compareSplit}%` }]}>
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={[styles.photo, { width: canvasWidth }]}
+                  />
                 </View>
-              </GestureDetector>
-              <View style={styles.compareLabelLeft}>
-                <Text style={styles.compareLabelText}>ORIGINAL</Text>
+                <GestureDetector gesture={compareDrag}>
+                  <View style={[styles.compareHandle, { left: `${compareSplit}%` }]}>
+                    <View style={styles.compareHandleGrip}>
+                      <Icon name="compare" size={14} color={colors.preto} />
+                    </View>
+                  </View>
+                </GestureDetector>
+                <View style={styles.compareLabelLeft}>
+                  <Text style={styles.compareLabelText}>ORIGINAL</Text>
+                </View>
+                <View style={styles.compareLabelRight}>
+                  <Text style={styles.compareLabelText}>EDITADA</Text>
+                </View>
               </View>
-              <View style={styles.compareLabelRight}>
-                <Text style={styles.compareLabelText}>EDITADA</Text>
-              </View>
-            </View>
+            )}
+          </View>
+
+          {activeTool === 'camadas' && (
+            <LayersPanel
+              layers={layers}
+              selectedLayerId={selectedLayerId}
+              onSelectLayer={setSelectedLayerId}
+              onToggleVisibility={(id) =>
+                setLayers((prev) =>
+                  prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l))
+                )
+              }
+              onOpacityChange={(id, value) =>
+                setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, opacity: value } : l)))
+              }
+              onAdd={() => {
+                const layer = createPaintLayer(
+                  `Pintura ${layers.filter((l) => l.kind === 'paint').length + 1}`
+                );
+                setLayers((prev) => [...prev, layer]);
+                setSelectedLayerId(layer.id);
+              }}
+              onDuplicate={(id) =>
+                setLayers((prev) => {
+                  const source = prev.find((l) => l.id === id);
+                  if (!source) return prev;
+                  const copy = duplicateLayer(source);
+                  setSelectedLayerId(copy.id);
+                  return [...prev, copy];
+                })
+              }
+              onMergeVisible={() =>
+                setLayers((prev) => {
+                  const merged = mergeVisiblePaintLayers(prev);
+                  if (!merged.some((l) => l.id === selectedLayerId)) {
+                    const survivor = merged.find((l) => l.kind === 'paint');
+                    if (survivor) setSelectedLayerId(survivor.id);
+                  }
+                  return merged;
+                })
+              }
+              onDelete={(id) =>
+                setLayers((prev) => {
+                  const next = prev.filter((l) => l.id !== id);
+                  if (selectedLayerId === id) setSelectedLayerId('fundo');
+                  return next;
+                })
+              }
+            />
           )}
-        </View>
 
-        {activeTool === 'camadas' && (
-          <LayersPanel
-            layers={layers}
-            selectedLayerId={selectedLayerId}
-            onSelectLayer={setSelectedLayerId}
-            onToggleVisibility={(id) =>
-              setLayers((prev) =>
-                prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l))
-              )
-            }
-            onOpacityChange={(id, value) =>
-              setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, opacity: value } : l)))
-            }
-            onAdd={() => {
-              const layer = createPaintLayer(
-                `Pintura ${layers.filter((l) => l.kind === 'paint').length + 1}`
-              );
-              setLayers((prev) => [...prev, layer]);
-              setSelectedLayerId(layer.id);
-            }}
-            onDuplicate={(id) =>
-              setLayers((prev) => {
-                const source = prev.find((l) => l.id === id);
-                if (!source) return prev;
-                const copy = duplicateLayer(source);
-                setSelectedLayerId(copy.id);
-                return [...prev, copy];
-              })
-            }
-            onMergeVisible={() =>
-              setLayers((prev) => {
-                const merged = mergeVisiblePaintLayers(prev);
-                if (!merged.some((l) => l.id === selectedLayerId)) {
-                  const survivor = merged.find((l) => l.kind === 'paint');
-                  if (survivor) setSelectedLayerId(survivor.id);
-                }
-                return merged;
-              })
-            }
-            onDelete={(id) =>
-              setLayers((prev) => {
-                const next = prev.filter((l) => l.id !== id);
-                if (selectedLayerId === id) setSelectedLayerId('fundo');
-                return next;
-              })
-            }
-          />
-        )}
-
-        <View style={styles.zoomBar}>
-          <Pressable onPress={() => setZoom((z) => Math.max(25, z - 25))} hitSlop={6}>
-            <Icon name="minus" size={14} />
-          </Pressable>
-          <Text style={styles.zoomText}>{zoom}%</Text>
-          <Pressable onPress={() => setZoom((z) => Math.min(400, z + 25))} hitSlop={6}>
-            <Icon name="plus" size={14} />
-          </Pressable>
+          <View style={styles.zoomBar}>
+            <Pressable onPress={() => setZoom((z) => Math.max(25, z - 25))} hitSlop={6}>
+              <Icon name="minus" size={14} />
+            </Pressable>
+            <Text style={styles.zoomText}>{zoom}%</Text>
+            <Pressable onPress={() => setZoom((z) => Math.min(400, z + 25))} hitSlop={6}>
+              <Icon name="plus" size={14} />
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </GestureDetector>
 
       {activeTool && activeTool !== 'camadas' && (
         <View style={styles.toolDrawer}>
@@ -1706,7 +1783,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 onSubmitText={submitTextLayer}
                 isEditingText={selectedLayer?.kind === 'text'}
                 shapeDraft={shapeDraft}
-                onChangeShapeDraft={(patch) => setShapeDraft((prev) => ({ ...prev, ...patch }))}
+                onChangeShapeDraft={changeShapeDraft}
                 onSubmitShape={submitShapeLayer}
                 isEditingShape={selectedLayer?.kind === 'shape'}
                 onSubmitMeme={submitMeme}

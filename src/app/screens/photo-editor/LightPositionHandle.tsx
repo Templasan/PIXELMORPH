@@ -4,7 +4,7 @@ import Svg, { Circle, Line } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { colors } from '@core/theme';
-import { snapToGuides } from '@modules/photo-editor/geometry';
+import { snapToGuides, type SnapTargets } from '@modules/photo-editor/geometry';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -19,6 +19,8 @@ interface LightPositionHandleProps {
   onCommitValue: (nx: number, ny: number, fromNx: number, fromNy: number) => void;
   /** RF-067: snaps to the canvas center lines and shows a guide while dragging. */
   guides?: boolean;
+  /** Extra normalized snap targets (other layers' centers/edges). */
+  targets?: SnapTargets;
 }
 
 /** RF-068/RF-067: a single draggable point — optionally snaps to center guides while dragging. */
@@ -30,33 +32,37 @@ export function LightPositionHandle({
   onChange,
   onCommitValue,
   guides = false,
+  targets,
 }: LightPositionHandleProps) {
   const startNx = useRef(x / width);
   const startNy = useRef(y / height);
   const latestNx = useRef(x / width);
   const latestNy = useRef(y / height);
-  const [snap, setSnap] = useState({ snappedX: false, snappedY: false });
+  const [snap, setSnap] = useState<{ gx: number | null; gy: number | null }>({
+    gx: null,
+    gy: null,
+  });
 
   const updateFromDelta = useCallback(
     (dx: number, dy: number) => {
       let nx = clamp01(startNx.current + dx / width);
       let ny = clamp01(startNy.current + dy / height);
       if (guides) {
-        const snapped = snapToGuides(nx, ny);
+        const snapped = snapToGuides(nx, ny, 0.02, targets);
         nx = snapped.x;
         ny = snapped.y;
-        setSnap({ snappedX: snapped.snappedX, snappedY: snapped.snappedY });
+        setSnap({ gx: snapped.guideX, gy: snapped.guideY });
       }
       latestNx.current = nx;
       latestNy.current = ny;
       onChange(nx, ny);
     },
-    [width, height, onChange, guides]
+    [width, height, onChange, guides, targets]
   );
 
   const commit = useCallback(() => {
     onCommitValue(latestNx.current, latestNy.current, startNx.current, startNy.current);
-    setSnap({ snappedX: false, snappedY: false });
+    setSnap({ gx: null, gy: null });
   }, [onCommitValue]);
 
   const pan = Gesture.Pan()
@@ -74,23 +80,23 @@ export function LightPositionHandle({
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-        {guides && snap.snappedX && (
+        {guides && snap.gx !== null && (
           <Line
-            x1={width / 2}
+            x1={snap.gx! * width}
             y1={0}
-            x2={width / 2}
+            x2={snap.gx! * width}
             y2={height}
             stroke={colors.perigo}
             strokeWidth={1}
             strokeDasharray="4,4"
           />
         )}
-        {guides && snap.snappedY && (
+        {guides && snap.gy !== null && (
           <Line
             x1={0}
-            y1={height / 2}
+            y1={snap.gy! * height}
             x2={width}
-            y2={height / 2}
+            y2={snap.gy! * height}
             stroke={colors.perigo}
             strokeWidth={1}
             strokeDasharray="4,4"
