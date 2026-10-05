@@ -17,3 +17,4 @@ export * from './layers';
 export * from './panorama';
 export * from './raw';
 export * from './stereoscopic';
+export * from './adjustments';
