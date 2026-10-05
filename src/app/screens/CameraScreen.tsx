@@ -26,7 +26,8 @@ import { useAppModules } from '../hooks';
 import { colors, monoFontFamily } from '@core/theme';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
-import { probeFileMetadata } from '@modules/device-media';
+import { probeFileMetadata, uprightDimensions } from '@modules/device-media';
+import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import type { BasicAdjustments } from '@modules/photo-editor/color';
 import {
   createARAnchor,
@@ -267,6 +268,9 @@ export default function CameraScreen({ navigation }: Props) {
       kind === 'video' ? 'video' : 'photo'
     );
     const probed = await probeFileMetadata(uri, kind);
+    // Camera videos are stored sideways with a rotation tag; keep the upright size.
+    const rotation = kind === 'video' ? await probeVideoRotation(uri).catch(() => null) : null;
+    ({ width, height } = uprightDimensions(width, height, rotation));
     await projects.addMediaAsset.execute(
       project.id,
       createMediaAsset(
