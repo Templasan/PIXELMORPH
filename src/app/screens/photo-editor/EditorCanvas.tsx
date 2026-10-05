@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import {
   Canvas,
@@ -13,70 +13,73 @@ import {
   type SkRuntimeEffect,
   type useCanvasRef,
 } from '@shopify/react-native-skia';
-import { arrowPath, type BrushShape, type EditorLayer, type Point } from '@modules/photo-editor';
+import { useStore } from '@core/state';
+import { arrowPath, type PhotoEditorStore } from '@modules/photo-editor';
+import {
+  adjustmentUniforms,
+  perspectiveMatrixOf,
+  retroUniformsOf,
+  totalRotationRadOf,
+} from '@modules/photo-editor/domain/adjustments';
 import { FrameOverlay } from './FrameOverlay';
 import { LightEffectOverlay } from './LightEffectOverlay';
 import { PaintLayers, CurrentStroke } from './PaintLayers';
 import { PhotoLayer } from './PhotoLayer';
 import { PHOTO_WIDTH, PHOTO_HEIGHT } from './dims';
-import type { Adjustments } from '@modules/photo-editor/domain/adjustments';
-
-type PhotoLayerProps = Parameters<typeof PhotoLayer>[0];
 
 interface Props {
+  editor: PhotoEditorStore;
   canvasRef: ReturnType<typeof useCanvasRef>;
   skiaImage: SkImage;
   adjustmentsEffect: SkRuntimeEffect;
   retroEffect: SkRuntimeEffect | null;
-  uniforms: PhotoLayerProps['uniforms'];
-  retroUniforms: PhotoLayerProps['retroUniforms'];
-  totalRotationRad: number;
   parallaxOffset: { x: number; y: number };
-  perspectiveMatrix: PhotoLayerProps['matrix'] | null;
-  flipActive: boolean;
-  adjustmentsLayerVisible: boolean;
   doubleExposureSkImage: SkImage | null;
   overlaySkImage: SkImage | null;
-  adjustments: Adjustments;
-  layers: EditorLayer[];
-  currentStroke: Point[];
-  brushSize: number;
-  brushShape: BrushShape;
-  brushColor: string;
-  brushOpacity: number;
   frameColor: string;
   frameGradientColor: string;
 }
 
 /**
  * The photo editor's Skia canvas (photo, adjustments, effects, paint/text/shape layers, frame).
- * Memoized: it re-renders only when something it draws changes, not when the screen re-renders
- * for UI state such as opening a drawer — that used to rebuild the whole Skia tree.
+ * It subscribes to the editor store itself, so a slider tick or a brush point re-renders the
+ * canvas alone — not the screen, and opening a drawer does not touch the canvas at all.
  */
 export const EditorCanvas = memo(function EditorCanvas({
+  editor,
   canvasRef,
   skiaImage,
   adjustmentsEffect,
   retroEffect,
-  uniforms,
-  retroUniforms,
-  totalRotationRad,
   parallaxOffset,
-  perspectiveMatrix,
-  flipActive,
-  adjustmentsLayerVisible,
   doubleExposureSkImage,
   overlaySkImage,
-  adjustments,
-  layers,
-  currentStroke,
-  brushSize,
-  brushShape,
-  brushColor,
-  brushOpacity,
   frameColor,
   frameGradientColor,
 }: Props) {
+  const adjustments = useStore(editor.store, (st) => st.adjustments);
+  const layers = useStore(editor.store, (st) => st.layers);
+  const currentStroke = useStore(editor.store, (st) => st.currentStroke);
+  const {
+    color: brushColor,
+    size: brushSize,
+    shape: brushShape,
+    opacity: brushOpacity,
+  } = useStore(editor.store, (st) => st.brush);
+
+  const uniforms = useMemo(() => adjustmentUniforms(adjustments), [adjustments]);
+  const retroUniforms = useMemo(
+    () => retroUniformsOf(adjustments, PHOTO_WIDTH, PHOTO_HEIGHT),
+    [adjustments]
+  );
+  const perspectiveMatrix = useMemo(
+    () => perspectiveMatrixOf(adjustments, PHOTO_WIDTH, PHOTO_HEIGHT),
+    [adjustments]
+  );
+  const totalRotationRad = totalRotationRadOf(adjustments);
+  const flipActive = adjustments.flipH > 0 || adjustments.flipV > 0;
+  const adjustmentsLayerVisible = layers.find((l) => l.id === 'ajustes')?.visible ?? true;
+
   return (
     <Canvas ref={canvasRef} style={StyleSheet.absoluteFill}>
       <Group

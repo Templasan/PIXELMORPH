@@ -43,16 +43,13 @@ import {
   composePanorama,
   rawFormatLabel,
   ADJUSTMENTS_SKSL,
-  toFullUniforms,
   useImageHistogram,
   type Mask,
   detectStereoscopicFromUri,
   type StereoscopicInfo,
   useGyroParallax,
-  computeHomography,
   orientationToTransform,
   readExifOrientation,
-  type Point,
   createPaintLayer,
   BRUSH_SHAPES,
   type BrushShape,
@@ -66,9 +63,7 @@ import {
   saveEditorImages,
   type EditorLayer,
   RETRO_EFFECTS_SKSL,
-  toRetroUniforms,
 } from '@modules/photo-editor';
-import { AdjustDrawer } from './photo-editor/AdjustDrawer';
 import { GeometryDrawer } from './photo-editor/GeometryDrawer';
 import { PerspectiveHandles } from './photo-editor/PerspectiveHandles';
 import { LightPositionHandle } from './photo-editor/LightPositionHandle';
@@ -84,10 +79,14 @@ import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
 import { createPhotoEditorStore } from '@modules/photo-editor';
 import { EditorCanvas } from './photo-editor/EditorCanvas';
+import { AdjustDrawerHost, WithAdjustments } from './photo-editor/WithAdjustments';
 import {
   ADJUST_DRAWER_FIELDS,
   DEFAULT_ADJUSTMENTS,
   PERSPECTIVE_FIELDS,
+  adjustmentUniforms,
+  perspectiveCornersOf,
+  perspectiveMatrixOf,
 } from '@modules/photo-editor/domain/adjustments';
 import { PHOTO_WIDTH, PHOTO_HEIGHT } from './photo-editor/dims';
 
@@ -205,7 +204,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       }),
     []
   );
-  const adjustments = useStore(editor.store, (st) => st.adjustments);
   const activeTool = useStore(editor.store, (st) => st.activeTool) as Tool;
   const compareMode = useStore(editor.store, (st) => st.compareMode);
   const compareSplit = useStore(editor.store, (st) => st.compareSplit);
@@ -218,7 +216,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     shape: brushShape,
     opacity: brushOpacity,
   } = useStore(editor.store, (st) => st.brush);
-  const currentStroke = useStore(editor.store, (st) => st.currentStroke);
   // useState-style setters over the store, so the many call sites below stay as they were.
   const setActiveTool = (v: Tool | ((prev: Tool) => Tool)) =>
     editor.setTool(typeof v === 'function' ? v(editor.store.get().activeTool as Tool) : v);
@@ -305,123 +302,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const overlaySkImage = useImage(overlayImage?.uri ?? null);
   const adjustmentsEffect = getAdjustmentsEffect();
   const retroEffect = getRetroEffect();
-  const uniforms = useMemo(
-    () =>
-      toFullUniforms(
-        adjustments,
-        {
-          nitidez: adjustments.nitidez,
-          raio: adjustments.raio,
-          reducaoRuido: adjustments.reducaoRuido,
-          luminancia: adjustments.luminancia,
-        },
-        {
-          colorIndex: adjustments.corIndex >= 0 ? adjustments.corIndex : null,
-          tolerancia: adjustments.corTolerancia,
-          desaturarResto: adjustments.corDesaturarResto,
-          matiz: adjustments.corMatiz,
-          saturacao: adjustments.corSaturacao,
-          luminosidade: adjustments.corLuminosidade,
-        },
-        {
-          master: { y1: adjustments.curveMasterY1, y2: adjustments.curveMasterY2 },
-          r: { y1: adjustments.curveRY1, y2: adjustments.curveRY2 },
-          g: { y1: adjustments.curveGY1, y2: adjustments.curveGY2 },
-          b: { y1: adjustments.curveBY1, y2: adjustments.curveBY2 },
-        }
-      ),
-    [adjustments]
-  );
-  const retroUniforms = useMemo(
-    () =>
-      toRetroUniforms(
-        {
-          aging: adjustments.retroAging,
-          agingBlend: adjustments.retroAgingBlend,
-          grain: adjustments.retroGrain,
-          grainBlend: adjustments.retroGrainBlend,
-          vignette: adjustments.retroVignette,
-          vignetteBlend: adjustments.retroVignetteBlend,
-        },
-        {
-          type: adjustments.overlayType,
-          intensity: adjustments.overlayIntensity,
-          opacity: adjustments.overlayOpacity,
-        },
-        PHOTO_WIDTH,
-        PHOTO_HEIGHT
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      adjustments.retroAging,
-      adjustments.retroAgingBlend,
-      adjustments.retroGrain,
-      adjustments.retroGrainBlend,
-      adjustments.retroVignette,
-      adjustments.retroVignetteBlend,
-      adjustments.overlayType,
-      adjustments.overlayIntensity,
-      adjustments.overlayOpacity,
-    ]
-  );
   const histogram = useImageHistogram(skiaImage);
-  // Only the Ajustes drawer shows it, and it walks ~1/64 of the photo's pixels through the full
-  // adjustment math on the JS thread — so it is computed only while that drawer is open.
-  const histogramVisible = activeTool === 'ajustes';
-  const liveHistogram = useMemo(
-    () => (histogramVisible ? histogram.compute(uniforms) : null),
-    [histogram, uniforms, histogramVisible]
-  );
-
   // RF-071: gyro-responsive parallax for stereoscopic photos
   const parallaxOffset = useGyroParallax(gyroParallaxEnabled && stereoInfo.isStereoscopic, 20);
 
   // US-05: rotation/mirror/perspective geometry — a separate transform stage applied
   // around the color-adjusted image, real Skia matrices (not a cosmetic overlay).
   const [perspectiveEditMode, setPerspectiveEditMode] = useState(false);
-  const totalRotationDeg = adjustments.rotation90 + adjustments.fineRotation;
-  const totalRotationRad = (totalRotationDeg * Math.PI) / 180;
-  const perspectiveCorners = useMemo<[Point, Point, Point, Point]>(
-    () => [
-      { x: adjustments.perspX0 * PHOTO_WIDTH, y: adjustments.perspY0 * PHOTO_HEIGHT },
-      { x: adjustments.perspX1 * PHOTO_WIDTH, y: adjustments.perspY1 * PHOTO_HEIGHT },
-      { x: adjustments.perspX2 * PHOTO_WIDTH, y: adjustments.perspY2 * PHOTO_HEIGHT },
-      { x: adjustments.perspX3 * PHOTO_WIDTH, y: adjustments.perspY3 * PHOTO_HEIGHT },
-    ],
-    [
-      adjustments.perspX0,
-      adjustments.perspY0,
-      adjustments.perspX1,
-      adjustments.perspY1,
-      adjustments.perspX2,
-      adjustments.perspY2,
-      adjustments.perspX3,
-      adjustments.perspY3,
-    ]
-  );
-  const perspectiveActive = perspectiveCorners.some(
-    (p, i) =>
-      Math.abs(p.x - [0, PHOTO_WIDTH, PHOTO_WIDTH, 0][i]) > 0.5 ||
-      Math.abs(p.y - [0, 0, PHOTO_HEIGHT, PHOTO_HEIGHT][i]) > 0.5
-  );
-  // RF-048: maps the marked (distorted) quad onto the full canvas rect. Applied as the
-  // Group's own render matrix — Skia rasterizes shader-filled geometry under a projective
-  // matrix with true per-pixel perspective correction, unlike a triangle-mesh/UV
-  // approximation (react-native-skia's Vertices textures didn't warp reliably here).
-  const perspectiveMatrix = useMemo(
-    () =>
-      perspectiveActive
-        ? computeHomography(perspectiveCorners, [
-            { x: 0, y: 0 },
-            { x: PHOTO_WIDTH, y: 0 },
-            { x: PHOTO_WIDTH, y: PHOTO_HEIGHT },
-            { x: 0, y: PHOTO_HEIGHT },
-          ])
-        : null,
-    [perspectiveActive, perspectiveCorners]
-  );
-  const flipActive = adjustments.flipH > 0 || adjustments.flipV > 0;
-  const adjustmentsLayerVisible = layers.find((l) => l.id === 'ajustes')?.visible ?? true;
   const selectedLayer = layers.find((l) => l.id === selectedLayerId);
   // RF-067: centers (and shape edges) of the other text/shape/sticker layers are snap targets.
   const otherLayerTargets = useMemo(() => {
@@ -862,23 +749,29 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // are untouched and keep working the usual (always-relative-to-original) way.
   const handleBakeAdjustments = useCallback(async () => {
     if (!skiaImage || !adjustmentsEffect) return;
+    const uniforms = adjustmentUniforms(editor.store.get().adjustments);
     const baked = bakeAdjustments(skiaImage, adjustmentsEffect, uniforms);
     if (!baked) return;
     await persistBakedImage(baked);
     editor.resetFields(ADJUST_DRAWER_FIELDS);
-  }, [skiaImage, adjustmentsEffect, uniforms, persistBakedImage, editor]);
+  }, [skiaImage, adjustmentsEffect, persistBakedImage, editor]);
 
   // Same cumulative pattern for "Corrigir perspectiva": the 4 corner handles always warp
   // from the identity quad, so a second correction on top of an already-corrected photo
   // needs the first one baked into real pixels and the corners reset to identity first.
   const handleBakePerspective = useCallback(async () => {
+    const perspectiveMatrix = perspectiveMatrixOf(
+      editor.store.get().adjustments,
+      PHOTO_WIDTH,
+      PHOTO_HEIGHT
+    );
     if (!skiaImage || !perspectiveMatrix) return;
     const baked = bakePerspective(skiaImage, perspectiveMatrix);
     if (!baked) return;
     await persistBakedImage(baked);
     editor.resetFields(PERSPECTIVE_FIELDS);
     setPerspectiveEditMode(false);
-  }, [skiaImage, perspectiveMatrix, persistBakedImage, editor]);
+  }, [skiaImage, persistBakedImage, editor]);
 
   const applyExifOrientation = useCallback(async () => {
     if (!photoUri) return;
@@ -895,13 +788,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         return;
       }
       const transform = orientationToTransform(orientation);
-      commitAdjustment('rotation90', transform.rotate, adjustments.rotation90);
-      commitAdjustment('flipH', transform.flipH ? 1 : 0, adjustments.flipH);
-      commitAdjustment('flipV', transform.flipV ? 1 : 0, adjustments.flipV);
+      const current = editor.store.get().adjustments;
+      commitAdjustment('rotation90', transform.rotate, current.rotation90);
+      commitAdjustment('flipH', transform.flipH ? 1 : 0, current.flipH);
+      commitAdjustment('flipV', transform.flipV ? 1 : 0, current.flipV);
     } catch (error) {
       errorLogger.log(error, 'PhotoEditorScreen.applyExifOrientation');
     }
-  }, [photoUri, commitAdjustment, adjustments.rotation90, adjustments.flipH, adjustments.flipV]);
+  }, [photoUri, commitAdjustment, editor]);
 
   const toggleTool = (tool: Exclude<Tool, null>) =>
     setActiveTool((prev) => (prev === tool ? null : tool));
@@ -1051,26 +945,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             <View style={styles.photo}>
               {skiaImage && adjustmentsEffect ? (
                 <EditorCanvas
+                  editor={editor}
                   canvasRef={canvasRef}
                   skiaImage={skiaImage}
                   adjustmentsEffect={adjustmentsEffect}
                   retroEffect={retroEffect}
-                  uniforms={uniforms}
-                  retroUniforms={retroUniforms}
-                  totalRotationRad={totalRotationRad}
                   parallaxOffset={parallaxOffset}
-                  perspectiveMatrix={perspectiveMatrix}
-                  flipActive={flipActive}
-                  adjustmentsLayerVisible={adjustmentsLayerVisible}
                   doubleExposureSkImage={doubleExposureSkImage}
                   overlaySkImage={overlaySkImage}
-                  adjustments={adjustments}
-                  layers={layers}
-                  currentStroke={currentStroke}
-                  brushSize={brushSize}
-                  brushShape={brushShape}
-                  brushColor={brushColor}
-                  brushOpacity={brushOpacity}
                   frameColor={frameColor}
                   frameGradientColor={frameGradientColor}
                 />
@@ -1085,23 +967,31 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 photoUri && <Image source={{ uri: photoUri }} style={styles.photo} />
               )}
               {perspectiveEditMode && (
-                <PerspectiveHandles
-                  corners={perspectiveCorners}
-                  width={PHOTO_WIDTH}
-                  height={PHOTO_HEIGHT}
-                  onChangeCorner={setPerspCorner}
-                  onCommitCorner={commitPerspCorner}
-                />
+                <WithAdjustments editor={editor}>
+                  {(adjustments) => (
+                    <PerspectiveHandles
+                      corners={perspectiveCornersOf(adjustments, PHOTO_WIDTH, PHOTO_HEIGHT)}
+                      width={PHOTO_WIDTH}
+                      height={PHOTO_HEIGHT}
+                      onChangeCorner={setPerspCorner}
+                      onCommitCorner={commitPerspCorner}
+                    />
+                  )}
+                </WithAdjustments>
               )}
               {lightEditMode && (
-                <LightPositionHandle
-                  x={adjustments.lightX * PHOTO_WIDTH}
-                  y={adjustments.lightY * PHOTO_HEIGHT}
-                  width={PHOTO_WIDTH}
-                  height={PHOTO_HEIGHT}
-                  onChange={setLightPosition}
-                  onCommitValue={commitLightPosition}
-                />
+                <WithAdjustments editor={editor}>
+                  {(adjustments) => (
+                    <LightPositionHandle
+                      x={adjustments.lightX * PHOTO_WIDTH}
+                      y={adjustments.lightY * PHOTO_HEIGHT}
+                      width={PHOTO_WIDTH}
+                      height={PHOTO_HEIGHT}
+                      onChange={setLightPosition}
+                      onCommitValue={commitLightPosition}
+                    />
+                  )}
+                </WithAdjustments>
               )}
               {activeTool === 'elementos' &&
                 selectedLayer?.kind === 'text' &&
@@ -1288,49 +1178,56 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           </View>
           <ScrollView style={{ flex: 1 }}>
             {activeTool === 'ajustes' && (
-              <AdjustDrawer
-                adjustments={adjustments}
+              <AdjustDrawerHost
+                editor={editor}
+                histogram={histogram}
                 setField={setAdjustmentField}
                 onCommit={commitAdjustment}
                 onBake={handleBakeAdjustments}
-                histogram={liveHistogram!}
                 skiaImage={skiaImage}
                 adjustmentsEffect={adjustmentsEffect}
-                uniforms={uniforms}
               />
             )}
             {activeTool === 'geometria' && (
-              <GeometryDrawer
-                adjustments={adjustments}
-                setField={setAdjustmentField}
-                onCommit={commitAdjustment}
-                perspectiveEditMode={perspectiveEditMode}
-                onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
-                onApplyExif={applyExifOrientation}
-                onBakePerspective={handleBakePerspective}
-              />
+              <WithAdjustments editor={editor}>
+                {(adjustments) => (
+                  <GeometryDrawer
+                    adjustments={adjustments}
+                    setField={setAdjustmentField}
+                    onCommit={commitAdjustment}
+                    perspectiveEditMode={perspectiveEditMode}
+                    onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
+                    onApplyExif={applyExifOrientation}
+                    onBakePerspective={handleBakePerspective}
+                  />
+                )}
+              </WithAdjustments>
             )}
             {activeTool === 'mascaras' && <MasksDrawer />}
             {activeTool === 'retoque' && <RetouchDrawer />}
             {activeTool === 'efeitos' && (
-              <EffectsDrawer
-                adjustments={adjustments}
-                setField={setAdjustmentField}
-                onCommit={commitAdjustment}
-                frameColor={frameColor}
-                onFrameColorChange={setFrameColor}
-                frameGradientColor={frameGradientColor}
-                onFrameGradientColorChange={setFrameGradientColor}
-                lightEditMode={lightEditMode}
-                onToggleLightEditMode={() => setLightEditMode((v) => !v)}
-                doubleExposureImage={doubleExposureImage}
-                onPickDoubleExposureImage={setDoubleExposureImage}
-                onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
-                overlayImage={overlayImage}
-                onPickOverlayImage={setOverlayImage}
-                onClearOverlayImage={() => setOverlayImage(null)}
-                currentProjectId={projectId}
-              />
+              <WithAdjustments editor={editor}>
+                {(adjustments) => (
+                  <EffectsDrawer
+                    adjustments={adjustments}
+                    setField={setAdjustmentField}
+                    onCommit={commitAdjustment}
+                    frameColor={frameColor}
+                    onFrameColorChange={setFrameColor}
+                    frameGradientColor={frameGradientColor}
+                    onFrameGradientColorChange={setFrameGradientColor}
+                    lightEditMode={lightEditMode}
+                    onToggleLightEditMode={() => setLightEditMode((v) => !v)}
+                    doubleExposureImage={doubleExposureImage}
+                    onPickDoubleExposureImage={setDoubleExposureImage}
+                    onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
+                    overlayImage={overlayImage}
+                    onPickOverlayImage={setOverlayImage}
+                    onClearOverlayImage={() => setOverlayImage(null)}
+                    currentProjectId={projectId}
+                  />
+                )}
+              </WithAdjustments>
             )}
             {activeTool === 'elementos' && (
               <ElementsDrawer
@@ -1349,7 +1246,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             )}
             {activeTool === 'ia' && <AIDrawer />}
             {activeTool === 'presets' && (
-              <PresetsDrawer adjustments={adjustments} onApplyPreset={editor.applyAdjustments} />
+              <WithAdjustments editor={editor}>
+                {(adjustments) => (
+                  <PresetsDrawer
+                    adjustments={adjustments}
+                    onApplyPreset={editor.applyAdjustments}
+                  />
+                )}
+              </WithAdjustments>
             )}
             {activeTool === 'panorama' && (
               <PanoramaDrawer
@@ -1417,7 +1321,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       {batchEditOpen && projectId && (
         <BatchEditSheet
           projectId={projectId}
-          currentAdjustments={adjustments}
+          currentAdjustments={editor.store.get().adjustments}
           onClose={() => setBatchEditOpen(false)}
           onSuccess={() => {
             // Optionally reload data if needed
