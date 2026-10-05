@@ -11,10 +11,10 @@ Verificação de cada user story da Sprint 1, feita em 04 e 05/10/2026 no emulad
 | [US-08](US-08-camadas-nao-destrutiva.md) | Camadas | ✅ | Caneta (pressão) sem teste em aparelho real |
 | [US-09](US-09-efeitos-e-overlays.md) | Efeitos e overlays | ✅ | Overlays "internos" são texturas geradas por código |
 | [US-11](US-11-importacao-raw.md) | RAW | ⚠️ | Decodificação real de RAW (TODO) |
-| [US-14](US-14-timeline-multifaixa.md) | Timeline multifaixa | ⚠️ | RNF-009 só medido no emulador (queda leve); confirmar em aparelho real |
+| [US-14](US-14-timeline-multifaixa.md) | Timeline multifaixa | ✅ | Exportar imagens sobrepostas no arquivo (ver US-30) |
 | [US-15](US-15-edicao-de-precisao.md) | Edição de precisão | ⚠️ | Remover objetos do vídeo (TODO) |
 | [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ✅ | Reordenar vários clipes sem teste |
-| [US-30](US-30-exportacao.md) | Exportação | ⚠️ | HEIC (TODO), GIF lento, medir RNF-011 em aparelho real |
+| [US-30](US-30-exportacao.md) | Exportação | ⚠️ | HEIC (TODO), GIF lento, medir 1 min Full HD inteiro em aparelho de gama média |
 
 ---
 

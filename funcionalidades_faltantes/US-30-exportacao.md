@@ -11,7 +11,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 | RF-017 Vídeo com presets de redes sociais | ✅ Funciona (Android) |
 | RF-032 (no arquivo) Transições | ✅ Cruzam os dois clipes (ver US-16) |
 | RNF-013 Compressão inteligente | ✅ Funciona para foto; vídeo usa bitrate por preset |
-| RNF-011 Vídeo de 1 min em Full HD em até 2 min | ⚠️ Promissor, sem medição nesse tamanho |
+| RNF-011 Vídeo de 1 min em Full HD em até 2 min | ✅ Medido em celular real (10 s em 2,7 s); falta 1 min inteiro |
 
 ## O que foi feito
 - **Exportação de vídeo real.** Módulo local `modules/pixelmorph-video-export` (Kotlin) usa o **Media3 Transformer** do Google (mesma versão do `expo-video`, codificador por hardware, sem FFmpeg). Junta os clipes da primeira faixa de vídeo em um mp4 H.264/AAC, respeitando corte, velocidade, rotação e quadros congelados (o quadro congelado vira uma imagem mantida pelo tempo definido). Planejamento puro em `exportPlan.ts` (com testes).
