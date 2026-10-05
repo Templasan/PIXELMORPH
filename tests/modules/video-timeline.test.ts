@@ -4,7 +4,7 @@ import {
   clipEndMs,
   type Clip,
   type Track,
-} from '@modules/video-editor/Track';
+} from '@modules/video-editor/domain/Track';
 import {
   ensureImageTrack,
   topClipAt,
@@ -20,21 +20,21 @@ import {
   rippleShiftAfter,
   buildTimelapseTrack,
   MIN_CLIP_DURATION_MS,
-} from '@modules/video-editor/timeline';
+} from '@modules/video-editor/domain/timeline';
 import {
   msToFrame,
   frameToMs,
   stepFrameMs,
   formatTimecode,
   DEFAULT_FPS,
-} from '@modules/video-editor/frameMath';
+} from '@modules/video-editor/domain/frameMath';
 import {
   clampTransitionDurationMs,
   setTransition,
   previousClipOf,
-} from '@modules/video-editor/transitions';
-import { insertFreezeFrame } from '@modules/video-editor/freezeFrame';
-import { clampFadeMs, volumeAtOffset } from '@modules/video-editor/audio';
+} from '@modules/video-editor/domain/transitions';
+import { insertFreezeFrame } from '@modules/video-editor/domain/freezeFrame';
+import { clampFadeMs, volumeAtOffset } from '@modules/video-editor/domain/audio';
 
 function makeTrack(id: string, clips: ReturnType<typeof createClip>[]): Track {
   return { id, name: id, kind: 'video', visible: true, locked: false, clips };

@@ -1,4 +1,4 @@
-import { detectSphericalFromUri } from '@modules/video-editor/spherical';
+import { detectSphericalFromUri } from '@modules/video-editor/domain/spherical';
 import { detectStereoscopicFromUri as detectStereoPhotoFromUri } from '@modules/photo-editor/stereoscopic';
 
 describe('Spherical detection (US-19)', () => {

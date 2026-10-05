@@ -1,7 +1,7 @@
-import { createClip, clipDurationMs, type Track } from '../../src/modules/video-editor/Track';
-import { planExport } from '../../src/modules/video-editor/exportPlan';
-import { trimClipOut, trimClipIn } from '../../src/modules/video-editor/timeline';
-import { advancePlayhead, loopBounds } from '../../src/modules/video-editor/loopRange';
+import { createClip, clipDurationMs, type Track } from '../../src/modules/video-editor/domain/Track';
+import { planExport } from '../../src/modules/video-editor/domain/exportPlan';
+import { trimClipOut, trimClipIn } from '../../src/modules/video-editor/domain/timeline';
+import { advancePlayhead, loopBounds } from '../../src/modules/video-editor/domain/loopRange';
 
 const mk = (over: Record<string, unknown> & { startMs: number }) =>
   createClip({

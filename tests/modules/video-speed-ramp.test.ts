@@ -1,6 +1,6 @@
-import { createClip, clipEndMs, type Track } from '@modules/video-editor/Track';
-import { topClipAt } from '@modules/video-editor/timeline';
-import { applySpeedRamp } from '@modules/video-editor/speedRamp';
+import { createClip, clipEndMs, type Track } from '@modules/video-editor/domain/Track';
+import { topClipAt } from '@modules/video-editor/domain/timeline';
+import { applySpeedRamp } from '@modules/video-editor/domain/speedRamp';
 
 const mk = (clips: Track['clips']): Track[] => [
   { id: 'v', name: 'V1', kind: 'video', visible: true, locked: false, clips },
