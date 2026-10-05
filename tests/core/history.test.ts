@@ -1,6 +1,7 @@
 import { HistoryStore } from '@core/history/HistoryStore';
 import { createOperation } from '@core/history/Operation';
-import { LocalHistoryRepository } from '@core/history/LocalHistoryRepository';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LocalHistoryRepository, HISTORY_PART_CHARS } from '@core/history/LocalHistoryRepository';
 
 describe('HistoryStore — unlimited undo/redo (RF-027)', () => {
   it('starts with nothing to undo or redo', () => {
@@ -101,5 +102,84 @@ describe('LocalHistoryRepository — persistence (RNF-005 autosave + RF-027 surv
     await repo.save('project-2', { past: [createOperation('exposicao', 0, 1)], future: [] });
     await repo.clear('project-2');
     expect(await repo.load('project-2')).toBeNull();
+  });
+});
+
+describe('LocalHistoryRepository — large logs are stored in parts', () => {
+  /** A video-editor-like log: every op carries a whole timeline as from/to. */
+  function bigSnapshot(ops: number) {
+    const timeline = {
+      tracks: [{ id: 'v1', clips: [{ sourceUri: 'file:///m/' + 'x'.repeat(3000) }] }],
+    };
+    return {
+      past: Array.from({ length: ops }, (_, i) =>
+        createOperation<object>('tracks', timeline, { ...timeline, i })
+      ),
+      future: [],
+    };
+  }
+
+  beforeEach(() => AsyncStorage.clear());
+
+  it('round-trips a log far bigger than one value, with no stored value above the part size', async () => {
+    const repo = new LocalHistoryRepository();
+    const snapshot = bigSnapshot(400); // ~2.4 MB of JSON
+    await repo.save('p1', snapshot);
+
+    const keys = [...(await AsyncStorage.getAllKeys())];
+    const values = await AsyncStorage.multiGet(keys);
+    for (const [, v] of values)
+      expect((v as string).length).toBeLessThanOrEqual(HISTORY_PART_CHARS);
+    expect(keys.filter((k) => k.startsWith('history:p1#')).length).toBeGreaterThan(1);
+    expect(await repo.load('p1')).toEqual(JSON.parse(JSON.stringify(snapshot)));
+  });
+
+  it('shrinking back to a small log removes the parts; a small log is a single value', async () => {
+    const repo = new LocalHistoryRepository();
+    await repo.save('p1', bigSnapshot(400));
+    await repo.save('p1', { past: [], future: [] });
+    expect(
+      (await AsyncStorage.getAllKeys()).filter((k: string) => k.startsWith('history:p1#'))
+    ).toEqual([]);
+    expect(await repo.load('p1')).toEqual({ past: [], future: [] });
+  });
+
+  it('a new save replaces the previous generation of parts', async () => {
+    const repo = new LocalHistoryRepository();
+    await repo.save('p1', bigSnapshot(400));
+    const first = (await AsyncStorage.getAllKeys()).filter((k: string) =>
+      k.startsWith('history:p1#')
+    );
+    await repo.save('p1', bigSnapshot(401));
+    const second = (await AsyncStorage.getAllKeys()).filter((k: string) =>
+      k.startsWith('history:p1#')
+    );
+    expect(second.some((k: string) => first.includes(k))).toBe(false);
+    expect((await repo.load('p1'))!.past).toHaveLength(401);
+  });
+
+  it('loads a log saved in the old single-value format', async () => {
+    await AsyncStorage.setItem(
+      'history:old',
+      JSON.stringify({ past: [createOperation('a', 1, 2)], future: [] })
+    );
+    expect((await new LocalHistoryRepository().load('old'))!.past).toHaveLength(1);
+  });
+
+  it('a missing part means an unreadable log (fresh start), not a crash', async () => {
+    const repo = new LocalHistoryRepository();
+    await repo.save('p1', bigSnapshot(400));
+    const part = (await AsyncStorage.getAllKeys()).find((k: string) => k.startsWith('history:p1#'));
+    await AsyncStorage.removeItem(part!);
+    expect(await repo.load('p1')).toBeNull();
+  });
+
+  it('clear removes the index and every part', async () => {
+    const repo = new LocalHistoryRepository();
+    await repo.save('p1', bigSnapshot(400));
+    await repo.clear('p1');
+    expect(
+      (await AsyncStorage.getAllKeys()).filter((k: string) => k.startsWith('history:p1'))
+    ).toEqual([]);
   });
 });

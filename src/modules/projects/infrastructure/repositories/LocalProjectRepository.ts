@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { historyPartKeys } from '@core/history/LocalHistoryRepository';
 import { Project, updateProject } from '../../domain';
 import {
   ProjectRepository,
@@ -158,7 +159,7 @@ export class LocalProjectRepository implements ProjectRepository {
       await AsyncStorage.removeItem(`layers:${id}`);
       await AsyncStorage.removeItem(`editorImages:${id}`);
       // Undo log of the project's editing session (core/history, keyed by project id).
-      await AsyncStorage.removeItem(`history:${id}`);
+      await AsyncStorage.multiRemove([`history:${id}`, ...(await historyPartKeys(id))]);
       await deleteBackupFile(id).catch(() => undefined);
 
       const list = await this.getProjectList();

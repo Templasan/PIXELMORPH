@@ -9,6 +9,8 @@ import { HistorySnapshot } from './HistoryStore';
 export class DebouncedSaver {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private pending: { sessionId: string; getSnapshot: () => HistorySnapshot } | null = null;
+  /** The save currently being written, so flush() can wait for it too. */
+  private inFlight: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly repo: Pick<HistoryRepository, 'save'>,
@@ -28,14 +30,17 @@ export class DebouncedSaver {
     this.timer = null;
     const p = this.pending;
     this.pending = null;
-    if (!p) return Promise.resolve();
-    return this.repo.save(p.sessionId, p.getSnapshot()).catch(() => {
+    // Nothing queued: still wait for a save already on its way ("flushed" = written).
+    if (!p) return this.inFlight;
+    const save = this.repo.save(p.sessionId, p.getSnapshot()).catch(() => {
       // Keep the failed save pending (unless a newer one arrived) and retry later.
       if (!this.pending) {
         this.pending = p;
         this.timer = setTimeout(() => void this.flush(), this.delayMs * 5);
       }
     });
+    this.inFlight = save;
+    return save;
   }
 }
 

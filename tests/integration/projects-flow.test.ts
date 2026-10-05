@@ -54,7 +54,8 @@ describe('projects flow: create -> list -> archive -> unarchive -> delete', () =
     for (const p of [a, b]) {
       await AsyncStorage.setItem(`layers:${p.id}`, '[]');
       await AsyncStorage.setItem(`editorImages:${p.id}`, '{}');
-      await AsyncStorage.setItem(`history:${p.id}`, '{"past":[],"future":[]}');
+      await AsyncStorage.setItem(`history:${p.id}`, '{"gen":"g","parts":1}');
+      await AsyncStorage.setItem(`history:${p.id}#g.0`, '{"past":[],"future":[]}');
     }
     expect(mockFiles.size).toBe(2);
 
@@ -64,6 +65,8 @@ describe('projects flow: create -> list -> archive -> unarchive -> delete', () =
       expect(await AsyncStorage.getItem(k + a.id)).toBeNull();
       expect(await AsyncStorage.getItem(k + b.id)).not.toBeNull();
     }
+    expect(await AsyncStorage.getItem(`history:${a.id}#g.0`)).toBeNull();
+    expect(await AsyncStorage.getItem(`history:${b.id}#g.0`)).not.toBeNull();
     expect(mockFiles.size).toBe(1);
     expect(await repo.findById(a.id)).toBeNull();
     expect(JSON.parse((await AsyncStorage.getItem('projectList')) as string)).toEqual([b.id]);
