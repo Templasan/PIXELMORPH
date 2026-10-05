@@ -311,7 +311,10 @@ src/app/screens/photo-editor/AIDrawer.tsx
 src/app/screens/photo-editor/AdjustDrawer.tsx
 src/app/screens/photo-editor/AdjustSlider.tsx
 src/app/screens/photo-editor/BatchEditSheet.tsx
+src/app/screens/photo-editor/BrushBar.tsx
 src/app/screens/photo-editor/EditorCanvas.tsx
+src/app/screens/photo-editor/EditorToolbar.tsx
+src/app/screens/photo-editor/EditorTopBar.tsx
 src/app/screens/photo-editor/EffectsDrawer.tsx
 src/app/screens/photo-editor/ElementsDrawer.tsx
 src/app/screens/photo-editor/ExportSheet.tsx
@@ -328,6 +331,8 @@ src/app/screens/photo-editor/PerspectiveHandles.tsx
 src/app/screens/photo-editor/PhotoLayer.tsx
 src/app/screens/photo-editor/PresetsDrawer.tsx
 src/app/screens/photo-editor/RetouchDrawer.tsx
+src/app/screens/photo-editor/ToolDrawerHost.tsx
+src/app/screens/photo-editor/WithAdjustments.tsx
 src/app/screens/photo-editor/dims.ts
 src/app/screens/projects/ProjectCard.tsx
 src/app/screens/projects/ProjectInfoSheet.tsx
@@ -392,6 +397,7 @@ src/modules/export/index.ts
 src/modules/photo-editor/application/color/index.ts
 src/modules/photo-editor/application/color/useImageHistogram.ts
 src/modules/photo-editor/application/index.ts
+src/modules/photo-editor/application/photoEditorStore.ts
 src/modules/photo-editor/application/stereoscopic/index.ts
 src/modules/photo-editor/application/stereoscopic/useGyroParallax.ts
 src/modules/photo-editor/application/usecases/AddRecentAdjustmentUseCase.ts
@@ -417,6 +423,9 @@ src/modules/photo-editor/domain/QRCode.ts
 src/modules/photo-editor/domain/RecentAdjustment.ts
 src/modules/photo-editor/domain/Watermark.ts
 src/modules/photo-editor/domain/WatermarkPreset.ts
+src/modules/photo-editor/domain/adjustments/Adjustments.ts
+src/modules/photo-editor/domain/adjustments/derive.ts
+src/modules/photo-editor/domain/adjustments/index.ts
 src/modules/photo-editor/domain/collage/CollageMath.ts
 src/modules/photo-editor/domain/collage/index.ts
 src/modules/photo-editor/domain/color/colorAdjustments.ts
@@ -538,6 +547,7 @@ tests/modules/layer-storage.test.ts
 tests/modules/layers.test.ts
 tests/modules/loop-range.test.ts
 tests/modules/panorama.test.ts
+tests/modules/photo-editor-store.test.ts
 tests/modules/projects-integrity.test.ts
 tests/modules/projects-repository.test.ts
 tests/modules/projects.test.ts
