@@ -6,6 +6,8 @@ import { byteLength, errorLogger } from './ErrorLogger';
 export const BACKUPS_DIR_NAME = 'backups';
 /** Folder for images the user picked from the gallery for effects (kept, unlike the picker's cache copy). */
 export const IMPORTS_DIR_NAME = 'imports';
+/** Folder for each project's own copy of its media (`media/<projectId>/`). */
+export const MEDIA_DIR_NAME = 'media';
 
 // Not re-exported from ./index: it pulls in expo-file-system, which Jest can't load.
 
@@ -55,6 +57,9 @@ export async function getStorageUsage(): Promise<StorageUsage> {
       bytesOfKeysWithPrefix('editorImages:'),
       FileSystem.documentDirectory
         ? directoryBytes(`${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}`)
+        : Promise.resolve(0),
+      FileSystem.documentDirectory
+        ? directoryBytes(`${FileSystem.documentDirectory}${MEDIA_DIR_NAME}`)
         : Promise.resolve(0),
     ]).then((sizes) => sizes.reduce((a, b) => a + b, 0)),
     bytesOfKeysWithPrefix('history:'),

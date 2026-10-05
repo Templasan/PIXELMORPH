@@ -1,6 +1,7 @@
 // Domain, Ports, Application, Infrastructure exports
 // Legacy factory for backward compatibility
 import { LocalProjectRepository } from './infrastructure/repositories/LocalProjectRepository';
+import { FileSystemMediaFileStore } from './infrastructure/FileSystemMediaFileStore';
 import {
   ListProjectsUseCase,
   GetProjectUseCase,
@@ -13,6 +14,7 @@ import {
   RemoveMediaAssetUseCase,
   UpdateMediaAssetUseCase,
   ApplyAdjustmentsBatchUseCase,
+  PersistProjectMediaUseCase,
 } from './application/usecases';
 
 export * from './domain';
@@ -20,12 +22,10 @@ export * from './ports';
 export * from './application';
 export * from './infrastructure';
 
-// Bootstrap exports (composition root)
-export { ProjectsModuleFactory } from './bootstrap';
-
 /** Composition root for the Projects module — wires the local repository to every use case. */
 export function createProjectsModule() {
   const repository = new LocalProjectRepository();
+  const files = new FileSystemMediaFileStore();
 
   return {
     repository,
@@ -33,13 +33,14 @@ export function createProjectsModule() {
     getProject: new GetProjectUseCase(repository),
     createProject: new CreateProjectUseCase(repository),
     updateProject: new UpdateProjectUseCase(repository),
-    deleteProject: new DeleteProjectUseCase(repository),
+    deleteProject: new DeleteProjectUseCase(repository, files),
     archiveProject: new ArchiveProjectUseCase(repository),
     unarchiveProject: new UnarchiveProjectUseCase(repository),
-    addMediaAsset: new AddMediaAssetUseCase(repository),
+    addMediaAsset: new AddMediaAssetUseCase(repository, files),
     removeMediaAsset: new RemoveMediaAssetUseCase(repository),
     updateMediaAsset: new UpdateMediaAssetUseCase(repository),
     applyAdjustmentsBatch: new ApplyAdjustmentsBatchUseCase(repository),
+    persistMedia: new PersistProjectMediaUseCase(repository, files),
   };
 }
 
