@@ -25,11 +25,8 @@ import {
 } from '@modules/export';
 import { saveImageToGallery } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
-import { colors, fontSize, monoFontFamily } from '../theme';
-import { Icon } from './Icon';
-import { Slider } from './Slider';
-import { Switch } from './Switch';
-import { Tabs } from './Tabs';
+import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { Icon, Slider, Switch, Tabs } from '@core/ui';
 
 interface ExportSheetProps {
   onClose: () => void;

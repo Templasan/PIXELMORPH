@@ -33,7 +33,8 @@ import {
 } from '@shopify/react-native-skia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Icon, ExportSheet, Switch } from '@core/ui';
+import { Icon, Switch } from '@core/ui';
+import { ExportSheet } from './photo-editor/ExportSheet';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
