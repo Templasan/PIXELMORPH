@@ -1,5 +1,5 @@
-import type { RecentAdjustmentsRepository } from '@core/ports/RecentAdjustmentsRepository';
-import type { RecentAdjustment } from '@modules/photo-editor/domain';
+import type { RecentAdjustmentsRepository } from '../ports/RecentAdjustmentsRepository';
+import type { RecentAdjustment } from '../domain';
 import { JsonListCache } from './JsonListCache';
 
 const RECENT_KEY = '@pixelmorph/recent-adjustments';

@@ -1,4 +1,4 @@
-import type { WatermarkPreset } from '@modules/photo-editor/domain/WatermarkPreset';
+import type { WatermarkPreset } from '../domain/WatermarkPreset';
 
 export interface WatermarkPresetsRepository {
   save(preset: WatermarkPreset): Promise<void>;

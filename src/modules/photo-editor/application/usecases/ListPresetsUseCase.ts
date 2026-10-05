@@ -1,4 +1,4 @@
-import type { PresetsRepository } from '@core/ports/PresetsRepository';
+import type { PresetsRepository } from '../../ports/PresetsRepository';
 
 export function createListPresetsUseCase(repo: PresetsRepository) {
   return {

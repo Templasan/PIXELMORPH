@@ -1,4 +1,4 @@
-import type { RecentAdjustmentsRepository } from '@core/ports/RecentAdjustmentsRepository';
+import type { RecentAdjustmentsRepository } from '../../ports/RecentAdjustmentsRepository';
 import { createRecentAdjustment } from '../../domain/RecentAdjustment';
 
 export function createAddRecentAdjustmentUseCase(repo: RecentAdjustmentsRepository) {

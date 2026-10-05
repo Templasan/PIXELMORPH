@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DebouncedSaver, bindAppStateFlush } from '../../src/core/history/DebouncedSaver';
-import { JsonListCache } from '../../src/infrastructure/repositories/JsonListCache';
+import { JsonListCache } from '../../src/modules/photo-editor/infrastructure/JsonListCache';
 
 describe('JsonListCache invalidation', () => {
   beforeEach(() => AsyncStorage.clear());

@@ -3,9 +3,9 @@ import { DebouncedSaver } from '../../src/core/history/DebouncedSaver';
 import { HistoryStore } from '../../src/core/history/HistoryStore';
 import { LocalHistoryRepository } from '../../src/core/history/LocalHistoryRepository';
 import { createOperation } from '../../src/core/history/Operation';
-import { AsyncStoragePresetsRepository } from '../../src/infrastructure/repositories/AsyncStoragePresetsRepository';
-import { AsyncStorageRecentAdjustmentsRepository } from '../../src/infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository';
-import { AsyncStorageWatermarkPresetsRepository } from '../../src/infrastructure/repositories/AsyncStorageWatermarkPresetsRepository';
+import { AsyncStoragePresetsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStoragePresetsRepository';
+import { AsyncStorageRecentAdjustmentsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStorageRecentAdjustmentsRepository';
+import { AsyncStorageWatermarkPresetsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStorageWatermarkPresetsRepository';
 
 describe('DebouncedSaver', () => {
   const setItem = AsyncStorage.setItem as unknown as jest.Mock;
