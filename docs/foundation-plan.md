@@ -243,13 +243,18 @@ Fora do escopo: features fora do backlog da Sprint 2; reconstruir `ai`/`audio` (
 
 | Métrica (release, Pixel_7) | Antes | Depois |
 |---|---|---|
-| Cold start (ms) | 647 | |
-| Abrir editor de foto — janky % / p90 ms | 60 / 133 | |
-| Abrir/fechar gaveta Ajustes ×5 — janky % / p90 ms | **66,7 / 40** | |
-| Arrastar slider ×5 — janky % / p90 ms | 9,3 / 28 | |
-| Abrir editor de vídeo — janky % / p90 ms | 28,6 / 150 | |
-| Arrastar régua da timeline ×5 — janky % / p90 ms | 20,6 / 42 | |
-| Abrir/fechar menu lateral ×5 — janky % / p99 ms | 13,2 / 300 | |
+| Cold start (ms) | 647 | **564** |
+| Abrir editor de foto — janky % / p50 ms | 60 / 44 | 73 / 48 (¹) |
+| Abrir/fechar gaveta Ajustes ×5 — janky % / p99 ms | **66,7 / 73** | 52–67 / **46–48** |
+| Arrastar slider ×5 — janky % / p99 ms | 9,3 / 46 | 18 / 57 (²) |
+| Abrir editor de vídeo — janky % / p50 ms | 28,6 / 28 | 45 / 18 (¹) |
+| Arrastar régua da timeline ×5 — janky % / p99 ms | 20,6 / 113 | **11,3 / 53** |
+| Abrir/fechar menu lateral ×5 — janky % / p99 ms | 13,2 / 300 | 12,5 / 300 |
+
+Medido no fim por contadores no build release (o que o `gfxinfo` não vê): **num arraste de slider de 1,5 s a tela do editor de foto renderizava 12 vezes; agora 0.** O canvas atualiza 24 vezes no mesmo arraste (13 antes do histograma por amostra) — a prévia ficou ~2× mais fluida.
+
+(¹) Cenários de "abrir" têm ~10 frames: o p90 é um frame isolado e bimodal (bisseção mostrou o mesmo código variando de 77 a 550 ms). Comparar p50.
+(²) Trade-off, não regressão: com o histograma barato, o canvas recebe ~2× mais atualizações por arraste; no emulador (GPU emulada) cada redesenho Skia pesa no frame da UI. A/B: sem o histograma novo 3,5 %, com ele ~18 %. Em celular com GPU real o redesenho é barato — confirmar com medição no aparelho.
 
 Linha de base: build release de `c00f7e5` (antes de qualquer refatoração), emulador Pixel_7 x86_64, mediana de 3 execuções, `node scripts/perf/measure.mjs --label baseline`. Números de emulador servem para comparar antes/depois na mesma máquina, não como valor absoluto de celular.
 
@@ -318,3 +323,4 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 2. **Índice leve da lista de Projetos** (nome, tipo, miniatura, data) em vez de parse de todos os projetos a cada foco.
 3. **Miniaturas pequenas por projeto** em vez de decodificar a mídia original na lista.
 4. **Medir no celular** com `node scripts/perf/measure.mjs --serial <id>`; o emulador chegou ao piso.
+| 2026-10-05 | Medição final | — | Ver §7. Slider: A/B isolou o histograma por amostra; contadores mostraram 13 → 24 atualizações do canvas por arraste (prévia mais fluida); mantido e documentado como trade-off a confirmar no celular |
