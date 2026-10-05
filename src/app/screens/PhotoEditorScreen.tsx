@@ -43,15 +43,12 @@ import {
   readExifOrientation,
   createPaintLayer,
   type BrushShape,
-  createShapeLayer,
-  createTextLayer,
   duplicateLayer,
   mergeVisiblePaintLayers,
   loadLayers,
   saveLayers,
   loadEditorImages,
   saveEditorImages,
-  type EditorLayer,
   RETRO_EFFECTS_SKSL,
 } from '@modules/photo-editor';
 import { PerspectiveHandles } from './photo-editor/PerspectiveHandles';
@@ -76,7 +73,6 @@ import { EditorToolbar, TOOL_ORDER } from './photo-editor/EditorToolbar';
 import { BrushBar } from './photo-editor/BrushBar';
 import { ToolDrawerHost } from './photo-editor/ToolDrawerHost';
 import type { DoubleExposureImage } from './photo-editor/EffectsDrawer';
-import type { ShapeDraft, TextDraft } from './photo-editor/ElementsDrawer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -230,25 +226,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [overlayImage, setOverlayImage] = useState<{ name: string; uri: string } | null>(null);
   const [imagesHydrated, setImagesHydrated] = useState(false);
 
-  // RF-008: the Elementos ▸ Texto form's draft — creates a new text layer, or (when the
-  // selection is a text layer) edits it in place.
-  const [textDraft, setTextDraft] = useState<TextDraft>({
-    content: '',
-    fontFamily: 'sans-serif',
-    color: '#FFFFFF',
-    shadow: false,
-    strokeWidth: 0,
-    entrada: 0,
-    saida: 100,
-  });
-
-  // RF-044: the Elementos ▸ Formas form's draft — same create-or-edit pattern as text.
-  const [shapeDraft, setShapeDraft] = useState<ShapeDraft>({
-    kind: 'circle',
-    color: '#FFFFFF',
-    strokeWidth: 4,
-  });
-
   const [currentMask, setCurrentMask] = useState<Mask | null>(null);
   // RF-071: stereoscopic detection and parallax effect state
   const [stereoInfo, setStereoInfo] = useState<StereoscopicInfo>({ isStereoscopic: false });
@@ -306,23 +283,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const paintModeActive =
     activeTool === 'camadas' && selectedLayer?.kind === 'paint' && !selectedLayer.locked;
 
-  // Selecting an existing text layer loads its real style into the Texto form for editing.
-  useEffect(() => {
-    if (selectedLayer?.kind === 'text' && selectedLayer.text) {
-      const t = selectedLayer.text;
-      setTextDraft({
-        content: t.content,
-        fontFamily: t.fontFamily,
-        color: t.color,
-        shadow: t.shadow,
-        strokeWidth: t.strokeWidth,
-        entrada: t.entrada,
-        saida: t.saida,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLayerId]);
-
   // RF-071: detect stereoscopic photos automatically
   useEffect(() => {
     if (!photoUri) {
@@ -333,66 +293,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     setStereoInfo(info);
   }, [photoUri]);
 
-  const submitTextLayer = useCallback(() => {
-    if (!textDraft.content.trim()) return;
-    if (selectedLayer?.kind === 'text' && selectedLayer.text) {
-      const currentId = selectedLayer.id;
-      const position = { x: selectedLayer.text.x, y: selectedLayer.text.y };
-      setLayers((prev) =>
-        prev.map((l) =>
-          l.id === currentId && l.text
-            ? { ...l, text: { ...l.text, ...textDraft, ...position } }
-            : l
-        )
-      );
-    } else {
-      const layer = createTextLayer(
-        `Texto ${layers.filter((l) => l.kind === 'text').length + 1}`,
-        textDraft.content,
-        textDraft
-      );
-      setLayers((prev) => [...prev, layer]);
-      setSelectedLayerId(layer.id);
-    }
-  }, [textDraft, selectedLayer, layers]);
-
   const setTextPosition = useCallback((id: string, nx: number, ny: number) => {
     setLayers((prev) =>
       prev.map((l) => (l.id === id && l.text ? { ...l, text: { ...l.text, x: nx, y: ny } } : l))
     );
-  }, []);
-
-  // RF-046: a meme is just two classically-styled text layers (top/bottom, bold, white with
-  // a black outline) — created through the exact same real text-layer pipeline as Texto.
-  const submitMeme = useCallback((top: string, bottom: string) => {
-    const memeStyle = {
-      fontFamily: 'sans-serif-black',
-      fontSize: 32,
-      color: '#FFFFFF',
-      strokeColor: '#000000',
-      strokeWidth: 3,
-    };
-    const newLayers: EditorLayer[] = [];
-    if (top.trim()) {
-      const layer = createTextLayer('Meme (cima)', top, memeStyle);
-      layer.text!.y = 0.12;
-      newLayers.push(layer);
-    }
-    if (bottom.trim()) {
-      const layer = createTextLayer('Meme (baixo)', bottom, memeStyle);
-      layer.text!.y = 0.88;
-      newLayers.push(layer);
-    }
-    if (newLayers.length === 0) return;
-    setLayers((prev) => [...prev, ...newLayers]);
-    setSelectedLayerId(newLayers[newLayers.length - 1].id);
-  }, []);
-
-  // RF-046: a sticker is an emoji glyph placed as a (larger, unstroked) text layer.
-  const addSticker = useCallback((emoji: string) => {
-    const layer = createTextLayer('Adesivo', emoji, { fontSize: 48 });
-    setLayers((prev) => [...prev, layer]);
-    setSelectedLayerId(layer.id);
   }, []);
 
   // RF-011: a collage composes real picked photos into a new image (offscreen Skia
@@ -531,66 +435,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     }
   }, [selectedPanoramaImages, panoramaOffsets, panoramaOverlapWidth, navigation]);
 
-  // Selecting an existing shape layer loads its real style into the Formas form for editing.
-  useEffect(() => {
-    if (selectedLayer?.kind === 'shape' && selectedLayer.shape) {
-      const s = selectedLayer.shape;
-      setShapeDraft({ kind: s.kind, color: s.color, strokeWidth: s.strokeWidth });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLayerId]);
-
   useEffect(() => {
     // RF-007: monitor mask changes for future GPU integration
     if (currentMask) {
       // Placeholder for future mask rendering logic
     }
   }, [currentMask]);
-
-  const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
-    circle: 'Círculo',
-    rect: 'Retângulo',
-    line: 'Linha',
-    arrow: 'Seta',
-  };
-
-  const submitShapeLayer = useCallback(() => {
-    if (selectedLayer?.kind === 'shape' && selectedLayer.shape) {
-      const currentId = selectedLayer.id;
-      const position = { x: selectedLayer.shape.x, y: selectedLayer.shape.y };
-      setLayers((prev) =>
-        prev.map((l) =>
-          l.id === currentId && l.shape
-            ? { ...l, shape: { ...l.shape, ...shapeDraft, ...position } }
-            : l
-        )
-      );
-    } else {
-      const layer = createShapeLayer(
-        `${SHAPE_NAMES[shapeDraft.kind]} ${layers.filter((l) => l.kind === 'shape').length + 1}`,
-        shapeDraft.kind,
-        shapeDraft
-      );
-      setLayers((prev) => [...prev, layer]);
-      setSelectedLayerId(layer.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeDraft, selectedLayer, layers]);
-
-  // Edits to the Formas form apply live to the selected shape, so a colour picked while a
-  // shape is selected is never lost (the selection effect above reloads the draft from the layer).
-  const changeShapeDraft = useCallback(
-    (patch: Partial<ShapeDraft>) => {
-      setShapeDraft((prev) => ({ ...prev, ...patch }));
-      if (selectedLayer?.kind === 'shape') {
-        const id = selectedLayer.id;
-        setLayers((prev) =>
-          prev.map((l) => (l.id === id && l.shape ? { ...l, shape: { ...l.shape, ...patch } } : l))
-        );
-      }
-    },
-    [selectedLayer]
-  );
 
   const setShapePosition = useCallback((id: string, nx: number, ny: number) => {
     setLayers((prev) =>
@@ -1101,9 +951,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         doubleExposureImage={doubleExposureImage}
         overlayImage={overlayImage}
         currentProjectId={projectId}
-        textDraft={textDraft}
-        selectedLayerKind={selectedLayer?.kind}
-        shapeDraft={shapeDraft}
         selectedPanoramaImages={selectedPanoramaImages}
         panoramaOffsets={panoramaOffsets}
         panoramaOverlapWidth={panoramaOverlapWidth}
@@ -1114,12 +961,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
         onApplyExif={applyExifOrientation}
         onBakePerspective={handleBakePerspective}
-        onChangeTextDraft={(patch) => setTextDraft((prev) => ({ ...prev, ...patch }))}
-        onSubmitText={submitTextLayer}
-        onChangeShapeDraft={changeShapeDraft}
-        onSubmitShape={submitShapeLayer}
-        onSubmitMeme={submitMeme}
-        onAddSticker={addSticker}
         onSubmitCollage={submitCollage}
         onChangeFrameColor={setFrameColor}
         onChangeFrameGradientColor={setFrameGradientColor}
