@@ -9,4 +9,3 @@ export { AddMediaAssetUseCase } from './AddMediaAssetUseCase';
 export { RemoveMediaAssetUseCase } from './RemoveMediaAssetUseCase';
 export { UpdateMediaAssetUseCase } from './UpdateMediaAssetUseCase';
 export { ApplyAdjustmentsBatchUseCase } from './ApplyAdjustmentsBatchUseCase';
-export { PersistProjectMediaUseCase } from './PersistProjectMediaUseCase';

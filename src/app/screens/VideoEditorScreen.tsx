@@ -66,7 +66,7 @@ import {
 import { applySpeedRamp } from '@modules/video-editor/speedRamp';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
-import { pickMultipleImagesFromGallery } from '@modules/device-media';
+import { copyToAppStorage, pickMultipleImagesFromGallery } from '@modules/device-media';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -638,11 +638,14 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     try {
       const picked = await pickMultipleImagesFromGallery();
       if (picked.length === 0) return;
-      const track = buildTimelapseTrack(
-        picked.map((p) => ({ uri: p.uri, name: p.fileName ?? '' })),
-        200,
-        TRACK_COLORS.image
+      // Permanent copies: the picker's cache files can be wiped (see copyToAppStorage).
+      const frames = await Promise.all(
+        picked.map(async (p) => ({
+          uri: await copyToAppStorage(p.uri, p.fileName),
+          name: p.fileName ?? '',
+        }))
       );
+      const track = buildTimelapseTrack(frames, 200, TRACK_COLORS.image);
       const before = tracksRef.current;
       const after = [...before, track];
       commitTracks(before, after);
