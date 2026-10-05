@@ -16,6 +16,16 @@ Verificação de cada user story da Sprint 1, feita em 04 e 05/10/2026 no emulad
 | [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ✅ | Reordenar vários clipes sem teste |
 | [US-30](US-30-exportacao.md) | Exportação | ⚠️ | HEIC (TODO), GIF lento, medir RNF-011 em aparelho real |
 
+---
+
+## Pendências reclassificadas para Sprint 2
+
+Tarefas incompletas da Sprint 1 foram movidas para [`backlog/not-us/`](../../backlog/not-us/README.md) como itens não-US (NUS-001 a NUS-016), separadas entre:
+- **RNF incompletos** (validação de hardware real, backend, idiomas)
+- **Funcionalidades parciais** das US atuais (exportação multifaixa, RAW real, etc.)
+
+User Stories permanecem aqui; use `not-us/README.md` para o planejamento da próxima sprint.
+
 ## Dependências adicionadas (registradas em `docs/dependencies.md`)
 - `expo-video`: player real no editor de vídeo (US-14/15/16).
 - Media3 Transformer (módulo local `modules/pixelmorph-video-export`, Android): exportação de vídeo, quadros exatos e transições (US-16/30). O FFmpeg-kit está arquivado e não foi usado.
