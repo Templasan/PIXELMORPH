@@ -453,6 +453,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const frameBucket = Math.round(sourceTimeMs / 200);
   const [previewFrameUri, setPreviewFrameUri] = useState<string | null>(null);
   useEffect(() => {
+    // While playing the real player draws the picture; extracting posters would only churn.
+    if (playing) return;
     if (!currentClip) {
       setPreviewFrameUri(null);
       return;
@@ -470,7 +472,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentClip?.id, currentClip?.sourceUri, frameBucket]);
+  }, [currentClip?.id, currentClip?.sourceUri, frameBucket, playing]);
 
   const pipClip = useMemo(() => {
     if (!pipClipId) return null;

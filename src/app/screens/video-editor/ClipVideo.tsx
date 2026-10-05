@@ -3,8 +3,8 @@ import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useEvent } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
-/** Seconds of drift between the timeline clock and the player before we re-seek while playing. */
-const MAX_DRIFT_S = 0.35;
+/** Seconds of drift between the timeline clock and the player before we re-seek while playing (a seek blanks the surface, so only for real jumps). */
+const MAX_DRIFT_S = 1.2;
 
 interface ClipVideoProps {
   uri: string;
