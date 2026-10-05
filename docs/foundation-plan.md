@@ -263,3 +263,5 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 | 2026-10-05 | 0.2 Prettier | `f5e33ae` | 13 arquivos reformatados; tsc/jest/eslint sem regressão |
 | 2026-10-05 | 2.1 C1 (antecipado) | `daf60d7` | `catch` no load do histórico; falha vira sessão nova + log |
 | 2026-10-05 | 2.2 C2 (antecipado) | `fbd95e0` | RNF-017 exige 5 MB → mantido, mas em segmentos de 256 KB; escrita serializada; migração do valor antigo; +3 testes (348 passando) |
+| 2026-10-05 | 2.4 `core/state` (antecipado) | `d19349c` | `createStore` + `useStore` + `shallowEqual`; `timeStore` migrado com mesma API; 352 testes. Device: verificar playhead no smoke da Fase 1 |
+| 2026-10-05 | 1.4 Docs (antecipado) | `d5b4476` | ADR-005 criado, ADR-004 superado, `architecture.md` reescrito, 5 docs obsoletos removidos. `modules.md` fica para depois da Fase 1 |
