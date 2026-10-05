@@ -194,19 +194,19 @@ Itens técnicos que não pertencem a uma US (pendências de requisitos não func
 | Sprint | Tema | User Stories | Situação |
 |---|---|---|---|
 | **Sprint 1** | Fundação: projetos, ajustes de foto, camadas, linha do tempo e exportação | US-01, US-03, US-04, US-05, US-08, US-09, US-11, US-14, US-15, US-16, US-30 | ✅ **Completa** |
-| **Sprint 2** | Composição gráfica, guias de alinhamento, controle de velocidade e áudio | US-10, US-12, US-17, US-33 | ✅ **Completa** |
+| **Sprint 2** | Composição gráfica, guias de alinhamento, controle de velocidade e áudio | US-10, US-12, US-17, US-33 | 🚧 **Em desenvolvimento** |
 | **Sprint 3** | Máscaras, retoque, câmera avançada, IA, exportação profissional e colaboração | 21 US (tabela abaixo) | Planejada. Algumas já têm implementação inicial no código; conferir antes de dar como concluídas |
 
 ### 4.1 Sprint 2 — situação
 
 | US | Título | Situação |
 |---|---|---|
-| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | ✅ Completa |
-| US-12 | Comparação, guias e atalhos de produtividade | ✅ Completa |
-| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | ✅ Completa |
-| US-33 | Captura e trilha de áudio no vídeo | ✅ Completa |
+| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | 🚧 Em desenvolvimento |
+| US-12 | Comparação, guias e atalhos de produtividade | 🚧 Em desenvolvimento |
+| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | 🚧 Em desenvolvimento |
+| US-33 | Captura e trilha de áudio no vídeo | 🚧 Em desenvolvimento |
 
-Medições feitas em 05/10/2026 em celular real (arm64, Android 16, build release). O registro dos testes critério a critério, de antes da conclusão, está em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
+Medições feitas em 05/10/2026 em celular real (arm64, Android 16, build release). O registro dos testes critério a critério está em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
 
 Resultados de desempenho medidos no celular: inicialização a frio entre **0,82 e 1,2 s** (meta: menos de 3 s), instalação de **59 MB** (meta: até 200 MB) e exportação de 10 s em Full HD com transição em **2,7 s**.
 
