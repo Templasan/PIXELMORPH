@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useEvent } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -14,6 +14,8 @@ interface ClipVideoProps {
   rate: number; // 0.25..4
   volume: number; // 0..1
   style?: StyleProp<ViewStyle>;
+  /** Hide without unmounting (transition overlay on top), so the surface does not recreate. */
+  hidden?: boolean;
 }
 
 /**
@@ -23,13 +25,27 @@ interface ClipVideoProps {
  * Renders nothing until the source is actually playable, so image/placeholder clips keep
  * showing the thumbnail the editor draws underneath.
  */
-export function ClipVideo({ uri, sourceTimeMs, playing, rate, volume, style }: ClipVideoProps) {
+export function ClipVideo({
+  uri,
+  sourceTimeMs,
+  playing,
+  rate,
+  volume,
+  style,
+  hidden,
+}: ClipVideoProps) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.25;
   });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const ready = status === 'readyToPlay';
+  // Once the first frame is playable keep the surface mounted: the status drops to 'loading'
+  // on every seek, and unmounting the VideoView there made the picture blink.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (ready) setShown(true);
+  }, [ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -52,11 +68,11 @@ export function ClipVideo({ uri, sourceTimeMs, playing, rate, volume, style }: C
     else player.pause();
   }, [player, ready, playing]);
 
-  if (!ready) return null;
+  if (!shown) return null;
   return (
     <VideoView
       player={player}
-      style={[styles.video, style]}
+      style={[styles.video, style, hidden && styles.hidden]}
       contentFit="contain"
       surfaceType="textureView"
       nativeControls={false}
@@ -73,4 +89,5 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  hidden: { opacity: 0 },
 });

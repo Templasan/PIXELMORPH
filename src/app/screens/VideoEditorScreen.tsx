@@ -844,8 +844,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 },
               ]}
             />
-            {currentClip && !currentClip.frozen && !transitionBlend && (
+            {currentClip && !currentClip.frozen && (
               <ClipVideo
+                key={currentClip.sourceUri}
+                hidden={!!transitionBlend}
                 uri={currentClip.sourceUri}
                 sourceTimeMs={sourceTimeMs}
                 playing={playing}
