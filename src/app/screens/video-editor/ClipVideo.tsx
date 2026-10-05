@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MutableRefObject } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useEvent } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -16,6 +16,8 @@ interface ClipVideoProps {
   style?: StyleProp<ViewStyle>;
   /** Hide without unmounting (transition overlay on top), so the surface does not recreate. */
   hidden?: boolean;
+  /** Filled with a reader of the player's position (source ms) so the timeline clock can follow it. */
+  timeRef?: MutableRefObject<(() => number | null) | null>;
 }
 
 /**
@@ -33,6 +35,7 @@ export function ClipVideo({
   volume,
   style,
   hidden,
+  timeRef,
 }: ClipVideoProps) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
@@ -46,6 +49,14 @@ export function ClipVideo({
   useEffect(() => {
     if (ready) setShown(true);
   }, [ready]);
+
+  useEffect(() => {
+    if (!timeRef) return;
+    timeRef.current = () => (ready ? player.currentTime * 1000 : null);
+    return () => {
+      timeRef.current = null;
+    };
+  }, [player, ready, timeRef]);
 
   useEffect(() => {
     if (!ready) return;

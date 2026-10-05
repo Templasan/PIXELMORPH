@@ -24,6 +24,7 @@ import { type Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import { ClipVideo } from './video-editor/ClipVideo';
+import { LiveTimecode } from './video-editor/LiveTimecode';
 import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
@@ -273,6 +274,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const playerTimeRef = useRef<(() => number | null) | null>(null);
+  const currentClipRef = useRef<Clip | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [timelineZoom, setTimelineZoom] = useState(50);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
@@ -375,7 +378,19 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       const dt = now - last;
       last = now;
       setCurrentTimeMs((t) => {
-        const result = advancePlayhead(t, dt, totalDurationMs, loopRange);
+        // The video player is the clock when it is running: counter and picture can't part.
+        let base = t;
+        let step = dt;
+        const clip = currentClipRef.current;
+        const src = playerTimeRef.current?.();
+        if (clip && !clip.frozen && src != null) {
+          const fromPlayer = clip.startMs + (src - clip.inPointMs) / (clip.speed ?? 1);
+          if (Math.abs(fromPlayer - t) < 1500) {
+            base = fromPlayer;
+            step = 0;
+          }
+        }
+        const result = advancePlayhead(base, step, totalDurationMs, loopRange);
         if (result.ended) setPlaying(false);
         return result.timeMs;
       });
@@ -454,6 +469,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // RF-005: the preview panel showed nothing for real video clips — <Image> can't decode a
   // .mp4 source. Extract an actual frame at the playhead instead. Bucketed to ~5fps so
   // scrubbing doesn't fire a native extraction on every pixel of drag.
+  currentClipRef.current = currentClip;
   const sourceTimeMs = currentClip
     ? currentClip.inPointMs + (currentTimeMs - currentClip.startMs) * (currentClip.speed ?? 1)
     : 0;
@@ -857,6 +873,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               <ClipVideo
                 key={currentClip.sourceUri}
                 hidden={!!transitionBlend}
+                timeRef={playerTimeRef}
                 uri={currentClip.sourceUri}
                 sourceTimeMs={sourceTimeMs}
                 playing={playing}
@@ -904,7 +921,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             </Pressable>
             <View style={styles.transportOverlay}>
               <View style={styles.timeRow}>
-                <Text style={styles.timeCurrent}>{formatTimecode(currentTimeMs)}</Text>
+                <LiveTimecode
+                  timeMs={currentTimeMs}
+                  totalMs={totalDurationMs}
+                  playing={playing}
+                  style={styles.timeCurrent}
+                />
                 <Text style={styles.timeTotal}>{formatTimecode(totalDurationMs)}</Text>
               </View>
               <View style={styles.transportButtons}>
@@ -1661,7 +1683,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           </View>
           <View style={styles.transportOverlay}>
             <View style={styles.timeRow}>
-              <Text style={styles.timeCurrent}>{formatTimecode(currentTimeMs)}</Text>
+              <LiveTimecode
+                timeMs={currentTimeMs}
+                totalMs={totalDurationMs}
+                playing={playing}
+                style={styles.timeCurrent}
+              />
               <Text style={styles.timeTotal}>{formatTimecode(totalDurationMs)}</Text>
             </View>
             <View style={styles.transportButtons}>
