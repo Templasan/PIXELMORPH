@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
-import { colors, fontSize, monoFontFamily } from '../theme';
-import { Icon } from './Icon';
-import type { RootStackParamList } from '../../app/navigation/RootNavigator';
-import { useI18n } from '../i18n';
-import { formatBytes, getStorageUsage, type StorageUsage } from '../reliability/storageUsage';
+import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { Icon } from '@core/ui';
+import type { RootStackParamList } from './RootNavigator';
+import { useI18n } from '@core/i18n';
+import { formatBytes, getStorageUsage, type StorageUsage } from '@core/reliability/storageUsage';
 
 export type DrawerScreenName = Extract<
   keyof RootStackParamList,

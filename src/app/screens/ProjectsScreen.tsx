@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Icon, SideDrawer } from '@core/ui';
+import { Icon } from '@core/ui';
+import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { useI18n } from '@core/i18n';
 import {

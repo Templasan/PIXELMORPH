@@ -3,7 +3,8 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { Icon, SideDrawer } from '@core/ui';
+import { Icon } from '@core/ui';
+import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Tutorials'>;
