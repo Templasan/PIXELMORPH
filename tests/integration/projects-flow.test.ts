@@ -54,12 +54,13 @@ describe('projects flow: create -> list -> archive -> unarchive -> delete', () =
     for (const p of [a, b]) {
       await AsyncStorage.setItem(`layers:${p.id}`, '[]');
       await AsyncStorage.setItem(`editorImages:${p.id}`, '{}');
+      await AsyncStorage.setItem(`history:${p.id}`, '{"past":[],"future":[]}');
     }
     expect(mockFiles.size).toBe(2);
 
     await del.execute(a.id);
 
-    for (const k of ['project:', 'projectBackup:', 'layers:', 'editorImages:']) {
+    for (const k of ['project:', 'projectBackup:', 'layers:', 'editorImages:', 'history:']) {
       expect(await AsyncStorage.getItem(k + a.id)).toBeNull();
       expect(await AsyncStorage.getItem(k + b.id)).not.toBeNull();
     }
