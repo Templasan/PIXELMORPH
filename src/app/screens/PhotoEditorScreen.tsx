@@ -29,6 +29,7 @@ import { Icon, Switch } from '@core/ui';
 import { ExportSheet } from './photo-editor/ExportSheet';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
+import { useStore } from '@core/state';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
@@ -54,10 +55,8 @@ import {
   type Point,
   createPaintLayer,
   BRUSH_SHAPES,
-  pressureWidth,
   type BrushShape,
   createShapeLayer,
-  createStrokeId,
   createTextLayer,
   duplicateLayer,
   mergeVisiblePaintLayers,
@@ -83,13 +82,12 @@ import { PanoramaDrawer } from './photo-editor/PanoramaDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
-import { pointsToPath } from '@modules/photo-editor';
+import { createPhotoEditorStore } from '@modules/photo-editor';
 import { EditorCanvas } from './photo-editor/EditorCanvas';
 import {
   ADJUST_DRAWER_FIELDS,
   DEFAULT_ADJUSTMENTS,
   PERSPECTIVE_FIELDS,
-  type Adjustments,
 } from '@modules/photo-editor/domain/adjustments';
 import { PHOTO_WIDTH, PHOTO_HEIGHT } from './photo-editor/dims';
 
@@ -195,6 +193,49 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   historyRef.current = history;
   const { projects: projectsModule } = useAppModules();
 
+  // Adjustments, tool, compare/zoom, layers, brush and the live stroke live in the photo editor
+  // store; this screen and its parts subscribe by selector. History adapter reads the latest hook.
+  const editor = useMemo(
+    () =>
+      createPhotoEditorStore({
+        push: (type, from, to) => historyRef.current.push(type, from, to),
+        undo: () => historyRef.current.undo(),
+        redo: () => historyRef.current.redo(),
+        clearFields: (types) => historyRef.current.clearFields(types),
+      }),
+    []
+  );
+  const adjustments = useStore(editor.store, (st) => st.adjustments);
+  const activeTool = useStore(editor.store, (st) => st.activeTool) as Tool;
+  const compareMode = useStore(editor.store, (st) => st.compareMode);
+  const compareSplit = useStore(editor.store, (st) => st.compareSplit);
+  const zoom = useStore(editor.store, (st) => st.zoom);
+  const layers = useStore(editor.store, (st) => st.layers);
+  const selectedLayerId = useStore(editor.store, (st) => st.selectedLayerId);
+  const {
+    color: brushColor,
+    size: brushSize,
+    shape: brushShape,
+    opacity: brushOpacity,
+  } = useStore(editor.store, (st) => st.brush);
+  const currentStroke = useStore(editor.store, (st) => st.currentStroke);
+  // useState-style setters over the store, so the many call sites below stay as they were.
+  const setActiveTool = (v: Tool | ((prev: Tool) => Tool)) =>
+    editor.setTool(typeof v === 'function' ? v(editor.store.get().activeTool as Tool) : v);
+  const setCompareMode = (v: boolean | ((prev: boolean) => boolean)) =>
+    typeof v === 'function' ? editor.toggleCompare() : v !== compareMode && editor.toggleCompare();
+  const setCompareSplit = editor.setCompareSplit;
+  const setZoom = (v: number | ((prev: number) => number)) =>
+    editor.setZoom(typeof v === 'function' ? v(editor.store.get().zoom) : v);
+  const setLayers = editor.setLayers;
+  const setSelectedLayerId = editor.selectLayer;
+  const setBrushColor = (color: string) => editor.setBrush({ color });
+  const setBrushShape = (shape: BrushShape) => editor.setBrush({ shape });
+  const setBrushSize = (v: number | ((prev: number) => number)) =>
+    editor.setBrush({ size: typeof v === 'function' ? v(editor.store.get().brush.size) : v });
+  const setBrushOpacity = (v: number | ((prev: number) => number)) =>
+    editor.setBrush({ opacity: typeof v === 'function' ? v(editor.store.get().brush.opacity) : v });
+
   const [projectName, setProjectName] = useState('Novo projeto');
   // RF-028/US-11: the project's own real asset (imported from the device or created by the
   // RAW converter) — falls back to the bundled demo photo only when there is no real asset yet.
@@ -202,41 +243,12 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // So a bake can persist its result back onto the right asset via updateMediaAsset.
   const [primaryAssetId, setPrimaryAssetId] = useState<string | null>(null);
   const [assetInfo, setAssetInfo] = useState<{ format: string; sizeBytes?: number } | null>(null);
-  const [activeTool, setActiveTool] = useState<Tool>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [maskPainterOpen, setMaskPainterOpen] = useState(false);
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareSplit, setCompareSplit] = useState(50);
   const [canvasWidth, setCanvasWidth] = useState(0);
-  const [zoom, setZoom] = useState(100);
-  // US-08: a real (small) non-destructive layer stack — background + the color-adjustment
-  // stack (already fully real) + vector paint layers. See @modules/photo-editor/layers.
-  const [layers, setLayers] = useState<EditorLayer[]>(() => {
-    const initialPaint = createPaintLayer('Pintura 1');
-    return [
-      { id: 'fundo', name: 'Fundo', kind: 'background', visible: true, opacity: 100, locked: true },
-      {
-        id: 'ajustes',
-        name: 'Ajustes de cor',
-        kind: 'adjustments',
-        visible: true,
-        opacity: 100,
-        locked: false,
-      },
-      initialPaint,
-    ];
-  });
-  const [selectedLayerId, setSelectedLayerId] = useState('fundo');
   // Saving waits until the saved layers (if any) have been read, or the defaults would win.
   const [layersHydrated, setLayersHydrated] = useState(false);
-  const [brushColor, setBrushColor] = useState('#E5484D');
-  const [brushSize, setBrushSize] = useState(8);
-  const [brushShape, setBrushShape] = useState<BrushShape>('round');
-  const [brushOpacity, setBrushOpacity] = useState(100);
-  // Stylus pressure samples (0..1) of the stroke being drawn — empty for a finger.
-  const pressureRef = useRef<number[]>([]);
-  const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
 
   // US-09: frame/light are drawn from the numeric Adjustments fields (undo-tracked like
   // everything else); their non-numeric bits (color, the picked second image) live here —
@@ -267,9 +279,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     strokeWidth: 4,
   });
 
-  const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
-  // Fields the user touched before the persisted history finished loading; re-applied on top of the replay.
-  const userEditedRef = useRef<Record<string, number>>({});
   const [currentMask, setCurrentMask] = useState<Mask | null>(null);
   // RF-071: stereoscopic detection and parallax effect state
   const [stereoInfo, setStereoInfo] = useState<StereoscopicInfo>({ isStereoscopic: false });
@@ -759,10 +768,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     loadLayers(projectId)
       .then((saved) => {
         if (cancelled) return;
-        if (saved) {
-          setLayers(saved);
-          setSelectedLayerId((id) => (saved.some((l) => l.id === id) ? id : 'fundo'));
-        }
+        if (saved) editor.hydrateLayers(saved);
       })
       .catch((error) => errorLogger.log(error, 'PhotoEditorScreen.loadLayers'))
       .finally(() => {
@@ -819,58 +825,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!history.ready) return;
     const replayed = history.reconstructState(DEFAULT_ADJUSTMENTS);
-    setAdjustments({ ...replayed, ...userEditedRef.current });
+    editor.hydrateAdjustments(replayed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.ready]);
 
-  // Coalesces slider ticks to one state update per frame (the whole editor re-renders on each).
-  const pendingFields = useRef<Record<string, number>>({});
-  const fieldRaf = useRef<number | null>(null);
-  const setAdjustmentField = useCallback((field: string, v: number) => {
-    userEditedRef.current[field] = v;
-    pendingFields.current[field] = v;
-    if (fieldRaf.current != null) return;
-    fieldRaf.current = requestAnimationFrame(() => {
-      fieldRaf.current = null;
-      const batch = pendingFields.current;
-      pendingFields.current = {};
-      setAdjustments((s) => ({ ...s, ...batch }));
-    });
-  }, []);
-
-  // Never leave a pending rAF firing after unmount.
-  useEffect(
-    () => () => {
-      if (fieldRaf.current != null) cancelAnimationFrame(fieldRaf.current);
-      fieldRaf.current = null;
-      pendingFields.current = {};
-    },
-    []
-  );
-
-  const commitAdjustment = useCallback((field: string, value: number, previousValue: number) => {
-    userEditedRef.current[field] = value;
-    delete pendingFields.current[field];
-    if (value === previousValue) return;
-    setAdjustments((s) => ({ ...s, [field]: value }));
-    historyRef.current.push(field, previousValue, value);
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    const op = historyRef.current.undo();
-    if (op && op.type in DEFAULT_ADJUSTMENTS) {
-      delete pendingFields.current[op.type]; // a queued tick must not overwrite the undo
-      setAdjustments((s) => ({ ...s, [op.type]: op.params.from as number }));
-    }
-  }, []);
-
-  const handleRedo = useCallback(() => {
-    const op = historyRef.current.redo();
-    if (op && op.type in DEFAULT_ADJUSTMENTS) {
-      delete pendingFields.current[op.type];
-      setAdjustments((s) => ({ ...s, [op.type]: op.params.to as number }));
-    }
-  }, []);
+  // Slider ticks set the field live; release records one undo entry (see photoEditorStore).
+  const setAdjustmentField = editor.setField;
+  const commitAdjustment = editor.commitField;
+  const handleUndo = editor.undo;
+  const handleRedo = editor.redo;
 
   // Writes a baked image to a real cache file and, when this is a saved project, persists
   // it onto the asset's workingUri — shared by every "bake into real pixels" action below.
@@ -902,13 +865,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     const baked = bakeAdjustments(skiaImage, adjustmentsEffect, uniforms);
     if (!baked) return;
     await persistBakedImage(baked);
-    setAdjustments((s) => {
-      const next = { ...s };
-      for (const field of ADJUST_DRAWER_FIELDS) next[field] = DEFAULT_ADJUSTMENTS[field];
-      return next;
-    });
-    history.clearFields(ADJUST_DRAWER_FIELDS);
-  }, [skiaImage, adjustmentsEffect, uniforms, persistBakedImage, history]);
+    editor.resetFields(ADJUST_DRAWER_FIELDS);
+  }, [skiaImage, adjustmentsEffect, uniforms, persistBakedImage, editor]);
 
   // Same cumulative pattern for "Corrigir perspectiva": the 4 corner handles always warp
   // from the identity quad, so a second correction on top of an already-corrected photo
@@ -918,14 +876,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     const baked = bakePerspective(skiaImage, perspectiveMatrix);
     if (!baked) return;
     await persistBakedImage(baked);
-    setAdjustments((s) => {
-      const next = { ...s };
-      for (const field of PERSPECTIVE_FIELDS) next[field] = DEFAULT_ADJUSTMENTS[field];
-      return next;
-    });
-    history.clearFields(PERSPECTIVE_FIELDS);
+    editor.resetFields(PERSPECTIVE_FIELDS);
     setPerspectiveEditMode(false);
-  }, [skiaImage, perspectiveMatrix, persistBakedImage, history]);
+  }, [skiaImage, perspectiveMatrix, persistBakedImage, editor]);
 
   const applyExifOrientation = useCallback(async () => {
     if (!photoUri) return;
@@ -1003,40 +956,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // RF-033: real digital painting — points are captured as they come in (works the same
   // for a finger or a stylus, since gesture-handler reports both as pointer events) and
   // committed as one vector stroke on release, appended to the active paint layer only.
-  const appendStrokePoint = useCallback((x: number, y: number, pressure?: number) => {
-    if (pressure) pressureRef.current.push(pressure);
-    setCurrentStroke((pts) => [...pts, { x, y }]);
-  }, []);
-
-  const commitStroke = useCallback(() => {
-    setCurrentStroke((pts) => {
-      if (pts.length > 1) {
-        const path = pointsToPath(pts);
-        setLayers((prev) =>
-          prev.map((l) =>
-            l.id === selectedLayerId
-              ? {
-                  ...l,
-                  strokes: [
-                    ...(l.strokes ?? []),
-                    {
-                      id: createStrokeId(),
-                      path,
-                      color: brushColor,
-                      width: pressureWidth(brushSize, pressureRef.current),
-                      opacity: brushOpacity / 100,
-                      shape: brushShape,
-                    },
-                  ],
-                }
-              : l
-          )
-        );
-      }
-      pressureRef.current = [];
-      return [];
-    });
-  }, [selectedLayerId, brushColor, brushSize, brushOpacity, brushShape]);
+  const appendStrokePoint = editor.appendStrokePoint;
+  const commitStroke = editor.commitStroke;
 
   // The layers panel covers the right half of the canvas while painting — keep the brush
   // controls in the visible left part (they wrap onto extra rows if needed).
@@ -1058,7 +979,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     });
 
   const setPerspCorner = useCallback((index: 0 | 1 | 2 | 3, nx: number, ny: number) => {
-    setAdjustments((s) => ({ ...s, [`perspX${index}`]: nx, [`perspY${index}`]: ny }));
+    editor.setFields({ [`perspX${index}`]: nx, [`perspY${index}`]: ny });
   }, []);
 
   const commitPerspCorner = useCallback(
@@ -1070,7 +991,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   );
 
   const setLightPosition = useCallback((nx: number, ny: number) => {
-    setAdjustments((s) => ({ ...s, lightX: nx, lightY: ny }));
+    editor.setFields({ lightX: nx, lightY: ny });
   }, []);
 
   const commitLightPosition = useCallback(
@@ -1428,10 +1349,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             )}
             {activeTool === 'ia' && <AIDrawer />}
             {activeTool === 'presets' && (
-              <PresetsDrawer
-                adjustments={adjustments}
-                onApplyPreset={(adj) => setAdjustments((prev) => ({ ...prev, ...adj }))}
-              />
+              <PresetsDrawer adjustments={adjustments} onApplyPreset={editor.applyAdjustments} />
             )}
             {activeTool === 'panorama' && (
               <PanoramaDrawer
