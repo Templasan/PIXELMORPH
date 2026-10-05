@@ -5,6 +5,7 @@ import { ListProjectsUseCase } from '../../src/modules/projects/application/usec
 import { ArchiveProjectUseCase } from '../../src/modules/projects/application/usecases/ArchiveProjectUseCase';
 import { UnarchiveProjectUseCase } from '../../src/modules/projects/application/usecases/UnarchiveProjectUseCase';
 import { DeleteProjectUseCase } from '../../src/modules/projects/application/usecases/DeleteProjectUseCase';
+import { FileSystemMediaFileStore } from '../../src/modules/projects/infrastructure/FileSystemMediaFileStore';
 
 const mockFiles = new Map<string, string>();
 jest.mock('expo-file-system/legacy', () => ({
@@ -26,7 +27,7 @@ describe('projects flow: create -> list -> archive -> unarchive -> delete', () =
   const list = new ListProjectsUseCase(repo);
   const archive = new ArchiveProjectUseCase(repo);
   const unarchive = new UnarchiveProjectUseCase(repo);
-  const del = new DeleteProjectUseCase(repo);
+  const del = new DeleteProjectUseCase(repo, new FileSystemMediaFileStore());
 
   beforeEach(async () => {
     await AsyncStorage.clear();

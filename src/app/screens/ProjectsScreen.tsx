@@ -142,6 +142,9 @@ function formatDateInput(date: Date | undefined): string {
   return `${dd}/${mm}/${date.getFullYear()}`;
 }
 
+// Once per app session: copy media of older projects out of the cache (see PersistProjectMedia).
+let mediaRepair: Promise<unknown> | null = null;
+
 interface CardProps {
   project: Project;
   isSelected: boolean;
@@ -284,6 +287,10 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   const loadProjects = useCallback(async () => {
     const mod = projectsModule;
+    mediaRepair ??= mod.persistMedia
+      .execute()
+      .catch((error: unknown) => errorLogger.log(error, 'ProjectsScreen.persistMedia'));
+    await mediaRepair;
     const all = await mod.listProjects.execute({ status: 'active' });
     // Most recently modified first.
     all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());

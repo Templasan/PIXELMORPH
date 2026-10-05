@@ -2,7 +2,7 @@ import { DeleteProjectUseCase } from './DeleteProjectUseCase';
 import { createProject } from '../../domain/entities/Project';
 import { ProjectNotFoundError } from '../../ports';
 import type { Project } from '../../domain';
-import type { ProjectRepository } from '../../ports';
+import type { ProjectRepository, MediaFileStore } from '../../ports';
 
 const genId = () => `proj_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -51,10 +51,17 @@ class MockProjectRepository implements ProjectRepository {
 describe('DeleteProjectUseCase', () => {
   let repository: MockProjectRepository;
   let useCase: DeleteProjectUseCase;
+  let files: MediaFileStore;
 
   beforeEach(() => {
     repository = new MockProjectRepository();
-    useCase = new DeleteProjectUseCase(repository);
+    files = {
+      persist: jest.fn(),
+      isPersisted: jest.fn(),
+      exists: jest.fn(),
+      removeProjectFiles: jest.fn(async () => {}),
+    };
+    useCase = new DeleteProjectUseCase(repository, files);
   });
 
   it('should delete existing project', async () => {
