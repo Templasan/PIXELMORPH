@@ -1692,11 +1692,15 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
           onClose={() => setExportOpen(false)}
           mediaKind="photo"
           getSourceImage={() => canvasRef.current?.makeImageSnapshot() ?? null}
-          onExported={(result) => {
+          onExported={async (result) => {
             if (!projectId) return;
-            projectsModule.updateProject.execute(projectId, {
-              thumbnailUri: `data:image/${result.format.toLowerCase()};base64,${result.base64}`,
-            });
+            try {
+              // Written as a file; the project stores its own persisted copy (UpdateProject).
+              const file = await writeImageToCache(result.base64, result.format);
+              await projectsModule.updateProject.execute(projectId, { thumbnailUri: file });
+            } catch (error) {
+              errorLogger.log(error, 'PhotoEditorScreen.saveThumbnail');
+            }
           }}
         />
       )}
