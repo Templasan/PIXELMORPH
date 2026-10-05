@@ -3,7 +3,7 @@ import { AlphaType, ColorType } from '@shopify/react-native-skia';
 import { encode } from 'modern-gif';
 import { extractFrame } from '../../../../modules/pixelmorph-video-export/src';
 import { resizeImageCover } from '@modules/export';
-import { loadSkImage } from '@modules/photo-editor/collage/composeCollage';
+import { loadSkImage } from '@modules/photo-editor';
 import { gifSize, planGifFrames, type ExportPlan } from '@modules/video-editor';
 
 export interface GifOptions {

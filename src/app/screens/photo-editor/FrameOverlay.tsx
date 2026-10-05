@@ -1,5 +1,5 @@
 import { RoundedRect, LinearGradient, Shadow } from '@shopify/react-native-skia';
-import { frameRadiusPx, frameThicknessPx } from '@modules/photo-editor/effects';
+import { frameRadiusPx, frameThicknessPx } from '@modules/photo-editor';
 
 interface FrameOverlayProps {
   style: number; // FRAME_STYLES index — 0 is "no frame", callers should skip rendering it

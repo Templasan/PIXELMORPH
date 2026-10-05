@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { Group, Path } from '@shopify/react-native-skia';
-import { brushTip, type BrushShape, type EditorLayer } from '@modules/photo-editor/layers';
-import type { Point } from '@modules/photo-editor/geometry';
+import { brushTip, type BrushShape, type EditorLayer, type Point } from '@modules/photo-editor';
 
 export function pointsToPath(points: Point[]): string {
   if (points.length === 0) return '';

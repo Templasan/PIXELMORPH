@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Circle, Group, RadialGradient } from '@shopify/react-native-skia';
-import { lensReflectionSpots } from '@modules/photo-editor/effects';
+import { lensReflectionSpots } from '@modules/photo-editor';
 
 interface LightEffectOverlayProps {
   type: number; // LIGHT_TYPES index: 0=flare, 1=brilho, 2=reflexo lenticular

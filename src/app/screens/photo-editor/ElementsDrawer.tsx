@@ -10,8 +10,11 @@ import {
 } from 'react-native';
 import { Icon, Slider, Tabs } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
-import type { ShapeKind } from '@modules/photo-editor/layers';
-import { COLLAGE_LAYOUTS, type CollageLayout } from '@modules/photo-editor/collage';
+import {
+  type ShapeKind,
+  COLLAGE_LAYOUTS,
+  type CollageLayout,
+} from '@modules/photo-editor';
 import { pickImageFromGallery } from '@modules/device-media';
 
 const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'Colagem'] as const;

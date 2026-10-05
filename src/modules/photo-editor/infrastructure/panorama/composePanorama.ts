@@ -1,5 +1,5 @@
 import { Skia, type SkImage } from '@shopify/react-native-skia';
-import type { PanoramaImage, PanoramaCompositionOptions } from './Panorama';
+import type { PanoramaImage, PanoramaCompositionOptions } from '../../domain/panorama/Panorama';
 
 export function composePanorama(
   images: PanoramaImage[],

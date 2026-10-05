@@ -17,9 +17,10 @@ import {
   createListWatermarkPresetsUseCase,
 } from './application';
 
-// Core exports
+// Core exports — domain (pure), application (hooks), infrastructure (platform adapters)
 export * from './domain';
 export * from './application';
+export * from './infrastructure';
 
 type PhotoEditorModule = {
   savePreset: ReturnType<typeof createSavePresetUseCase>;

@@ -16,7 +16,7 @@ import {
   CURVE_IDENTITY,
   DEFAULT_SELECTIVE,
   toFullUniforms,
-} from '@modules/photo-editor/color';
+} from '@modules/photo-editor';
 import { errorLogger } from '@core/reliability';
 import { probeFileMetadata } from '@modules/device-media';
 import { useAppModules } from '../hooks';

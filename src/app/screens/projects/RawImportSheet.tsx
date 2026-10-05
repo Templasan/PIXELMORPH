@@ -13,7 +13,7 @@ import { Icon } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { createProjectsModule, type Project } from '@modules/projects';
 import { pickImageFromGallery } from '@modules/device-media';
-import { RAW_FORMATS } from '@modules/photo-editor/raw';
+import { RAW_FORMATS } from '@modules/photo-editor/domain/raw';
 
 interface RawImportResult {
   sourceUri: string;

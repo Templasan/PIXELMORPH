@@ -1,4 +1,4 @@
-import { cellPixelRect, COLLAGE_LAYOUTS } from '@modules/photo-editor/collage/CollageMath';
+import { cellPixelRect, COLLAGE_LAYOUTS } from '@modules/photo-editor/domain/collage/CollageMath';
 
 describe('COLLAGE_LAYOUTS', () => {
   it('each layout tiles the full 0..1 canvas with no gaps (cell areas sum to 1)', () => {

@@ -8,7 +8,7 @@ import {
   DEFAULT_SELECTIVE,
   DEFAULT_CURVES,
   CURVE_IDENTITY,
-} from '@modules/photo-editor/color/colorAdjustments';
+} from '@modules/photo-editor/domain/color/colorAdjustments';
 
 const IDENTITY = toUniforms({
   temperatura: 0,
