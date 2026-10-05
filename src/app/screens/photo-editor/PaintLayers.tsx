@@ -1,12 +1,12 @@
 import { memo } from 'react';
 import { Group, Path } from '@shopify/react-native-skia';
-import { brushTip, type BrushShape, type EditorLayer, type Point } from '@modules/photo-editor';
-
-export function pointsToPath(points: Point[]): string {
-  if (points.length === 0) return '';
-  const [first, ...rest] = points;
-  return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
-}
+import {
+  brushTip,
+  pointsToPath,
+  type BrushShape,
+  type EditorLayer,
+  type Point,
+} from '@modules/photo-editor';
 
 // US-08: paint layers live outside the photo's rotate/flip group — strokes stay in canvas space.
 export const PaintLayers = memo(function PaintLayers({ layers }: { layers: EditorLayer[] }) {

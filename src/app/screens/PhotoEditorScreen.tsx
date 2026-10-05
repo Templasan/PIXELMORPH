@@ -83,7 +83,7 @@ import { PanoramaDrawer } from './photo-editor/PanoramaDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
-import { pointsToPath } from './photo-editor/PaintLayers';
+import { pointsToPath } from '@modules/photo-editor';
 import { EditorCanvas } from './photo-editor/EditorCanvas';
 import {
   ADJUST_DRAWER_FIELDS,
