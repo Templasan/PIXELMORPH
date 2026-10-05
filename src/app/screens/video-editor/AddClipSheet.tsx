@@ -12,7 +12,7 @@ import {
 import { Icon } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { createProjectsModule, type Project } from '@modules/projects';
-import { pickFromGallery, pickAudioFromDevice } from '@modules/device-media';
+import { copyToAppStorage, pickFromGallery, pickAudioFromDevice } from '@modules/device-media';
 
 export interface AddClipResult {
   name: string;
@@ -56,7 +56,8 @@ export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddCl
         if (!picked) return;
         onConfirm({
           name: picked.fileName,
-          sourceUri: picked.uri,
+          // The picker hands back a cache copy; the timeline must reference a permanent one.
+          sourceUri: await copyToAppStorage(picked.uri, picked.fileName),
           sourceDurationMs: DEFAULT_AUDIO_CLIP_MS,
         });
         return;
@@ -65,7 +66,7 @@ export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddCl
       if (!picked) return;
       onConfirm({
         name: picked.fileName ?? 'Clipe importado',
-        sourceUri: picked.uri,
+        sourceUri: await copyToAppStorage(picked.uri, picked.fileName),
         sourceDurationMs: picked.durationMs ?? DEFAULT_IMAGE_CLIP_MS,
       });
     } catch (error) {

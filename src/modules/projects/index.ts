@@ -2,6 +2,8 @@
 // Legacy factory for backward compatibility
 import { LocalProjectRepository } from './infrastructure/repositories/LocalProjectRepository';
 import { FileSystemMediaFileStore } from './infrastructure/FileSystemMediaFileStore';
+import { repairCacheMedia } from './infrastructure/repairCacheMedia';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   ListProjectsUseCase,
   GetProjectUseCase,
@@ -14,7 +16,6 @@ import {
   RemoveMediaAssetUseCase,
   UpdateMediaAssetUseCase,
   ApplyAdjustmentsBatchUseCase,
-  PersistProjectMediaUseCase,
 } from './application/usecases';
 
 export * from './domain';
@@ -38,9 +39,10 @@ export function createProjectsModule() {
     unarchiveProject: new UnarchiveProjectUseCase(repository),
     addMediaAsset: new AddMediaAssetUseCase(repository, files),
     removeMediaAsset: new RemoveMediaAssetUseCase(repository),
-    updateMediaAsset: new UpdateMediaAssetUseCase(repository),
+    updateMediaAsset: new UpdateMediaAssetUseCase(repository, files),
     applyAdjustmentsBatch: new ApplyAdjustmentsBatchUseCase(repository),
-    persistMedia: new PersistProjectMediaUseCase(repository, files),
+    /** Copies media still referenced from the cache into permanent storage (see repairCacheMedia). */
+    repairCacheMedia: () => repairCacheMedia(files, FileSystem.cacheDirectory ?? ''),
   };
 }
 

@@ -1,4 +1,4 @@
-import { ProjectRepository, ProjectNotFoundError } from '../../ports';
+import { ProjectRepository, ProjectNotFoundError, type MediaFileStore } from '../../ports';
 import { Project, updateProjectAsset, MediaAsset } from '../../domain';
 
 export type UpdateMediaAssetInput = Partial<
@@ -6,7 +6,10 @@ export type UpdateMediaAssetInput = Partial<
 >;
 
 export class UpdateMediaAssetUseCase {
-  constructor(private repository: ProjectRepository) {}
+  constructor(
+    private repository: ProjectRepository,
+    private files: MediaFileStore
+  ) {}
 
   async execute(
     projectId: string,
@@ -18,7 +21,13 @@ export class UpdateMediaAssetUseCase {
       throw new ProjectNotFoundError(projectId);
     }
 
-    const updated = updateProjectAsset(project, assetId, updates);
+    // A new working file (e.g. pixels baked by the photo editor) arrives in the cache too.
+    const workingUri =
+      updates.workingUri && (await this.files.persist(updates.workingUri, projectId));
+    const updated = updateProjectAsset(project, assetId, {
+      ...updates,
+      ...(workingUri && { workingUri }),
+    });
     await this.repository.update(updated);
 
     return updated;

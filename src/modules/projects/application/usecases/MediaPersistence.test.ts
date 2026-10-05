@@ -1,6 +1,7 @@
 import { AddMediaAssetUseCase } from './AddMediaAssetUseCase';
 import { DeleteProjectUseCase } from './DeleteProjectUseCase';
-import { PersistProjectMediaUseCase } from './PersistProjectMediaUseCase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { findUris, repairCacheMedia } from '../../infrastructure/repairCacheMedia';
 import { createProject } from '../../domain/entities/Project';
 import { createMediaAsset } from '../../domain/entities/MediaAsset';
 import { createMediaMetadata } from '../../domain/entities/MediaMetadata';
@@ -83,25 +84,36 @@ describe('project media persistence', () => {
     expect(removed).toEqual(['p1']);
   });
 
-  it('PersistProjectMedia repairs surviving cache URIs and leaves lost ones alone', async () => {
-    const { repo, project, store } = setup(['file:///cache/alive.jpg']);
-    await repo.update({
-      ...project,
-      assets: [
-        asset('alive', 'file:///cache/alive.jpg'),
-        asset('lost', 'file:///cache/gone.jpg'),
-        asset('done', 'perm://p1/ok.jpg'),
-      ],
+  it('findUris picks every distinct cache URI out of stored JSON', () => {
+    const json = JSON.stringify({
+      clips: [{ sourceUri: 'file:///c/a.mp4' }, { sourceUri: 'file:///c/a.mp4' }],
+      other: 'file:///docs/media/p1/b.jpg',
+      img: 'file:///c/ImagePicker/x y.jpg',
     });
-    const useCase = new PersistProjectMediaUseCase(repo, store);
+    expect(findUris(json, 'file:///c/')).toEqual(['file:///c/a.mp4', 'file:///c/ImagePicker/x']);
+  });
 
-    expect(await useCase.execute()).toBe(1);
-    const uris = (await repo.findById('p1'))!.assets.map((a) => [a.originalUri, a.workingUri]);
-    expect(uris).toEqual([
-      ['perm://p1/alive.jpg', 'perm://p1/alive.jpg'],
-      ['file:///cache/gone.jpg', 'file:///cache/gone.jpg'],
-      ['perm://p1/ok.jpg', 'perm://p1/ok.jpg'],
+  it('repairCacheMedia rewrites surviving cache URIs in every per-project key, once per file', async () => {
+    await AsyncStorage.clear();
+    const clipTracks = { tracks: [{ clips: [{ sourceUri: 'file:///c/clip.mp4' }] }] };
+    await AsyncStorage.multiSet([
+      ['project:p1', JSON.stringify({ assets: [{ originalUri: 'file:///c/clip.mp4' }] })],
+      ['history:p1', JSON.stringify({ past: [{ params: { from: clipTracks, to: clipTracks } }] })],
+      ['layers:p1', JSON.stringify([{ uri: 'file:///c/gone.png' }])],
+      ['unrelated', 'file:///c/clip.mp4'],
     ]);
-    expect(await useCase.execute()).toBe(0); // idempotent
+    const persist = jest.fn(
+      async (uri: string, projectId: string) => `perm://${projectId}/${uri.split('/').pop()}`
+    );
+    const store = { persist, exists: async (uri: string) => uri !== 'file:///c/gone.png' };
+
+    expect(await repairCacheMedia(store, 'file:///c/')).toBe(2);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(await AsyncStorage.getItem('history:p1')).not.toContain('file:///c/clip.mp4');
+    expect(await AsyncStorage.getItem('project:p1')).toContain('perm://p1/clip.mp4');
+    expect(await AsyncStorage.getItem('layers:p1')).toContain('file:///c/gone.png'); // lost: left as is
+    expect(await AsyncStorage.getItem('unrelated')).toBe('file:///c/clip.mp4');
+    expect(await repairCacheMedia(store, 'file:///c/')).toBe(0); // idempotent
+    expect(await repairCacheMedia(store, '')).toBe(0); // no cache dir known: never match everything
   });
 });
