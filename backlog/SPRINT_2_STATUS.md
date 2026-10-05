@@ -8,6 +8,27 @@ Legenda: ✅ testado e funciona · 🟡 existe, mas só parte foi testada ou fal
 
 Esta versão substitui uma anterior que marcava US-10, US-12 e US-33 como "não implementadas" sem ter olhado o código. Estava errado.
 
+## Restauração da fundação (05/10/2026, branch `sprint-2`)
+
+Detalhes, medições e commits em [`docs/foundation-plan.md`](../docs/foundation-plan.md) §8. Verificado em build **release** no emulador `Pixel_7`.
+
+**Defeitos de perda de dado corrigidos**
+- **Mídia no cache:** câmera, stop-motion, galeria, RAW, colagem, panorama e clipes/áudio/time-lapse adicionados no editor de vídeo guardavam no projeto o caminho do *cache*, que o Android e o botão "Limpar cache" apagam. Agora cada projeto tem sua cópia em `documents/media/<projeto>/`; um reparo único copia o que ainda existia. Testado: foto da câmera e clipe da galeria continuam abrindo depois de "Limpar cache". Arquivos que já tinham sido apagados antes da correção não voltam.
+- **Miniatura em base64:** o export de foto gravava a imagem inteira dentro do registro do projeto (risco de passar do limite de ~2 MB do Android e o projeto ficar ilegível). Agora é arquivo.
+- **Histórico grande:** o histórico do vídeo (que guarda a timeline inteira a cada edição) passaria do mesmo limite em sessões longas; agora é gravado em partes. Testado: editar → fechar o app à força → reabrir mantém a edição e o desfazer.
+- **Log de erros** (RNF-017): mesmos 5 MB, agora em segmentos de 256 KB.
+
+**Outros defeitos corrigidos**
+- Editor travado em "carregando" se a leitura do histórico falhasse.
+- Sliders de PiP não entravam no desfazer; sliders de 360° podiam não registrar a mudança.
+- Playhead da régua desalinhado do playhead das faixas.
+- Histórico do projeto ficava ocupando espaço depois de apagar o projeto.
+
+**Desempenho** (emulador, release; comparar só antes/depois)
+- Inicialização a frio 647 → 564 ms.
+- Arrastar a timeline: quadros lentos 20,6 → 10 %, p99 113 → 69 ms.
+- Abrir/fechar gaveta de Ajustes: p99 73 → 42 ms (o histograma era recalculado a cada render da tela).
+
 ---
 
 ## User stories
