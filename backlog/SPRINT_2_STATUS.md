@@ -31,8 +31,8 @@ Esta versão substitui uma anterior que marcava US-10, US-12 e US-33 como "não 
 | Critério | Situação |
 |---|---|
 | RF-019 Comparar antes/depois com divisor deslizante | ✅ Testado no celular (ORIGINAL | EDITADA) |
-| RF-067 Guias de alinhamento magnético | 🟡 Só no ponto de luz (linhas de centro). Texto, formas e adesivos não têm guia |
-| RF-076 Atalhos rápidos (desfazer, refazer, salvar, ferramentas) | 🟡 Desfazer/refazer/exportar são botões do cabeçalho. Não há atalhos além disso; a tela Ajuda só lista atalhos |
+| RF-067 Guias de alinhamento magnético | 🟡 Texto, formas e adesivos encaixam no centro e nos outros elementos, com linha de guia (testes de unidade; falta ver no celular) |
+| RF-076 Atalhos rápidos (desfazer, refazer, salvar, ferramentas) | 🟡 Gestos no canvas: 2 dedos desfaz, 3 dedos refaz, duplo toque de 2 dedos exporta, duplo toque de 3 dedos troca de ferramenta. Teclado físico não (React Native não entrega as teclas sem módulo nativo). Falta testar no celular; pode conflitar com pintura/comparação |
 
 ### US-16 — Transições e montagem ✅
 | Critério | Situação |
@@ -43,7 +43,7 @@ Esta versão substitui uma anterior que marcava US-10, US-12 e US-33 como "não 
 ### US-17 — Controle de velocidade 🟡
 | Critério | Situação |
 |---|---|
-| RF-049 Velocidade em pontos específicos, com transição suave entre velocidades | 🟡 Velocidade por clipe (0,25x a 4x, controle deslizante) testada no celular. Rampa suave entre velocidades não existe: o ponto específico se obtém dividindo o clipe |
+| RF-049 Velocidade em pontos específicos, com transição suave entre velocidades | 🟡 Velocidade por clipe testada no celular. Botão "Suavizar fim até 1x" divide o fim do clipe em 4 degraus (1,5 s); só desacelera até 1x. Não testado no celular |
 | RF-023 Time-lapse a partir de fotos | ✅ Botão e montagem existem (testado no emulador) |
 
 ### US-30 — Exportação ✅/🟡
@@ -58,8 +58,8 @@ Esta versão substitui uma anterior que marcava US-10, US-12 e US-33 como "não 
 ### US-33 — Captura e trilha de áudio 🟡
 | Critério | Situação |
 |---|---|
-| RF-018 Gravar áudio na captura, com monitor e ganho | 🟡 A câmera grava com áudio e tem medidor de nível. Não testei no celular e não há controle de ganho nem faixa separada |
-| RF-036 Trilha de fundo com volume, fade in/out e sincronização | 🟡 Faixa A1 com volume e fade in/out existe. Não testei importar um áudio. O áudio da faixa A1 não vai para o arquivo exportado |
+| RF-018 Gravar áudio na captura, com monitor e ganho | 🟡 A câmera grava com áudio e tem medidor de nível. Ganho de entrada real é impossível com `expo-camera`/`expo-audio` (a câmera toma o microfone). Alternativa feita: volume 0–100% por clipe de vídeo na aba Áudio, na prévia e no mp4 (controle visto no celular; áudio não ouvido) |
+| RF-036 Trilha de fundo com volume, fade in/out e sincronização | 🟡 Faixa A1 com volume e fade in/out, e agora misturada no mp4 (plano com teste, Kotlin compila). Não testei importar um áudio nem ouvir o resultado |
 
 ---
 
@@ -86,12 +86,15 @@ Esta versão substitui uma anterior que marcava US-10, US-12 e US-33 como "não 
 | 🟡 Existem, com partes pendentes | US-01, US-10, US-12, US-17, US-30, US-33 |
 | ❌ Inexistentes | nenhuma |
 
-## Defeitos e observações achados no celular
-- **Fim do vídeo:** ao chegar no último instante, a prévia fica preta em vez de manter o último quadro.
-- **Régua da timeline:** os números quebram em duas linhas (`00:0` / `0`) nesta densidade de tela. Os nomes das faixas também (`IM` / `G`).
-- **Rótulo de resolução:** vídeo gravado pela câmera do app mostra 1920×1080 mesmo gravado em pé (o seletor da galeria mostra a orientação certa).
+## Defeitos achados no celular (corrigidos depois)
+- **Fim do vídeo preto:** corrigido; visto no celular, a prévia mantém a imagem no último instante.
+- **Régua e nomes das faixas quebrando:** corrigido; visto no celular (00:00, 00:02, 00:04… em uma linha).
+- **Rótulo 1920×1080 em vídeo gravado em pé:** corrigido na câmera (guarda 1080×1920); testado só por unidade, vale gravar um vídeo novo para ver.
+- **Cor da forma:** a seta saiu branca com vermelho escolhido. Não achei a causa; foi adicionada uma proteção (mudanças no formulário de Formas se aplicam à forma selecionada). Falta refazer o teste no celular.
+
+## Observações
 - **Build debug no celular:** a tela atrasa e perde toques no editor de foto. No release isso não acontece.
-- **Ordem da lista de projetos:** um projeto novo vai para o topo e empurra os outros, o que enganou meus toques; não é defeito.
+- **Ordem da lista de projetos:** um projeto novo vai para o topo e empurra os outros.
 
 ## Como foi o build release
 O build release no Windows falha por causa do caminho longo (limite de 260 caracteres do `ninja`). O atalho de unidade `subst R:` também falha neste projeto, porque o Node resolve `R:` de volta para `C:`. O que funcionou: copiar o projeto para uma pasta curta de verdade (`C:\pm`, sem `.git` nem pastas de build) e rodar `gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a` de lá (3 min 44 s).
