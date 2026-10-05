@@ -1,348 +1,271 @@
 # PixelMorph
 
-A React Native photo and video editing application with AI capabilities.
+Aplicativo Android de edição de fotos e vídeos (React Native + Expo SDK 56). Este documento reúne o **backlog do produto**, o **backlog da Sprint 1**, o **roadmap** e o **tutorial de instalação**.
 
-**Status**: Foundation complete, ready for implementation  
-**Timeline**: ~2 months to MVP  
-**Platform**: iOS & Android via React Native
+## Sumário
 
----
-
-## Quick Start (For New Team Members)
-
-New to this project? Start here:
-
-1. **[Read the Architecture Summary](ARCHITECTURE.md)** (5 min read, high-level overview)
-2. **[Read the Project README](docs/README.md)** (10 min, understand what we're building)
-3. **[Read the Architecture Guide](docs/architecture.md)** (15 min, system design)
-4. **[Read the Modules Guide](docs/modules.md)** (15 min, what each module does)
-5. **[Read the Agent Rules](docs/agent-rules.md)** (10 min, rules you must follow)
-
-After that:
-- **Picking a task?** → [Task Template](docs/task-template.md) + [Backlog](docs/backlog.md)
-- **Want to know what's next?** → [Next Steps](docs/next-steps.md)
-- **Curious about architecture decisions?** → [ADRs](docs/decisions/)
-
-**Total reading time**: ~1 hour to understand the project completely.
+1. [Instalação e execução (compilar o APK)](#1-instalação-e-execução-compilar-o-apk)
+2. [Backlog do produto](#2-backlog-do-produto)
+3. [Backlog da Sprint 1](#3-backlog-da-sprint-1)
+4. [Roadmap](#4-roadmap)
+5. [Estrutura do repositório](#5-estrutura-do-repositório)
 
 ---
 
-## Project Overview
+## 1. Instalação e execução (compilar o APK)
 
-### What is PixelMorph?
+> **Importante:** o app **não roda no Expo Go**. Ele usa o Expo SDK 56 e um módulo nativo próprio (`modules/pixelmorph-video-export`, exportação de vídeo com Media3). É preciso **compilar um APK** e instalá-lo no celular.
 
-PixelMorph is a mobile photo and video editing application that:
-- Allows users to edit photos and videos on their mobile device
-- Supports non-destructive editing (unlimited undo/redo)
-- Works offline (core editing doesn't require internet)
-- Has AI-powered features (background removal, upscaling, etc.)
-- Supports collaboration (sync projects across devices)
-- Has a community (share and discover edited media)
+### 1.1 Pré-requisitos
 
-### Why This Architecture?
+| Ferramenta | Versão | Observação |
+|---|---|---|
+| Node.js | 22.x (`.nvmrc` = 22.19.0) | Já foi compilado com Node 24 também |
+| JDK | 17 | Defina `JAVA_HOME` |
+| Android Studio | recente | Traz o SDK Manager |
+| Android SDK Platform | 36 | `compileSdk` do projeto |
+| Build-Tools | 36.0.0 | |
+| NDK | 27.1.12297006 | O Gradle instala sozinho se as licenças estiverem aceitas |
+| CMake | 3.22.1 | Idem |
+| Platform-Tools (`adb`) | latest | Para instalar pelo USB |
 
-The project uses **Modular Monolith** + **Hexagonal Architecture** (Ports & Adapters):
-- ✅ Multiple agents can work in parallel
-- ✅ Easy to swap libraries (FFmpeg alternatives, rendering engines)
-- ✅ Core domain logic independent of infrastructure
-- ✅ Clear module boundaries prevent contamination
-- ✅ Offline-first design built in
+Variáveis de ambiente (exemplo para Windows/PowerShell):
 
----
-
-## Project Structure
-
-```
-PixelMorph/
-├── docs/                    # Complete documentation (start here!)
-│   ├── README.md           # Project overview
-│   ├── architecture.md      # System design (detailed)
-│   ├── modules.md          # Module descriptions
-│   ├── requirements.md      # User stories → technical
-│   ├── agent-rules.md      # Rules for all agents
-│   ├── task-template.md    # How to create tasks
-│   ├── definition-of-done.md # When work is complete
-│   ├── backlog.md          # Initial backlog with dependencies
-│   ├── risks.md            # Risk register
-│   ├── dependencies.md     # Library evaluation policy
-│   ├── domain.md           # Core domain entities
-│   ├── environments.md     # Dev/staging/prod config
-│   ├── next-steps.md       # What to work on next
-│   └── decisions/          # Architecture Decision Records (ADRs)
-│       ├── ADR-001-modular-hexagonal-architecture.md
-│       └── ADR-002-non-destructive-editing.md
-│
-├── src/                     # Application code (empty, ready for implementation)
-│   ├── app/                # Application shell and navigation
-│   ├── core/               # Shared domain, ports, infrastructure
-│   ├── modules/            # Feature modules (photo, video, etc.)
-│   └── infrastructure/     # Adapters and external services
-│
-├── tests/                   # Test infrastructure (empty, ready)
-│
-├── ARCHITECTURE.md         # Quick architecture reference (start here!)
-└── README.md              # This file
+```powershell
+setx ANDROID_HOME "$env:LOCALAPPDATA\Android\Sdk"
+setx JAVA_HOME "C:\Program Files\Java\jdk-17"
+# adicione ao PATH: %ANDROID_HOME%\platform-tools
 ```
 
----
+### 1.2 Instalar as dependências
 
-## Key Concepts
-
-### Architecture: Modular Monolith
-
-```
-Single React Native App (one deployable unit)
-├── Photo Editor Module (independent)
-├── Video Editor Module (independent)
-├── Camera Module (independent)
-├── AI Module (independent)
-└── ... other modules ...
+```bash
+npm install
 ```
 
-Each module is worked on independently but runs in a single app.
+### 1.3 Preparar o celular
 
-### Architecture: Hexagonal (Ports & Adapters)
+1. Ative as **Opções do desenvolvedor** (toque 7 vezes no número da versão).
+2. Ative a **Depuração USB**. Em Xiaomi/POCO, ative também **Instalar via USB** e **Depuração USB (configurações de segurança)**.
+3. Plugue o cabo em modo **Transferência de arquivos** e aceite o aviso de RSA ("Sempre permitir").
+4. Confirme que o celular aparece:
 
-Domain logic never depends on libraries:
-
-```
-Photo Editor Domain
-  ↓
-(uses PhotoEditPort)
-  ↓
-Adapters (SkiaAdapter, SQLiteAdapter, etc.)
-  ↓
-External Libraries (Skia, SQLite, FFmpeg, etc.)
+```bash
+adb devices
 ```
 
-This lets us swap libraries without changing domain logic.
+Deve listar o aparelho como `device` (não `unauthorized`). Se aparecer `(no serial number)`, rode `adb kill-server` e tente de novo.
 
-### Editing Model: Non-Destructive
+### 1.4 Compilar o APK (release)
 
+```bash
+cd android
+./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a   # Windows: .\gradlew.bat ...
 ```
-Original Photo + Operations List = Current State
 
-User adjusts brightness → Add operation to list
-User presses undo → Remove operation from list
-User exports → Apply all operations + render
+- `arm64-v8a` compila só para celulares modernos de 64 bits (a maioria atual) e deixa a build bem mais rápida. Para outros aparelhos, remova o parâmetro.
+- A **primeira build é lenta** (baixa Gradle, SDK, NDK e dependências, mais de 1,5 GB). As seguintes levam poucos minutos.
+- O APK fica em `android/app/build/outputs/apk/release/app-release.apk` (cerca de 59 MB). O JavaScript já vai embutido, então o app **funciona sem o Metro e sem internet**.
+- O release é assinado com a chave de debug do projeto: serve para testes e apresentação, **não para a Play Store**.
 
-Result: Unlimited undo/redo, works offline!
+Alternativa em um comando (compila e instala no celular conectado):
+
+```bash
+npx expo run:android --variant release
+```
+
+### 1.5 Instalar e abrir
+
+```bash
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+adb shell monkey -p com.anonymous.pixelmorph -c android.intent.category.LAUNCHER 1
+```
+
+Para instalar em outro celular, copie o `.apk` (cabo, Drive, WhatsApp) e abra no aparelho, permitindo "instalar de fontes desconhecidas".
+
+### 1.6 Problemas comuns
+
+| Sintoma | Solução |
+|---|---|
+| `adb devices` mostra `unauthorized` | Aceite o aviso de depuração USB no celular; se não aparecer, revogue as autorizações nas Opções do desenvolvedor e replugue |
+| Erro de "caminho longo" (limite de 260 caracteres no `ninja`, Windows) | Copie o projeto para uma pasta curta (ex.: `C:\pm`, sem `.git`) e compile de lá |
+| Falha ao baixar dependências | Rede instável: rode o Gradle de novo, ele retoma do cache |
+| Versão incompatível ao abrir no Expo Go | Esperado: use o APK compilado, não o Expo Go |
+
+### 1.7 Opcional: espelhar a tela do celular no PC
+
+Use o [scrcpy](https://github.com/Genymobile/scrcpy) (`scrcpy --max-size 1280 --max-fps 30 --stay-awake`). Para mostrar numa TV, ligue o PC por HDMI e use Win+P (Duplicar) com o scrcpy em tela cheia (Ctrl+F).
+
+### 1.8 Testes automatizados
+
+```bash
+npx tsc --noEmit   # tipos (ignore 2 avisos em node_modules/react-native-view-shot)
+npx jest           # testes unitários e de integração
 ```
 
 ---
 
-## Documentation Roadmap
+## 2. Backlog do produto
 
-### For Everyone
-- [ARCHITECTURE.md](ARCHITECTURE.md) - High-level overview
-- [docs/README.md](docs/README.md) - Project introduction
+**36 User Stories** em 8 épicos, distribuídas em 3 sprints. As pastas `backlog/backlog sprint 1`, `backlog sprint 2` e `backlog sprint 3` guardam cada US com seus requisitos (RF = funcional, RNF = não funcional).
 
-### For Implementers
-- [docs/architecture.md](docs/architecture.md) - Detailed architecture
-- [docs/modules.md](docs/modules.md) - Module descriptions
-- [docs/domain.md](docs/domain.md) - Core entities
-- [docs/agent-rules.md](docs/agent-rules.md) - Rules you must follow
-- [docs/task-template.md](docs/task-template.md) - How to write tasks
-- [docs/definition-of-done.md](docs/definition-of-done.md) - When you're done
+### 2.1 Épicos
 
-### For Decision Makers
-- [docs/requirements.md](docs/requirements.md) - User stories → features
-- [docs/backlog.md](docs/backlog.md) - Task list and prioritization
-- [docs/risks.md](docs/risks.md) - Risks and mitigations
-- [docs/decisions/](docs/decisions/) - Architecture decisions (ADRs)
+| Épico | Nome | US |
+|---|---|---|
+| EP-01 | Projetos e Organização | 3 |
+| EP-02 | Edição de Foto | 10 |
+| EP-03 | Edição de Vídeo | 7 |
+| EP-04 | Câmera e Captura | 3 |
+| EP-05 | IA e Automação | 6 |
+| EP-06 | Exportação | 3 |
+| EP-07 | Áudio | 1 |
+| EP-08 | Colaboração e Comunidade | 3 |
 
-### For DevOps/Setup
-- [docs/environments.md](docs/environments.md) - Development/staging/production
-- [docs/dependencies.md](docs/dependencies.md) - Library policy
+### 2.2 Todas as User Stories
 
-### Getting Unstuck
-- [docs/next-steps.md](docs/next-steps.md) - What to work on next
-- [docs/agent-rules.md](docs/agent-rules.md) - Rules and escalation
-- [docs/risks.md](docs/risks.md) - What might go wrong
+| US | Título | Épico | Sprint | RFs | RNFs |
+|---|---|---|---|---|---|
+| US-01 | Central de projetos | EP-01 Projetos e Organização | S1 + S2 | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 |
+| US-02 | Presets e edição em lote | EP-01 Projetos e Organização | S3 | RF-014, RF-015 | — |
+| US-03 | Continuidade e proteção do trabalho | EP-01 Projetos e Organização | S1 | RF-027 | RNF-005, RNF-006, RNF-017 |
+| US-04 | Ajustes finos de cor e tonalidade | EP-02 Edição de Foto | S1 | RF-047, RF-029, RF-063, RF-059 | — |
+| US-05 | Correções geométricas e orientação | EP-02 Edição de Foto | S1 | RF-048, RF-078, RF-054 | — |
+| US-06 | Máscaras e seleção localizada | EP-02 Edição de Foto | S3 | RF-007, RF-038, RF-045, RF-072 | — |
+| US-07 | Retoque e distorção | EP-02 Edição de Foto | S3 | RF-022, RF-026 | — |
+| US-08 | Edição em camadas não destrutiva | EP-02 Edição de Foto | S1 | RF-002, RF-052, RF-033 | RNF-008 |
+| US-09 | Efeitos visuais e overlays decorativos | EP-02 Edição de Foto | S1 | RF-041, RF-060, RF-068, RF-075, RF-028 | — |
+| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | EP-02 Edição de Foto | S2 | RF-011, RF-044, RF-046, RF-008 | — |
+| US-11 | Importação e conversão de arquivos RAW | EP-02 Edição de Foto | S1 | RF-003 | — |
+| US-12 | Comparação, guias e atalhos de produtividade | EP-02 Edição de Foto | S2 | RF-019, RF-067, RF-076 | — |
+| US-13 | Visualização 3D de fotos estereoscópicas | EP-02 Edição de Foto | S3 | RF-071 | — |
+| US-14 | Linha do tempo multifaixa com tela dividida | EP-03 Edição de Vídeo | S1 | RF-005, RF-053 | RNF-009 |
+| US-15 | Edição de precisão: corte, navegação e congelamento de quadro | EP-03 Edição de Vídeo | S1 | RF-035, RF-013, RF-077 | — |
+| US-16 | Transições e montagem de múltiplos clipes | EP-03 Edição de Vídeo | S1 + S2 | RF-032, RF-058 | — |
+| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | EP-03 Edição de Vídeo | S2 | RF-049, RF-023 | — |
+| US-18 | Estabilização de vídeo por sensores | EP-03 Edição de Vídeo | S3 | RF-009 | — |
+| US-19 | Edição de vídeo em 360 graus | EP-03 Edição de Vídeo | S3 | RF-021 | — |
+| US-20 | Picture-in-picture | EP-03 Edição de Vídeo | S3 | RF-065 | — |
+| US-21 | Filtros em tempo real na pré-visualização da câmera | EP-04 Câmera e Captura | S3 | RF-006, RF-079 | RNF-010 |
+| US-22 | Captura assistida: temporizador e stop-motion | EP-04 Câmera e Captura | S3 | RF-039, RF-043 | — |
+| US-23 | Sobreposição em realidade aumentada | EP-04 Câmera e Captura | S3 | RF-024 | — |
+| US-24 | Recorte e remoção inteligente de elementos | EP-05 IA e Automação | S3 | RF-004, RF-055 | — |
+| US-25 | Efeitos de retrato e correção facial automática | EP-05 IA e Automação | S3 | RF-012, RF-016, RF-025 | RNF-004 |
+| US-26 | Sugestões automáticas de cor, cena e enquadramento | EP-05 IA e Automação | S3 | RF-010, RF-034, RF-042 | RNF-012 |
+| US-27 | Filtros artísticos por IA | EP-05 IA e Automação | S3 | RF-050 | — |
+| US-28 | Alinhamento automático para panorama | EP-05 IA e Automação | S3 | RF-062 | — |
+| US-29 | Automação de vídeo: miniaturas e legendas por IA | EP-05 IA e Automação | S3 | RF-030, RF-069 | — |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | EP-06 Exportação | S1 + S2 | RF-057, RF-061, RF-017 | RNF-013, RNF-011 |
+| US-31 | Exportação para fluxos profissionais: PSD, impressão e gerenciamento de cor | EP-06 Exportação | S3 | RF-040, RF-073, RF-051 | — |
+| US-32 | Marca d'água e QR code personalizados | EP-06 Exportação | S3 | RF-020, RF-066 | — |
+| US-33 | Captura e trilha de áudio no vídeo | EP-07 Áudio | S2 | RF-018, RF-036 | — |
+| US-34 | Edição colaborativa remota em tempo real | EP-08 Colaboração e Comunidade | S3 | RF-031 | RNF-002 |
+| US-35 | Feedback e anotações da comunidade | EP-08 Colaboração e Comunidade | S3 | RF-074, RF-064 | RNF-003 |
+| US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade | S3 | RF-056 | — |
 
----
+> US-01, US-16 e US-30 aparecem nas Sprints 1 e 2: parte dos critérios foi entregue na Sprint 1 e o restante na Sprint 2.
 
-## Status Summary
-
-### ✅ Completed (Foundation Phase)
-
-- [x] Architecture defined (Modular Monolith + Hexagonal)
-- [x] 13 modules designed with clear responsibilities
-- [x] 24+ tasks in initial backlog with dependencies
-- [x] Core domain model defined
-- [x] Ports/adapters pattern established
-- [x] Agent rules and conduct guidelines
-- [x] Definition of Done criteria
-- [x] Risk register with mitigations
-- [x] 7-sprint plan for 2-month timeline
-- [x] All documentation written
-
-### 📋 Next (Research Phase - Week 1-2)
-
-- [ ] Evaluate state management (Redux vs Zustand vs MobX)
-- [ ] Prototype FFmpeg integration
-- [ ] Benchmark React Native Skia rendering
-- [ ] Evaluate camera library options
-- [ ] Evaluate AI inference approaches
-- [ ] Create ADRs for technology choices
-
-### 🚀 Then (Implementation Phase - Week 2-8)
-
-- [ ] React Native project setup
-- [ ] Core domain model implementation
-- [ ] Photo editing features
-- [ ] Video editing features
-- [ ] Camera integration
-- [ ] Export functionality
-- [ ] AI features (if research successful)
-- [ ] Integration and optimization
-- [ ] QA and launch prep
+Itens técnicos que não pertencem a uma US (pendências de requisitos não funcionais e de US incompletas) estão em [`not-us/README.md`](backlog/not-us/README.md).
 
 ---
 
-## Key Statistics
+## 3. Backlog da Sprint 1
 
-| Metric | Value |
-|--------|-------|
-| User Stories | 36 |
-| Functional Requirements | ~80 |
-| Non-Functional Requirements | ~17 |
-| Modules Designed | 13 |
-| Initial Tasks | 24+ |
-| Documentation Pages | 15+ |
-| Architecture Decision Records | 2 (more to come) |
-| Identified Risks | 15 |
-| Timeline (weeks) | 8 |
-| Target Platform | iOS & Android |
+**Situação: ✅ Completa.** Fundação do app, edição de foto e base da edição de vídeo.
 
----
+| US | Título | RFs | RNFs | Item migrado para não-US |
+|---|---|---|---|---|
+| US-01 | Central de projetos | RF-001, RF-037, RF-070 | RNF-001, RNF-002, RNF-007, RNF-014, RNF-015, RNF-016 | NUS-010 notificação do sistema (hoje só banner) |
+| US-03 | Continuidade e proteção do trabalho | RF-027 | RNF-005, RNF-006, RNF-017 | NUS-011 envio de logs (depende de backend/HTTPS) |
+| US-04 | Ajustes finos de cor e tonalidade | RF-047, RF-029, RF-063, RF-059 | — | — |
+| US-05 | Correções geométricas e orientação | RF-048, RF-078, RF-054 | — | — |
+| US-08 | Edição em camadas não destrutiva | RF-002, RF-052, RF-033 | RNF-008 | — |
+| US-09 | Efeitos visuais e overlays decorativos | RF-041, RF-060, RF-068, RF-075, RF-028 | — | — |
+| US-11 | Importação e conversão de arquivos RAW | RF-003 | — | NUS-012 decodificação real de RAW |
+| US-14 | Linha do tempo multifaixa com tela dividida | RF-005, RF-053 | RNF-009 | NUS-013 exportar faixas IMG/TXT/A1 junto com o vídeo |
+| US-15 | Edição de precisão: corte, navegação e congelamento de quadro | RF-035, RF-013, RF-077 | — | NUS-014 remover objetos do vídeo |
+| US-16 | Transições e montagem de múltiplos clipes | RF-032, RF-058 | — | — |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | RF-057, RF-061, RF-017 | RNF-013, RNF-011 | NUS-015 exportação HEIC; NUS-016 medir 1 min Full HD em gama média |
 
-## Important Files
+**Itens remanescentes da Sprint 1** (não bloqueiam a conclusão; reclassificados como itens não-US em [`not-us/`](backlog/not-us/README.md)):
 
-**Must Read First**:
-1. [ARCHITECTURE.md](ARCHITECTURE.md) - 5 minute overview
-2. [docs/README.md](docs/README.md) - Project introduction
-3. [docs/architecture.md](docs/architecture.md) - Detailed design
-
-**Before You Code**:
-4. [docs/agent-rules.md](docs/agent-rules.md) - Rules you must follow
-5. [docs/task-template.md](docs/task-template.md) - How to write tasks
-6. [docs/definition-of-done.md](docs/definition-of-done.md) - When you're done
-
-**When Picking Work**:
-7. [docs/backlog.md](docs/backlog.md) - What to work on
-8. [docs/next-steps.md](docs/next-steps.md) - Guidance on starting
+- **NUS-001 / NUS-002:** Login com 2FA e HTTPS na sincronização. Exigem backend, que não existe. Fora do escopo.
+- **NUS-004:** medir exportação de 1 min em Full HD em aparelho de gama média.
+- **NUS-005:** traduzir o editor de foto/vídeo e a câmera para EN/ES (hoje só as telas principais).
+- **NUS-010 a NUS-016:** itens listados na coluna de pendências acima.
 
 ---
 
-## How to Contribute
+## 4. Roadmap
 
-1. **Read the foundations**: Start with [ARCHITECTURE.md](ARCHITECTURE.md)
-2. **Understand the rules**: Read [docs/agent-rules.md](docs/agent-rules.md)
-3. **Pick a task**: Find one in [docs/backlog.md](docs/backlog.md)
-4. **Follow the template**: Use [docs/task-template.md](docs/task-template.md)
-5. **Write tests**: Required for all tasks
-6. **Create PR**: Reference task and acceptance criteria
-7. **Pass review**: Architect + Review Agent approval
-8. **Merge**: When all checks pass
+| Sprint | Tema | User Stories | Situação |
+|---|---|---|---|
+| **Sprint 1** | Fundação: projetos, ajustes de foto, camadas, linha do tempo e exportação | US-01, US-03, US-04, US-05, US-08, US-09, US-11, US-14, US-15, US-16, US-30 | ✅ **Completa** (itens técnicos remanescentes migrados para não-US, seção 3) |
+| **Sprint 2** | Composição, guias, velocidade, áudio e exportação multiformato | US-01, US-10, US-12, US-16, US-17, US-30, US-33 | Em fechamento: US-16 completa, as demais parciais (ver `SPRINT_2_STATUS.md`) |
+| **Sprint 3** | Máscaras, retoque, câmera avançada, IA, exportação profissional e colaboração | 21 US (tabela abaixo) | Planejada. Algumas já têm implementação inicial no código; conferir antes de dar como concluídas |
 
-See [docs/next-steps.md](docs/next-steps.md) for detailed guidance.
+### 4.1 Sprint 2 — situação
+
+| US | Título | Situação |
+|---|---|---|
+| US-01 | Central de projetos | 🟡 Parcial |
+| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | 🟡 Parcial |
+| US-12 | Comparação, guias e atalhos de produtividade | 🟡 Parcial |
+| US-16 | Transições e montagem de múltiplos clipes | ✅ Completa |
+| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | 🟡 Parcial |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | 🟡 Parcial |
+| US-33 | Captura e trilha de áudio no vídeo | 🟡 Parcial |
+
+Verificado em 05/10/2026 em celular real (arm64, Android 16, build release). Detalhes critério a critério em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
+
+Resultados de desempenho medidos no celular: inicialização a frio entre **0,82 e 1,2 s** (meta: menos de 3 s), instalação de **59 MB** (meta: até 200 MB) e exportação de 10 s em Full HD com transição em **2,7 s**.
+
+### 4.2 Sprint 3 — escopo planejado
+
+| US | Título | Épico |
+|---|---|---|
+| US-02 | Presets e edição em lote | EP-01 Projetos e Organização |
+| US-06 | Máscaras e seleção localizada | EP-02 Edição de Foto |
+| US-07 | Retoque e distorção | EP-02 Edição de Foto |
+| US-13 | Visualização 3D de fotos estereoscópicas | EP-02 Edição de Foto |
+| US-18 | Estabilização de vídeo por sensores | EP-03 Edição de Vídeo |
+| US-19 | Edição de vídeo em 360 graus | EP-03 Edição de Vídeo |
+| US-20 | Picture-in-picture | EP-03 Edição de Vídeo |
+| US-21 | Filtros em tempo real na pré-visualização da câmera | EP-04 Câmera e Captura |
+| US-22 | Captura assistida: temporizador e stop-motion | EP-04 Câmera e Captura |
+| US-23 | Sobreposição em realidade aumentada | EP-04 Câmera e Captura |
+| US-24 | Recorte e remoção inteligente de elementos | EP-05 IA e Automação |
+| US-25 | Efeitos de retrato e correção facial automática | EP-05 IA e Automação |
+| US-26 | Sugestões automáticas de cor, cena e enquadramento | EP-05 IA e Automação |
+| US-27 | Filtros artísticos por IA | EP-05 IA e Automação |
+| US-28 | Alinhamento automático para panorama | EP-05 IA e Automação |
+| US-29 | Automação de vídeo: miniaturas e legendas por IA | EP-05 IA e Automação |
+| US-31 | Exportação para fluxos profissionais: PSD, impressão e gerenciamento de cor | EP-06 Exportação |
+| US-32 | Marca d'água e QR code personalizados | EP-06 Exportação |
+| US-34 | Edição colaborativa remota em tempo real | EP-08 Colaboração e Comunidade |
+| US-35 | Feedback e anotações da comunidade | EP-08 Colaboração e Comunidade |
+| US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade |
+
+### 4.3 Próximos passos sugeridos
+
+1. Fechar as pendências parciais da Sprint 2 (testar no celular as formas, colagens, memes, atalhos por gesto e mixagem de áudio).
+2. Resolver os bloqueadores não-US: backend para login/HTTPS (NUS-001, NUS-002), RAW real (NUS-012) e exportação multifaixa (NUS-013).
+3. Traduzir as telas restantes (NUS-005).
+4. Medir exportação de 1 min em aparelho de gama média (NUS-004).
+5. Iniciar a Sprint 3, começando por máscaras e retoque (US-06, US-07), que reaproveitam a base de camadas.
 
 ---
 
-## Architecture Decisions
+## 5. Estrutura do repositório
 
-We use **Architecture Decision Records (ADRs)** for major decisions.
-
-See [docs/decisions/](docs/decisions/):
-- [ADR-001: Modular Monolith + Hexagonal Architecture](docs/decisions/ADR-001-modular-hexagonal-architecture.md)
-- [ADR-002: Non-Destructive Editing with Operation Store](docs/decisions/ADR-002-non-destructive-editing.md)
-
-More ADRs coming for technology choices (state management, rendering, media processing, etc.).
-
----
-
-## Risk Management
-
-15 risks identified and categorized. See [docs/risks.md](docs/risks.md).
-
-**Critical Risks**:
-- Video processing performance (uncertain)
-- AI feature viability (uncertain)
-- Timeline feasibility (2 months might be tight)
-
-**Action**: Research phase (Week 1-2) addresses critical risks.
-
----
-
-## Timeline
-
+```text
+README.md                     # este documento
+backlog/
+├── SPRINT_2_STATUS.md        # situação verificada da Sprint 2
+├── not-us/                   # pendências técnicas fora de User Stories
+├── backlog sprint 1/         # US da Sprint 1 (user-story.md + RF/RNF)
+├── backlog sprint 2/         # US da Sprint 2
+└── backlog sprint 3/         # US da Sprint 3
 ```
-Week 1-2: Foundation (✅ DONE) + Research
-Week 2-3: Photo Editing
-Week 3-4: Video Editing
-Week 4-5: Camera & Export
-Week 5-6: AI & Integration
-Week 6-7: Performance & Polish
-Week 7-8: QA & Launch
-```
 
-See [docs/backlog.md](docs/backlog.md) for detailed sprint breakdown.
-
----
-
-## Code Quality Standards
-
-Every task must meet these criteria:
-
-- ✅ Follows architecture patterns (ports/adapters)
-- ✅ Has tests (unit + integration)
-- ✅ Passes lint
-- ✅ Meets all acceptance criteria
-- ✅ Zero scope creep
-- ✅ Documentation updated
-- ✅ Code review approved
-
-See [docs/definition-of-done.md](docs/definition-of-done.md) for complete checklist.
-
----
-
-## Getting Help
-
-**Questions about**:
-- **Architecture** → Read [docs/architecture.md](docs/architecture.md), then ask Architect
-- **What to work on** → See [docs/backlog.md](docs/backlog.md) and [docs/next-steps.md](docs/next-steps.md)
-- **Task specification** → Read task in backlog or create one following [docs/task-template.md](docs/task-template.md)
-- **Code review** → See [docs/agent-rules.md](docs/agent-rules.md)
-- **Stuck?** → Check [docs/next-steps.md](docs/next-steps.md) and escalation process
-
----
-
-## Project Philosophy
-
-1. **Architecture First**: Good architecture enables good work
-2. **Documentation as Code**: Docs are as important as code
-3. **Pragmatism**: Use proven libraries, avoid reinventing wheels
-4. **Parallelism**: Multiple agents can work safely in parallel
-5. **Quality**: No shortcuts on core architecture
-6. **Clarity**: When in doubt, document
-
----
-
-## Next Steps
-
-👉 **START HERE**: Read [ARCHITECTURE.md](ARCHITECTURE.md) (5 minutes)
-
-Then:
-- If you're **implementing code** → [docs/architecture.md](docs/architecture.md) + [docs/agent-rules.md](docs/agent-rules.md)
-- If you're **researching tech** → [docs/dependencies.md](docs/dependencies.md) + [docs/backlog.md](docs/backlog.md)
-- If you're **reviewing architecture** → [docs/decisions/](docs/decisions/) + [docs/architecture.md](docs/architecture.md)
-- If you're **planning work** → [docs/backlog.md](docs/backlog.md) + [docs/task-template.md](docs/task-template.md)
-
----
-
-**Foundation Completed**: 2026-09-07  
-**By**: Architect Agent (Templasan)  
-**Status**: ✅ Ready for implementation
-
-**Let's build PixelMorph!** 🚀
+Documentação técnica de arquitetura e decisões: [`ARCHITECTURE.md`](ARCHITECTURE.md) e [`docs/`](docs/).
