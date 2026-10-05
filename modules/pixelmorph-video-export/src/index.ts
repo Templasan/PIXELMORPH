@@ -16,8 +16,22 @@ export interface ExportClip {
   startMs?: number;
 }
 
+export interface ExportAudioClip {
+  uri: string;
+  inMs: number;
+  outMs: number;
+  /** Where it starts in the finished video. */
+  startMs: number;
+  /** 0..1 */
+  volume: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+}
+
 export interface ExportOptions {
   clips: ExportClip[];
+  /** Background audio, mixed with the clips' own sound. */
+  audio?: ExportAudioClip[];
   width: number;
   height: number;
   bitrate?: number;
@@ -39,10 +53,7 @@ interface NativeModule {
   ): Promise<{ uri: string; width: number; height: number }>;
   probeRotation(uri: string): Promise<number | null>;
   cancel(): void;
-  addListener(
-    event: 'onProgress',
-    listener: (e: { progress: number }) => void
-  ): { remove(): void };
+  addListener(event: 'onProgress', listener: (e: { progress: number }) => void): { remove(): void };
 }
 
 const native = requireNativeModule<NativeModule>('PixelMorphVideoExport');

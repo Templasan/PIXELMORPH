@@ -137,7 +137,18 @@ class PixelMorphVideoExportModule : Module() {
     val sequence = EditedMediaItemSequence.Builder(*items.toTypedArray())
       .experimentalSetForceAudioTrack(true)
       .build()
-    val composition = Composition.Builder(sequence).build()
+    val sequences = mutableListOf(sequence)
+    if (options.audio.isNotEmpty()) {
+      val audioBuilder = EditedMediaItemSequence.Builder().setIsLooping(false)
+      var cursorMs = 0L
+      for (a in options.audio) {
+        if (a.startMs > cursorMs) audioBuilder.addGap((a.startMs - cursorMs) * 1000)
+        audioBuilder.addItem(buildAudioItem(a))
+        cursorMs = a.startMs + (a.outMs - a.inMs)
+      }
+      sequences.add(audioBuilder.build())
+    }
+    val composition = Composition.Builder(sequences).build()
 
     val encoderFactory = DefaultEncoderFactory.Builder(context)
       .apply {
@@ -264,6 +275,24 @@ class PixelMorphVideoExportModule : Module() {
       Paint(Paint.FILTER_BITMAP_FLAG)
     )
     return out
+  }
+
+  /** An audio-only item: trimmed, with the clip's volume and fades applied by [GainAudioProcessor]. */
+  private fun buildAudioItem(a: ExportAudioClip): EditedMediaItem {
+    val mediaItem = MediaItem.Builder()
+      .setUri(Uri.parse(a.uri))
+      .setClippingConfiguration(
+        MediaItem.ClippingConfiguration.Builder()
+          .setStartPositionMs(a.inMs)
+          .setEndPositionMs(a.outMs)
+          .build()
+      )
+      .build()
+    val gain = GainAudioProcessor(a.volume.toFloat(), a.fadeInMs, a.fadeOutMs, a.outMs - a.inMs)
+    return EditedMediaItem.Builder(mediaItem)
+      .setRemoveVideo(true)
+      .setEffects(Effects(listOf<AudioProcessor>(gain), emptyList()))
+      .build()
   }
 
   private fun buildItem(

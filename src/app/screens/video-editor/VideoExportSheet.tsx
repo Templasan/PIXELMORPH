@@ -170,6 +170,7 @@ export function VideoExportSheet({
       const result = await exportVideo(
         {
           clips,
+          audio: plan.audio.map(({ sourceUri, ...a }) => ({ uri: sourceUri, ...a })),
           width: preset.width,
           height: preset.height,
           bitrate: preset.bitrate,
@@ -326,7 +327,7 @@ export function VideoExportSheet({
             <Text style={styles.note}>
               {plan.clips.length === 0
                 ? 'Não há clipes de vídeo na primeira faixa para exportar.'
-                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. Só a primeira faixa de vídeo é exportada.`}
+                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. A faixa de áudio A1 é misturada ao som do vídeo; só a primeira faixa de vídeo é exportada.`}
             </Text>
 
             {exporting && (

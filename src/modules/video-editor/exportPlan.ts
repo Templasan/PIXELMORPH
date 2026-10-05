@@ -1,3 +1,4 @@
+import { clampFadeMs } from './audio';
 import { clipDurationMs, type Clip, type Track } from './Track';
 
 /**
@@ -35,8 +36,23 @@ export interface PlannedTransition {
   durationMs: number;
 }
 
+/** RF-036: a background-audio clip mixed under the video's own sound. */
+export interface PlannedAudio {
+  sourceUri: string;
+  inMs: number;
+  outMs: number;
+  /** Where it starts in the finished video. */
+  startMs: number;
+  /** 0..1 */
+  volume: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+}
+
 export interface ExportPlan {
   clips: PlannedClip[];
+  /** Audio-track clips, in time order, non-overlapping, cut to the video's length. */
+  audio: PlannedAudio[];
   transitions: PlannedTransition[];
   /** Length of the finished video. */
   durationMs: number;
@@ -45,7 +61,7 @@ export interface ExportPlan {
 /** First visible video track's clips in time order. Gaps are closed; other tracks are ignored. */
 export function planExport(tracks: readonly Track[]): ExportPlan {
   const track = tracks.find((t) => t.kind === 'video' && t.visible && t.clips.length > 0);
-  if (!track) return { clips: [], transitions: [], durationMs: 0 };
+  if (!track) return { clips: [], audio: [], transitions: [], durationMs: 0 };
 
   const ordered = [...track.clips].sort((a, b) => a.startMs - b.startMs);
   const planned = ordered.map((clip) => ({ clip, piece: toPlanned(clip) }));
@@ -82,7 +98,33 @@ export function planExport(tracks: readonly Track[]): ExportPlan {
     atMs += length;
   });
 
-  return { clips, transitions, durationMs: atMs };
+  return { clips, audio: planAudio(tracks, atMs), transitions, durationMs: atMs };
+}
+
+function planAudio(tracks: readonly Track[], videoMs: number): PlannedAudio[] {
+  const out: PlannedAudio[] = [];
+  const ordered = tracks
+    .filter((t) => t.kind === 'audio' && t.visible)
+    .flatMap((t) => t.clips)
+    .sort((a, b) => a.startMs - b.startMs);
+  let cursor = 0; // one sequence plays one clip at a time: an overlap starts when the last ends
+  for (const clip of ordered) {
+    const startMs = Math.max(clip.startMs, cursor);
+    const lengthMs = Math.min(clipDurationMs(clip) - (startMs - clip.startMs), videoMs - startMs);
+    if (lengthMs <= 0) continue;
+    const inMs = clip.inPointMs + (startMs - clip.startMs);
+    out.push({
+      sourceUri: clip.sourceUri,
+      inMs,
+      outMs: inMs + lengthMs,
+      startMs,
+      volume: (clip.volume ?? 100) / 100,
+      fadeInMs: clampFadeMs(clip.fadeInMs ?? 0, clip),
+      fadeOutMs: clampFadeMs(clip.fadeOutMs ?? 0, clip),
+    });
+    cursor = startMs + lengthMs;
+  }
+  return out;
 }
 
 const NO_TRANSITION = {

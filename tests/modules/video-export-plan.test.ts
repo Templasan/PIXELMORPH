@@ -26,8 +26,13 @@ const track = (clips: ReturnType<typeof createClip>[], over: Partial<Track> = {}
 
 describe('planExport (US-16 / US-30)', () => {
   it('returns nothing for a timeline without video clips', () => {
-    expect(planExport([])).toEqual({ clips: [], transitions: [], durationMs: 0 });
-    expect(planExport([track([])])).toEqual({ clips: [], transitions: [], durationMs: 0 });
+    expect(planExport([])).toEqual({ clips: [], audio: [], transitions: [], durationMs: 0 });
+    expect(planExport([track([])])).toEqual({
+      clips: [],
+      audio: [],
+      transitions: [],
+      durationMs: 0,
+    });
     expect(planExport([track([clip({ startMs: 0 })], { visible: false })]).clips).toHaveLength(0);
   });
 
@@ -129,5 +134,29 @@ describe('planExport transitions (RF-032)', () => {
     expect(plan.transitions).toHaveLength(1);
     expect(plan.transitions[0]).toMatchObject({ durationMs: 500, atMs: 1_000 });
     expect(plan.clips[0].transitionIn).toBe('');
+  });
+
+  it('plans audio-track clips with trim, start, volume and fades, cut to the video length', () => {
+    const v = clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 });
+    const a = {
+      ...clip({ startMs: 1_000, inPointMs: 2_000, outPointMs: 10_000 }),
+      volume: 50,
+      fadeInMs: 500,
+      fadeOutMs: 20_000,
+    };
+    const aud = track([a], { id: 'a1', kind: 'audio' });
+    const plan = planExport([track([v]), aud]);
+    expect(plan.audio).toEqual([
+      {
+        sourceUri: 'file:///a.mp4',
+        inMs: 2_000,
+        outMs: 5_000,
+        startMs: 1_000,
+        volume: 0.5,
+        fadeInMs: 500,
+        fadeOutMs: 8_000,
+      },
+    ]);
+    expect(planExport([track([v]), { ...aud, visible: false }]).audio).toEqual([]);
   });
 });

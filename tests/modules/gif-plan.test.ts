@@ -17,7 +17,7 @@ const video = (over: Partial<PlannedClip> = {}): PlannedClip => ({
   startMs: 0,
   ...over,
 });
-const plan = (clips: PlannedClip[]): ExportPlan => ({ clips, transitions: [], durationMs: 0 });
+const plan = (clips: PlannedClip[]): ExportPlan => ({ clips, transitions: [], audio: [], durationMs: 0 });
 
 describe('planGifFrames (RF-061)', () => {
   it('samples a clip at the chosen frame rate with matching delays', () => {

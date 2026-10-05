@@ -29,8 +29,22 @@ data class ExportClip(
 ) : Record
 
 @OptimizedRecord
+data class ExportAudioClip(
+  @Field val uri: String,
+  @Field val inMs: Long = 0,
+  @Field val outMs: Long = 0,
+  /** Where it starts in the finished video. */
+  @Field val startMs: Long = 0,
+  /** 0..1 */
+  @Field val volume: Double = 1.0,
+  @Field val fadeInMs: Long = 0,
+  @Field val fadeOutMs: Long = 0
+) : Record
+
+@OptimizedRecord
 data class ExportOptions(
   @Field val clips: List<ExportClip>,
+  @Field val audio: List<ExportAudioClip> = emptyList(),
   @Field val width: Int,
   @Field val height: Int,
   /** Target video bitrate in bits per second; 0 lets the encoder pick. */
