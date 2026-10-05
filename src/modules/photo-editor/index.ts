@@ -18,14 +18,8 @@ import {
 } from './application';
 
 // Core exports
-export * from './spike';
 export * from './domain';
 export * from './application';
-export * from './ports';
-export * from './infrastructure';
-
-// Bootstrap
-export { PhotoEditorModuleFactory } from './bootstrap';
 
 type PhotoEditorModule = {
   savePreset: ReturnType<typeof createSavePresetUseCase>;

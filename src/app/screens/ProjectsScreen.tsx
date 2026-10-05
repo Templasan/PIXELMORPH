@@ -30,7 +30,6 @@ import { LocalHistoryRepository, type Operation } from '@core/history';
 import { rawFormatLabel } from '@modules/photo-editor/raw';
 import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
-import { removeDemoProjects } from '../bootstrap/removeDemoProjects';
 import { RawImportSheet } from './projects/RawImportSheet';
 
 const FIELD_LABELS: Record<string, string> = {
@@ -142,8 +141,6 @@ function formatDateInput(date: Date | undefined): string {
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   return `${dd}/${mm}/${date.getFullYear()}`;
 }
-
-let demoCleanup: Promise<void> | null = null;
 
 interface CardProps {
   project: Project;
@@ -287,11 +284,6 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   const loadProjects = useCallback(async () => {
     const mod = projectsModule;
-    // One-time legacy cleanup per app session — it lists every project, so not on each focus.
-    demoCleanup ??= removeDemoProjects(mod).catch(() => {
-      demoCleanup = null;
-    });
-    await demoCleanup;
     const all = await mod.listProjects.execute({ status: 'active' });
     // Most recently modified first.
     all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
