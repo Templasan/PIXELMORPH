@@ -4,6 +4,7 @@ import { DebouncedSaver, bindAppStateFlush } from './DebouncedSaver';
 import { HistoryStore } from './HistoryStore';
 import { LocalHistoryRepository } from './LocalHistoryRepository';
 import { Operation, createOperation } from './Operation';
+import { errorLogger } from '../reliability';
 
 /**
  * React glue for HistoryStore + LocalHistoryRepository: unlimited, persisted undo/redo
@@ -22,12 +23,19 @@ export function usePersistedHistory(sessionId: string) {
   useEffect(() => {
     let cancelled = false;
     setReady(false);
-    repoRef.current.load(sessionId).then((snapshot) => {
-      if (cancelled) return;
-      storeRef.current = new HistoryStore(snapshot ?? undefined);
-      setReady(true);
-      setVersion((v) => v + 1);
-    });
+    repoRef.current
+      .load(sessionId)
+      .catch((error: unknown) => {
+        // An unreadable log must not lock the editor on "loading" forever — start fresh.
+        void errorLogger.log(error, 'history-load');
+        return null;
+      })
+      .then((snapshot) => {
+        if (cancelled) return;
+        storeRef.current = new HistoryStore(snapshot ?? undefined);
+        setReady(true);
+        setVersion((v) => v + 1);
+      });
     return () => {
       cancelled = true;
       void saver.flush(); // before the next load / on unmount
