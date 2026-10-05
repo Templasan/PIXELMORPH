@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Icon, Slider, Tabs } from '@core/ui';
+import { Icon, Tabs } from '@core/ui';
+import { AdjustSlider } from './AdjustSlider';
 import { colors, fontSize } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { createProjectsModule } from '@modules/projects';
@@ -113,13 +114,14 @@ export function EffectsDrawer({
   };
 
   const slider = (label: string, field: string, opts: { min: number; max: number }) => (
-    <Slider
+    <AdjustSlider
       label={label}
+      field={field}
       value={adjustments[field]}
       min={opts.min}
       max={opts.max}
-      onChange={(v) => setField(field, v)}
-      onSlidingComplete={(v, from) => onCommit(field, v, from)}
+      setField={setField}
+      onCommit={onCommit}
     />
   );
 

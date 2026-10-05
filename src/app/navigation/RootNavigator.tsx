@@ -1,11 +1,10 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Suspense, lazy, useEffect, type ComponentType } from 'react';
+import { InteractionManager, View } from 'react-native';
+import { colors } from '@core/theme';
+import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
-import CameraScreen from '../screens/CameraScreen';
-import PhotoEditorScreen from '../screens/PhotoEditorScreen';
-import RawConverterScreen from '../screens/RawConverterScreen';
-import VideoEditorScreen from '../screens/VideoEditorScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import TutorialsScreen from '../screens/TutorialsScreen';
 import PresetsScreen from '../screens/PresetsScreen';
@@ -40,7 +39,41 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Heavy screens (Skia/video/camera) load on demand; the fallback matches the screen
+// background so the fade transition never flashes white. They are warmed up in idle time
+// (see RootNavigator) so the first tap barely waits.
+const loaders = {
+  Camera: () => import('../screens/CameraScreen'),
+  PhotoEditor: () => import('../screens/PhotoEditorScreen'),
+  RawConverter: () => import('../screens/RawConverterScreen'),
+  VideoEditor: () => import('../screens/VideoEditorScreen'),
+};
+
+function lazyScreen<K extends keyof RootStackParamList>(
+  load: () => Promise<{ default: ComponentType<NativeStackScreenProps<RootStackParamList, K>> }>
+) {
+  const Screen = lazy(load);
+  return function LazyScreen(props: NativeStackScreenProps<RootStackParamList, K>) {
+    return (
+      <Suspense fallback={<View style={{ flex: 1, backgroundColor: colors.canvas }} />}>
+        <Screen {...props} />
+      </Suspense>
+    );
+  };
+}
+
+const CameraScreen = lazyScreen(loaders.Camera);
+const PhotoEditorScreen = lazyScreen(loaders.PhotoEditor);
+const RawConverterScreen = lazyScreen(loaders.RawConverter);
+const VideoEditorScreen = lazyScreen(loaders.VideoEditor);
+
 export default function RootNavigator() {
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      Object.values(loaders).forEach((load) => void load().catch(() => {}));
+    });
+    return () => task.cancel();
+  }, []);
   return (
     <Stack.Navigator
       initialRouteName="Projects"

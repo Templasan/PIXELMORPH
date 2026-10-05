@@ -77,6 +77,8 @@ function CurvePoint({ x, value, boxHeight, onChange }: CurvePointProps) {
  * starting values and hands off to the normal PhotoEditor flow (RF-003's "segue para o
  * fluxo normal de edição").
  */
+let rawEffectCache: ReturnType<typeof Skia.RuntimeEffect.Make> | undefined;
+
 export default function RawConverterScreen({ navigation, route }: Props) {
   const { sourceUri, sourceName, rawFormatLabel: formatLabel, rawMimeType } = route.params;
 
@@ -129,7 +131,7 @@ export default function RawConverterScreen({ navigation, route }: Props) {
   }, []);
 
   const skiaImage = useImage(sourceUri);
-  const adjustmentsEffect = useMemo(() => Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL), []);
+  const adjustmentsEffect = (rawEffectCache ??= Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL));
   const uniforms = useMemo(
     () =>
       toFullUniforms(

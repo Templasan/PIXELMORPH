@@ -72,7 +72,10 @@ export function useImageHistogram(image: SkImage | null) {
       bBins[Math.min(HISTOGRAM_BINS - 1, Math.floor(b * HISTOGRAM_BINS))]++;
     }
 
-    const max = Math.max(1, ...rBins, ...gBins, ...bBins);
+    let max = 1;
+    for (let j = 0; j < HISTOGRAM_BINS; j++) {
+      max = Math.max(max, rBins[j], gBins[j], bBins[j]);
+    }
     return {
       r: rBins.map((v) => v / max),
       g: gBins.map((v) => v / max),

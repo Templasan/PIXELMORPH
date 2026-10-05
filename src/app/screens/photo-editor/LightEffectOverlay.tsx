@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Circle, Group, RadialGradient } from '@shopify/react-native-skia';
 import { lensReflectionSpots } from '@modules/photo-editor/effects';
 
@@ -11,7 +12,7 @@ interface LightEffectOverlayProps {
 }
 
 /** RF-068: efeitos de iluminação — real radial-gradient light, screen-blended over the photo. */
-export function LightEffectOverlay({
+export const LightEffectOverlay = memo(function LightEffectOverlay({
   type,
   x,
   y,
@@ -46,4 +47,4 @@ export function LightEffectOverlay({
         ))}
     </Group>
   );
-}
+});

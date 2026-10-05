@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Icon, Slider } from '@core/ui';
+import { Icon } from '@core/ui';
+import { AdjustSlider } from './AdjustSlider';
 import { colors, fontSize } from '@core/theme';
 
 const ROTATE_PRESETS = [90, 180, 270] as const;
@@ -121,23 +122,23 @@ export function GeometryDrawer({
         </Pressable>
       </View>
 
-      <Slider
+      <AdjustSlider
         label="Rotação"
+        field="fineRotation"
         value={adjustments.fineRotation}
         min={-45}
         max={45}
-        bipolar
-        showSign
-        onChange={(v) => setField('fineRotation', v)}
-        onSlidingComplete={(v, from) => onCommit('fineRotation', v, from)}
+        setField={setField}
+        onCommit={onCommit}
       />
-      <Slider
+      <AdjustSlider
         label="Opac. espelho"
+        field="mirrorOpacity"
         value={adjustments.mirrorOpacity}
         min={0}
         max={100}
-        onChange={(v) => setField('mirrorOpacity', v)}
-        onSlidingComplete={(v, from) => onCommit('mirrorOpacity', v, from)}
+        setField={setField}
+        onCommit={onCommit}
       />
 
       <View style={styles.perspectiveSection}>

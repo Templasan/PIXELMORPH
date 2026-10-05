@@ -37,10 +37,16 @@ export default function StorageScreen({ navigation }: Props) {
   const [checkingIntegrity, setCheckingIntegrity] = useState(false);
 
   const refresh = useCallback(async () => {
-    setUsage(await getStorageUsage());
-    setLastBackupAt(Number(await AsyncStorage.getItem(LAST_BACKUP_KEY)) || null);
-    setBackupEnabledState((await AsyncStorage.getItem(AUTO_BACKUP_KEY)) !== '0');
-    setReportsEnabled(await errorLogger.isReportingEnabled());
+    const [u, last, auto, rep] = await Promise.all([
+      getStorageUsage(),
+      AsyncStorage.getItem(LAST_BACKUP_KEY),
+      AsyncStorage.getItem(AUTO_BACKUP_KEY),
+      errorLogger.isReportingEnabled(),
+    ]);
+    setUsage(u);
+    setLastBackupAt(Number(last) || null);
+    setBackupEnabledState(auto !== '0');
+    setReportsEnabled(rep);
   }, []);
 
   useFocusEffect(

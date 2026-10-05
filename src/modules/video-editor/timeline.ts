@@ -193,6 +193,7 @@ export function buildTimelapseTrack(
   photoDurationMs: number,
   color: string
 ): Track {
+  const clampedDuration = Math.max(MIN_CLIP_DURATION_MS, photoDurationMs);
   let startMs = 0;
   const clips: Clip[] = images.map((img, i) => {
     const clip: Clip = {
@@ -202,10 +203,10 @@ export function buildTimelapseTrack(
       color,
       startMs,
       inPointMs: 0,
-      outPointMs: photoDurationMs,
-      sourceDurationMs: photoDurationMs,
+      outPointMs: clampedDuration,
+      sourceDurationMs: clampedDuration,
     };
-    startMs += photoDurationMs;
+    startMs += clampedDuration;
     return clip;
   });
 

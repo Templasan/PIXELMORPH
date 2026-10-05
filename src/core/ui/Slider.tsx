@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, fontSize, monoFontFamily } from '../theme';
+import { createEchoTracker, snapValue, toPct } from './sliderEcho';
 
 interface SliderProps {
   label: string;
@@ -51,21 +52,29 @@ export function Slider({
   onSlidingComplete,
 }: SliderProps) {
   const [trackWidth, setTrackWidth] = useState(0);
-  const startValue = useRef(value);
-  const latestValue = useRef(value);
+  const echo = useRef(createEchoTracker(value)).current;
   const isDragging = useSharedValue(false);
 
   // Drives the thumb/fill directly on the UI thread — the finger tracks this every frame
   // with no JS bridge hop, so it stays smooth even while `onChange` below is busy re-running
   // the (expensive) color-adjustment shader on the JS thread.
-  const pctSV = useSharedValue(max === min ? 0 : ((value - min) / (max - min)) * 100);
+  const pctSV = useSharedValue(toPct(value, min, max));
 
+  // Values we emitted via onChange that the parent may still echo back late. A stale echo
+  // (older than the latest emitted value) must not yank the thumb backwards (the rollback).
   useEffect(() => {
+    if (!echo.onPropValue(value).apply) return;
     if (!isDragging.value) {
-      pctSV.value = max === min ? 0 : ((value - min) / (max - min)) * 100;
+      pctSV.value = toPct(value, min, max);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, min, max]);
+
+  // Refs written inside worklets only mutate a UI-thread copy, so the gesture start value
+  // must be captured on the JS thread (it was always the mount-time value before).
+  const beginGesture = useCallback(() => {
+    echo.begin();
+  }, [echo]);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setTrackWidth(e.nativeEvent.layout.width);
@@ -73,15 +82,16 @@ export function Slider({
 
   const commitValue = useCallback(
     (next: number) => {
-      latestValue.current = next;
+      echo.emit(next);
       onChange(next);
     },
-    [onChange]
+    [onChange, echo]
   );
 
   const commitSlidingComplete = useCallback(() => {
-    onSlidingComplete?.(latestValue.current, startValue.current);
-  }, [onSlidingComplete]);
+    const { value: v, from } = echo.complete();
+    onSlidingComplete?.(v, from);
+  }, [onSlidingComplete, echo]);
 
   // Only every 3rd touch-move actually re-renders the (expensive) preview — that's still a
   // smooth ~20-40Hz update given native gesture callbacks fire at 60-120Hz, and it's the
@@ -94,23 +104,15 @@ export function Slider({
       isDragging.value = true;
       frameCounter.value = 0;
       if (trackWidth <= 0) return;
-      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
-      const next = Math.min(
-        max,
-        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
-      );
-      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
-      startValue.current = value;
+      const next = snapValue(e.x, trackWidth, min, max, step);
+      pctSV.value = toPct(next, min, max);
+      runOnJS(beginGesture)();
       runOnJS(commitValue)(next);
     })
     .onUpdate((e) => {
       if (trackWidth <= 0) return;
-      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
-      const next = Math.min(
-        max,
-        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
-      );
-      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
+      const next = snapValue(e.x, trackWidth, min, max, step);
+      pctSV.value = toPct(next, min, max);
       frameCounter.value += 1;
       if (frameCounter.value % 3 === 0) {
         runOnJS(commitValue)(next);
@@ -119,28 +121,19 @@ export function Slider({
     .onEnd((e) => {
       isDragging.value = false;
       if (trackWidth > 0) {
-        const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
-        const next = Math.min(
-          max,
-          Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
-        );
+        const next = snapValue(e.x, trackWidth, min, max, step);
         runOnJS(commitValue)(next);
       }
       runOnJS(commitSlidingComplete)();
     });
 
+  // No beginGesture here: Pan.onBegin already fires on every touch-down, and a second begin()
+  // after Pan emitted would reset `from` to the already-emitted value.
   const tap = Gesture.Tap()
-    .onBegin(() => {
-      startValue.current = value;
-    })
     .onEnd((e) => {
       if (trackWidth <= 0) return;
-      const ratio = Math.min(1, Math.max(0, e.x / trackWidth));
-      const next = Math.min(
-        max,
-        Math.max(min, Math.round((min + ratio * (max - min)) / step) * step)
-      );
-      pctSV.value = max === min ? 0 : ((next - min) / (max - min)) * 100;
+      const next = snapValue(e.x, trackWidth, min, max, step);
+      pctSV.value = toPct(next, min, max);
       runOnJS(commitValue)(next);
       runOnJS(commitSlidingComplete)();
     });

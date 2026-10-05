@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import ViewShot from 'react-native-view-shot';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider, Switch } from '@core/ui';
@@ -23,8 +22,10 @@ import { usePersistedHistory } from '@core/history';
 import { type Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
-import { ClipVideo } from './video-editor/ClipVideo';
 import { LiveTimecode } from './video-editor/LiveTimecode';
+import { Playhead } from './video-editor/Playhead';
+import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
+import { createTimeStore } from './video-editor/timeStore';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
@@ -57,7 +58,6 @@ import {
   setStabilization,
   rotateClip,
   ensureImageTrack,
-  topClipAt,
   describeFileOrientation,
   advancePlayhead,
   loopBounds,
@@ -170,16 +170,16 @@ interface ClipBlockProps {
   widthPct: number;
   isSelected: boolean;
   msPerPx: number;
-  onSelect: () => void;
+  onSelect: (clipId: string) => void;
   onBeginDrag: () => void;
-  onMove: (deltaMs: number) => void;
-  onTrimIn: (deltaMs: number) => void;
-  onTrimOut: (deltaMs: number) => void;
+  onMove: (trackId: string, clipId: string, deltaMs: number) => void;
+  onTrimIn: (trackId: string, clipId: string, deltaMs: number) => void;
+  onTrimOut: (trackId: string, clipId: string, deltaMs: number) => void;
   onEndDrag: () => void;
 }
 
 /** One draggable, trimmable clip block (RF-005 move, RF-035 frame-precise trim handles). */
-function ClipBlock({
+const ClipBlock = memo(function ClipBlock({
   clip,
   track,
   leftPct,
@@ -195,31 +195,45 @@ function ClipBlock({
 }: ClipBlockProps) {
   // minDistance lets a plain tap (near-zero movement) fall through to the Pressable's
   // onPress below instead of being claimed by this Pan the instant the touch lands.
-  const moveGesture = Gesture.Pan()
-    .minDistance(10)
-    .enabled(!track.locked)
-    .onBegin(() => runOnJS(onBeginDrag)())
-    .onUpdate((e) => runOnJS(onMove)(e.translationX * msPerPx))
-    .onEnd(() => runOnJS(onEndDrag)());
-
-  const trimInGesture = Gesture.Pan()
-    .minDistance(4)
-    .enabled(!track.locked && !clip.frozen)
-    .onBegin(() => runOnJS(onBeginDrag)())
-    .onUpdate((e) => runOnJS(onTrimIn)(e.translationX * msPerPx))
-    .onEnd(() => runOnJS(onEndDrag)());
-
-  const trimOutGesture = Gesture.Pan()
-    .minDistance(4)
-    .enabled(!track.locked && !clip.frozen)
-    .onBegin(() => runOnJS(onBeginDrag)())
-    .onUpdate((e) => runOnJS(onTrimOut)(e.translationX * msPerPx))
-    .onEnd(() => runOnJS(onEndDrag)());
+  const trackId = track.id;
+  const clipId = clip.id;
+  const enabled = !track.locked;
+  const trimEnabled = !track.locked && !clip.frozen;
+  const moveGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(10)
+        .enabled(enabled)
+        .onBegin(() => runOnJS(onBeginDrag)())
+        .onUpdate((e) => runOnJS(onMove)(trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => runOnJS(onEndDrag)()),
+    [enabled, trackId, clipId, msPerPx, onBeginDrag, onMove, onEndDrag]
+  );
+  const trimInGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(4)
+        .enabled(trimEnabled)
+        .onBegin(() => runOnJS(onBeginDrag)())
+        .onUpdate((e) => runOnJS(onTrimIn)(trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => runOnJS(onEndDrag)()),
+    [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimIn, onEndDrag]
+  );
+  const trimOutGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(4)
+        .enabled(trimEnabled)
+        .onBegin(() => runOnJS(onBeginDrag)())
+        .onUpdate((e) => runOnJS(onTrimOut)(trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => runOnJS(onEndDrag)()),
+    [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimOut, onEndDrag]
+  );
 
   return (
     <GestureDetector gesture={moveGesture}>
       <Pressable
-        onPress={onSelect}
+        onPress={() => onSelect(clipId)}
         style={[
           styles.clip,
           { left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: clip.color },
@@ -259,7 +273,7 @@ function ClipBlock({
       </Pressable>
     </GestureDetector>
   );
-}
+});
 
 export default function VideoEditorScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
@@ -281,7 +295,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [playing, setPlaying] = useState(false);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
   const currentClipRef = useRef<Clip | null>(null);
-  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  // Playhead lives in a store, not state: only the components that draw it subscribe.
+  const timeStore = useRef(createTimeStore(0)).current;
+  const setCurrentTimeMs = timeStore.set;
+  // Last manual seek (ruler drag/tap, frame step): the play clock must not snap back to a stale player position.
+  const lastSeekAtRef = useRef(0);
+  // True while a slider/gesture has live (uncommitted) edits in tracksRef; history replay must not clobber them.
+  const liveEditRef = useRef(false);
   const [timelineZoom, setTimelineZoom] = useState(50);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
@@ -325,6 +345,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // this project shows the same edit — the whole timeline is tracked as a single history field.
   useEffect(() => {
     if (!history.ready) return;
+    // Don't clobber an in-progress drag/slider gesture with a late-loading project replay.
+    if (dragStartRef.current || liveEditRef.current) return;
     const state = history.reconstructState({ tracks: initialTracks } as unknown as Record<
       string,
       unknown
@@ -335,6 +357,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const commitTracks = useCallback(
     (before: Track[], after: Track[]) => {
+      liveEditRef.current = false;
       if (before === after) return;
       tracksRef.current = after;
       setTracks(after);
@@ -363,16 +386,25 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
-  const playheadPct = (currentTimeMs / totalDurationMs) * 100;
 
   // A real (if approximated) playhead — this app has no video decoder installed, so play
   // advances elapsed time and swaps the poster image per clip rather than decoding frames.
-  const loopRange = loopReview
-    ? loopBounds(
-        selected ? { startMs: selected.clip.startMs, endMs: clipEndMs(selected.clip) } : null,
-        totalDurationMs
-      )
-    : null;
+  // Memoised: a fresh object each render re-created the playhead interval on every tick
+  // (resetting its clock), which also made the whole screen churn at 10 Hz.
+  const selStart = selected?.clip.startMs;
+  const selEnd = selected ? clipEndMs(selected.clip) : undefined;
+  const loopRange = useMemo(
+    () =>
+      loopReview
+        ? loopBounds(
+            selStart !== undefined && selEnd !== undefined
+              ? { startMs: selStart, endMs: selEnd }
+              : null,
+            totalDurationMs
+          )
+        : null,
+    [loopReview, selStart, selEnd, totalDurationMs]
+  );
   useEffect(() => {
     if (!playing) return;
     // Real elapsed time, not a fixed 100 ms: timers run late, and a clock slower than the
@@ -382,13 +414,17 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       const now = Date.now();
       const dt = now - last;
       last = now;
-      setCurrentTimeMs((t) => {
+      {
+        const t = timeStore.get();
         // The video player is the clock when it is running: counter and picture can't part.
         let base = t;
         let step = dt;
         const clip = currentClipRef.current;
         const src = playerTimeRef.current?.();
-        if (clip && !clip.frozen && src != null) {
+        // Right after a manual seek the player still reports the old position: don't follow it.
+        const seeking = now - lastSeekAtRef.current < 600;
+        if (seeking) step = 0;
+        else if (clip && !clip.frozen && src != null) {
           const fromPlayer = clip.startMs + (src - clip.inPointMs) / (clip.speed ?? 1);
           if (Math.abs(fromPlayer - t) < 1500) {
             base = fromPlayer;
@@ -397,8 +433,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         }
         const result = advancePlayhead(base, step, totalDurationMs, loopRange);
         if (result.ended) setPlaying(false);
-        return result.timeMs;
-      });
+        timeStore.set(result.timeMs);
+      }
     }, 100);
     return () => clearInterval(interval);
   }, [playing, totalDurationMs, loopRange]);
@@ -439,6 +475,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     (x: number) => {
       if (bodyWidth <= 0) return;
       const pct = Math.max(0, Math.min(1, (x - TRACK_HEADER_WIDTH) / bodyWidth));
+      lastSeekAtRef.current = Date.now();
       setCurrentTimeMs(pct * totalDurationMs);
     },
     [bodyWidth, totalDurationMs]
@@ -446,112 +483,50 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   // Tap-to-jump lives only on the ruler (nothing else to tap there); track rows only scrub
   // on drag so a plain tap can still reach a clip's own Pressable underneath to select it.
-  const rulerGesture = Gesture.Race(
-    Gesture.Pan().onUpdate((e) => runOnJS(updateTimeFromX)(e.x)),
-    Gesture.Tap().onEnd((e) => runOnJS(updateTimeFromX)(e.x))
+  const rulerGesture = useMemo(
+    () =>
+      Gesture.Race(
+        Gesture.Pan().onUpdate((e) => runOnJS(updateTimeFromX)(e.x)),
+        Gesture.Tap().onEnd((e) => runOnJS(updateTimeFromX)(e.x))
+      ),
+    [updateTimeFromX]
   );
 
   // RF-053: a real draggable divider between the preview and timeline panels.
   const dividerStartRatio = useRef(previewRatio);
-  const dividerGesture = Gesture.Pan()
-    .onBegin(() => {
-      dividerStartRatio.current = previewRatio;
-    })
-    .onUpdate((e) => {
-      const next = Math.max(
-        0.15,
-        Math.min(0.75, dividerStartRatio.current + e.translationY / contentHeight)
-      );
-      runOnJS(setPreviewRatio)(next);
-    });
+  const previewRatioRef = useRef(previewRatio);
+  previewRatioRef.current = previewRatio;
+  const contentHeightRef = useRef(contentHeight);
+  contentHeightRef.current = contentHeight;
+  const dividerGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onBegin(() => {
+          dividerStartRatio.current = previewRatioRef.current;
+        })
+        .onUpdate((e) => {
+          const next = Math.max(
+            0.15,
+            Math.min(0.75, dividerStartRatio.current + e.translationY / contentHeightRef.current)
+          );
+          runOnJS(setPreviewRatio)(next);
+        }),
+    []
+  );
 
   const stepFrame = useCallback(
     (direction: 1 | -1) => {
+      lastSeekAtRef.current = Date.now();
       setCurrentTimeMs((t) => stepFrameMs(t, direction, totalDurationMs, DEFAULT_FPS));
     },
     [totalDurationMs]
   );
-
-  // RF-005/RF-032: which clip is "on screen" right now, and whether it's mid-transition.
-  const currentClip = useMemo(() => topClipAt(tracks, currentTimeMs), [tracks, currentTimeMs]);
-
-  // RF-005: the preview panel showed nothing for real video clips — <Image> can't decode a
-  // .mp4 source, so a poster is extracted once per clip. It is NOT re-extracted while the
-  // playhead moves: ClipVideo seeks the live player and draws the frame, and every extra
-  // extraction queues natively (a scrub fired 61 of them, ~4 s each, starving the decoder).
-  currentClipRef.current = currentClip;
-  const sourceTimeMs = currentClip
-    ? currentClip.inPointMs + (currentTimeMs - currentClip.startMs) * (currentClip.speed ?? 1)
-    : 0;
-  const [previewFrameUri, setPreviewFrameUri] = useState<string | null>(null);
-  useEffect(() => {
-    // While playing the real player draws the picture; extracting posters would only churn.
-    if (playing) return;
-    if (!currentClip) {
-      setPreviewFrameUri(null);
-      return;
-    }
-    let cancelled = false;
-    // A frozen clip shows its held frame, not the moving playhead position.
-    const posterTimeMs = currentClip.frozen ? currentClip.inPointMs : sourceTimeMs;
-    VideoThumbnails.getThumbnailAsync(currentClip.sourceUri, { time: posterTimeMs })
-      .then((result) => {
-        if (!cancelled) setPreviewFrameUri(result.uri);
-      })
-      .catch(() => {
-        // Not a video (e.g. an image clip) — the raw source is already a displayable image.
-        if (!cancelled) setPreviewFrameUri(currentClip.sourceUri);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentClip?.id, currentClip?.sourceUri, playing]);
 
   const pipClip = useMemo(() => {
     if (!pipClipId) return null;
     const clip = findClip(tracks, pipClipId);
     return clip?.clip ?? null;
   }, [tracks, pipClipId]);
-
-  const transitionBlend = useMemo(() => {
-    if (!currentClip?.transitionIn) return null;
-    const t = currentTimeMs - currentClip.startMs;
-    if (t < 0 || t > currentClip.transitionIn.durationMs) return null;
-    const track = tracks.find((tr) => tr.clips.some((c) => c.id === currentClip.id));
-    if (!track) return null;
-    const prev = previousClipOf(track, currentClip);
-    if (!prev) return null;
-    return {
-      progress: t / currentClip.transitionIn.durationMs,
-      type: currentClip.transitionIn.type,
-      fromUri: prev.sourceUri,
-      fromTimeMs: Math.max(0, prev.outPointMs - 40),
-    };
-  }, [currentClip, currentTimeMs, tracks]);
-
-  // The outgoing clip's source is the real video file now, which <Image> can't draw — take its
-  // last frame as a still, like the playhead frame does for the incoming clip.
-  const [fromFrameUri, setFromFrameUri] = useState<string | null>(null);
-  const fromUri = transitionBlend?.fromUri;
-  const fromTimeMs = transitionBlend?.fromTimeMs ?? 0;
-  useEffect(() => {
-    if (!fromUri) {
-      setFromFrameUri(null);
-      return;
-    }
-    let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(fromUri, { time: fromTimeMs })
-      .then((result) => {
-        if (!cancelled) setFromFrameUri(result.uri);
-      })
-      .catch(() => {
-        if (!cancelled) setFromFrameUri(fromUri);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fromUri, fromTimeMs]);
 
   // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
   // is what history.push compares against, matching the pattern used across this app.
@@ -590,9 +565,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     const before = dragStartRef.current;
     if (before) {
       dragStartRef.current = null;
+      liveEditRef.current = false;
       history.push('tracks', before, tracksRef.current);
     }
   }, [history]);
+
+  const onSelectClip = useCallback((id: string) => {
+    setSelectedClipId((cur) => (cur === id ? null : id));
+    setClipTab('Aparar');
+  }, []);
 
   const nudgeTrimIn = (deltaFrames: number) => {
     if (!selected) return;
@@ -628,13 +609,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const handleSplit = () => {
     if (!selected) return;
     const before = tracksRef.current;
-    const after = splitClipAtMs(before, selected.track.id, selected.clip.id, currentTimeMs);
+    const after = splitClipAtMs(before, selected.track.id, selected.clip.id, timeStore.get());
     commitTracks(before, after);
   };
 
   const handleCut = () => {
     if (!selected) return;
-    const relativeMs = currentTimeMs - selected.clip.startMs;
+    const relativeMs = timeStore.get() - selected.clip.startMs;
     trimOutWithRipple(selected.clip.inPointMs + relativeMs);
   };
 
@@ -645,7 +626,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       before,
       selected.track.id,
       selected.clip.id,
-      currentTimeMs,
+      timeStore.get(),
       freezeHoldMs
     );
     commitTracks(before, after);
@@ -708,6 +689,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           }
         : t
     );
+    liveEditRef.current = true;
     tracksRef.current = next;
     setTracks(next);
   };
@@ -738,6 +720,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           }
         : t
     );
+    liveEditRef.current = true;
     tracksRef.current = next;
     setTracks(next);
   };
@@ -771,6 +754,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           }
         : t
     );
+    liveEditRef.current = true;
     tracksRef.current = next;
     setTracks(next);
   };
@@ -856,55 +840,67 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           style={{ height: `${previewRatio * 100}%` }}
         >
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
-            {transitionBlend && (
-              <Image
-                source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                style={styles.previewImage}
-              />
-            )}
-            <Image
-              source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-              style={[
-                styles.previewImage,
-                rotatedFrameStyle(currentClip?.rotation, previewSize),
-                transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
-                transitionBlend?.type === 'slide' && {
-                  transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
-                },
-                transitionBlend?.type === 'zoom' && {
-                  opacity: transitionBlend.progress,
-                  transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
-                },
-                transitionBlend?.type === 'wipe' && {
-                  opacity: transitionBlend.progress > 0.05 ? 1 : 0,
-                },
-              ]}
-            />
-            {currentClip && !currentClip.frozen && (
-              <ClipVideo
-                key={currentClip.sourceUri}
-                hidden={!!transitionBlend}
-                timeRef={playerTimeRef}
-                uri={currentClip.sourceUri}
-                sourceTimeMs={sourceTimeMs}
-                playing={playing}
-                rate={currentClip.speed ?? 1}
-                volume={(currentClip.volume ?? 100) / 100}
-                style={rotatedFrameStyle(currentClip.rotation, previewSize)}
-              />
-            )}
-            {currentClip?.colorCorrection ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  StyleSheet.absoluteFill,
-                  {
-                    backgroundColor: currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
-                    opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
-                  },
-                ]}
-              />
-            ) : null}
+            <PreviewDerived
+              store={timeStore}
+              tracks={tracks}
+              playing={playing}
+              clipRef={currentClipRef}
+            >
+              {({ currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
+                <>
+                  {transitionBlend && (
+                    <Image
+                      source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                      style={styles.previewImage}
+                    />
+                  )}
+                  <Image
+                    source={previewFrameUri ? { uri: previewFrameUri } : undefined}
+                    style={[
+                      styles.previewImage,
+                      rotatedFrameStyle(currentClip?.rotation, previewSize),
+                      transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
+                      transitionBlend?.type === 'slide' && {
+                        transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
+                      },
+                      transitionBlend?.type === 'zoom' && {
+                        opacity: transitionBlend.progress,
+                        transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
+                      },
+                      transitionBlend?.type === 'wipe' && {
+                        opacity: transitionBlend.progress > 0.05 ? 1 : 0,
+                      },
+                    ]}
+                  />
+                  {currentClip && !currentClip.frozen && (
+                    <LiveClipVideo
+                      store={timeStore}
+                      clip={currentClip}
+                      key={currentClip.sourceUri}
+                      hidden={!!transitionBlend}
+                      timeRef={playerTimeRef}
+                      playing={playing}
+                      rate={currentClip.speed ?? 1}
+                      volume={(currentClip.volume ?? 100) / 100}
+                      style={rotatedFrameStyle(currentClip.rotation, previewSize)}
+                    />
+                  )}
+                  {currentClip?.colorCorrection ? (
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          backgroundColor:
+                            currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
+                          opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                        },
+                      ]}
+                    />
+                  ) : null}
+                </>
+              )}
+            </PreviewDerived>
             {pipClip && pipClip.pipPosition && pipClip.pipSize && (
               <Image
                 source={{ uri: pipClip.sourceUri }}
@@ -933,7 +929,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             <View style={styles.transportOverlay}>
               <View style={styles.timeRow}>
                 <LiveTimecode
-                  timeMs={currentTimeMs}
+                  store={timeStore}
                   totalMs={totalDurationMs}
                   playing={playing}
                   style={styles.timeCurrent}
@@ -978,7 +974,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     )}
                   </View>
                 ))}
-                <View style={[styles.rulerPlayhead, { left: `${playheadPct}%` }]} />
+                <Playhead
+                  store={timeStore}
+                  totalMs={totalDurationMs}
+                  style={styles.rulerPlayhead}
+                />
               </View>
             </GestureDetector>
 
@@ -1009,7 +1009,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   </View>
 
                   <View style={styles.clipArea}>
-                    <View style={[styles.clipAreaPlayhead, { left: `${playheadPct}%` }]} />
+                    <Playhead
+                      store={timeStore}
+                      totalMs={totalDurationMs}
+                      style={styles.clipAreaPlayhead}
+                    />
                     {track.visible &&
                       track.clips.map((clip) => (
                         <ClipBlock
@@ -1020,14 +1024,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                           widthPct={(clipDurationMs(clip) / totalDurationMs) * 100}
                           isSelected={selectedClipId === clip.id}
                           msPerPx={msPerPx}
-                          onSelect={() => {
-                            setSelectedClipId((id) => (id === clip.id ? null : clip.id));
-                            setClipTab('Aparar');
-                          }}
+                          onSelect={onSelectClip}
                           onBeginDrag={beginDrag}
-                          onMove={(delta) => updateDragMove(track.id, clip.id, delta)}
-                          onTrimIn={(delta) => updateDragTrimIn(track.id, clip.id, delta)}
-                          onTrimOut={(delta) => updateDragTrimOut(track.id, clip.id, delta)}
+                          onMove={updateDragMove}
+                          onTrimIn={updateDragTrimIn}
+                          onTrimOut={updateDragTrimOut}
                           onEndDrag={endDrag}
                         />
                       ))}
@@ -1709,16 +1710,24 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         statusBarTranslucent
       >
         <SafeAreaView style={styles.fullscreenPreview} edges={['top', 'bottom']}>
-          {transitionBlend && (
-            <Image
-              source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-              style={styles.previewImage}
-            />
+          {fullscreenPreview && (
+            <PreviewDerived store={timeStore} tracks={tracks} playing={playing} clipRef={null}>
+              {({ transitionBlend, previewFrameUri, fromFrameUri }) => (
+                <>
+                  {transitionBlend && (
+                    <Image
+                      source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                      style={styles.previewImage}
+                    />
+                  )}
+                  <Image
+                    source={previewFrameUri ? { uri: previewFrameUri } : undefined}
+                    style={styles.previewImage}
+                  />
+                </>
+              )}
+            </PreviewDerived>
           )}
-          <Image
-            source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-            style={styles.previewImage}
-          />
           <View style={styles.fullscreenTopBar}>
             <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
               <Text style={styles.qualityBadgeText}>
@@ -1737,7 +1746,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           <View style={styles.transportOverlay}>
             <View style={styles.timeRow}>
               <LiveTimecode
-                timeMs={currentTimeMs}
+                store={timeStore}
                 totalMs={totalDurationMs}
                 playing={playing}
                 style={styles.timeCurrent}

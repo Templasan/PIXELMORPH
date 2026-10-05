@@ -83,8 +83,9 @@ function paintBrushCircle(
       let falloff = 1.0;
       if (hardness < 100) {
         const softEdge = radius * (1 - hardness / 100);
-        if (dist > softEdge) {
-          falloff = 1 - (dist - softEdge) / (radius - softEdge);
+        const edgeRange = radius - softEdge;
+        if (dist > softEdge && edgeRange > 0.001) {
+          falloff = 1 - (dist - softEdge) / edgeRange;
         }
       }
 
@@ -152,8 +153,9 @@ function eraseBrushCircle(
       let falloff = 1.0;
       if (hardness < 100) {
         const softEdge = radius * (1 - hardness / 100);
-        if (dist > softEdge) {
-          falloff = 1 - (dist - softEdge) / (radius - softEdge);
+        const edgeRange = radius - softEdge;
+        if (dist > softEdge && edgeRange > 0.001) {
+          falloff = 1 - (dist - softEdge) / edgeRange;
         }
       }
 

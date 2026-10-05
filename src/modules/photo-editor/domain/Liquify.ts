@@ -39,6 +39,7 @@ export function applyLiquifyStroke(
       if (distSq > radiusSq) continue;
 
       const dist = Math.sqrt(distSq);
+      if (stroke.radius <= 0) continue; // Guard against division by zero
       const falloff = 1 - dist / stroke.radius; // Linear falloff
 
       // Compute displacement based on mode

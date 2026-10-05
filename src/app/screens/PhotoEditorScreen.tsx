@@ -15,15 +15,12 @@ import { runOnJS } from 'react-native-reanimated';
 import {
   Canvas,
   Circle,
-  Fill,
   FilterMode,
   Group,
-  ImageShader,
   Line,
   MipmapMode,
   Path,
   Rect,
-  Shader,
   Skia,
   type SkImage,
   type SkRuntimeEffect,
@@ -70,7 +67,6 @@ import {
   arrowPath,
   createPaintLayer,
   BRUSH_SHAPES,
-  brushTip,
   pressureWidth,
   type BrushShape,
   createShapeLayer,
@@ -87,7 +83,6 @@ import {
 import {
   RETRO_EFFECTS_SKSL,
   toRetroUniforms,
-  blendModeAt,
   DEFAULT_DOUBLE_EXPOSURE_BLEND,
   DEFAULT_DOUBLE_EXPOSURE_OPACITY,
 } from '@modules/photo-editor/effects';
@@ -107,6 +102,9 @@ import { PanoramaDrawer } from './photo-editor/PanoramaDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
+import { PaintLayers, CurrentStroke, pointsToPath } from './photo-editor/PaintLayers';
+import { PhotoLayer } from './photo-editor/PhotoLayer';
+import { PHOTO_WIDTH, PHOTO_HEIGHT } from './photo-editor/dims';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -140,8 +138,6 @@ const TOOLBAR = [
 // imported asset (see projectPhotoUri).
 const DEMO_PHOTO_URI =
   'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=533&fit=crop&auto=format';
-const PHOTO_WIDTH = 340;
-const PHOTO_HEIGHT = 227;
 const BRUSH_COLORS = ['#E5484D', '#F5A623', '#F5D90A', '#30A46C', '#3B82F6', '#FFFFFF', '#000000'];
 
 interface Adjustments {
@@ -275,12 +271,6 @@ const DEFAULT_ADJUSTMENTS: Adjustments = {
   doubleExposureOpacity: DEFAULT_DOUBLE_EXPOSURE_OPACITY,
 };
 
-function pointsToPath(points: Point[]): string {
-  if (points.length === 0) return '';
-  const [first, ...rest] = points;
-  return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
-}
-
 /** Every field the "Ajustes" drawer's 4 tabs (Básico/Curvas/Detalhe/Cor seletiva) own —
  * used to reset just those fields on bake, leaving geometry/effects/frame untouched. */
 const ADJUST_DRAWER_FIELDS: readonly string[] = [
@@ -310,6 +300,20 @@ const ADJUST_DRAWER_FIELDS: readonly string[] = [
   'curveBY1',
   'curveBY2',
 ];
+
+// Compiled once per app run, not per mount/render.
+let adjustmentsEffectCache: SkRuntimeEffect | null | undefined;
+let retroEffectCache: SkRuntimeEffect | null | undefined;
+function getAdjustmentsEffect() {
+  if (adjustmentsEffectCache === undefined)
+    adjustmentsEffectCache = Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL);
+  return adjustmentsEffectCache;
+}
+function getRetroEffect() {
+  if (retroEffectCache === undefined)
+    retroEffectCache = Skia.RuntimeEffect.Make(RETRO_EFFECTS_SKSL);
+  return retroEffectCache;
+}
 
 /**
  * Renders ADJUSTMENTS_SKSL once into an offscreen surface and snapshots the result — the
@@ -377,6 +381,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // working undo/redo instead of crashing — RF-027 just won't survive across app restarts.
   const sessionId = projectId ?? 'unsaved-photo-session';
   const history = usePersistedHistory(sessionId);
+  // Latest history for stable callbacks (history's identity changes on every push).
+  const historyRef = useRef(history);
+  historyRef.current = history;
   const { projects: projectsModule } = useAppModules();
 
   const [projectName, setProjectName] = useState('Novo projeto');
@@ -452,6 +459,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   });
 
   const [adjustments, setAdjustments] = useState<Adjustments>(DEFAULT_ADJUSTMENTS);
+  // Fields the user touched before the persisted history finished loading; re-applied on top of the replay.
+  const userEditedRef = useRef<Record<string, number>>({});
   const [currentMask, setCurrentMask] = useState<Mask | null>(null);
   // RF-071: stereoscopic detection and parallax effect state
   const [stereoInfo, setStereoInfo] = useState<StereoscopicInfo>({ isStereoscopic: false });
@@ -478,8 +487,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const skiaImage = useImage(photoUri, () => setImageLoadFailed(true));
   const doubleExposureSkImage = useImage(doubleExposureImage?.uri ?? null);
   const overlaySkImage = useImage(overlayImage?.uri ?? null);
-  const adjustmentsEffect = useMemo(() => Skia.RuntimeEffect.Make(ADJUSTMENTS_SKSL), []);
-  const retroEffect = useMemo(() => Skia.RuntimeEffect.Make(RETRO_EFFECTS_SKSL), []);
+  const adjustmentsEffect = getAdjustmentsEffect();
+  const retroEffect = getRetroEffect();
   const uniforms = useMemo(
     () =>
       toFullUniforms(
@@ -526,7 +535,18 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         PHOTO_WIDTH,
         PHOTO_HEIGHT
       ),
-    [adjustments]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      adjustments.retroAging,
+      adjustments.retroAgingBlend,
+      adjustments.retroGrain,
+      adjustments.retroGrainBlend,
+      adjustments.retroVignette,
+      adjustments.retroVignetteBlend,
+      adjustments.overlayType,
+      adjustments.overlayIntensity,
+      adjustments.overlayOpacity,
+    ]
   );
   const histogram = useImageHistogram(skiaImage);
   const liveHistogram = useMemo(() => histogram.compute(uniforms), [histogram, uniforms]);
@@ -985,32 +1005,62 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // same adjustments that were last applied — undo/redo genuinely survives close/reopen.
   useEffect(() => {
     if (!history.ready) return;
-    setAdjustments(history.reconstructState(DEFAULT_ADJUSTMENTS));
+    const replayed = history.reconstructState(DEFAULT_ADJUSTMENTS);
+    setAdjustments({ ...replayed, ...userEditedRef.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.ready]);
 
+  // Coalesces slider ticks to one state update per frame (the whole editor re-renders on each).
+  const pendingFields = useRef<Record<string, number>>({});
+  const fieldRaf = useRef<number | null>(null);
+  const setAdjustmentField = useCallback((field: string, v: number) => {
+    userEditedRef.current[field] = v;
+    pendingFields.current[field] = v;
+    if (fieldRaf.current != null) return;
+    fieldRaf.current = requestAnimationFrame(() => {
+      fieldRaf.current = null;
+      const batch = pendingFields.current;
+      pendingFields.current = {};
+      setAdjustments((s) => ({ ...s, ...batch }));
+    });
+  }, []);
+
+  // Never leave a pending rAF firing after unmount.
+  useEffect(
+    () => () => {
+      if (fieldRaf.current != null) cancelAnimationFrame(fieldRaf.current);
+      fieldRaf.current = null;
+      pendingFields.current = {};
+    },
+    []
+  );
+
   const commitAdjustment = useCallback(
     (field: string, value: number, previousValue: number) => {
+      userEditedRef.current[field] = value;
+      delete pendingFields.current[field];
       if (value === previousValue) return;
       setAdjustments((s) => ({ ...s, [field]: value }));
-      history.push(field, previousValue, value);
+      historyRef.current.push(field, previousValue, value);
     },
-    [history]
+    []
   );
 
   const handleUndo = useCallback(() => {
-    const op = history.undo();
+    const op = historyRef.current.undo();
     if (op && op.type in DEFAULT_ADJUSTMENTS) {
+      delete pendingFields.current[op.type]; // a queued tick must not overwrite the undo
       setAdjustments((s) => ({ ...s, [op.type]: op.params.from as number }));
     }
-  }, [history]);
+  }, []);
 
   const handleRedo = useCallback(() => {
-    const op = history.redo();
+    const op = historyRef.current.redo();
     if (op && op.type in DEFAULT_ADJUSTMENTS) {
+      delete pendingFields.current[op.type];
       setAdjustments((s) => ({ ...s, [op.type]: op.params.to as number }));
     }
-  }, [history]);
+  }, []);
 
   // Writes a baked image to a real cache file and, when this is a saved project, persists
   // it onto the asset's workingUri — shared by every "bake into real pixels" action below.
@@ -1221,88 +1271,6 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     [commitAdjustment]
   );
 
-  // US-09: chains the retro/overlay-texture shader (RF-041/028) right after the
-  // color-adjustments one — Skia composes nested <Shader> nodes into a single GPU pass.
-  const renderPhotoLayer = (
-    flipH: boolean,
-    flipV: boolean,
-    opacity: number,
-    key: string,
-    includeDoubleExposure = false
-  ) => (
-    <Group
-      key={key}
-      transform={[{ scaleX: flipH ? -1 : 1 }, { scaleY: flipV ? -1 : 1 }]}
-      origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
-      opacity={opacity}
-    >
-      <Group matrix={perspectiveMatrix ?? undefined}>
-        <Fill>
-          <Shader source={retroEffect as NonNullable<typeof retroEffect>} uniforms={retroUniforms}>
-            {/* US-08: hiding the "Ajustes de cor" layer genuinely shows the untouched photo. */}
-            {adjustmentsLayerVisible ? (
-              <Shader
-                source={adjustmentsEffect as NonNullable<typeof adjustmentsEffect>}
-                uniforms={uniforms}
-              >
-                <ImageShader
-                  image={skiaImage}
-                  fit="cover"
-                  rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-                />
-                {/* ADJUSTMENTS_SKSL declares a second `uniform shader maskImage` (only read
-                    when maskActive is set — RF-007 masking isn't wired up here yet). Skia
-                    needs a child bound to every shader uniform to compile the effect at all;
-                    without this the whole thing failed to build and rendered solid black. */}
-                <ImageShader
-                  image={skiaImage}
-                  fit="cover"
-                  rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-                />
-              </Shader>
-            ) : (
-              <ImageShader
-                image={skiaImage}
-                fit="cover"
-                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-              />
-            )}
-          </Shader>
-        </Fill>
-        {/* RF-075: a real second image, GPU-blended over the first with an adjustable mode/opacity. */}
-        {includeDoubleExposure && doubleExposureSkImage && (
-          <Group
-            blendMode={blendModeAt(adjustments.doubleExposureBlend)}
-            opacity={adjustments.doubleExposureOpacity / 100}
-          >
-            <Fill>
-              <ImageShader
-                image={doubleExposureSkImage}
-                fit="cover"
-                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-              />
-            </Fill>
-          </Group>
-        )}
-        {/* RF-028: an overlay imported from the device gallery (light leaks, dust, wear). */}
-        {includeDoubleExposure && overlaySkImage && (
-          <Group
-            blendMode={blendModeAt(adjustments.overlayBlend)}
-            opacity={adjustments.overlayIntensity / 100}
-          >
-            <Fill>
-              <ImageShader
-                image={overlaySkImage}
-                fit="cover"
-                rect={{ x: 0, y: 0, width: PHOTO_WIDTH, height: PHOTO_HEIGHT }}
-              />
-            </Fill>
-          </Group>
-        )}
-      </Group>
-    </Group>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
@@ -1361,14 +1329,48 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                     ]}
                     origin={{ x: PHOTO_WIDTH / 2, y: PHOTO_HEIGHT / 2 }}
                   >
-                    {renderPhotoLayer(false, false, 1, 'base', true)}
-                    {flipActive &&
-                      renderPhotoLayer(
-                        adjustments.flipH > 0,
-                        adjustments.flipV > 0,
-                        adjustments.mirrorOpacity / 100,
-                        'mirror'
-                      )}
+                    <PhotoLayer
+                      key="base"
+                      flipH={false}
+                      flipV={false}
+                      opacity={1}
+                      includeOverlays={true}
+                      matrix={perspectiveMatrix ?? undefined}
+                      retroEffect={retroEffect as NonNullable<typeof retroEffect>}
+                      retroUniforms={retroUniforms}
+                      adjustmentsEffect={adjustmentsEffect}
+                      uniforms={uniforms}
+                      adjustmentsVisible={adjustmentsLayerVisible}
+                      image={skiaImage}
+                      doubleExposureImage={doubleExposureSkImage}
+                      doubleExposureBlend={adjustments.doubleExposureBlend}
+                      doubleExposureOpacity={adjustments.doubleExposureOpacity}
+                      overlayImage={overlaySkImage}
+                      overlayBlend={adjustments.overlayBlend}
+                      overlayIntensity={adjustments.overlayIntensity}
+                    />
+                    {flipActive && (
+                      <PhotoLayer
+                        key="mirror"
+                        flipH={adjustments.flipH > 0}
+                        flipV={adjustments.flipV > 0}
+                        opacity={adjustments.mirrorOpacity / 100}
+                        includeOverlays={false}
+                        matrix={perspectiveMatrix ?? undefined}
+                        retroEffect={retroEffect as NonNullable<typeof retroEffect>}
+                        retroUniforms={retroUniforms}
+                        adjustmentsEffect={adjustmentsEffect}
+                        uniforms={uniforms}
+                        adjustmentsVisible={adjustmentsLayerVisible}
+                        image={skiaImage}
+                        doubleExposureImage={doubleExposureSkImage}
+                        doubleExposureBlend={adjustments.doubleExposureBlend}
+                        doubleExposureOpacity={adjustments.doubleExposureOpacity}
+                        overlayImage={overlaySkImage}
+                        overlayBlend={adjustments.overlayBlend}
+                        overlayIntensity={adjustments.overlayIntensity}
+                      />
+                    )}
                   </Group>
                   {/* RF-068: positioned in canvas space, like the paint layers below — it stays
                     where the user placed it regardless of the photo's own rotation. */}
@@ -1384,35 +1386,14 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                   )}
                   {/* US-08: paint layers live outside the photo's own rotate/flip group —
                     strokes stay put in canvas space, matching where they were drawn. */}
-                  {layers
-                    .filter((l) => l.kind === 'paint' && l.visible)
-                    .map((l) => (
-                      <Group key={l.id} opacity={l.opacity / 100}>
-                        {(l.strokes ?? []).map((s) => (
-                          <Path
-                            key={s.id}
-                            path={s.path}
-                            style="stroke"
-                            strokeWidth={s.width}
-                            strokeCap={brushTip(s.shape).cap}
-                            strokeJoin={brushTip(s.shape).join}
-                            color={s.color}
-                            opacity={s.opacity}
-                          />
-                        ))}
-                      </Group>
-                    ))}
-                  {currentStroke.length > 1 && (
-                    <Path
-                      path={pointsToPath(currentStroke)}
-                      style="stroke"
-                      strokeWidth={brushSize}
-                      strokeCap={brushTip(brushShape).cap}
-                      strokeJoin={brushTip(brushShape).join}
-                      color={brushColor}
-                      opacity={brushOpacity / 100}
-                    />
-                  )}
+                  <PaintLayers layers={layers} />
+                  <CurrentStroke
+                    points={currentStroke}
+                    width={brushSize}
+                    shape={brushShape}
+                    color={brushColor}
+                    opacity={brushOpacity}
+                  />
                   {/* RF-008: real Skia text — a system font (via matchFont), color, optional
                     drop shadow and stroke outline all draw for real, so they survive export. */}
                   {layers
@@ -1734,7 +1715,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             {activeTool === 'ajustes' && (
               <AdjustDrawer
                 adjustments={adjustments}
-                setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
+                setField={setAdjustmentField}
                 onCommit={commitAdjustment}
                 onBake={handleBakeAdjustments}
                 histogram={liveHistogram}
@@ -1746,7 +1727,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             {activeTool === 'geometria' && (
               <GeometryDrawer
                 adjustments={adjustments}
-                setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
+                setField={setAdjustmentField}
                 onCommit={commitAdjustment}
                 perspectiveEditMode={perspectiveEditMode}
                 onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
@@ -1759,7 +1740,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             {activeTool === 'efeitos' && (
               <EffectsDrawer
                 adjustments={adjustments}
-                setField={(field, v) => setAdjustments((s) => ({ ...s, [field]: v }))}
+                setField={setAdjustmentField}
                 onCommit={commitAdjustment}
                 frameColor={frameColor}
                 onFrameColorChange={setFrameColor}

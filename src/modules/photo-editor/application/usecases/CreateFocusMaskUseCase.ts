@@ -28,9 +28,13 @@ export function createFocusMaskUseCase() {
           } else if (dist <= focusRadius) {
             // Smooth falloff from soft edge to outer radius
             const edgeRange = focusRadius - softEdgeRadius;
-            const t = (dist - softEdgeRadius) / edgeRange;
-            const smoothed = t * t * (3 - 2 * t); // smoothstep
-            strength = 1 - smoothed;
+            if (edgeRange > 0.001) {
+              const t = (dist - softEdgeRadius) / edgeRange;
+              const smoothed = t * t * (3 - 2 * t); // smoothstep
+              strength = 1 - smoothed;
+            } else {
+              strength = 0.0; // Guard against zero edge range
+            }
           } else {
             // Blur radius: smooth fadeout beyond focus radius
             const blurDistance = dist - focusRadius;

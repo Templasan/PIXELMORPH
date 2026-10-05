@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  FlatList,
   Image,
   Pressable,
   RefreshControl,
@@ -142,6 +143,80 @@ function formatDateInput(date: Date | undefined): string {
   return `${dd}/${mm}/${date.getFullYear()}`;
 }
 
+let demoCleanup: Promise<void> | null = null;
+
+interface CardProps {
+  project: Project;
+  isSelected: boolean;
+  multiSelect: boolean;
+  onPressProject: (p: Project) => void;
+  onLongPressProject: (p: Project) => void;
+  onInfo: (p: Project) => void;
+}
+
+const ProjectCard = memo(function ProjectCard({
+  project,
+  isSelected,
+  multiSelect,
+  onPressProject,
+  onLongPressProject,
+  onInfo,
+}: CardProps) {
+  const asset = primaryAsset(project);
+  const thumbUri = project.thumbnailUri ?? asset?.originalUri;
+  const isVideo = project.type === 'video';
+  const duration = formatDuration(asset?.metadata.durationMs);
+  return (
+    <Pressable
+      style={[styles.card, isSelected && styles.cardSelected]}
+      onLongPress={() => onLongPressProject(project)}
+      onPress={() => onPressProject(project)}
+    >
+      <View style={styles.thumbWrap}>
+        {thumbUri ? (
+          <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
+        ) : (
+          <View style={styles.thumbPlaceholder}>
+            <Icon name={isVideo ? 'film' : 'image'} size={28} color={colors.linha} />
+          </View>
+        )}
+        {isVideo && (
+          <>
+            <View style={styles.playOverlay}>
+              <View style={styles.playBadge}>
+                <Icon name="play" size={16} color={colors.texto} />
+              </View>
+            </View>
+            {duration && (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{duration}</Text>
+              </View>
+            )}
+          </>
+        )}
+        {multiSelect && (
+          <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+            {isSelected && <Icon name="check" size={12} color={colors.preto} />}
+          </View>
+        )}
+      </View>
+      <View style={styles.cardInfo}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {project.name}
+          </Text>
+          <Text style={styles.cardMeta}>
+            {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)}
+          </Text>
+        </View>
+        <Pressable hitSlop={8} onPress={() => onInfo(project)}>
+          <Icon name="info" size={14} color={colors.texto2} />
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+});
+
 export default function ProjectsScreen({ navigation }: Props) {
   const { t } = useI18n();
   const { projects: projectsModule } = useAppModules();
@@ -149,6 +224,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('TODOS');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [multiSelect, setMultiSelect] = useState(false);
   const [infoProject, setInfoProject] = useState<Project | null>(null);
@@ -182,9 +258,40 @@ export default function ProjectsScreen({ navigation }: Props) {
     [infoProject]
   );
 
+  const confirmDelete = useCallback(
+    (project: Project) => {
+      Alert.alert(
+        t('Apagar projeto'),
+        t('Apagar "{name}"? Esta ação não pode ser desfeita.', { name: project.name }),
+        [
+          { text: t('Cancelar'), style: 'cancel' },
+          {
+            text: t('Apagar'),
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await projectsModule.deleteProject.execute(project.id);
+                setProjects((prev) => prev.filter((p) => p.id !== project.id));
+                setInfoProject(null);
+              } catch (error) {
+                errorLogger.log(error, 'ProjectsScreen.deleteProject');
+                Alert.alert(t('Não foi possível apagar'), t('Tente novamente.'));
+              }
+            },
+          },
+        ]
+      );
+    },
+    [projectsModule, t]
+  );
+
   const loadProjects = useCallback(async () => {
     const mod = projectsModule;
-    await removeDemoProjects(mod);
+    // One-time legacy cleanup per app session — it lists every project, so not on each focus.
+    demoCleanup ??= removeDemoProjects(mod).catch(() => {
+      demoCleanup = null;
+    });
+    await demoCleanup;
     const all = await mod.listProjects.execute({ status: 'active' });
     // Most recently modified first.
     all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
@@ -251,32 +358,69 @@ export default function ProjectsScreen({ navigation }: Props) {
     }
   }, [navigation, loadProjects]);
 
-  const filtered = projects.filter((p) => {
-    if (activeTab === 'FOTOS') return p.type === 'photo';
-    if (activeTab === 'VÍDEOS') return p.type === 'video';
-    if (activeTab === 'RASCUNHOS') return isDraft(p);
-    return true;
-  });
+  const filtered = useMemo(
+    () =>
+      projects.filter((p) => {
+        if (activeTab === 'FOTOS') return p.type === 'photo';
+        if (activeTab === 'VÍDEOS') return p.type === 'video';
+        if (activeTab === 'RASCUNHOS') return isDraft(p);
+        return true;
+      }),
+    [projects, activeTab]
+  );
 
-  const pendingProjects = projects
-    .filter((p) => p.dueDate)
-    .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime());
+  const pendingProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => p.dueDate)
+        .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()),
+    [projects]
+  );
   const nearest = pendingProjects[0];
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+  const multiSelectRef = useRef(multiSelect);
+  multiSelectRef.current = multiSelect;
 
   const exitMultiSelect = () => {
     setMultiSelect(false);
     setSelected([]);
   };
 
-  const openProject = (project: Project) => {
-    navigation.navigate(project.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
-      projectId: project.id,
-    });
-  };
+  const onPressProject = useCallback(
+    (project: Project) => {
+      if (multiSelectRef.current) {
+        setSelected((prev) =>
+          prev.includes(project.id) ? prev.filter((x) => x !== project.id) : [...prev, project.id]
+        );
+      } else {
+        navigation.navigate(project.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
+          projectId: project.id,
+        });
+      }
+    },
+    [navigation]
+  );
+
+  const onLongPressProject = useCallback((project: Project) => {
+    if (!multiSelectRef.current) {
+      setMultiSelect(true);
+      setSelected([project.id]);
+    }
+  }, []);
+
+  const renderProject = useCallback(
+    ({ item }: { item: Project }) => (
+      <ProjectCard
+        project={item}
+        isSelected={selected.includes(item.id)}
+        multiSelect={multiSelect}
+        onPressProject={onPressProject}
+        onLongPressProject={onLongPressProject}
+        onInfo={openInfo}
+      />
+    ),
+    [selected, multiSelect, onPressProject, onLongPressProject, openInfo]
+  );
 
   const applyBatch = () => {
     // TODO: wire to a real batch-preset use case (needs the non-destructive photo
@@ -330,12 +474,33 @@ export default function ProjectsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      <ScrollView
+      <FlatList
+        data={filtered}
+        extraData={selected}
+        keyExtractor={(p) => p.id}
+        renderItem={renderProject}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
         contentContainerStyle={{ paddingBottom: 24 }}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadProjects} tintColor={colors.acento} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await loadProjects();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.acento}
+          />
         }
-      >
+        ListHeaderComponent={
+          <>
         {nearest && (
           <View style={styles.reminderCard}>
             <View style={styles.reminderStripe} />
@@ -367,71 +532,9 @@ export default function ProjectsScreen({ navigation }: Props) {
           </View>
         )}
 
-        <View style={styles.grid}>
-          {filtered.map((project) => {
-            const isSelected = selected.includes(project.id);
-            const asset = primaryAsset(project);
-            const thumbUri = project.thumbnailUri ?? asset?.originalUri;
-            const isVideo = project.type === 'video';
-            const duration = formatDuration(asset?.metadata.durationMs);
-            return (
-              <Pressable
-                key={project.id}
-                style={[styles.card, isSelected && styles.cardSelected]}
-                onLongPress={() => {
-                  if (!multiSelect) {
-                    setMultiSelect(true);
-                    setSelected([project.id]);
-                  }
-                }}
-                onPress={() => (multiSelect ? toggleSelect(project.id) : openProject(project))}
-              >
-                <View style={styles.thumbWrap}>
-                  {thumbUri ? (
-                    <Image source={{ uri: thumbUri }} style={styles.thumb} />
-                  ) : (
-                    <View style={styles.thumbPlaceholder}>
-                      <Icon name={isVideo ? 'film' : 'image'} size={28} color={colors.linha} />
-                    </View>
-                  )}
-                  {isVideo && (
-                    <>
-                      <View style={styles.playOverlay}>
-                        <View style={styles.playBadge}>
-                          <Icon name="play" size={16} color={colors.texto} />
-                        </View>
-                      </View>
-                      {duration && (
-                        <View style={styles.durationBadge}>
-                          <Text style={styles.durationText}>{duration}</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                  {multiSelect && (
-                    <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
-                      {isSelected && <Icon name="check" size={12} color={colors.preto} />}
-                    </View>
-                  )}
-                </View>
-                <View style={styles.cardInfo}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.cardName} numberOfLines={1}>
-                      {project.name}
-                    </Text>
-                    <Text style={styles.cardMeta}>
-                      {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)}
-                    </Text>
-                  </View>
-                  <Pressable hitSlop={8} onPress={() => openInfo(project)}>
-                    <Icon name="info" size={14} color={colors.texto2} />
-                  </Pressable>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+          </>
+        }
+      />
 
       {!multiSelect && (
         <>
@@ -596,6 +699,11 @@ export default function ProjectsScreen({ navigation }: Props) {
                         )}
                       </View>
                     </View>
+                    <Pressable style={styles.dueDateButton} onPress={() => confirmDelete(infoProject)}>
+                      <Text style={[styles.dueDateButtonText, { color: colors.acento }]}>
+                        {t('Apagar projeto')}
+                      </Text>
+                    </Pressable>
                   </>
                 );
               })()
@@ -727,6 +835,11 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    gap: 8,
+  },
+  gridRow: {
     paddingHorizontal: 12,
     paddingTop: 8,
     gap: 8,

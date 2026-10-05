@@ -30,6 +30,9 @@ export function planGifFrames(
   fps: number,
   maxDurationMs: number = GIF_MAX_DURATION_MS
 ): GifPlan {
+  if (fps <= 0) {
+    return { frames: [], truncated: false };
+  }
   const step = 1000 / fps;
   const frames: GifFrame[] = [];
   let clipStart = 0;

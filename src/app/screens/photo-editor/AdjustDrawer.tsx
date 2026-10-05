@@ -16,7 +16,8 @@ import {
   type SkImage,
   type SkRuntimeEffect,
 } from '@shopify/react-native-skia';
-import { Slider, Tabs } from '@core/ui';
+import { Tabs } from '@core/ui';
+import { AdjustSlider } from './AdjustSlider';
 import { colors, fontSize } from '@core/theme';
 import {
   SELECTIVE_COLOR_NAMES,
@@ -279,16 +280,15 @@ export function AdjustDrawer({
     field: string,
     opts: { min: number; max: number; gradientColors?: readonly [string, string] }
   ) => (
-    <Slider
+    <AdjustSlider
       label={label}
+      field={field}
       value={adjustments[field]}
       min={opts.min}
       max={opts.max}
-      bipolar={opts.min < 0}
-      showSign={opts.min < 0}
       gradientColors={opts.gradientColors}
-      onChange={(v) => setField(field, v)}
-      onSlidingComplete={(v, from) => onCommit(field, v, from)}
+      setField={setField}
+      onCommit={onCommit}
     />
   );
 

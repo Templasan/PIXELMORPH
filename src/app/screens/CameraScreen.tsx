@@ -167,6 +167,8 @@ export default function CameraScreen({ navigation }: Props) {
   const [stopFrames, setStopFrames] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
   const [stopFps, setStopFps] = useState(6);
+  // Escala do AR: valor local durante o arraste, aplicado ao fim do gesto.
+  const [arScaleDraft, setArScaleDraft] = useState<{ id: string; v: number } | null>(null);
   const [facing, setFacing] = useState<CameraType>('back');
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -704,19 +706,20 @@ export default function CameraScreen({ navigation }: Props) {
             <View style={{ gap: 8, paddingHorizontal: 12, paddingBottom: 8 }}>
               <Slider
                 label="Escala"
-                value={(arSession.anchors.find((a) => a.id === selectedAnchorId)?.scale ?? 1) * 100}
+                value={
+                  arScaleDraft?.id === selectedAnchorId
+                    ? arScaleDraft.v
+                    : (arSession.anchors.find((a) => a.id === selectedAnchorId)?.scale ?? 1) * 100
+                }
                 min={50}
                 max={200}
                 unit="%"
-                onChange={(v: number) => {
+                onChange={(v: number) => setArScaleDraft({ id: selectedAnchorId, v })}
+                onSlidingComplete={(v: number) => {
+                  setArScaleDraft(null);
                   const anchor = arSession.anchors.find((a) => a.id === selectedAnchorId);
                   if (!anchor) return;
-                  const updated = updateARAppearance(
-                    anchor,
-                    v / 100,
-                    anchor.rotation,
-                    anchor.color
-                  );
+                  const updated = updateARAppearance(anchor, v / 100, anchor.rotation, anchor.color);
                   setArSession((s) => ({
                     ...s,
                     anchors: s.anchors.map((a) => (a.id === selectedAnchorId ? updated : a)),

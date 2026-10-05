@@ -59,7 +59,7 @@ export interface Track {
 }
 
 export function clipDurationMs(clip: Clip): number {
-  if (clip.frozen) return clip.holdMs ?? 0;
+  if (clip.frozen) return Math.max(200, clip.holdMs ?? 200);
   return (clip.outPointMs - clip.inPointMs) / (clip.speed ?? 1);
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, type StyleProp, type TextStyle } from 'react-native';
 import { formatTimecode } from '@modules/video-editor';
+import { useTime, type TimeStore } from './timeStore';
 
 interface LiveTimecodeProps {
-  timeMs: number;
+  store: TimeStore;
   totalMs: number;
   playing: boolean;
   style?: StyleProp<TextStyle>;
@@ -14,7 +15,8 @@ interface LiveTimecodeProps {
  * playing this extrapolates between those updates on every screen frame, re-rendering just
  * this Text (not the whole editor), and only when the displayed timecode changes.
  */
-export function LiveTimecode({ timeMs, totalMs, playing, style }: LiveTimecodeProps) {
+export function LiveTimecode({ store, totalMs, playing, style }: LiveTimecodeProps) {
+  const timeMs = useTime(store);
   const [shown, setShown] = useState(timeMs);
   const base = useRef({ timeMs, stamp: Date.now() });
   const last = useRef(timeMs);

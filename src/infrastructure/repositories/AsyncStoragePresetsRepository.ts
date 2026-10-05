@@ -1,46 +1,28 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Preset } from '@modules/photo-editor/domain/Preset';
 import type { PresetsRepository } from '@core/ports/PresetsRepository';
+import { JsonListCache } from './JsonListCache';
 
 const PRESETS_KEY = '@pixelmorph/presets';
 
 export class AsyncStoragePresetsRepository implements PresetsRepository {
+  private readonly store = new JsonListCache(PRESETS_KEY);
+
   async save(preset: Preset): Promise<void> {
-    const all = await this.list();
-    const idx = all.findIndex((p) => p.id === preset.id);
-    if (idx >= 0) {
-      all[idx] = preset;
-    } else {
-      all.push(preset);
-    }
-    await AsyncStorage.setItem(PRESETS_KEY, JSON.stringify(all));
+    await this.store.mutate((all) => {
+      const idx = all.findIndex((p) => p.id === preset.id);
+      return idx >= 0 ? all.map((p, i) => (i === idx ? preset : p)) : [...all, preset];
+    });
   }
 
   async load(id: string): Promise<Preset | null> {
-    const all = await this.list();
-    const preset = all.find((p) => p.id === id);
-    if (!preset) return null;
-    preset.createdAt = new Date(preset.createdAt as any);
-    return preset;
+    return (await this.list()).find((p) => p.id === id) ?? null;
   }
 
   async list(): Promise<Preset[]> {
-    const json = await AsyncStorage.getItem(PRESETS_KEY);
-    if (!json) return [];
-    try {
-      const presets = JSON.parse(json) as any[];
-      return presets.map((p) => ({
-        ...p,
-        createdAt: new Date(p.createdAt),
-      }));
-    } catch {
-      return [];
-    }
+    return (await this.store.read()).map((p) => ({ ...p, createdAt: new Date(p.createdAt) }));
   }
 
   async delete(id: string): Promise<void> {
-    const all = await this.list();
-    const filtered = all.filter((p) => p.id !== id);
-    await AsyncStorage.setItem(PRESETS_KEY, JSON.stringify(filtered));
+    await this.store.mutate((all) => all.filter((p) => p.id !== id));
   }
 }

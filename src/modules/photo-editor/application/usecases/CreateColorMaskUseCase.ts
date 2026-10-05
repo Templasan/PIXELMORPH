@@ -34,7 +34,10 @@ export function createColorMaskUseCase() {
       const mask = createMask('mask_color', width, height);
 
       // Get sample color at (sampleX, sampleY) in RGBA format
-      const sampleIdx = (Math.round(sampleY) * width + Math.round(sampleX)) * 4;
+      // Clamp coordinates to valid bounds
+      const sx = Math.max(0, Math.min(width - 1, Math.round(sampleX)));
+      const sy = Math.max(0, Math.min(height - 1, Math.round(sampleY)));
+      const sampleIdx = (sy * width + sx) * 4;
       const sampleR = pixelData[sampleIdx] / 255;
       const sampleG = pixelData[sampleIdx + 1] / 255;
       const sampleB = pixelData[sampleIdx + 2] / 255;

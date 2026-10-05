@@ -34,6 +34,12 @@ const es: Record<string, string> = {
   'DD/MM/AAAA': 'DD/MM/AAAA',
   'Data inválida': 'Fecha no válida',
   'Use o formato DD/MM/AAAA.': 'Usa el formato DD/MM/AAAA.',
+  'Apagar projeto': 'Eliminar proyecto',
+  'Apagar "{name}"? Esta ação não pode ser desfeita.': '¿Eliminar "{name}"? Esta acción no se puede deshacer.',
+  'Cancelar': 'Cancelar',
+  'Apagar': 'Eliminar',
+  'Não foi possível apagar': 'No se pudo eliminar',
+  'Tente novamente.': 'Inténtalo de nuevo.',
   'Salvar prazo': 'Guardar plazo',
   Remover: 'Quitar',
   'Nenhuma edição registrada ainda para este projeto.':
