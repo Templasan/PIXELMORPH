@@ -303,3 +303,5 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 | 2026-10-05 | 1.4 `modules.md` | `2afefb1` | Reescrito com os módulos como estão |
 | 2026-10-05 | 5.1 Projetos | (este) | `ProjectsScreen` 1138 → 565 linhas: `ProjectCard`, `ProjectInfoSheet`, `ReminderBanner`, `projectFormat`. Revisão pegou um defeito da extração (histórico carregado no corpo do render → loop de renders em projeto sem histórico) e corrigiu com `useEffect` + `key` por projeto. Verificado no emulador |
 | 2026-10-05 | Gaveta: limite do emulador | — | Gaveta Ajustes já em p50 18 ms ≈ piso do emulador (telas simples: 17–28 ms). Ganho adicional só se mede no celular |
+| 2026-10-05 | 5.2 Câmera | `e992398` | `CameraScreen` 1078 → 451 linhas em 13 componentes memoizados em `screens/camera/`. Verificado no emulador: filtro, modos, foto → editor |
+| 2026-10-05 | 6 FILETREE | `6da2c04` | Regenerado |
