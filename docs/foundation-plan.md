@@ -305,3 +305,8 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 | 2026-10-05 | Gaveta: limite do emulador | — | Gaveta Ajustes já em p50 18 ms ≈ piso do emulador (telas simples: 17–28 ms). Ganho adicional só se mede no celular |
 | 2026-10-05 | 5.2 Câmera | `e992398` | `CameraScreen` 1078 → 451 linhas em 13 componentes memoizados em `screens/camera/`. Verificado no emulador: filtro, modos, foto → editor |
 | 2026-10-05 | 6 FILETREE | `6da2c04` | Regenerado |
+| 2026-10-05 | Push + APK | — | `sprint-2` enviado ao GitHub (autorizado). APK arm64 para celular em `C:\apks\PixelMorph-sprint2-44758fc-arm64-celular.apk` |
+| 2026-10-05 | 4.P1 modelo de ajustes | `0a5346c` | `Adjustments`, padrões e grupos de campos → `photo-editor/domain/adjustments` |
+| 2026-10-05 | 4.P2 store da foto | `cd36c61` | `createPhotoEditorStore` (ajustes, ferramenta, comparar/zoom, camadas, pincel, traço) + 10 testes de caracterização (385 testes) |
+| 2026-10-05 | 4.P3 tela ligada no store | `08738fd` | Mesmo comportamento; setters estilo `useState` sobre o store. Verificado no emulador: slider, desfazer/refazer, persistência após matar o app, pintura |
+| 2026-10-05 | 4.P4 assinaturas nos componentes | `86ee5fa` | Canvas e gavetas assinam o store; derivações puras em `domain/adjustments/derive.ts` (compartilhadas com os bakes). **Medido (contadores no build release, 1 arraste de slider de 1,5 s): tela 12 → 0 renders; canvas ~1 por valor.** Achado de medição: o canvas Skia desenha em superfície própria que o `gfxinfo` não conta — o script mede só frames da UI nativa (documentado no script) |
