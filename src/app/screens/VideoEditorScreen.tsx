@@ -26,6 +26,7 @@ import { LiveTimecode } from './video-editor/LiveTimecode';
 import { Playhead } from './video-editor/Playhead';
 import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
 import { createTimeStore } from './video-editor/timeStore';
+import { useStore } from '@core/state';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
@@ -33,14 +34,7 @@ import {
   type Clip,
   createClip,
   clipDurationMs,
-  clipEndMs,
-  moveClip,
-  trimClipIn,
-  trimClipOut,
-  splitClipAtMs,
-  appendClip,
   findClip,
-  rippleShiftAfter,
   timelineDurationMs,
   DEFAULT_FPS,
   stepFrameMs,
@@ -51,17 +45,21 @@ import {
   clampTransitionDurationMs,
   setTransition,
   previousClipOf,
-  insertFreezeFrame,
   buildTimelapseTrack,
   clampFadeMs,
   setPipTransform,
   setStabilization,
   rotateClip,
-  ensureImageTrack,
   describeFileOrientation,
   advancePlayhead,
   loopBounds,
   setSphericalOrientation,
+  createVideoEditorStore,
+  clipEndMs,
+  ensureImageTrack,
+  moveClip,
+  trimClipIn,
+  trimClipOut,
 } from '@modules/video-editor';
 import { applySpeedRamp } from '@modules/video-editor/domain/speedRamp';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
@@ -283,16 +281,30 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const [project, setProject] = useState<Project | null>(null);
   const [projectName, setProjectName] = useState('Novo projeto');
-  const [tracks, setTracks] = useState<Track[]>(() => buildInitialTracks(null));
-  const tracksRef = useRef(tracks);
-  useEffect(() => {
-    tracksRef.current = tracks;
-  }, [tracks]);
+  // Timeline, selection, playback and tool state live in the video editor store; the screen
+  // and its parts subscribe by selector. The history adapter reads the latest hook value.
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const editor = useMemo(
+    () =>
+      createVideoEditorStore({
+        push: (type, from, to) => historyRef.current.push(type, from, to),
+        undo: () => historyRef.current.undo(),
+        redo: () => historyRef.current.redo(),
+      }),
+    []
+  );
+  const tracks = useStore(editor.store, (st) => st.tracks);
+  const selectedClipId = useStore(editor.store, (st) => st.selectedClipId);
+  const playing = useStore(editor.store, (st) => st.playing);
+  const rippleMode = useStore(editor.store, (st) => st.rippleMode);
+  const freezeHoldMs = useStore(editor.store, (st) => st.freezeHoldMs);
+  const loopReview = useStore(editor.store, (st) => st.loopReview);
+  const timelineZoom = useStore(editor.store, (st) => st.timelineZoom);
 
   const previewShotRef = useRef<any>(null);
 
   const [exportOpen, setExportOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
   const currentClipRef = useRef<Clip | null>(null);
   // Playhead lives in a store, not state: only the components that draw it subscribe.
@@ -300,13 +312,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const setCurrentTimeMs = timeStore.set;
   // Last manual seek (ruler drag/tap, frame step): the play clock must not snap back to a stale player position.
   const lastSeekAtRef = useRef(0);
-  // True while a slider/gesture has live (uncommitted) edits in tracksRef; history replay must not clobber them.
-  const liveEditRef = useRef(false);
-  const [timelineZoom, setTimelineZoom] = useState(50);
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
   const [clipTab, setClipTab] = useState<ClipTab>('Aparar');
-  const [loopReview, setLoopReview] = useState(false);
   const [bodyWidth, setBodyWidth] = useState(0);
   // RF-053: the divider between preview and timeline is draggable from 0.15 to 0.75; default
   // near the top of that range so a portrait clip (tall content in a wide, short-by-default
@@ -316,8 +323,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [contentHeight, setContentHeight] = useState(1);
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
-  const [rippleMode, setRippleMode] = useState(false);
-  const [freezeHoldMs, setFreezeHoldMs] = useState(2000);
   const [pipClipId, setPipClipId] = useState<string | null>(null);
   const [pipX, setPipX] = useState(0.7);
   const [pipY, setPipY] = useState(0.7);
@@ -345,44 +350,17 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // this project shows the same edit — the whole timeline is tracked as a single history field.
   useEffect(() => {
     if (!history.ready) return;
-    // Don't clobber an in-progress drag/slider gesture with a late-loading project replay.
-    if (dragStartRef.current || liveEditRef.current) return;
+    // The store ignores this mid-gesture, so a late replay can't clobber a drag or slider.
     const state = history.reconstructState({ tracks: initialTracks } as unknown as Record<
       string,
       unknown
     >);
-    setTracks(ensureImageTrack(state.tracks as Track[]));
+    editor.hydrate(state.tracks as Track[]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history.ready, initialTracks]);
 
-  const commitTracks = useCallback(
-    (before: Track[], after: Track[]) => {
-      liveEditRef.current = false;
-      if (before === after) return;
-      tracksRef.current = after;
-      setTracks(after);
-      history.push('tracks', before, after);
-    },
-    [history]
-  );
-
-  const handleUndo = useCallback(() => {
-    const op = history.undo();
-    if (op && op.type === 'tracks') {
-      const from = ensureImageTrack(op.params.from as Track[]);
-      tracksRef.current = from;
-      setTracks(from);
-    }
-  }, [history]);
-
-  const handleRedo = useCallback(() => {
-    const op = history.redo();
-    if (op && op.type === 'tracks') {
-      const to = ensureImageTrack(op.params.to as Track[]);
-      tracksRef.current = to;
-      setTracks(to);
-    }
-  }, [history]);
+  const handleUndo = editor.undo;
+  const handleRedo = editor.redo;
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
@@ -432,7 +410,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           }
         }
         const result = advancePlayhead(base, step, totalDurationMs, loopRange);
-        if (result.ended) setPlaying(false);
+        if (result.ended) editor.setPlaying(false);
         timeStore.set(result.timeMs);
       }
     }, 100);
@@ -528,109 +506,47 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     return clip?.clip ?? null;
   }, [tracks, pipClipId]);
 
-  // Live-update (during a gesture) vs. commit-once (on release) — the drag-start snapshot
-  // is what history.push compares against, matching the pattern used across this app.
-  const dragStartRef = useRef<Track[] | null>(null);
-  const beginDrag = useCallback(() => {
-    dragStartRef.current = tracksRef.current;
-  }, []);
-  const updateDragMove = useCallback((trackId: string, clipId: string, deltaMs: number) => {
-    const start = dragStartRef.current;
-    if (!start) return;
-    const orig = findClip(start, clipId);
-    if (!orig) return;
-    const next = moveClip(start, trackId, clipId, orig.clip.startMs + deltaMs);
-    tracksRef.current = next;
-    setTracks(next);
-  }, []);
-  const updateDragTrimIn = useCallback((trackId: string, clipId: string, deltaMs: number) => {
-    const start = dragStartRef.current;
-    if (!start) return;
-    const orig = findClip(start, clipId);
-    if (!orig) return;
-    const next = trimClipIn(start, trackId, clipId, orig.clip.inPointMs + deltaMs);
-    tracksRef.current = next;
-    setTracks(next);
-  }, []);
-  const updateDragTrimOut = useCallback((trackId: string, clipId: string, deltaMs: number) => {
-    const start = dragStartRef.current;
-    if (!start) return;
-    const orig = findClip(start, clipId);
-    if (!orig) return;
-    const next = trimClipOut(start, trackId, clipId, orig.clip.outPointMs + deltaMs);
-    tracksRef.current = next;
-    setTracks(next);
-  }, []);
-  const endDrag = useCallback(() => {
-    const before = dragStartRef.current;
-    if (before) {
-      dragStartRef.current = null;
-      liveEditRef.current = false;
-      history.push('tracks', before, tracksRef.current);
-    }
-  }, [history]);
+  // Clip drags are gestures: live updates from the drag-start snapshot, one undo entry on release.
+  const beginDrag = editor.beginGesture;
+  const endDrag = editor.endGesture;
+  const updateDragMove = useCallback(
+    (trackId: string, clipId: string, deltaMs: number) =>
+      editor.live((start) => {
+        const orig = findClip(start, clipId);
+        return orig ? moveClip(start, trackId, clipId, orig.clip.startMs + deltaMs) : start;
+      }),
+    [editor]
+  );
+  const updateDragTrimIn = useCallback(
+    (trackId: string, clipId: string, deltaMs: number) =>
+      editor.live((start) => {
+        const orig = findClip(start, clipId);
+        return orig ? trimClipIn(start, trackId, clipId, orig.clip.inPointMs + deltaMs) : start;
+      }),
+    [editor]
+  );
+  const updateDragTrimOut = useCallback(
+    (trackId: string, clipId: string, deltaMs: number) =>
+      editor.live((start) => {
+        const orig = findClip(start, clipId);
+        return orig ? trimClipOut(start, trackId, clipId, orig.clip.outPointMs + deltaMs) : start;
+      }),
+    [editor]
+  );
 
-  const onSelectClip = useCallback((id: string) => {
-    setSelectedClipId((cur) => (cur === id ? null : id));
-    setClipTab('Aparar');
-  }, []);
+  const onSelectClip = useCallback(
+    (id: string) => {
+      editor.toggleSelect(id);
+      setClipTab('Aparar');
+    },
+    [editor]
+  );
 
-  const nudgeTrimIn = (deltaFrames: number) => {
-    if (!selected) return;
-    const before = tracksRef.current;
-    const after = trimClipIn(
-      before,
-      selected.track.id,
-      selected.clip.id,
-      selected.clip.inPointMs + deltaFrames * ONE_FRAME_MS
-    );
-    commitTracks(before, after);
-  };
-  /** Trims the out-point and, in Ripple mode, shifts every later clip to close the gap. */
-  const trimOutWithRipple = (newOutPointMs: number) => {
-    if (!selected) return;
-    const before = tracksRef.current;
-    const oldEnd = clipEndMs(selected.clip);
-    let after = trimClipOut(before, selected.track.id, selected.clip.id, newOutPointMs);
-    if (rippleMode) {
-      const trimmed = findClip(after, selected.clip.id)?.clip;
-      if (trimmed) {
-        after = rippleShiftAfter(after, selected.track.id, oldEnd, clipEndMs(trimmed) - oldEnd);
-      }
-    }
-    commitTracks(before, after);
-  };
-
-  const nudgeTrimOut = (deltaFrames: number) => {
-    if (!selected) return;
-    trimOutWithRipple(selected.clip.outPointMs + deltaFrames * ONE_FRAME_MS);
-  };
-
-  const handleSplit = () => {
-    if (!selected) return;
-    const before = tracksRef.current;
-    const after = splitClipAtMs(before, selected.track.id, selected.clip.id, timeStore.get());
-    commitTracks(before, after);
-  };
-
-  const handleCut = () => {
-    if (!selected) return;
-    const relativeMs = timeStore.get() - selected.clip.startMs;
-    trimOutWithRipple(selected.clip.inPointMs + relativeMs);
-  };
-
-  const handleFreeze = () => {
-    if (!selected) return;
-    const before = tracksRef.current;
-    const after = insertFreezeFrame(
-      before,
-      selected.track.id,
-      selected.clip.id,
-      timeStore.get(),
-      freezeHoldMs
-    );
-    commitTracks(before, after);
-  };
+  const nudgeTrimIn = (deltaFrames: number) => editor.nudgeTrimIn(deltaFrames * ONE_FRAME_MS);
+  const nudgeTrimOut = (deltaFrames: number) => editor.nudgeTrimOut(deltaFrames * ONE_FRAME_MS);
+  const handleSplit = () => editor.split(timeStore.get());
+  const handleCut = () => editor.cut(timeStore.get());
+  const handleFreeze = () => editor.freeze(timeStore.get());
 
   // RF-023: a time-lapse is a real image track built from photos the user actually picks —
   // each photo a short still clip, sequenced back-to-back (see buildTimelapseTrack).
@@ -645,10 +561,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           name: p.fileName ?? '',
         }))
       );
-      const track = buildTimelapseTrack(frames, 200, TRACK_COLORS.image);
-      const before = tracksRef.current;
-      const after = [...before, track];
-      commitTracks(before, after);
+      editor.addTrack(buildTimelapseTrack(frames, 200, TRACK_COLORS.image));
     } catch (error) {
       if (error instanceof Error && error.message === 'PERMISSION_DENIED') {
         Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para criar o time-lapse.');
@@ -663,136 +576,36 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     if (action === 'cut') handleCut();
     else if (action === 'split') handleSplit();
     else if (action === 'freeze') handleFreeze();
-    else if (action === 'ripple') setRippleMode((r) => !r);
+    else if (action === 'ripple') editor.toggleRipple();
     else if (action === 'timelapse') handleTimelapse();
   };
 
-  const toggleVisible = (trackId: string) => {
-    const next = tracksRef.current.map((t) =>
-      t.id === trackId ? { ...t, visible: !t.visible } : t
-    );
-    tracksRef.current = next;
-    setTracks(next);
-  };
-  const toggleLocked = (trackId: string) => {
-    const next = tracksRef.current.map((t) => (t.id === trackId ? { ...t, locked: !t.locked } : t));
-    tracksRef.current = next;
-    setTracks(next);
-  };
+  const toggleVisible = editor.toggleVisible;
+  const toggleLocked = editor.toggleLocked;
 
-  const applyColorCorrection = (value: number) => {
-    if (!selected) return;
-    const next = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected.clip.id ? { ...c, colorCorrection: value } : c
-            ),
-          }
-        : t
-    );
-    liveEditRef.current = true;
-    tracksRef.current = next;
-    setTracks(next);
-  };
-  const commitColorCorrection = (_value: number, previousValue: number) => {
-    if (!selected) return;
-    const before = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected.clip.id ? { ...c, colorCorrection: previousValue } : c
-            ),
-          }
-        : t
-    );
-    commitTracks(before, tracksRef.current);
-  };
-
-  // RF-049: playback speed — real, changes the clip's actual on-track duration
-  // (clipDurationMs divides by speed), not just a cosmetic label.
-  const applySpeed = (value: number) => {
-    if (!selected) return;
-    const next = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) => (c.id === selected.clip.id ? { ...c, speed: value } : c)),
-          }
-        : t
-    );
-    liveEditRef.current = true;
-    tracksRef.current = next;
-    setTracks(next);
-  };
-  const commitSpeed = (_value: number, previousValue: number) => {
-    if (!selected) return;
-    const before = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected.clip.id ? { ...c, speed: previousValue } : c
-            ),
-          }
-        : t
-    );
-    commitTracks(before, tracksRef.current);
-  };
-
-  // RF-036: volume + fade in/out for a background audio clip — same apply/commit pattern as
-  // speed and color correction above.
-  const setClipField = (
-    field: 'volume' | 'fadeInMs' | 'fadeOutMs' | 'pipPosition' | 'pipSize',
-    value: number | { x: number; y: number } | { width: number; height: number } | undefined
-  ) => {
-    if (!selected) return;
-    const next = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) => (c.id === selected.clip.id ? { ...c, [field]: value } : c)),
-          }
-        : t
-    );
-    liveEditRef.current = true;
-    tracksRef.current = next;
-    setTracks(next);
-  };
-  const commitClipField = (
-    field: 'volume' | 'fadeInMs' | 'fadeOutMs' | 'pipPosition' | 'pipSize',
-    _value: number | { x: number; y: number } | { width: number; height: number } | undefined,
-    previousValue: number | { x: number; y: number } | { width: number; height: number } | undefined
-  ) => {
-    if (!selected) return;
-    const before = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected.clip.id ? { ...c, [field]: previousValue } : c
-            ),
-          }
-        : t
-    );
-    commitTracks(before, tracksRef.current);
-  };
+  // Slider edits are gestures on the selected clip: live while dragging, one undo entry at the end.
+  const applyColorCorrection = (value: number) =>
+    editor.liveClip((c) => ({ ...c, colorCorrection: value }));
+  // RF-049: playback speed — real, changes the clip's actual on-track duration.
+  const applySpeed = (value: number) => editor.liveClip((c) => ({ ...c, speed: value }));
+  // RF-036: volume + fade in/out (and PiP placement) — same gesture pattern.
+  const setClipField = (field: 'volume' | 'fadeInMs' | 'fadeOutMs', value: number) =>
+    editor.liveClip((c) => ({ ...c, [field]: value }));
+  const endSliderGesture = () => editor.endGesture();
 
   const handleAddClip = (trackId: string, result: AddClipResult) => {
     const track = tracks.find((t) => t.id === trackId);
     if (!track) return;
-    const before = tracksRef.current;
-    const newClip = createClip({
-      name: result.name,
-      sourceUri: result.sourceUri,
-      color: TRACK_COLORS[track.kind],
-      startMs: 0,
-      sourceDurationMs: result.sourceDurationMs,
-    });
-    const after = appendClip(before, trackId, newClip);
-    commitTracks(before, after);
+    editor.addClip(
+      trackId,
+      createClip({
+        name: result.name,
+        sourceUri: result.sourceUri,
+        color: TRACK_COLORS[track.kind],
+        startMs: 0,
+        sourceDurationMs: result.sourceDurationMs,
+      })
+    );
     setAddClipTrackId(null);
   };
 
@@ -946,7 +759,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 <Pressable hitSlop={6} onPress={() => stepFrame(-1)}>
                   <Icon name="rewindFrame" size={18} />
                 </Pressable>
-                <Pressable style={styles.playButton} onPress={() => setPlaying((p) => !p)}>
+                <Pressable style={styles.playButton} onPress={editor.togglePlaying}>
                   <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.texto} />
                 </Pressable>
                 <Pressable hitSlop={6} onPress={() => stepFrame(1)}>
@@ -1071,11 +884,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   </Text>
                 </Pressable>
               ))}
-              <Pressable
-                style={{ marginLeft: 'auto' }}
-                onPress={() => setSelectedClipId(null)}
-                hitSlop={6}
-              >
+              <Pressable style={{ marginLeft: 'auto' }} onPress={editor.clearSelection} hitSlop={6}>
                 <Icon name="x" size={16} color={colors.texto2} />
               </Pressable>
             </View>
@@ -1110,19 +919,23 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     <Text style={styles.frameButtonText}>+1 quadro</Text>
                   </Pressable>
                   <View style={{ marginLeft: 8 }}>
-                    <Switch value={loopReview} onChange={setLoopReview} label="Revisar em loop" />
+                    <Switch
+                      value={loopReview}
+                      onChange={editor.setLoopReview}
+                      label="Revisar em loop"
+                    />
                   </View>
                 </View>
                 <View style={[styles.frameRow, { marginTop: 8 }]}>
                   <Text style={styles.trimLabel}>Congelar por</Text>
                   <Pressable
-                    onPress={() => setFreezeHoldMs((v) => Math.max(500, v - 500))}
+                    onPress={() => editor.setFreezeHoldMs(Math.max(500, freezeHoldMs - 500))}
                     hitSlop={4}
                   >
                     <Icon name="minus" size={12} color={colors.texto2} />
                   </Pressable>
                   <Text style={styles.trimValue}>{(freezeHoldMs / 1000).toFixed(1)}s</Text>
-                  <Pressable onPress={() => setFreezeHoldMs((v) => v + 500)} hitSlop={4}>
+                  <Pressable onPress={() => editor.setFreezeHoldMs(freezeHoldMs + 500)} hitSlop={4}>
                     <Icon name="plus" size={12} color={colors.texto2} />
                   </Pressable>
                   <Pressable style={styles.frameButton} onPress={handleFreeze}>
@@ -1140,19 +953,18 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       <Pressable
                         key={type}
                         style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => {
-                          const before = tracksRef.current;
-                          const duration = clampTransitionDurationMs(
-                            selected.clip.transitionIn?.durationMs ?? DEFAULT_TRANSITION_MS,
-                            previousOfSelected,
-                            selected.clip
-                          );
-                          const after = setTransition(before, selected.track.id, selected.clip.id, {
-                            type,
-                            durationMs: duration,
-                          });
-                          commitTracks(before, after);
-                        }}
+                        onPress={() =>
+                          editor.commitOnSelected((t, trackId, clip) =>
+                            setTransition(t, trackId, clip.id, {
+                              type,
+                              durationMs: clampTransitionDurationMs(
+                                clip.transitionIn?.durationMs ?? DEFAULT_TRANSITION_MS,
+                                previousOfSelected,
+                                clip
+                              ),
+                            })
+                          )
+                        }
                       >
                         <Text style={[styles.chipText, active && styles.chipTextActive]}>
                           {TRANSITION_LABELS[type]}
@@ -1162,16 +974,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   })}
                   <Pressable
                     style={styles.chip}
-                    onPress={() => {
-                      const before = tracksRef.current;
-                      const after = setTransition(
-                        before,
-                        selected.track.id,
-                        selected.clip.id,
-                        undefined
-                      );
-                      commitTracks(before, after);
-                    }}
+                    onPress={() =>
+                      editor.commitOnSelected((t, trackId, clip) =>
+                        setTransition(t, trackId, clip.id, undefined)
+                      )
+                    }
                   >
                     <Text style={styles.chipText}>Nenhuma</Text>
                   </Pressable>
@@ -1182,8 +989,14 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     value={selected.clip.transitionIn.durationMs}
                     min={100}
                     max={clampTransitionDurationMs(99999, previousOfSelected, selected.clip)}
-                    onChange={(v) => applyTransitionDuration(v)}
-                    onSlidingComplete={(v, from) => commitTransitionDuration(v, from)}
+                    onChange={(v) =>
+                      editor.liveClip((c) =>
+                        c.transitionIn
+                          ? { ...c, transitionIn: { ...c.transitionIn, durationMs: v } }
+                          : c
+                      )
+                    }
+                    onSlidingComplete={endSliderGesture}
                   />
                 )}
               </View>
@@ -1198,20 +1011,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                         styles.chip,
                         (selected.clip.speed ?? 1) === preset && styles.chipActive,
                       ]}
-                      onPress={() => {
-                        const before = tracksRef.current;
-                        const after = before.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? { ...c, speed: preset } : c
-                                ),
-                              }
-                            : t
-                        );
-                        commitTracks(before, after);
-                      }}
+                      onPress={() => editor.commitClip((c) => ({ ...c, speed: preset }))}
                     >
                       <Text
                         style={[
@@ -1232,23 +1032,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   step={0.25}
                   unit="x"
                   onChange={applySpeed}
-                  onSlidingComplete={commitSpeed}
+                  onSlidingComplete={endSliderGesture}
                 />
                 <Pressable
                   style={[styles.chip, { alignSelf: 'flex-start', marginTop: 8 }]}
                   accessibilityLabel="Suavizar o fim do clipe até 1x"
-                  onPress={() => {
-                    const before = tracksRef.current;
-                    const after = applySpeedRamp(
-                      before,
-                      selected.track.id,
-                      selected.clip.id,
-                      1,
-                      1500,
-                      'end'
-                    );
-                    if (after !== before) commitTracks(before, after);
-                  }}
+                  onPress={() =>
+                    editor.commitOnSelected((t, trackId, clip) =>
+                      applySpeedRamp(t, trackId, clip.id, 1, 1500, 'end')
+                    )
+                  }
                 >
                   <Text style={styles.chipText}>Suavizar fim até 1x (1,5s)</Text>
                 </Pressable>
@@ -1265,21 +1058,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       accessibilityLabel={
                         delta < 0 ? 'Girar 90° à esquerda' : 'Girar 90° à direita'
                       }
-                      onPress={() => {
-                        const updated = rotateClip(selected.clip, delta);
-                        const before = tracksRef.current;
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        commitTracks(before, after);
-                      }}
+                      onPress={() => editor.commitClip((c) => rotateClip(c, delta))}
                     >
                       <Text style={styles.frameButtonText}>{delta < 0 ? '⟲ 90°' : '⟳ 90°'}</Text>
                     </Pressable>
@@ -1297,7 +1076,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   bipolar
                   showSign
                   onChange={applyColorCorrection}
-                  onSlidingComplete={commitColorCorrection}
+                  onSlidingComplete={endSliderGesture}
                 />
                 <View
                   style={{
@@ -1312,19 +1091,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   </Text>
                   <Switch
                     value={selected.clip.stabilization ?? false}
-                    onChange={(v: boolean) => {
-                      const updated = setStabilization(selected.clip, v);
-                      const before = tracksRef.current;
-                      const after = tracksRef.current.map((t) =>
-                        t.id === selected.track.id
-                          ? {
-                              ...t,
-                              clips: t.clips.map((c) => (c.id === selected.clip.id ? updated : c)),
-                            }
-                          : t
-                      );
-                      commitTracks(before, after);
-                    }}
+                    onChange={(v: boolean) => editor.commitClip((c) => setStabilization(c, v))}
                   />
                 </View>
                 {sphericalInfo.isSpherical && (
@@ -1346,45 +1113,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       min={-90}
                       max={90}
                       bipolar
-                      onChange={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          v,
-                          selected.clip.sphericalYaw ?? 0,
-                          selected.clip.sphericalRoll ?? 0
-                        );
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        setTracks(after);
-                      }}
-                      onSlidingComplete={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          v,
-                          selected.clip.sphericalYaw ?? 0,
-                          selected.clip.sphericalRoll ?? 0
-                        );
-                        const before = tracksRef.current;
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        commitTracks(before, after);
-                      }}
+                      onChange={(v: number) =>
+                        editor.liveClip((c) =>
+                          setSphericalOrientation(c, v, c.sphericalYaw ?? 0, c.sphericalRoll ?? 0)
+                        )
+                      }
+                      onSlidingComplete={endSliderGesture}
                     />
                     <Slider
                       label="Yaw (esq/dir)"
@@ -1392,45 +1126,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       min={-180}
                       max={180}
                       bipolar
-                      onChange={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          selected.clip.sphericalPitch ?? 0,
-                          v,
-                          selected.clip.sphericalRoll ?? 0
-                        );
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        setTracks(after);
-                      }}
-                      onSlidingComplete={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          selected.clip.sphericalPitch ?? 0,
-                          v,
-                          selected.clip.sphericalRoll ?? 0
-                        );
-                        const before = tracksRef.current;
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        commitTracks(before, after);
-                      }}
+                      onChange={(v: number) =>
+                        editor.liveClip((c) =>
+                          setSphericalOrientation(c, c.sphericalPitch ?? 0, v, c.sphericalRoll ?? 0)
+                        )
+                      }
+                      onSlidingComplete={endSliderGesture}
                     />
                     <Slider
                       label="Roll (rotação)"
@@ -1438,45 +1139,12 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       min={-180}
                       max={180}
                       bipolar
-                      onChange={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          selected.clip.sphericalPitch ?? 0,
-                          selected.clip.sphericalYaw ?? 0,
-                          v
-                        );
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        setTracks(after);
-                      }}
-                      onSlidingComplete={(v: number) => {
-                        const updated = setSphericalOrientation(
-                          selected.clip,
-                          selected.clip.sphericalPitch ?? 0,
-                          selected.clip.sphericalYaw ?? 0,
-                          v
-                        );
-                        const before = tracksRef.current;
-                        const after = tracksRef.current.map((t) =>
-                          t.id === selected.track.id
-                            ? {
-                                ...t,
-                                clips: t.clips.map((c) =>
-                                  c.id === selected.clip.id ? updated : c
-                                ),
-                              }
-                            : t
-                        );
-                        commitTracks(before, after);
-                      }}
+                      onChange={(v: number) =>
+                        editor.liveClip((c) =>
+                          setSphericalOrientation(c, c.sphericalPitch ?? 0, c.sphericalYaw ?? 0, v)
+                        )
+                      }
+                      onSlidingComplete={endSliderGesture}
                     />
                   </>
                 )}
@@ -1491,7 +1159,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   max={100}
                   unit="%"
                   onChange={(v) => setClipField('volume', v)}
-                  onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
+                  onSlidingComplete={endSliderGesture}
                 />
               </View>
             )}
@@ -1504,7 +1172,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   max={100}
                   unit="%"
                   onChange={(v) => setClipField('volume', v)}
-                  onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
+                  onSlidingComplete={endSliderGesture}
                 />
                 <Slider
                   label="Fade in"
@@ -1514,7 +1182,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   step={100}
                   unit=" ms"
                   onChange={(v) => setClipField('fadeInMs', v)}
-                  onSlidingComplete={(v, from) => commitClipField('fadeInMs', v, from)}
+                  onSlidingComplete={endSliderGesture}
                 />
                 <Slider
                   label="Fade out"
@@ -1524,7 +1192,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   step={100}
                   unit=" ms"
                   onChange={(v) => setClipField('fadeOutMs', v)}
-                  onSlidingComplete={(v, from) => commitClipField('fadeOutMs', v, from)}
+                  onSlidingComplete={endSliderGesture}
                 />
               </View>
             )}
@@ -1542,15 +1210,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       max={1}
                       step={0.05}
                       onChange={setPipX}
-                      onSlidingComplete={(v) => {
-                        const clip = selected.clip;
-                        const updated = setPipTransform(
-                          clip,
-                          { x: v, y: pipY },
-                          { width: pipWidth, height: pipHeight }
-                        );
-                        setClipField('pipPosition', updated.pipPosition);
-                      }}
+                      onSlidingComplete={(v) =>
+                        editor.commitClip((c) =>
+                          setPipTransform(
+                            c,
+                            { x: v, y: pipY },
+                            { width: pipWidth, height: pipHeight }
+                          )
+                        )
+                      }
                     />
                     <Slider
                       label="Posição Y"
@@ -1559,15 +1227,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       max={1}
                       step={0.05}
                       onChange={setPipY}
-                      onSlidingComplete={(v) => {
-                        const clip = selected.clip;
-                        const updated = setPipTransform(
-                          clip,
-                          { x: pipX, y: v },
-                          { width: pipWidth, height: pipHeight }
-                        );
-                        setClipField('pipPosition', updated.pipPosition);
-                      }}
+                      onSlidingComplete={(v) =>
+                        editor.commitClip((c) =>
+                          setPipTransform(
+                            c,
+                            { x: pipX, y: v },
+                            { width: pipWidth, height: pipHeight }
+                          )
+                        )
+                      }
                     />
                     <Slider
                       label="Largura"
@@ -1576,15 +1244,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       max={1}
                       step={0.05}
                       onChange={setPipWidth}
-                      onSlidingComplete={(v) => {
-                        const clip = selected.clip;
-                        const updated = setPipTransform(
-                          clip,
-                          { x: pipX, y: pipY },
-                          { width: v, height: pipHeight }
-                        );
-                        setClipField('pipSize', updated.pipSize);
-                      }}
+                      onSlidingComplete={(v) =>
+                        editor.commitClip((c) =>
+                          setPipTransform(c, { x: pipX, y: pipY }, { width: v, height: pipHeight })
+                        )
+                      }
                     />
                     <Slider
                       label="Altura"
@@ -1593,15 +1257,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       max={1}
                       step={0.05}
                       onChange={setPipHeight}
-                      onSlidingComplete={(v) => {
-                        const clip = selected.clip;
-                        const updated = setPipTransform(
-                          clip,
-                          { x: pipX, y: pipY },
-                          { width: pipWidth, height: v }
-                        );
-                        setClipField('pipSize', updated.pipSize);
-                      }}
+                      onSlidingComplete={(v) =>
+                        editor.commitClip((c) =>
+                          setPipTransform(c, { x: pipX, y: pipY }, { width: pipWidth, height: v })
+                        )
+                      }
                     />
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <Pressable
@@ -1680,7 +1340,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 value={timelineZoom}
                 min={10}
                 max={200}
-                onChange={setTimelineZoom}
+                onChange={editor.setTimelineZoom}
                 labelWidth={0}
               />
             </View>
@@ -1763,7 +1423,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               <Pressable hitSlop={10} onPress={() => stepFrame(-1)}>
                 <Icon name="rewindFrame" size={18} color={colors.icone} />
               </Pressable>
-              <Pressable style={styles.playButton} onPress={() => setPlaying((p) => !p)}>
+              <Pressable style={styles.playButton} onPress={editor.togglePlaying}>
                 <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.texto} />
               </Pressable>
               <Pressable hitSlop={10} onPress={() => stepFrame(1)}>
@@ -1778,41 +1438,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       </Modal>
     </SafeAreaView>
   );
-
-  function applyTransitionDuration(value: number) {
-    if (!selected || !selected.clip.transitionIn) return;
-    const next = tracksRef.current.map((t) =>
-      t.id === selected.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected.clip.id && c.transitionIn
-                ? { ...c, transitionIn: { ...c.transitionIn, durationMs: value } }
-                : c
-            ),
-          }
-        : t
-    );
-    tracksRef.current = next;
-    setTracks(next);
-  }
-
-  function commitTransitionDuration(_value: number, previousValue: number) {
-    if (!selected || !selected.clip.transitionIn) return;
-    const before = tracksRef.current.map((t) =>
-      t.id === selected!.track.id
-        ? {
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === selected!.clip.id && c.transitionIn
-                ? { ...c, transitionIn: { ...c.transitionIn, durationMs: previousValue } }
-                : c
-            ),
-          }
-        : t
-    );
-    commitTracks(before, tracksRef.current);
-  }
 }
 
 const styles = StyleSheet.create({
