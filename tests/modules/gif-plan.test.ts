@@ -1,5 +1,5 @@
-import type { ExportPlan, PlannedClip } from '../../src/modules/video-editor/exportPlan';
-import { gifSize, planGifFrames } from '../../src/modules/video-editor/gifPlan';
+import type { ExportPlan, PlannedClip } from '../../src/modules/video-editor/domain/exportPlan';
+import { gifSize, planGifFrames } from '../../src/modules/video-editor/domain/gifPlan';
 
 const video = (over: Partial<PlannedClip> = {}): PlannedClip => ({
   kind: 'video',

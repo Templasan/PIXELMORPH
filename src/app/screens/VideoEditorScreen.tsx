@@ -63,8 +63,8 @@ import {
   loopBounds,
   setSphericalOrientation,
 } from '@modules/video-editor';
-import { applySpeedRamp } from '@modules/video-editor/speedRamp';
-import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/spherical';
+import { applySpeedRamp } from '@modules/video-editor/domain/speedRamp';
+import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { copyToAppStorage, pickMultipleImagesFromGallery } from '@modules/device-media';
 

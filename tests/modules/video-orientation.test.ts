@@ -1,4 +1,4 @@
-import { describeFileOrientation } from '../../src/modules/video-editor/orientation';
+import { describeFileOrientation } from '../../src/modules/video-editor/domain/orientation';
 
 describe('describeFileOrientation (RF-078)', () => {
   it('says nothing when the file could not be read', () => {

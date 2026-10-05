@@ -1,9 +1,9 @@
-import { createClip, type Track } from '../../src/modules/video-editor/Track';
+import { createClip, type Track } from '../../src/modules/video-editor/domain/Track';
 import {
   VIDEO_PRESETS,
   originalPreset,
   planExport,
-} from '../../src/modules/video-editor/exportPlan';
+} from '../../src/modules/video-editor/domain/exportPlan';
 
 const clip = (over: Partial<Parameters<typeof createClip>[0]> & { startMs: number }) =>
   createClip({

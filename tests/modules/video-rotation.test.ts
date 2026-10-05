@@ -1,4 +1,4 @@
-import { createClip, rotateClip } from '../../src/modules/video-editor/Track';
+import { createClip, rotateClip } from '../../src/modules/video-editor/domain/Track';
 
 describe('rotateClip (RF-078)', () => {
   const clip = createClip({

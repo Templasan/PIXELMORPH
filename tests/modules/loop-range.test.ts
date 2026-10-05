@@ -1,4 +1,4 @@
-import { advancePlayhead, loopBounds } from '../../src/modules/video-editor/loopRange';
+import { advancePlayhead, loopBounds } from '../../src/modules/video-editor/domain/loopRange';
 
 describe('review loop (RF-035)', () => {
   it('loops the selected clip span, or the whole timeline when nothing is selected', () => {
