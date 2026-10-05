@@ -243,12 +243,15 @@ Fora do escopo: features fora do backlog da Sprint 2; reconstruir `ai`/`audio` (
 
 | Métrica (release, Pixel_7) | Antes | Depois |
 |---|---|---|
-| Abrir editor de foto (ms) | | |
-| Abrir gaveta de ajustes (ms) | | |
-| Frames janky arrastando slider (%) | | |
-| Abrir editor de vídeo (ms) | | |
-| Frames janky arrastando timeline (%) | | |
-| Abrir menu lateral com N projetos (ms) | | |
+| Cold start (ms) | 647 | |
+| Abrir editor de foto — janky % / p90 ms | 60 / 133 | |
+| Abrir/fechar gaveta Ajustes ×5 — janky % / p90 ms | **66,7 / 40** | |
+| Arrastar slider ×5 — janky % / p90 ms | 9,3 / 28 | |
+| Abrir editor de vídeo — janky % / p90 ms | 28,6 / 150 | |
+| Arrastar régua da timeline ×5 — janky % / p90 ms | 20,6 / 42 | |
+| Abrir/fechar menu lateral ×5 — janky % / p99 ms | 13,2 / 300 | |
+
+Linha de base: build release de `c00f7e5` (antes de qualquer refatoração), emulador Pixel_7 x86_64, mediana de 3 execuções, `node scripts/perf/measure.mjs --label baseline`. Números de emulador servem para comparar antes/depois na mesma máquina, não como valor absoluto de celular.
 
 ---
 
@@ -265,3 +268,19 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 | 2026-10-05 | 2.2 C2 (antecipado) | `fbd95e0` | RNF-017 exige 5 MB → mantido, mas em segmentos de 256 KB; escrita serializada; migração do valor antigo; +3 testes (348 passando) |
 | 2026-10-05 | 2.4 `core/state` (antecipado) | `d19349c` | `createStore` + `useStore` + `shallowEqual`; `timeStore` migrado com mesma API; 352 testes. Device: verificar playhead no smoke da Fase 1 |
 | 2026-10-05 | 1.4 Docs (antecipado) | `d5b4476` | ADR-005 criado, ADR-004 superado, `architecture.md` reescrito, 5 docs obsoletos removidos. `modules.md` fica para depois da Fase 1 |
+| 2026-10-05 | 0.3 tsc/eslint limpos | `54b2012` | `react-native-view-shot` apontado para o `.d.ts` compilado; `__dirname` declarado no metro; `.gitignore` de logs/perf/build nativo |
+| 2026-10-05 | 0.5 CI | `c00f7e5` | GitHub Actions: tsc, eslint, jest |
+| 2026-10-05 | 0.6 Script de perf | (este commit) | Versão do Haiku tinha coordenadas fixas e lia percentis de GPU no lugar dos de frame → reescrito pelo Opus (escalonamento §3.1). Elementos achados por texto/label reais da UI |
+| 2026-10-05 | Build release | — | Falha no caminho do repo: limite de 260 caracteres do Windows no CMake do `safe-area-context`. `subst` não resolve (Node resolve o caminho real). Solução: worktree em `C:\pw` só para builds de medição (`git -C C:/pw checkout --detach <commit>`; `cd C:/pw/android && gradlew assembleRelease -PreactNativeArchitectures=x86_64`). Alternativa definitiva: habilitar `LongPathsEnabled` no Windows (configuração de sistema — decisão do dono da máquina). Existe uma cópia antiga em `C:\pm` (fora do git) que não foi tocada |
+| 2026-10-05 | 1.1–1.3 Esqueleto, spike, demo | `54ae436` | 2170 linhas removidas; tsc decidiu o que fica. `photo-editor` tem uso real (`createPhotoEditorModule` em PresetsDrawer, BatchEditSheet, MaskPainterSheet) → fica para Fase 4 |
+| 2026-10-05 | 1.3 fallback demo da foto | `9f3f2cf` | Removido o fetch de foto de banco de imagens; todas as entradas passam `projectId`. Tornar o param obrigatório fica para Fase 4 |
+| 2026-10-05 | 2.5 Portas de presets | `3cab60b` | `core/ports` → `photo-editor/ports`; repositórios → `photo-editor/infrastructure`; `src/infrastructure` e alias `@infrastructure` removidos |
+| 2026-10-05 | Observação | — | Lista de Projetos (release): card no canto inferior direito renderiza fragmentos de outros cards sobrepostos — possível bug de reciclagem/thumbnail. Investigar na Fase 5 |
+| 2026-10-05 | **Bug crítico: mídia no cache** | `1738caa` | Achado na medição: projetos de foto abriam vazios (logcat `ENOENT`). Todas as entradas (câmera, stop-motion, galeria, RAW, colagem, panorama) gravavam no projeto o URI do **cache**, que o Android e o botão "Limpar cache" apagam. Corrigido na causa: porta `MediaFileStore` + adapter que copia para `documents/media/<projeto>/` dentro do `AddMediaAsset`; `DeleteProject` apaga a pasta; `PersistProjectMedia` repara projetos antigos uma vez por sessão (arquivos já apagados não voltam). +4 testes (356) |
+| 2026-10-05 | 2.6 Fronteiras no ESLint | `0703520` | Regras ativas e testadas com violações de propósito. Achou 2 violações reais: `SideDrawer` → `app/navigation`, `ExportSheet` → `app/screens/photo-editor` (C6) |
+| 2026-10-05 | 2.3 C3 | `640f88b` | Menu lateral usa medição de até 60 s (`getStorageUsageCached`); tela de Armazenamento mede na hora |
+| 2026-10-05 | 2.7 Error boundary | `ea9e52f` | Cada rota dentro de `ScreenErrorBoundary` (tentar de novo / voltar, log, flush do autosave). Desce para as gavetas nas Fases 3–4 |
+| 2026-10-05 | Linha de base de performance | — | Ver §7. Primeira tentativa inválida: projetos de foto apontavam para arquivos apagados (canvas vazio) e o arraste do slider começava na borda da trilha. Corrigido o script e criado projeto de foto válido pela câmera |
+| 2026-10-05 | Bug crítico: mídia no cache (parte 2) | `3251306` | No device o vídeo ainda perdia o clipe: a timeline vem do histórico, que guarda `sourceUri`. Clipes/áudio/time-lapse da galeria agora copiados; `UpdateMediaAsset` persiste `workingUri` (pixels "assados"); reparo varre `project:`/`history:`/`layers:`/`editorImages:` e reescreve URIs de cache. **Verificado no emulador (release):** foto da câmera e clipe da galeria continuam abrindo depois de "Limpar cache"; 0 `ENOENT` |
+| 2026-10-05 | Observação C4 | — | O histórico do editor de vídeo guarda o array inteiro de faixas em cada operação (`from`/`to`), não só números — cresce rápido. Tratar na Fase 3 (store do vídeo + histórico por diff) |
+| 2026-10-05 | Observação | — | `LocalProjectRepository.delete` não remove `history:<id>`; checar se a tela de Projetos remove (importa `LocalHistoryRepository`). Fase 5 |
