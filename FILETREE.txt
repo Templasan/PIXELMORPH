@@ -1,12 +1,14 @@
 ﻿.claude/launch.json
 .env.example
 .eslintrc.cjs
+.gitattributes
+.github/workflows/ci.yml
 .gitignore
 .nvmrc
 .prettierrc.cjs
 AGENTS.md
-ARCHITECTURE.md
 ENVIRONMENT_SETUP.md
+FILETREE.txt
 README.md
 android/.gitignore
 android/app/build.gradle
@@ -17,6 +19,34 @@ android/app/src/debugOptimized/AndroidManifest.xml
 android/app/src/main/AndroidManifest.xml
 android/app/src/main/java/com/anonymous/pixelmorph/MainActivity.kt
 android/app/src/main/java/com/anonymous/pixelmorph/MainApplication.kt
+android/app/src/main/res/drawable-hdpi/splashscreen_logo.png
+android/app/src/main/res/drawable-mdpi/splashscreen_logo.png
+android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png
+android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png
+android/app/src/main/res/drawable-xxxhdpi/splashscreen_logo.png
+android/app/src/main/res/drawable/ic_launcher_background.xml
+android/app/src/main/res/drawable/rn_edit_text_material.xml
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+android/app/src/main/res/mipmap-hdpi/ic_launcher.webp
+android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.webp
+android/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp
+android/app/src/main/res/mipmap-mdpi/ic_launcher.webp
+android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.webp
+android/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp
+android/app/src/main/res/mipmap-xhdpi/ic_launcher.webp
+android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.webp
+android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.webp
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp
+android/app/src/main/res/values-night/colors.xml
+android/app/src/main/res/values/colors.xml
+android/app/src/main/res/values/strings.xml
+android/app/src/main/res/values/styles.xml
 android/build.gradle
 android/gradle.properties
 android/gradle/wrapper/gradle-wrapper.jar
@@ -31,11 +61,169 @@ assets/favicon.png
 assets/icon.png
 assets/splash.png
 babel.config.cjs
-docs/BACKEND-FFMPEG-SPEC.md
-docs/FFMPEG-INTEGRATION-GUIDE.md
-docs/NEXT-PHASES-ROADMAP.md
+backlog/SPRINT_2_STATUS.md
+backlog/backlog sprint 1/NOT-US/RNF-005.md
+backlog/backlog sprint 1/NOT-US/RNF-006.md
+backlog/backlog sprint 1/NOT-US/RNF-007.md
+backlog/backlog sprint 1/NOT-US/RNF-008.md
+backlog/backlog sprint 1/NOT-US/RNF-009.md
+backlog/backlog sprint 1/NOT-US/RNF-010.md
+backlog/backlog sprint 1/NOT-US/RNF-017.md
+backlog/backlog sprint 1/NOT-US/tests.md
+backlog/backlog sprint 1/US-01 Central de projetos/RF-001.md
+backlog/backlog sprint 1/US-01 Central de projetos/RF-037.md
+backlog/backlog sprint 1/US-01 Central de projetos/RF-070.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-001.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-002.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-007.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-014.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-015.md
+backlog/backlog sprint 1/US-01 Central de projetos/RNF-016.md
+backlog/backlog sprint 1/US-01 Central de projetos/user-story.md
+backlog/backlog sprint 1/US-03 Continuidade e protecao do trabalho/RF-027.md
+backlog/backlog sprint 1/US-03 Continuidade e protecao do trabalho/RNF-005.md
+backlog/backlog sprint 1/US-03 Continuidade e protecao do trabalho/RNF-006.md
+backlog/backlog sprint 1/US-03 Continuidade e protecao do trabalho/RNF-017.md
+backlog/backlog sprint 1/US-03 Continuidade e protecao do trabalho/user-story.md
+backlog/backlog sprint 1/US-04 Ajustes finos de cor e tonalidade/RF-029.md
+backlog/backlog sprint 1/US-04 Ajustes finos de cor e tonalidade/RF-047.md
+backlog/backlog sprint 1/US-04 Ajustes finos de cor e tonalidade/RF-059.md
+backlog/backlog sprint 1/US-04 Ajustes finos de cor e tonalidade/RF-063.md
+backlog/backlog sprint 1/US-04 Ajustes finos de cor e tonalidade/user-story.md
+backlog/backlog sprint 1/US-05 Correcoes geometricas e orientacao/RF-048.md
+backlog/backlog sprint 1/US-05 Correcoes geometricas e orientacao/RF-054.md
+backlog/backlog sprint 1/US-05 Correcoes geometricas e orientacao/RF-078.md
+backlog/backlog sprint 1/US-05 Correcoes geometricas e orientacao/user-story.md
+backlog/backlog sprint 1/US-08 Edicao em camadas nao destrutiva/RF-002.md
+backlog/backlog sprint 1/US-08 Edicao em camadas nao destrutiva/RF-033.md
+backlog/backlog sprint 1/US-08 Edicao em camadas nao destrutiva/RF-052.md
+backlog/backlog sprint 1/US-08 Edicao em camadas nao destrutiva/RNF-008.md
+backlog/backlog sprint 1/US-08 Edicao em camadas nao destrutiva/user-story.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/RF-028.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/RF-041.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/RF-060.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/RF-068.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/RF-075.md
+backlog/backlog sprint 1/US-09 Efeitos visuais e overlays decorativos/user-story.md
+backlog/backlog sprint 1/US-11 Importacao e conversao de arquivos RAW/RF-003.md
+backlog/backlog sprint 1/US-11 Importacao e conversao de arquivos RAW/user-story.md
+backlog/backlog sprint 1/US-14 Linha do tempo multifaixa com tela dividida/RF-005.md
+backlog/backlog sprint 1/US-14 Linha do tempo multifaixa com tela dividida/RF-053.md
+backlog/backlog sprint 1/US-14 Linha do tempo multifaixa com tela dividida/RNF-009.md
+backlog/backlog sprint 1/US-14 Linha do tempo multifaixa com tela dividida/user-story.md
+backlog/backlog sprint 1/US-15 Edicao de precisao - corte, navegacao e congelamento de quadro/RF-013.md
+backlog/backlog sprint 1/US-15 Edicao de precisao - corte, navegacao e congelamento de quadro/RF-035.md
+backlog/backlog sprint 1/US-15 Edicao de precisao - corte, navegacao e congelamento de quadro/RF-077.md
+backlog/backlog sprint 1/US-15 Edicao de precisao - corte, navegacao e congelamento de quadro/user-story.md
+backlog/backlog sprint 1/US-16 Transicoes e montagem de multiplos clipes/RF-032.md
+backlog/backlog sprint 1/US-16 Transicoes e montagem de multiplos clipes/RF-058.md
+backlog/backlog sprint 1/US-16 Transicoes e montagem de multiplos clipes/user-story.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-017.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-057.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-061.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RNF-011.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RNF-013.md
+backlog/backlog sprint 1/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/user-story.md
+backlog/backlog sprint 2/US-01 Central de projetos/RF-001.md
+backlog/backlog sprint 2/US-01 Central de projetos/RF-037.md
+backlog/backlog sprint 2/US-01 Central de projetos/RF-070.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-001.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-002.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-007.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-014.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-015.md
+backlog/backlog sprint 2/US-01 Central de projetos/RNF-016.md
+backlog/backlog sprint 2/US-01 Central de projetos/user-story.md
+backlog/backlog sprint 2/US-10 Composicao grafica - colagens, textos e elementos vetoriais/RF-008.md
+backlog/backlog sprint 2/US-10 Composicao grafica - colagens, textos e elementos vetoriais/RF-011.md
+backlog/backlog sprint 2/US-10 Composicao grafica - colagens, textos e elementos vetoriais/RF-044.md
+backlog/backlog sprint 2/US-10 Composicao grafica - colagens, textos e elementos vetoriais/RF-046.md
+backlog/backlog sprint 2/US-10 Composicao grafica - colagens, textos e elementos vetoriais/user-story.md
+backlog/backlog sprint 2/US-12 Comparacao, guias e atalhos de produtividade/RF-019.md
+backlog/backlog sprint 2/US-12 Comparacao, guias e atalhos de produtividade/RF-067.md
+backlog/backlog sprint 2/US-12 Comparacao, guias e atalhos de produtividade/RF-076.md
+backlog/backlog sprint 2/US-12 Comparacao, guias e atalhos de produtividade/user-story.md
+backlog/backlog sprint 2/US-16 Transicoes e montagem de multiplos clipes/RF-032.md
+backlog/backlog sprint 2/US-16 Transicoes e montagem de multiplos clipes/RF-058.md
+backlog/backlog sprint 2/US-16 Transicoes e montagem de multiplos clipes/user-story.md
+backlog/backlog sprint 2/US-17 Controle de velocidade - camera lenta, aceleracao e time-lapse/RF-023.md
+backlog/backlog sprint 2/US-17 Controle de velocidade - camera lenta, aceleracao e time-lapse/RF-049.md
+backlog/backlog sprint 2/US-17 Controle de velocidade - camera lenta, aceleracao e time-lapse/user-story.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-017.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-057.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RF-061.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RNF-011.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/RNF-013.md
+backlog/backlog sprint 2/US-30 Exportacao em multiplos formatos e otimizacao de tamanho/user-story.md
+backlog/backlog sprint 2/US-33 Captura e trilha de audio no video/RF-018.md
+backlog/backlog sprint 2/US-33 Captura e trilha de audio no video/RF-036.md
+backlog/backlog sprint 2/US-33 Captura e trilha de audio no video/user-story.md
+backlog/backlog sprint 3/US-02 Presets e edicao em lote/RF-014.md
+backlog/backlog sprint 3/US-02 Presets e edicao em lote/RF-015.md
+backlog/backlog sprint 3/US-02 Presets e edicao em lote/user-story.md
+backlog/backlog sprint 3/US-06 Mascaras e selecao localizada/RF-007.md
+backlog/backlog sprint 3/US-06 Mascaras e selecao localizada/RF-038.md
+backlog/backlog sprint 3/US-06 Mascaras e selecao localizada/RF-045.md
+backlog/backlog sprint 3/US-06 Mascaras e selecao localizada/RF-072.md
+backlog/backlog sprint 3/US-06 Mascaras e selecao localizada/user-story.md
+backlog/backlog sprint 3/US-07 Retoque e distorcao/RF-022.md
+backlog/backlog sprint 3/US-07 Retoque e distorcao/RF-026.md
+backlog/backlog sprint 3/US-07 Retoque e distorcao/user-story.md
+backlog/backlog sprint 3/US-13 Visualizacao 3D de fotos estereoscopicas/RF-071.md
+backlog/backlog sprint 3/US-13 Visualizacao 3D de fotos estereoscopicas/user-story.md
+backlog/backlog sprint 3/US-18 Estabilizacao de video por sensores/RF-009.md
+backlog/backlog sprint 3/US-18 Estabilizacao de video por sensores/user-story.md
+backlog/backlog sprint 3/US-19 Edicao de video em 360 graus/RF-021.md
+backlog/backlog sprint 3/US-19 Edicao de video em 360 graus/user-story.md
+backlog/backlog sprint 3/US-20 Picture-in-picture/RF-065.md
+backlog/backlog sprint 3/US-20 Picture-in-picture/user-story.md
+backlog/backlog sprint 3/US-21 Filtros em tempo real na pre-visualizacao da camera/RF-006.md
+backlog/backlog sprint 3/US-21 Filtros em tempo real na pre-visualizacao da camera/RF-079.md
+backlog/backlog sprint 3/US-21 Filtros em tempo real na pre-visualizacao da camera/RNF-010.md
+backlog/backlog sprint 3/US-21 Filtros em tempo real na pre-visualizacao da camera/user-story.md
+backlog/backlog sprint 3/US-22 Captura assistida - temporizador e stop-motion/RF-039.md
+backlog/backlog sprint 3/US-22 Captura assistida - temporizador e stop-motion/RF-043.md
+backlog/backlog sprint 3/US-22 Captura assistida - temporizador e stop-motion/user-story.md
+backlog/backlog sprint 3/US-23 Sobreposicao em realidade aumentada/RF-024.md
+backlog/backlog sprint 3/US-23 Sobreposicao em realidade aumentada/user-story.md
+backlog/backlog sprint 3/US-24 Recorte e remocao inteligente de elementos/RF-004.md
+backlog/backlog sprint 3/US-24 Recorte e remocao inteligente de elementos/RF-055.md
+backlog/backlog sprint 3/US-24 Recorte e remocao inteligente de elementos/user-story.md
+backlog/backlog sprint 3/US-25 Efeitos de retrato e correcao facial automatica/RF-012.md
+backlog/backlog sprint 3/US-25 Efeitos de retrato e correcao facial automatica/RF-016.md
+backlog/backlog sprint 3/US-25 Efeitos de retrato e correcao facial automatica/RF-025.md
+backlog/backlog sprint 3/US-25 Efeitos de retrato e correcao facial automatica/RNF-004.md
+backlog/backlog sprint 3/US-25 Efeitos de retrato e correcao facial automatica/user-story.md
+backlog/backlog sprint 3/US-26 Sugestoes automaticas de cor, cena e enquadramento/RF-010.md
+backlog/backlog sprint 3/US-26 Sugestoes automaticas de cor, cena e enquadramento/RF-034.md
+backlog/backlog sprint 3/US-26 Sugestoes automaticas de cor, cena e enquadramento/RF-042.md
+backlog/backlog sprint 3/US-26 Sugestoes automaticas de cor, cena e enquadramento/RNF-012.md
+backlog/backlog sprint 3/US-26 Sugestoes automaticas de cor, cena e enquadramento/user-story.md
+backlog/backlog sprint 3/US-27 Filtros artisticos por IA/RF-050.md
+backlog/backlog sprint 3/US-27 Filtros artisticos por IA/user-story.md
+backlog/backlog sprint 3/US-28 Alinhamento automatico para panorama/RF-062.md
+backlog/backlog sprint 3/US-28 Alinhamento automatico para panorama/user-story.md
+backlog/backlog sprint 3/US-29 Automacao de video - miniaturas e legendas por IA/RF-030.md
+backlog/backlog sprint 3/US-29 Automacao de video - miniaturas e legendas por IA/RF-069.md
+backlog/backlog sprint 3/US-29 Automacao de video - miniaturas e legendas por IA/user-story.md
+backlog/backlog sprint 3/US-31 Exportacao para fluxos profissionais - PSD, impressao e gerenciamento de cor/RF-040.md
+backlog/backlog sprint 3/US-31 Exportacao para fluxos profissionais - PSD, impressao e gerenciamento de cor/RF-051.md
+backlog/backlog sprint 3/US-31 Exportacao para fluxos profissionais - PSD, impressao e gerenciamento de cor/RF-073.md
+backlog/backlog sprint 3/US-31 Exportacao para fluxos profissionais - PSD, impressao e gerenciamento de cor/user-story.md
+backlog/backlog sprint 3/US-32 Marca d'agua e QR code personalizados/RF-020.md
+backlog/backlog sprint 3/US-32 Marca d'agua e QR code personalizados/RF-066.md
+backlog/backlog sprint 3/US-32 Marca d'agua e QR code personalizados/user-story.md
+backlog/backlog sprint 3/US-34 Edicao colaborativa remota em tempo real/RF-031.md
+backlog/backlog sprint 3/US-34 Edicao colaborativa remota em tempo real/RNF-002.md
+backlog/backlog sprint 3/US-34 Edicao colaborativa remota em tempo real/user-story.md
+backlog/backlog sprint 3/US-35 Feedback e anotacoes da comunidade/RF-064.md
+backlog/backlog sprint 3/US-35 Feedback e anotacoes da comunidade/RF-074.md
+backlog/backlog sprint 3/US-35 Feedback e anotacoes da comunidade/RNF-003.md
+backlog/backlog sprint 3/US-35 Feedback e anotacoes da comunidade/user-story.md
+backlog/backlog sprint 3/US-36 Galeria de amostras e tutoriais interativos/RF-056.md
+backlog/backlog sprint 3/US-36 Galeria de amostras e tutoriais interativos/user-story.md
+backlog/not-us/README.md
 docs/README.md
-docs/SCREEN-REFACTORING-PATTERN.md
 docs/TESTING-STRATEGY.md
 docs/agent-rules.md
 docs/architecture.md
@@ -44,10 +232,12 @@ docs/decisions/ADR-001-modular-hexagonal-architecture.md
 docs/decisions/ADR-002-non-destructive-editing.md
 docs/decisions/ADR-003-hexagonal-implementation.md
 docs/decisions/ADR-004-ffmpeg-integration-strategy.md
+docs/decisions/ADR-005-hexagonal-at-real-boundaries.md
 docs/definition-of-done.md
 docs/dependencies.md
 docs/domain.md
 docs/environments.md
+docs/foundation-plan.md
 docs/modules.md
 docs/next-steps.md
 docs/requirements.md
@@ -82,19 +272,20 @@ modules/pixelmorph-video-export/src/index.ts
 monkey_logs.txt
 package-lock.json
 package.json
+scripts/perf/measure.mjs
 src/app/App.tsx
 src/app/CompositionRoot.ts
-src/app/bootstrap/removeDemoProjects.ts
 src/app/hooks/index.ts
 src/app/hooks/useAppModules.ts
 src/app/navigation/RootNavigator.tsx
+src/app/navigation/ScreenErrorBoundary.tsx
+src/app/navigation/SideDrawer.tsx
 src/app/screens/AccountScreen.tsx
 src/app/screens/CameraScreen.tsx
 src/app/screens/CommunityScreen.tsx
 src/app/screens/HelpScreen.tsx
 src/app/screens/LoginScreen.tsx
 src/app/screens/PhotoEditorScreen.tsx
-src/app/screens/PhotoEditorSpikeScreen.tsx
 src/app/screens/PresetsScreen.tsx
 src/app/screens/ProjectsScreen.tsx
 src/app/screens/RawConverterScreen.tsx
@@ -102,12 +293,28 @@ src/app/screens/SignUpScreen.tsx
 src/app/screens/StorageScreen.tsx
 src/app/screens/TutorialsScreen.tsx
 src/app/screens/VideoEditorScreen.tsx
+src/app/screens/camera/ARControlPanel.tsx
+src/app/screens/camera/AROverlay.tsx
+src/app/screens/camera/AudioMeter.tsx
+src/app/screens/camera/CameraTopBar.tsx
+src/app/screens/camera/CaptureControls.tsx
+src/app/screens/camera/CountdownOverlay.tsx
+src/app/screens/camera/FilterStrip.tsx
+src/app/screens/camera/FilterTint.tsx
+src/app/screens/camera/FocusSquare.tsx
+src/app/screens/camera/ModeTabs.tsx
+src/app/screens/camera/StopMotionFrameStrip.tsx
+src/app/screens/camera/StopMotionPanel.tsx
+src/app/screens/camera/cameraFormat.ts
 src/app/screens/community/StarRating.tsx
 src/app/screens/photo-editor/AIDrawer.tsx
 src/app/screens/photo-editor/AdjustDrawer.tsx
+src/app/screens/photo-editor/AdjustSlider.tsx
 src/app/screens/photo-editor/BatchEditSheet.tsx
+src/app/screens/photo-editor/EditorCanvas.tsx
 src/app/screens/photo-editor/EffectsDrawer.tsx
 src/app/screens/photo-editor/ElementsDrawer.tsx
+src/app/screens/photo-editor/ExportSheet.tsx
 src/app/screens/photo-editor/FrameOverlay.tsx
 src/app/screens/photo-editor/GeometryDrawer.tsx
 src/app/screens/photo-editor/LayersPanel.tsx
@@ -115,18 +322,28 @@ src/app/screens/photo-editor/LightEffectOverlay.tsx
 src/app/screens/photo-editor/LightPositionHandle.tsx
 src/app/screens/photo-editor/MaskPainterSheet.tsx
 src/app/screens/photo-editor/MasksDrawer.tsx
+src/app/screens/photo-editor/PaintLayers.tsx
 src/app/screens/photo-editor/PanoramaDrawer.tsx
 src/app/screens/photo-editor/PerspectiveHandles.tsx
+src/app/screens/photo-editor/PhotoLayer.tsx
 src/app/screens/photo-editor/PresetsDrawer.tsx
 src/app/screens/photo-editor/RetouchDrawer.tsx
+src/app/screens/photo-editor/dims.ts
+src/app/screens/projects/ProjectCard.tsx
+src/app/screens/projects/ProjectInfoSheet.tsx
 src/app/screens/projects/RawImportSheet.tsx
+src/app/screens/projects/ReminderBanner.tsx
+src/app/screens/projects/projectFormat.ts
 src/app/screens/video-editor/AddClipSheet.tsx
+src/app/screens/video-editor/ClipPanel.tsx
 src/app/screens/video-editor/ClipVideo.tsx
 src/app/screens/video-editor/LiveTimecode.tsx
+src/app/screens/video-editor/Playhead.tsx
+src/app/screens/video-editor/PreviewDerived.tsx
 src/app/screens/video-editor/VideoExportSheet.tsx
 src/app/screens/video-editor/gifExporter.ts
-src/core/application/index.ts
-src/core/domain/index.ts
+src/app/screens/video-editor/timeStore.ts
+src/core/history/DebouncedSaver.ts
 src/core/history/HistoryRepository.ts
 src/core/history/HistoryStore.test.ts
 src/core/history/HistoryStore.ts
@@ -140,76 +357,43 @@ src/core/i18n/index.ts
 src/core/i18n/locales/en.ts
 src/core/i18n/locales/es.ts
 src/core/i18n/useI18n.ts
-src/core/index.ts
 src/core/infrastructure/config.ts
-src/core/infrastructure/index.ts
-src/core/ports/PresetsRepository.ts
-src/core/ports/RecentAdjustmentsRepository.ts
-src/core/ports/WatermarkPresetsRepository.ts
-src/core/ports/index.ts
 src/core/reliability/ErrorLogger.test.ts
 src/core/reliability/ErrorLogger.ts
 src/core/reliability/index.ts
 src/core/reliability/storageUsage.ts
+src/core/state/createStore.test.ts
+src/core/state/createStore.ts
+src/core/state/index.ts
+src/core/state/useStore.ts
 src/core/theme/colors.ts
 src/core/theme/index.ts
 src/core/theme/spacing.ts
 src/core/theme/typography.ts
 src/core/ui/Button.tsx
-src/core/ui/ExportSheet.tsx
 src/core/ui/Icon.tsx
-src/core/ui/SideDrawer.tsx
 src/core/ui/Slider.tsx
 src/core/ui/Switch.tsx
 src/core/ui/Tabs.tsx
 src/core/ui/TopBar.tsx
 src/core/ui/index.ts
-src/infrastructure/config.ts
-src/infrastructure/repositories/AsyncStoragePresetsRepository.ts
-src/infrastructure/repositories/AsyncStorageRecentAdjustmentsRepository.ts
-src/infrastructure/repositories/AsyncStorageWatermarkPresetsRepository.ts
-src/modules/ai/bootstrap.ts
-src/modules/ai/domain/index.ts
-src/modules/ai/index.ts
-src/modules/ai/infrastructure/adapters/AIModelCacheAdapter.ts
-src/modules/ai/infrastructure/adapters/MLKitAIAdapter.ts
-src/modules/ai/infrastructure/adapters/RemoteAIAdapter.ts
-src/modules/ai/infrastructure/index.ts
-src/modules/ai/ports/index.ts
-src/modules/audio/bootstrap.ts
-src/modules/audio/domain/index.ts
-src/modules/audio/index.ts
-src/modules/audio/infrastructure/adapters/ExpoAudioPlaybackAdapter.ts
-src/modules/audio/infrastructure/adapters/ExpoAudioRecordingAdapter.ts
-src/modules/audio/infrastructure/adapters/FFmpegAudioProcessingAdapter.ts
-src/modules/audio/infrastructure/index.ts
-src/modules/audio/ports/index.ts
+src/core/ui/sliderEcho.ts
 src/modules/camera/ar/ARTypes.ts
 src/modules/camera/ar/ARWebView.ts
 src/modules/camera/ar/index.ts
 src/modules/camera/ar/useARTracking.ts
-src/modules/camera/bootstrap.ts
-src/modules/camera/domain/index.ts
 src/modules/camera/index.ts
-src/modules/camera/infrastructure/adapters/ARJSTrackingAdapter.ts
-src/modules/camera/infrastructure/adapters/ExpoPhotoCaptureAdapter.ts
-src/modules/camera/infrastructure/adapters/ExpoVideoCaptureAdapter.ts
-src/modules/camera/infrastructure/index.ts
-src/modules/camera/ports/index.ts
 src/modules/device-media/deviceMedia.ts
 src/modules/device-media/index.ts
 src/modules/device-media/uprightDimensions.ts
-src/modules/export/bootstrap.ts
-src/modules/export/domain/index.ts
 src/modules/export/exportMath.ts
 src/modules/export/imageExport.ts
 src/modules/export/index.ts
-src/modules/export/infrastructure/adapters/ExpoImageExportAdapter.ts
-src/modules/export/infrastructure/adapters/ExpoShareAdapter.ts
-src/modules/export/infrastructure/adapters/FFmpegVideoExportAdapter.ts
-src/modules/export/infrastructure/index.ts
-src/modules/export/ports/index.ts
+src/modules/photo-editor/application/color/index.ts
+src/modules/photo-editor/application/color/useImageHistogram.ts
 src/modules/photo-editor/application/index.ts
+src/modules/photo-editor/application/stereoscopic/index.ts
+src/modules/photo-editor/application/stereoscopic/useGyroParallax.ts
 src/modules/photo-editor/application/usecases/AddRecentAdjustmentUseCase.ts
 src/modules/photo-editor/application/usecases/ApplyBrushStrokeUseCase.ts
 src/modules/photo-editor/application/usecases/ApplyCloneStrokeUseCase.ts
@@ -225,13 +409,6 @@ src/modules/photo-editor/application/usecases/SavePresetUseCase.ts
 src/modules/photo-editor/application/usecases/SaveWatermarkPresetUseCase.ts
 src/modules/photo-editor/application/usecases/ValidateQRCodeUseCase.ts
 src/modules/photo-editor/application/usecases/index.ts
-src/modules/photo-editor/bootstrap.ts
-src/modules/photo-editor/collage/CollageMath.ts
-src/modules/photo-editor/collage/composeCollage.ts
-src/modules/photo-editor/collage/index.ts
-src/modules/photo-editor/color/colorAdjustments.ts
-src/modules/photo-editor/color/index.ts
-src/modules/photo-editor/color/useImageHistogram.ts
 src/modules/photo-editor/domain/CloneStamp.ts
 src/modules/photo-editor/domain/Liquify.ts
 src/modules/photo-editor/domain/Mask.ts
@@ -240,38 +417,44 @@ src/modules/photo-editor/domain/QRCode.ts
 src/modules/photo-editor/domain/RecentAdjustment.ts
 src/modules/photo-editor/domain/Watermark.ts
 src/modules/photo-editor/domain/WatermarkPreset.ts
+src/modules/photo-editor/domain/collage/CollageMath.ts
+src/modules/photo-editor/domain/collage/index.ts
+src/modules/photo-editor/domain/color/colorAdjustments.ts
+src/modules/photo-editor/domain/color/index.ts
+src/modules/photo-editor/domain/effects/doubleExposure.ts
+src/modules/photo-editor/domain/effects/frame.ts
+src/modules/photo-editor/domain/effects/index.ts
+src/modules/photo-editor/domain/effects/lighting.ts
+src/modules/photo-editor/domain/effects/retroEffects.ts
+src/modules/photo-editor/domain/geometry/exifOrientation.ts
+src/modules/photo-editor/domain/geometry/homography.ts
+src/modules/photo-editor/domain/geometry/index.ts
+src/modules/photo-editor/domain/geometry/snapGuides.ts
 src/modules/photo-editor/domain/index.ts
-src/modules/photo-editor/effects/doubleExposure.ts
-src/modules/photo-editor/effects/frame.ts
-src/modules/photo-editor/effects/index.ts
-src/modules/photo-editor/effects/lighting.ts
-src/modules/photo-editor/effects/retroEffects.ts
-src/modules/photo-editor/geometry/exifOrientation.ts
-src/modules/photo-editor/geometry/homography.ts
-src/modules/photo-editor/geometry/index.ts
-src/modules/photo-editor/geometry/snapGuides.ts
+src/modules/photo-editor/domain/layers/Layer.ts
+src/modules/photo-editor/domain/layers/index.ts
+src/modules/photo-editor/domain/panorama/Panorama.ts
+src/modules/photo-editor/domain/panorama/index.ts
+src/modules/photo-editor/domain/raw/index.ts
+src/modules/photo-editor/domain/raw/rawImport.ts
+src/modules/photo-editor/domain/stereoscopic/StereoscopicDetection.ts
+src/modules/photo-editor/domain/stereoscopic/index.ts
 src/modules/photo-editor/index.ts
-src/modules/photo-editor/infrastructure/adapters/ImageExportAdapter.ts
-src/modules/photo-editor/infrastructure/adapters/SkiaFilters.ts
-src/modules/photo-editor/infrastructure/adapters/SkiaImageProcessingAdapter.ts
-src/modules/photo-editor/infrastructure/adapters/SkiaRenderingAdapter.ts
+src/modules/photo-editor/infrastructure/AsyncStoragePresetsRepository.ts
+src/modules/photo-editor/infrastructure/AsyncStorageRecentAdjustmentsRepository.ts
+src/modules/photo-editor/infrastructure/AsyncStorageWatermarkPresetsRepository.ts
+src/modules/photo-editor/infrastructure/JsonListCache.ts
+src/modules/photo-editor/infrastructure/collage/composeCollage.ts
+src/modules/photo-editor/infrastructure/collage/index.ts
 src/modules/photo-editor/infrastructure/index.ts
-src/modules/photo-editor/layers/Layer.ts
-src/modules/photo-editor/layers/index.ts
-src/modules/photo-editor/layers/layerStorage.ts
-src/modules/photo-editor/panorama/Panorama.ts
-src/modules/photo-editor/panorama/composePanorama.ts
-src/modules/photo-editor/panorama/index.ts
+src/modules/photo-editor/infrastructure/layers/index.ts
+src/modules/photo-editor/infrastructure/layers/layerStorage.ts
+src/modules/photo-editor/infrastructure/panorama/composePanorama.ts
+src/modules/photo-editor/infrastructure/panorama/index.ts
+src/modules/photo-editor/ports/PresetsRepository.ts
+src/modules/photo-editor/ports/RecentAdjustmentsRepository.ts
+src/modules/photo-editor/ports/WatermarkPresetsRepository.ts
 src/modules/photo-editor/ports/index.ts
-src/modules/photo-editor/raw/index.ts
-src/modules/photo-editor/raw/rawImport.ts
-src/modules/photo-editor/spike/README.md
-src/modules/photo-editor/spike/SkiaSpike.tsx
-src/modules/photo-editor/spike/index.ts
-src/modules/photo-editor/spike/useImageZoomPan.ts
-src/modules/photo-editor/stereoscopic/StereoscopicDetection.ts
-src/modules/photo-editor/stereoscopic/index.ts
-src/modules/photo-editor/stereoscopic/useGyroParallax.ts
 src/modules/projects/application/index.ts
 src/modules/projects/application/usecases/AddMediaAssetUseCase.ts
 src/modules/projects/application/usecases/ApplyAdjustmentsBatchUseCase.ts
@@ -283,12 +466,12 @@ src/modules/projects/application/usecases/DeleteProjectUseCase.ts
 src/modules/projects/application/usecases/GetProjectUseCase.ts
 src/modules/projects/application/usecases/ListProjectsUseCase.test.ts
 src/modules/projects/application/usecases/ListProjectsUseCase.ts
+src/modules/projects/application/usecases/MediaPersistence.test.ts
 src/modules/projects/application/usecases/RemoveMediaAssetUseCase.ts
 src/modules/projects/application/usecases/UnarchiveProjectUseCase.ts
 src/modules/projects/application/usecases/UpdateMediaAssetUseCase.ts
 src/modules/projects/application/usecases/UpdateProjectUseCase.ts
 src/modules/projects/application/usecases/index.ts
-src/modules/projects/bootstrap.ts
 src/modules/projects/domain/entities/MediaAsset.ts
 src/modules/projects/domain/entities/MediaMetadata.ts
 src/modules/projects/domain/entities/Project.test.ts
@@ -300,42 +483,48 @@ src/modules/projects/domain/types/ProjectStatus.ts
 src/modules/projects/domain/types/ProjectType.ts
 src/modules/projects/domain/types/index.ts
 src/modules/projects/index.ts
+src/modules/projects/infrastructure/FileSystemMediaFileStore.ts
 src/modules/projects/infrastructure/dtos/MediaAssetDTO.ts
 src/modules/projects/infrastructure/dtos/ProjectPersistenceDTO.ts
 src/modules/projects/infrastructure/dtos/index.ts
 src/modules/projects/infrastructure/index.ts
 src/modules/projects/infrastructure/mappers/ProjectMapper.ts
 src/modules/projects/infrastructure/mappers/index.ts
+src/modules/projects/infrastructure/repairCacheMedia.ts
 src/modules/projects/infrastructure/repositories/LocalProjectRepository.test.ts
 src/modules/projects/infrastructure/repositories/LocalProjectRepository.ts
 src/modules/projects/infrastructure/repositories/backupFiles.ts
 src/modules/projects/infrastructure/repositories/index.ts
+src/modules/projects/ports/MediaFileStore.ts
 src/modules/projects/ports/ProjectRepository.ts
 src/modules/projects/ports/index.ts
-src/modules/video-editor/Track.ts
-src/modules/video-editor/audio.ts
-src/modules/video-editor/bootstrap.ts
-src/modules/video-editor/exportPlan.ts
-src/modules/video-editor/frameMath.ts
-src/modules/video-editor/freezeFrame.ts
-src/modules/video-editor/gifPlan.ts
+src/modules/video-editor/application/videoEditorStore.ts
+src/modules/video-editor/domain/Track.ts
+src/modules/video-editor/domain/audio.ts
+src/modules/video-editor/domain/exportPlan.ts
+src/modules/video-editor/domain/frameMath.ts
+src/modules/video-editor/domain/freezeFrame.ts
+src/modules/video-editor/domain/gifPlan.ts
+src/modules/video-editor/domain/index.ts
+src/modules/video-editor/domain/loopRange.ts
+src/modules/video-editor/domain/orientation.ts
+src/modules/video-editor/domain/speedRamp.ts
+src/modules/video-editor/domain/spherical/SphericalDetection.ts
+src/modules/video-editor/domain/spherical/index.ts
+src/modules/video-editor/domain/timeline.ts
+src/modules/video-editor/domain/transitions.ts
 src/modules/video-editor/index.ts
-src/modules/video-editor/infrastructure/adapters/FFmpegAudioProcessingAdapter.ts
-src/modules/video-editor/infrastructure/adapters/FFmpegDecoderAdapter.ts
-src/modules/video-editor/infrastructure/adapters/FFmpegEncoderAdapter.ts
-src/modules/video-editor/infrastructure/adapters/RemoteVideoEncoderAdapter.ts
-src/modules/video-editor/infrastructure/index.ts
-src/modules/video-editor/loopRange.ts
-src/modules/video-editor/orientation.ts
-src/modules/video-editor/ports/index.ts
-src/modules/video-editor/speedRamp.ts
-src/modules/video-editor/spherical/SphericalDetection.ts
-src/modules/video-editor/spherical/index.ts
-src/modules/video-editor/timeline.ts
-src/modules/video-editor/transitions.ts
 tests/core/error-logger.test.ts
 tests/core/history.test.ts
 tests/foundation.test.ts
+tests/integration/cache-invalidation-and-flush.test.ts
+tests/integration/history-slider.test.ts
+tests/integration/i18n-delete.test.ts
+tests/integration/persistence-coalescing.test.ts
+tests/integration/projects-flow.test.ts
+tests/integration/slider-echo.test.ts
+tests/integration/time-store.test.ts
+tests/integration/video-edge.test.ts
 tests/mocks/expo-sensors.ts
 tests/modules/brush.test.ts
 tests/modules/collage.test.ts
@@ -357,6 +546,7 @@ tests/modules/snap-guides.test.ts
 tests/modules/spherical-detection.test.ts
 tests/modules/spherical-orientation.test.ts
 tests/modules/upright-dimensions.test.ts
+tests/modules/video-editor-store.test.ts
 tests/modules/video-export-plan.test.ts
 tests/modules/video-orientation.test.ts
 tests/modules/video-rotation.test.ts
