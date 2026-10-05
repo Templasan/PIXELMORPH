@@ -310,3 +310,11 @@ Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem com
 | 2026-10-05 | 4.P2 store da foto | `cd36c61` | `createPhotoEditorStore` (ajustes, ferramenta, comparar/zoom, camadas, pincel, traço) + 10 testes de caracterização (385 testes) |
 | 2026-10-05 | 4.P3 tela ligada no store | `08738fd` | Mesmo comportamento; setters estilo `useState` sobre o store. Verificado no emulador: slider, desfazer/refazer, persistência após matar o app, pintura |
 | 2026-10-05 | 4.P4 assinaturas nos componentes | `86ee5fa` | Canvas e gavetas assinam o store; derivações puras em `domain/adjustments/derive.ts` (compartilhadas com os bakes). **Medido (contadores no build release, 1 arraste de slider de 1,5 s): tela 12 → 0 renders; canvas ~1 por valor.** Achado de medição: o canvas Skia desenha em superfície própria que o `gfxinfo` não conta — o script mede só frames da UI nativa (documentado no script) |
+| 2026-10-05 | 4.P5 divisão da tela de foto | `471e866` | `EditorTopBar`, `EditorToolbar` (dona da lista de ferramentas), `BrushBar`, `ToolDrawerHost`. Tela 2100 → ~1320 linhas. Revisão removeu uma segunda lista de ferramentas duplicada que o Haiku criou (atalho usa `editor.nextTool`). Verificado no emulador |
+| 2026-10-05 | Histograma por amostra | `16e7968` | Proposta 2 executada: cópia de 192 px lida uma vez (≈50× menos leitura da GPU, ≈4× menos amostras por atualização). Observação de processo: um Haiku restaurou este arquivo (fora do escopo dele) durante o P5; reaplicado |
+
+### Propostas ainda abertas (decisão do time)
+1. **Histórico do vídeo em diff** em vez de snapshot da timeline inteira por edição: reduz o tamanho salvo e o custo do autosave. Muda o formato persistido (exige migração e replay novo) — o risco de perda já foi eliminado pelo histórico em partes, então é otimização, não correção.
+2. **Índice leve da lista de Projetos** (nome, tipo, miniatura, data) em vez de parse de todos os projetos a cada foco.
+3. **Miniaturas pequenas por projeto** em vez de decodificar a mídia original na lista.
+4. **Medir no celular** com `node scripts/perf/measure.mjs --serial <id>`; o emulador chegou ao piso.
