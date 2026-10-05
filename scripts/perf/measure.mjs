@@ -49,6 +49,8 @@ function adb(...a) {
   });
 }
 const shell = (cmd) => adb('shell', cmd);
+/** Device screen width in px (`wm size`), so gestures adapt to phones as well as the emulator. */
+const SCREEN_W = Number((shell('wm size').match(/(\d+)x\d+/) ?? [])[1] ?? 1080);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- UI lookup ----------
@@ -181,7 +183,7 @@ async function photoSlider() {
     (n) => n.text && n.x1 > label.x2 + 300 && Math.abs(n.cy - label.cy) < 10
   );
   const x1 = label.x2 + 120; // a drag starting on the track edge is not picked up
-  const x2 = (value ? value.x1 : 1080 - 120) - 12;
+  const x2 = (value ? value.x1 : SCREEN_W - 120) - 12;
   const mid = (x1 + x2) >> 1;
   gfxReset();
   for (let i = 0; i < 5; i++) {
@@ -202,7 +204,7 @@ async function videoTimeline() {
   const ruler = await waitFor(TIMELINE_RULER);
   const y = ruler.cy;
   const x1 = ruler.x1 + 10;
-  const x2 = 1080 - 40;
+  const x2 = SCREEN_W - 40;
   gfxReset();
   for (let i = 0; i < 5; i++) {
     swipe(x1, y, x2, y, 800);
