@@ -21,9 +21,21 @@ import {
   VIDEO_PRESETS,
   originalPreset,
   planExport,
+  type PlannedClip,
   type Track,
   type VideoPreset,
 } from '@modules/video-editor';
+
+/** The frame of the clip that leaves, saved as a JPEG, for the transition into `piece`. */
+async function transitionFrame(
+  piece: PlannedClip,
+  width: number
+): Promise<Pick<ExportClip, 'transitionFrameUri' | 'transitionFrameRotation'>> {
+  if (!piece.transitionIn || !piece.transitionFrom) return {};
+  const from = piece.transitionFrom;
+  const frame = await extractFrame(from.sourceUri, from.timeMs, width);
+  return { transitionFrameUri: frame.uri, transitionFrameRotation: from.rotation };
+}
 
 interface VideoExportSheetProps {
   tracks: Track[];
@@ -132,8 +144,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
-            fadeOutMs: Math.round(piece.fadeOutMs),
-            outputMs: Math.round(piece.outputMs),
+            ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
         } else {
@@ -146,8 +157,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
-            fadeOutMs: Math.round(piece.fadeOutMs),
-            outputMs: Math.round(piece.outputMs),
+            ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
         }

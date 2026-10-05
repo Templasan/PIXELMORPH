@@ -86,7 +86,7 @@ describe('planExport transitions (RF-032)', () => {
     durationMs: number
   ) => ({ ...c, transitionIn: { type, durationMs } });
 
-  it('puts the transition on the incoming clip and darkens the outgoing one for a fade', () => {
+  it('puts the transition on the incoming clip and points it at the last frame of the outgoing one', () => {
     const a = clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 });
     const b = withTransition(
       clip({ startMs: 4_000, inPointMs: 1_000, outPointMs: 6_000 }),
@@ -100,9 +100,10 @@ describe('planExport transitions (RF-032)', () => {
       transitionIn: 'fade',
       transitionInMs: 500,
       outputMs: 5_000,
+      transitionFrom: { sourceUri: a.sourceUri, timeMs: 3_950, rotation: 0 },
     });
     expect(plan.clips[0]).toMatchObject({
-      fadeOutMs: 250,
+      transitionFrom: null,
       transitionIn: '',
       outputMs: 4_000,
       startMs: 0,
@@ -112,11 +113,11 @@ describe('planExport transitions (RF-032)', () => {
     expect(plan.durationMs).toBe(9_000);
   });
 
-  it('a slide does not darken the clip that leaves', () => {
+  it('a plain cut has no frame to lay over the next clip', () => {
     const a = clip({ startMs: 0, outPointMs: 4_000 });
     const b = withTransition(clip({ startMs: 4_000, outPointMs: 6_000 }), 'slide', 800);
     const plan = planExport([track([a, b])]);
-    expect(plan.clips[0].fadeOutMs).toBe(0);
+    expect(plan.clips[0].transitionFrom).toBeNull();
     expect(plan.clips[1]).toMatchObject({ transitionIn: 'slide', transitionInMs: 800 });
   });
 

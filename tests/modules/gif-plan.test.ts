@@ -12,7 +12,7 @@ const video = (over: Partial<PlannedClip> = {}): PlannedClip => ({
   rotation: 0,
   transitionIn: '',
   transitionInMs: 0,
-  fadeOutMs: 0,
+  transitionFrom: null,
   outputMs: 1000,
   startMs: 0,
   ...over,

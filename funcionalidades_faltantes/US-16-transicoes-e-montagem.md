@@ -6,7 +6,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`VideoEditorSc
 
 | Critério | Status |
 |---|---|
-| RF-032 Transições (fade, slide, zoom, wipe) com duração e prévia ao vivo | ⚠️ Parcial |
+| RF-032 Transições (fade, slide, zoom, wipe) com duração e prévia ao vivo | ✅ Funciona no editor e no arquivo exportado |
 | RF-058 Reordenar clipes por arrasto e unir em um único vídeo | ⚠️ Parcial (união funciona; reordenar não testado) |
 
 ## O que está funcionando
@@ -16,6 +16,6 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`VideoEditorSc
 
 ## Pendências
 - **A prévia da transição mistura dois quadros estáticos:** o último quadro do clipe que sai (extraído do arquivo de vídeo) e o quadro atual do que entra. O vídeo volta a tocar quando a transição termina. Não é a transição com os dois vídeos em movimento. Não testei no emulador.
-- **Transições no arquivo exportado: funcionam, simplificadas.** Verifiquei quadro a quadro com o ffmpeg num vídeo de 3 clipes (fade de 1,4 s e deslize de 2 s): o fade escurece o clipe que sai e clareia o que entra, o deslize entra pela direita. Não cruzam os dois clipes ao mesmo tempo, e o wipe usa o mesmo movimento do deslize.
+- ~~Transições no arquivo exportado simplificadas~~ **Resolvido:** o último quadro do clipe que sai é colocado sobre o clipe que entra (overlay do Media3 no clipe que chega), então os dois aparecem juntos. Verificado com um vídeo de 4 s vermelho + 4 s azul dividido em 4:00, transição de 1357 ms, lendo a cor média dos quadros do mp4 exportado: **desvanecimento** (vermelho → azul de forma contínua, 250/0/0 → 0/0/251), **deslize** (o quadro vermelho sai para a esquerda e o azul aparece), **zoom** (o quadro vermelho cresce e some) e **wipe** (o quadro sai para a direita). Duração total preservada (8 s). Limites: o clipe que sai fica congelado no último quadro durante a transição (igual à prévia do editor), e o áudio não faz crossfade.
 - **Reordenar:** o arrasto move o clipe no tempo e a exportação segue a ordem de início, mas não testei o reordenamento entre vários clipes.
 - **Não testei ao vivo** a aplicação de uma transição nem a duração.

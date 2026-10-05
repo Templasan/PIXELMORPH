@@ -20,10 +20,10 @@ data class ExportClip(
   /** How this clip begins: "fade", "slide", "zoom" or "wipe"; empty for a plain cut. */
   @Field val transitionIn: String = "",
   @Field val transitionInMs: Long = 0,
-  /** The clip darkens over its last `fadeOutMs` (used before a "fade"/"zoom" transition). */
-  @Field val fadeOutMs: Long = 0,
-  /** Length of this clip in the finished video, needed to time the fade-out. */
-  @Field val outputMs: Long = 0,
+  /** Last frame of the clip that leaves (JPEG file), laid over this clip while the transition plays. */
+  @Field val transitionFrameUri: String = "",
+  /** Clockwise degrees the leaving clip was rotated by in the editor. */
+  @Field val transitionFrameRotation: Int = 0,
   /** Where this clip starts in the finished video: Media3 hands effects timeline time, not clip time. */
   @Field val startMs: Long = 0
 ) : Record

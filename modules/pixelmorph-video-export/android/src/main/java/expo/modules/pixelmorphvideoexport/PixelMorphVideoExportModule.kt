@@ -1,7 +1,10 @@
 package expo.modules.pixelmorphvideoexport
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
@@ -12,9 +15,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
-import androidx.media3.effect.MatrixTransformation
+import androidx.media3.common.OverlaySettings
+import androidx.media3.effect.BitmapOverlay
+import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
-import androidx.media3.effect.RgbMatrix
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.transformer.Composition
@@ -34,7 +39,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 
 /**
- * Joins, trims, speeds up/slows down, rotates and applies simple transitions to the editor
+ * Joins, trims, speeds up/slows down, rotates and cross-blends clips with transitions to the editor
  * clips, into one H.264/AAC mp4 with Google Media3 Transformer (hardware encoder, no FFmpeg).
  * Transformer has to be driven from a thread with a Looper, so everything is started on the
  * main looper; the encoding itself runs on Media3 own threads.
@@ -109,7 +114,7 @@ class PixelMorphVideoExportModule : Module() {
       options.height,
       Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
     )
-    val items = options.clips.map { buildItem(it, fit) }
+    val items = options.clips.map { buildItem(it, fit, options.width, options.height) }
     // Clips may or may not carry audio (a screen recording has none, a camera clip does);
     // forcing the track makes the silent ones export as silence instead of failing.
     val sequence = EditedMediaItemSequence.Builder(*items.toTypedArray())
@@ -185,54 +190,71 @@ class PixelMorphVideoExportModule : Module() {
   }
 
   /**
-   * Transitions are applied inside each clip with per-frame effects (no second video layer):
-   * the clip leaving darkens, the clip arriving comes up from black and, depending on the type,
-   * slides in or grows. Frame times passed to the effects are on the whole timeline, so each clip subtracts its own start. These are
-   * simplified transitions: the two clips are not shown crossing over each other.
+   * A transition is the last frame of the clip that leaves, laid over the first moments of the
+   * clip that arrives (a Media3 bitmap overlay on the incoming clip, so it is a true cross: the
+   * incoming video plays underneath while the old frame fades, slides or grows away). The old
+   * clip is frozen on its last frame for the duration, as in the editor preview.
+   * Frame times passed to the overlay are on the whole timeline, so each clip subtracts its start.
    */
-  private fun transitionEffects(clip: ExportClip): List<Effect> {
-    val effects = mutableListOf<Effect>()
+  private fun transitionEffects(clip: ExportClip, width: Int, height: Int): List<Effect> {
     val inUs = clip.transitionInMs * 1000
-    val outUs = clip.fadeOutMs * 1000
-    val totalUs = clip.outputMs * 1000
-    // Effects receive time on the whole timeline (not restarting at 0 for each clip).
+    if (clip.transitionIn.isEmpty() || inUs <= 0 || clip.transitionFrameUri.isEmpty()) {
+      return emptyList()
+    }
+    val frame = outgoingFrame(clip, width, height) ?: return emptyList()
     val startUs = clip.startMs * 1000
-    val hasIn = clip.transitionIn.isNotEmpty() && inUs > 0
-    val hasOut = outUs > 0 && totalUs > 0
+    val type = clip.transitionIn
 
-    if (hasIn && (clip.transitionIn == "slide" || clip.transitionIn == "wipe")) {
-      val fromRight = clip.transitionIn == "slide"
-      effects.add(MatrixTransformation { t ->
-        val p = ((t - startUs).toFloat() / inUs).coerceIn(0f, 1f)
-        val eased = 1f - (1f - p) * (1f - p)
-        Matrix().apply { postTranslate((if (fromRight) 2f else -2f) * (1f - eased), 0f) }
-      })
-    } else if (hasIn && clip.transitionIn == "zoom") {
-      effects.add(MatrixTransformation { t ->
-        val p = ((t - startUs).toFloat() / inUs).coerceIn(0f, 1f)
-        val scale = 0.7f + 0.3f * p
-        Matrix().apply { postScale(scale, scale) }
-      })
-    }
+    val overlay = object : BitmapOverlay() {
+      override fun getBitmap(presentationTimeUs: Long): Bitmap = frame
 
-    // Brightness ramp: 0 -> 1 while a "fade"/"zoom" arrives, and 1 -> 0 while the clip leaves.
-    val rampsIn = hasIn && (clip.transitionIn == "fade" || clip.transitionIn == "zoom")
-    if (rampsIn || hasOut) {
-      effects.add(object : RgbMatrix {
-        override fun getMatrix(presentationTimeUs: Long, useHdr: Boolean): FloatArray {
-          val local = presentationTimeUs - startUs
-          var k = 1f
-          if (rampsIn) k *= (local.toFloat() / inUs).coerceIn(0f, 1f)
-          if (hasOut) k *= ((totalUs - local).toFloat() / outUs).coerceIn(0f, 1f)
-          // 4x4 column-major: scale R, G and B, keep alpha.
-          return floatArrayOf(k, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, k, 0f, 0f, 0f, 0f, 1f)
+      override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+        val p = ((presentationTimeUs - startUs).toFloat() / inUs).coerceIn(0f, 1f)
+        val builder = StaticOverlaySettings.Builder()
+        when (type) {
+          // The old frame is pushed out to the left (slide) or the right (wipe). Anchors only
+          // accept -1..1, so the frame's trailing edge travels across the whole output instead.
+          "slide" -> builder.setOverlayFrameAnchor(1f, 0f).setBackgroundFrameAnchor(1f - 2f * p, 0f)
+          "wipe" -> builder.setOverlayFrameAnchor(-1f, 0f).setBackgroundFrameAnchor(2f * p - 1f, 0f)
+          "zoom" -> builder.setAlphaScale(1f - p).setScale(1f + 0.3f * p, 1f + 0.3f * p)
+          else -> builder.setAlphaScale(1f - p)
         }
-      })
+        return builder.build()
+      }
     }
-    return effects
+    return listOf(OverlayEffect(listOf(overlay)))
   }
 
-  private fun buildItem(clip: ExportClip, fit: Presentation? = null): EditedMediaItem {
+  /** The leaving clip's frame, turned by its editor rotation and cropped to the output size. */
+  private fun outgoingFrame(clip: ExportClip, width: Int, height: Int): Bitmap? {
+    val path = Uri.parse(clip.transitionFrameUri).path ?: return null
+    val raw = BitmapFactory.decodeFile(path) ?: return null
+    val turned = if (clip.transitionFrameRotation != 0) {
+      Bitmap.createBitmap(
+        raw, 0, 0, raw.width, raw.height,
+        Matrix().apply { postRotate(clip.transitionFrameRotation.toFloat()) }, true
+      )
+    } else {
+      raw
+    }
+    val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val scale = maxOf(width.toFloat() / turned.width, height.toFloat() / turned.height)
+    val dx = (width - turned.width * scale) / 2f
+    val dy = (height - turned.height * scale) / 2f
+    Canvas(out).drawBitmap(
+      turned,
+      Matrix().apply { postScale(scale, scale); postTranslate(dx, dy) },
+      Paint(Paint.FILTER_BITMAP_FLAG)
+    )
+    return out
+  }
+
+  private fun buildItem(
+    clip: ExportClip,
+    fit: Presentation? = null,
+    width: Int = 0,
+    height: Int = 0
+  ): EditedMediaItem {
     val isImage = clip.kind == "image"
     val mediaItem = MediaItem.Builder()
       .setUri(Uri.parse(clip.uri))
@@ -265,7 +287,7 @@ class PixelMorphVideoExportModule : Module() {
     }
     // Fit to the output size first, so the slide/zoom moves the frame the viewer sees.
     if (fit != null) videoEffects.add(fit)
-    videoEffects.addAll(transitionEffects(clip))
+    if (fit != null) videoEffects.addAll(transitionEffects(clip, width, height))
 
     return EditedMediaItem.Builder(mediaItem)
       .setEffects(Effects(audioProcessors, videoEffects))

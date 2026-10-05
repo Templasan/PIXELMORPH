@@ -10,8 +10,9 @@ export interface ExportClip {
   rotation?: number;
   transitionIn?: 'fade' | 'slide' | 'zoom' | 'wipe' | '';
   transitionInMs?: number;
-  fadeOutMs?: number;
-  outputMs?: number;
+  /** Frame of the clip that leaves (a JPEG), laid over this clip while the transition plays. */
+  transitionFrameUri?: string;
+  transitionFrameRotation?: number;
   startMs?: number;
 }
 

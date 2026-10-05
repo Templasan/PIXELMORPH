@@ -13,7 +13,7 @@ Verificação de cada user story da Sprint 1, feita em 04 e 05/10/2026 no emulad
 | [US-11](US-11-importacao-raw.md) | RAW | ⚠️ | Decodificação real de RAW (TODO) |
 | [US-14](US-14-timeline-multifaixa.md) | Timeline multifaixa | ⚠️ | Medir vídeo longo em 4K; faixa de imagem |
 | [US-15](US-15-edicao-de-precisao.md) | Edição de precisão | ⚠️ | Remover objetos do vídeo (TODO) |
-| [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ⚠️ | Transição que cruza os dois clipes (hoje: escurece e entra) |
+| [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ✅ | Reordenar vários clipes sem teste |
 | [US-30](US-30-exportacao.md) | Exportação | ⚠️ | HEIC (TODO), GIF lento, medir RNF-011 em aparelho real |
 
 ## Dependências adicionadas (registradas em `docs/dependencies.md`)
