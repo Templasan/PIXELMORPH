@@ -12,8 +12,10 @@ produced this shape, and what is still pending, is tracked in [`foundation-plan.
 | `navigation/` | Stack navigator (heavy screens are lazy), `SideDrawer` (main menu), `ScreenErrorBoundary` (every route renders inside one) |
 | `screens/` | One file per screen + a folder of its parts (`photo-editor/`, `video-editor/`, `projects/`) |
 
-Screens are presentation. The video editor's state and edits live in its store; the photo editor
-still holds most of its state in the screen (pending, see the plan).
+Screens are presentation. Both editors keep their state and edits in a store
+(`video-editor/application/videoEditorStore`, `photo-editor/application/photoEditorStore`); the
+canvas, panels and drawers subscribe to the slice they draw, so a slider tick or a brush point
+re-renders only them, not the screen.
 
 ## `src/core` — shared kernel
 
@@ -44,7 +46,9 @@ Never imports `src/modules` or `src/app` (enforced by lint).
 
 ### `photo-editor` — photo editing (US-04..13)
 - `domain/`: adjustments math, effects, geometry (homography, EXIF, snap guides), layer model, collage and panorama math, RAW naming, stereo detection, presets/masks/watermark models.
-- `application/`: use cases (presets, masks, strokes, watermark, QR) and hooks (histogram, gyro parallax).
+- `domain/adjustments/`: the adjustments model and pure derivations (shader uniforms, perspective matrix, rotation) shared by the live canvas and the bake actions.
+- `application/photoEditorStore.ts`: adjustments, open tool, compare/zoom, layers, brush and the live stroke, with the undo rules.
+- `application/`: use cases (presets, masks, strokes, watermark, QR) and hooks (histogram from a 192 px sample, gyro parallax).
 - `ports/` + `infrastructure/`: preset/recent/watermark repositories (AsyncStorage), layer storage, Skia collage and panorama composition.
 - Public entry: `createPhotoEditorModule()` (used by presets, batch edit and mask painter).
 
