@@ -30,7 +30,7 @@ describe('JsonListCache invalidation', () => {
 describe('DebouncedSaver orchestration', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
-  const snap = () => ({} as any);
+  const snap = () => ({}) as any;
 
   it('flushes on app background/inactive but not on active, and unsubscribes', async () => {
     const save = jest.fn().mockResolvedValue(undefined);

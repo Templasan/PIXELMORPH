@@ -129,14 +129,13 @@ export function Slider({
 
   // No beginGesture here: Pan.onBegin already fires on every touch-down, and a second begin()
   // after Pan emitted would reset `from` to the already-emitted value.
-  const tap = Gesture.Tap()
-    .onEnd((e) => {
-      if (trackWidth <= 0) return;
-      const next = snapValue(e.x, trackWidth, min, max, step);
-      pctSV.value = toPct(next, min, max);
-      runOnJS(commitValue)(next);
-      runOnJS(commitSlidingComplete)();
-    });
+  const tap = Gesture.Tap().onEnd((e) => {
+    if (trackWidth <= 0) return;
+    const next = snapValue(e.x, trackWidth, min, max, step);
+    pctSV.value = toPct(next, min, max);
+    runOnJS(commitValue)(next);
+    runOnJS(commitSlidingComplete)();
+  });
 
   const gesture = Gesture.Race(pan, tap);
 

@@ -371,9 +371,7 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   const pendingProjects = useMemo(
     () =>
-      projects
-        .filter((p) => p.dueDate)
-        .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()),
+      projects.filter((p) => p.dueDate).sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime()),
     [projects]
   );
   const nearest = pendingProjects[0];
@@ -501,37 +499,38 @@ export default function ProjectsScreen({ navigation }: Props) {
         }
         ListHeaderComponent={
           <>
-        {nearest && (
-          <View style={styles.reminderCard}>
-            <View style={styles.reminderStripe} />
-            <View style={{ padding: 8, paddingHorizontal: 12 }}>
-              <Text style={styles.reminderTitle}>
-                {pendingProjects.length === 1
-                  ? t('{n} projeto pendente', { n: pendingProjects.length })
-                  : t('{n} projetos pendentes', { n: pendingProjects.length })}
-              </Text>
-              <Text style={styles.reminderSubtitle}>
-                {nearest.name}{' '}
-                {(() => {
-                  const days = daysUntil(nearest.dueDate!);
-                  if (days < 0) return t('atrasado há {n} dia(s)', { n: Math.abs(days) });
-                  if (days === 0) return t('vence hoje');
-                  return t('vence em {n} dia(s)', { n: days });
-                })()}
-                {nearest.priority
-                  ? ` · ${t('Prioridade {p}', { p: t(priorityLabel[nearest.priority]) })}`
-                  : ''}
-              </Text>
-            </View>
-          </View>
-        )}
+            {nearest && (
+              <View style={styles.reminderCard}>
+                <View style={styles.reminderStripe} />
+                <View style={{ padding: 8, paddingHorizontal: 12 }}>
+                  <Text style={styles.reminderTitle}>
+                    {pendingProjects.length === 1
+                      ? t('{n} projeto pendente', { n: pendingProjects.length })
+                      : t('{n} projetos pendentes', { n: pendingProjects.length })}
+                  </Text>
+                  <Text style={styles.reminderSubtitle}>
+                    {nearest.name}{' '}
+                    {(() => {
+                      const days = daysUntil(nearest.dueDate!);
+                      if (days < 0) return t('atrasado há {n} dia(s)', { n: Math.abs(days) });
+                      if (days === 0) return t('vence hoje');
+                      return t('vence em {n} dia(s)', { n: days });
+                    })()}
+                    {nearest.priority
+                      ? ` · ${t('Prioridade {p}', { p: t(priorityLabel[nearest.priority]) })}`
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
 
-        {!loading && filtered.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>{t('Nenhum projeto nesta categoria ainda.')}</Text>
-          </View>
-        )}
-
+            {!loading && filtered.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {t('Nenhum projeto nesta categoria ainda.')}
+                </Text>
+              </View>
+            )}
           </>
         }
       />
@@ -699,7 +698,10 @@ export default function ProjectsScreen({ navigation }: Props) {
                         )}
                       </View>
                     </View>
-                    <Pressable style={styles.dueDateButton} onPress={() => confirmDelete(infoProject)}>
+                    <Pressable
+                      style={styles.dueDateButton}
+                      onPress={() => confirmDelete(infoProject)}
+                    >
                       <Text style={[styles.dueDateButtonText, { color: colors.acento }]}>
                         {t('Apagar projeto')}
                       </Text>

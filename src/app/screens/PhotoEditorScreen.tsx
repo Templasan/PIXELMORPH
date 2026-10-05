@@ -1035,16 +1035,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     []
   );
 
-  const commitAdjustment = useCallback(
-    (field: string, value: number, previousValue: number) => {
-      userEditedRef.current[field] = value;
-      delete pendingFields.current[field];
-      if (value === previousValue) return;
-      setAdjustments((s) => ({ ...s, [field]: value }));
-      historyRef.current.push(field, previousValue, value);
-    },
-    []
-  );
+  const commitAdjustment = useCallback((field: string, value: number, previousValue: number) => {
+    userEditedRef.current[field] = value;
+    delete pendingFields.current[field];
+    if (value === previousValue) return;
+    setAdjustments((s) => ({ ...s, [field]: value }));
+    historyRef.current.push(field, previousValue, value);
+  }, []);
 
   const handleUndo = useCallback(() => {
     const op = historyRef.current.undo();

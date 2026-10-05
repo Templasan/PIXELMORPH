@@ -6,7 +6,13 @@ export function toPct(value: number, min: number, max: number): number {
 }
 
 /** Touch x -> clamped, step-snapped value. */
-export function snapValue(x: number, trackWidth: number, min: number, max: number, step: number): number {
+export function snapValue(
+  x: number,
+  trackWidth: number,
+  min: number,
+  max: number,
+  step: number
+): number {
   'worklet';
   const ratio = Math.min(1, Math.max(0, x / trackWidth));
   return Math.min(max, Math.max(min, Math.round((min + ratio * (max - min)) / step) * step));
