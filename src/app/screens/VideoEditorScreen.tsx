@@ -366,9 +366,15 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     : null;
   useEffect(() => {
     if (!playing) return;
+    // Real elapsed time, not a fixed 100 ms: timers run late, and a clock slower than the
+    // video player drifts until ClipVideo has to seek (a black frame).
+    let last = Date.now();
     const interval = setInterval(() => {
+      const now = Date.now();
+      const dt = now - last;
+      last = now;
       setCurrentTimeMs((t) => {
-        const result = advancePlayhead(t, 100, totalDurationMs, loopRange);
+        const result = advancePlayhead(t, dt, totalDurationMs, loopRange);
         if (result.ended) setPlaying(false);
         return result.timeMs;
       });
