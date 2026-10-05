@@ -45,14 +45,6 @@ export interface ClipPanelProps {
   sphericalInfo: SphericalInfo;
   pipClipId: string | null;
   setPipClipId: (id: string | null) => void;
-  pipX: number;
-  pipY: number;
-  pipWidth: number;
-  pipHeight: number;
-  setPipX: (value: number) => void;
-  setPipY: (value: number) => void;
-  setPipWidth: (value: number) => void;
-  setPipHeight: (value: number) => void;
   captureAndExportPip: () => Promise<void>;
 }
 
@@ -64,17 +56,15 @@ export const ClipPanel = memo(function ClipPanel({
   sphericalInfo,
   pipClipId,
   setPipClipId,
-  pipX,
-  pipY,
-  pipWidth,
-  pipHeight,
-  setPipX,
-  setPipY,
-  setPipWidth,
-  setPipHeight,
   captureAndExportPip,
 }: ClipPanelProps) {
   const selected = useStore(editor.store, selectedClipOf, shallowEqual);
+  // PiP placement being edited: local to the panel so dragging these sliders re-renders the
+  // panel only (it used to live in the screen and re-render the whole editor on every tick).
+  const [pipX, setPipX] = useState(0.7);
+  const [pipY, setPipY] = useState(0.7);
+  const [pipWidth, setPipWidth] = useState(0.3);
+  const [pipHeight, setPipHeight] = useState(0.3);
   const freezeHoldMs = useStore(editor.store, (st) => st.freezeHoldMs);
   const loopReview = useStore(editor.store, (st) => st.loopReview);
 
