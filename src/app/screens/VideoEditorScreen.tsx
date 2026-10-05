@@ -13,7 +13,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import ViewShot from 'react-native-view-shot';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider } from '@core/ui';
@@ -275,8 +274,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const rippleMode = useStore(editor.store, (st) => st.rippleMode);
   const loopReview = useStore(editor.store, (st) => st.loopReview);
   const timelineZoom = useStore(editor.store, (st) => st.timelineZoom);
-
-  const previewShotRef = useRef<any>(null);
 
   const [exportOpen, setExportOpen] = useState(false);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
@@ -565,24 +562,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     setAddClipTrackId(null);
   };
 
-  const captureAndExportPip = useCallback(async () => {
-    if (!previewShotRef.current) {
-      Alert.alert('Erro', 'Preview não está pronta');
-      return;
-    }
-    try {
-      const uri = await previewShotRef.current.capture?.();
-      if (!uri) {
-        Alert.alert('Erro', 'Falha ao capturar preview');
-        return;
-      }
-      Alert.alert('Sucesso', `Frame capturado: ${uri}`);
-    } catch (error) {
-      errorLogger.log(error, 'VideoEditorScreen.captureAndExportPip');
-      Alert.alert('Erro', 'Falha ao exportar frame');
-    }
-  }, []);
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
@@ -604,11 +583,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       </View>
 
       <View style={{ flex: 1 }} onLayout={onContentLayout}>
-        <ViewShot
-          ref={previewShotRef}
-          options={{ format: 'png', quality: 0.9 }}
-          style={{ height: `${previewRatio * 100}%` }}
-        >
+        <View style={{ height: `${previewRatio * 100}%` }}>
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             <PreviewDerived
               store={timeStore}
@@ -725,7 +700,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               </View>
             </View>
           </View>
-        </ViewShot>
+        </View>
 
         <GestureDetector gesture={dividerGesture}>
           <View style={styles.dividerHandle} />
@@ -821,7 +796,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           sphericalInfo={sphericalInfo}
           pipClipId={pipClipId}
           setPipClipId={setPipClipId}
-          captureAndExportPip={captureAndExportPip}
         />
 
         <View style={styles.bottomToolbar}>
