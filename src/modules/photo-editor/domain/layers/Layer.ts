@@ -218,3 +218,10 @@ export function mergeVisiblePaintLayers(layers: EditorLayer[]): EditorLayer[] {
     .filter((l) => !restIds.has(l.id))
     .map((l) => (l.id === target.id ? { ...l, strokes: mergedStrokes } : l));
 }
+
+/** SVG path data for a freehand stroke (straight segments between the captured points). */
+export function pointsToPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  const [first, ...rest] = points;
+  return `M${first.x},${first.y} ${rest.map((p) => `L${p.x},${p.y}`).join(' ')}`;
+}
