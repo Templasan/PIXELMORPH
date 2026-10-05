@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlphaType, ColorType, type SkImage } from '@shopify/react-native-skia';
 import { applyFullAdjustmentsRGB, type FullAdjustmentUniforms } from './colorAdjustments';
 
@@ -83,5 +83,7 @@ export function useImageHistogram(image: SkImage | null) {
     };
   }, []);
 
-  return { ready, compute };
+  // Stable identity: callers memoize on this object, and a fresh literal per render made them
+  // recompute the whole histogram on every render of the editor.
+  return useMemo(() => ({ ready, compute }), [ready, compute]);
 }

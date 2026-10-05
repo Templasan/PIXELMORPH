@@ -533,7 +533,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     ]
   );
   const histogram = useImageHistogram(skiaImage);
-  const liveHistogram = useMemo(() => histogram.compute(uniforms), [histogram, uniforms]);
+  // Only the Ajustes drawer shows it, and it walks ~1/64 of the photo's pixels through the full
+  // adjustment math on the JS thread — so it is computed only while that drawer is open.
+  const histogramVisible = activeTool === 'ajustes';
+  const liveHistogram = useMemo(
+    () => (histogramVisible ? histogram.compute(uniforms) : null),
+    [histogram, uniforms, histogramVisible]
+  );
 
   // RF-071: gyro-responsive parallax for stereoscopic photos
   const parallaxOffset = useGyroParallax(gyroParallaxEnabled && stereoInfo.isStereoscopic, 20);
@@ -1543,7 +1549,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
                 setField={setAdjustmentField}
                 onCommit={commitAdjustment}
                 onBake={handleBakeAdjustments}
-                histogram={liveHistogram}
+                histogram={liveHistogram!}
                 skiaImage={skiaImage}
                 adjustmentsEffect={adjustmentsEffect}
                 uniforms={uniforms}
