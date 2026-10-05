@@ -1,11 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CONFIG } from '../infrastructure/config';
 
-const LOG_KEY = 'errorLog';
+/** Pre-segmentation single-value log; read once to migrate, then removed. */
+const LEGACY_LOG_KEY = 'errorLog';
+const SEGMENTS_KEY = 'errorLog:segments';
+const segmentKey = (id: number) => `errorLog:${id}`;
 const REPORT_ENABLED_KEY = 'errorLogReportingEnabled';
 const REPORTED_UP_TO_KEY = 'errorLogReportedUpTo';
 /** RNF-017: local log is capped at 5 MB, with rotation (oldest entries dropped first). */
 export const MAX_LOG_BYTES = 5 * 1024 * 1024;
+/**
+ * The 5 MB live in segments of this size, each its own AsyncStorage value: on Android, reading
+ * a single value above ~2 MB fails (SQLite CursorWindow), which would wedge the log for good.
+ */
+export const SEGMENT_BYTES = 256 * 1024;
+
+interface Segment {
+  id: number;
+  bytes: number;
+}
 
 export interface LogEntry {
   timestamp: number;
@@ -28,7 +41,10 @@ declare const global: {
  * see ARCHITECTURE.md) entries simply stay in the local log.
  */
 export class ErrorLogger {
-  async log(error: unknown, context?: string, level: LogEntry['level'] = 'error'): Promise<void> {
+  /** Writes are read-modify-write; chaining them keeps concurrent log() calls from losing entries. */
+  private writes: Promise<void> = Promise.resolve();
+
+  log(error: unknown, context?: string, level: LogEntry['level'] = 'error'): Promise<void> {
     const entry: LogEntry = {
       timestamp: Date.now(),
       level,
@@ -36,42 +52,103 @@ export class ErrorLogger {
       stack: error instanceof Error ? error.stack : undefined,
       context,
     };
-
-    const entries = await this.getEntries();
-    entries.push(entry);
-
-    const rotated = this.rotateToFit(entries);
-    await AsyncStorage.setItem(LOG_KEY, JSON.stringify(rotated));
+    const write = this.writes.then(() => this.append(entry));
+    this.writes = write.catch(() => undefined);
+    return write;
   }
 
   async getEntries(): Promise<LogEntry[]> {
-    const json = await AsyncStorage.getItem(LOG_KEY);
-    if (!json) return [];
+    await this.writes;
+    const segments = await this.readSegments();
+    if (segments.length === 0) return [];
+    const pairs = await AsyncStorage.multiGet(segments.map((s) => segmentKey(s.id)));
+    return pairs.flatMap(([, json]) => parseEntries(json));
+  }
+
+  /** Sum of the segment sizes kept in the index — no need to load the log to measure it. */
+  async getSizeBytes(): Promise<number> {
+    await this.writes;
+    return (await this.readSegments()).reduce((sum, s) => sum + s.bytes, 0);
+  }
+
+  async clear(): Promise<void> {
+    const run = this.writes.then(async () => {
+      const segments = await this.readSegments();
+      await AsyncStorage.multiRemove([
+        SEGMENTS_KEY,
+        LEGACY_LOG_KEY,
+        ...segments.map((s) => segmentKey(s.id)),
+      ]);
+    });
+    this.writes = run.catch(() => undefined);
+    await run;
+  }
+
+  private async append(entry: LogEntry): Promise<void> {
+    let segments = await this.readSegments();
+    if (segments.length === 0) segments = await this.migrateLegacy();
+
+    const last = segments[segments.length - 1];
+    let entries: LogEntry[] = [];
+    let target: Segment;
+    // A segment only exceeds SEGMENT_BYTES when a single entry is bigger than that on its own.
+    const entryBytes = byteLength(JSON.stringify(entry)) + 1;
+    if (last && last.bytes + entryBytes <= SEGMENT_BYTES) {
+      // An unreadable segment is not the user's data — starting it over beats a wedged log.
+      entries = await AsyncStorage.getItem(segmentKey(last.id))
+        .then(parseEntries)
+        .catch(() => []);
+      target = last;
+    } else {
+      target = { id: last ? last.id + 1 : 0, bytes: 0 };
+      segments.push(target);
+    }
+    entries.push(entry);
+    const json = JSON.stringify(entries);
+    target.bytes = byteLength(json);
+    await AsyncStorage.setItem(segmentKey(target.id), json);
+
+    // Rotation: drop whole oldest segments until the total fits, always keeping the newest.
+    const dropped: Segment[] = [];
+    let total = segments.reduce((sum, s) => sum + s.bytes, 0);
+    while (segments.length > 1 && total > MAX_LOG_BYTES) {
+      const oldest = segments.shift()!;
+      total -= oldest.bytes;
+      dropped.push(oldest);
+    }
+    await AsyncStorage.setItem(SEGMENTS_KEY, JSON.stringify(segments));
+    if (dropped.length) await AsyncStorage.multiRemove(dropped.map((s) => segmentKey(s.id)));
+  }
+
+  private async readSegments(): Promise<Segment[]> {
     try {
-      const parsed = JSON.parse(json);
-      return Array.isArray(parsed) ? parsed : [];
+      const parsed = JSON.parse((await AsyncStorage.getItem(SEGMENTS_KEY)) ?? '[]');
+      return Array.isArray(parsed)
+        ? parsed.filter((s) => Number.isInteger(s?.id) && typeof s?.bytes === 'number')
+        : [];
     } catch {
-      // The log itself is not the user's data — if it's corrupted, just start clean.
       return [];
     }
   }
 
-  async getSizeBytes(): Promise<number> {
-    const json = await AsyncStorage.getItem(LOG_KEY);
-    return json ? byteLength(json) : 0;
-  }
-
-  async clear(): Promise<void> {
-    await AsyncStorage.removeItem(LOG_KEY);
-  }
-
-  /** Drops the oldest entries until the serialized log fits under the 5 MB cap. */
-  private rotateToFit(entries: LogEntry[]): LogEntry[] {
-    let result = entries;
-    while (result.length > 0 && byteLength(JSON.stringify(result)) > MAX_LOG_BYTES) {
-      result = result.slice(1);
+  /** Moves a pre-segmentation log into segment 0 when it is still readable, then deletes it. */
+  private async migrateLegacy(): Promise<Segment[]> {
+    const json = await AsyncStorage.getItem(LEGACY_LOG_KEY).catch(() => null);
+    await AsyncStorage.removeItem(LEGACY_LOG_KEY).catch(() => undefined);
+    const entries = parseEntries(json);
+    if (entries.length === 0) return [];
+    // Legacy logs were capped at 5 MB in one value: keep only the newest SEGMENT_BYTES of it.
+    const kept: LogEntry[] = [];
+    let bytes = 2;
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const size = byteLength(JSON.stringify(entries[i])) + 1;
+      if (bytes + size > SEGMENT_BYTES && kept.length) break;
+      kept.unshift(entries[i]);
+      bytes += size;
     }
-    return result;
+    const keptJson = JSON.stringify(kept);
+    await AsyncStorage.setItem(segmentKey(0), keptJson);
+    return [{ id: 0, bytes: byteLength(keptJson) }];
   }
 
   /**
@@ -157,3 +234,14 @@ export function byteLength(str: string): number {
 }
 
 export const errorLogger = new ErrorLogger();
+
+function parseEntries(json: string | null | undefined): LogEntry[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // The log itself is not the user's data — if it's corrupted, just start clean.
+    return [];
+  }
+}
