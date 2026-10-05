@@ -16,7 +16,10 @@ export class AsyncStorageWatermarkPresetsRepository implements WatermarkPresetsR
   }
 
   async list(): Promise<WatermarkPreset[]> {
-    return (await this.store.read()).map((item) => ({ ...item, createdAt: new Date(item.createdAt) }));
+    return (await this.store.read()).map((item) => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+    }));
   }
 
   async delete(id: string): Promise<void> {

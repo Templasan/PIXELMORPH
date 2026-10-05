@@ -30,10 +30,13 @@ export function applySpeedRamp(
   if (s0 === targetSpeed) return tracks;
   const srcLen = clip.outPointMs - clip.inPointMs;
   if (srcLen <= 0 || rampMs <= 0) return tracks;
-  const span = Math.max(0, Math.min(
-    (rampMs * (s0 + targetSpeed)) / 2,
-    srcLen - MIN_CLIP_DURATION_MS * s0 // remainder must stay a valid clip
-  ));
+  const span = Math.max(
+    0,
+    Math.min(
+      (rampMs * (s0 + targetSpeed)) / 2,
+      srcLen - MIN_CLIP_DURATION_MS * s0 // remainder must stay a valid clip
+    )
+  );
   if (span / steps < MIN_CLIP_DURATION_MS * Math.max(s0, targetSpeed)) return tracks;
 
   const chunk = span / steps;

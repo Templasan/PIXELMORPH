@@ -77,9 +77,17 @@ describe('AsyncStorage repositories: concurrent writes', () => {
       repo.delete('p1'),
       repo.save({ id: 'z', createdAt: new Date() } as any),
     ]);
-    expect((await repo.list()).map((p) => p.id).sort()).toEqual(
-      ['p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'z']
-    );
+    expect((await repo.list()).map((p) => p.id).sort()).toEqual([
+      'p2',
+      'p3',
+      'p4',
+      'p5',
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'z',
+    ]);
     expect(await new AsyncStoragePresetsRepository().list()).toHaveLength(9);
     expect((await repo.load('z'))!.createdAt).toBeInstanceOf(Date);
   });

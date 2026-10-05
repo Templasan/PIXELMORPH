@@ -1,7 +1,10 @@
 import { Suspense, lazy, useEffect, type ComponentType } from 'react';
 import { InteractionManager, View } from 'react-native';
 import { colors } from '@core/theme';
-import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  createNativeStackNavigator,
+  type NativeStackScreenProps,
+} from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';

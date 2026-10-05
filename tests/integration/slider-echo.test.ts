@@ -4,7 +4,9 @@ describe('sliderEcho', () => {
   it('late echo of intermediate value does not regress the thumb', () => {
     const t = createEchoTracker(0);
     t.begin();
-    t.emit(10); t.emit(20); t.emit(30);
+    t.emit(10);
+    t.emit(20);
+    t.emit(30);
     expect(t.onPropValue(10).apply).toBe(false);
     expect(t.onPropValue(20).apply).toBe(false);
     expect(t.latest).toBe(30);
@@ -20,30 +22,39 @@ describe('sliderEcho', () => {
 
   it('next gesture clears the set; from is the latest before the gesture', () => {
     const t = createEchoTracker(5);
-    t.begin(); t.emit(10); t.emit(20);
+    t.begin();
+    t.emit(10);
+    t.emit(20);
     expect(t.complete()).toEqual({ value: 20, from: 5 });
     t.begin();
     expect(t.pending).toBe(0);
-    t.emit(7); t.emit(20); // drag returns to...
+    t.emit(7);
+    t.emit(20); // drag returns to...
     expect(t.complete()).toEqual({ value: 20, from: 20 });
   });
 
   it('drag that returns to the initial value delivers correct from', () => {
     const t = createEchoTracker(5);
-    t.begin(); t.emit(15); t.emit(5);
+    t.begin();
+    t.emit(15);
+    t.emit(5);
     expect(t.complete()).toEqual({ value: 5, from: 5 });
   });
 
   it('parent never echoes: undo to an intermediate value after the gesture applies', () => {
     const t = createEchoTracker(0);
-    t.begin(); t.emit(10); t.emit(20); t.complete();
+    t.begin();
+    t.emit(10);
+    t.emit(20);
+    t.complete();
     expect(t.onPropValue(10).apply).toBe(true);
     expect(t.latest).toBe(10);
   });
 
   it('parent coercing the value: coerced value applies', () => {
     const t = createEchoTracker(0);
-    t.begin(); t.emit(5);
+    t.begin();
+    t.emit(5);
     expect(t.onPropValue(4).apply).toBe(true);
     expect(t.latest).toBe(4);
   });
