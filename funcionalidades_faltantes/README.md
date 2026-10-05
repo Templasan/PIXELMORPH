@@ -1,26 +1,25 @@
 # Funcionalidades faltantes — Sprint 1
 
-Verificação de cada user story da Sprint 1, feita em 04/10/2026 no emulador `Pixel_7` (build debug) e lendo o código.
+Verificação de cada user story da Sprint 1, feita em 04 e 05/10/2026 no emulador `Pixel_7` e lendo o código. Cada arquivo diz o que foi feito e o que falta.
 
-| US | Tema | Situação | Principal pendência |
+| US | Tema | Situação | O que ainda falta |
 |---|---|---|---|
-| [US-01](US-01-central-de-projetos.md) | Central de projetos | ⚠️ | Login/2FA só interface, sem i18n, sem HTTPS/sync, metadados vazios em alguns projetos |
-| [US-03](US-03-continuidade-e-protecao.md) | Continuidade e proteção | ⚠️ | Backup sem pasta segura, envio de logs vazio, tela Armazenamento com valores fixos |
-| [US-04](US-04-ajustes-de-cor-e-tonalidade.md) | Ajustes de cor | ✅ | Cor seletiva sem controle de "dessaturar o resto" |
-| [US-05](US-05-correcoes-geometricas.md) | Geometria | ⚠️ | Rotação de vídeo não existe |
-| [US-08](US-08-camadas-nao-destrutiva.md) | Camadas | ⚠️ | Duplicar/mesclar só pintura, pincéis sem forma/pressão, contagem de traços não atualiza |
-| [US-09](US-09-efeitos-e-overlays.md) | Efeitos e overlays | ⚠️ | Overlay da galeria desativado (mensagem desatualizada) |
-| [US-11](US-11-importacao-raw.md) | RAW | ⚠️ | Só usa a prévia JPEG embutida, sem decodificação real |
-| [US-14](US-14-timeline-multifaixa.md) | Timeline multifaixa | ⚠️ | Prévia não toca vídeo (miniatura estática) |
-| [US-15](US-15-edicao-de-precisao.md) | Edição de precisão | ⚠️ | Remover objetos não existe, sem prévia do quadro |
-| [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ⚠️ | Não dá para unir/exportar os clipes |
-| [US-30](US-30-exportacao.md) | Exportação | ⚠️ | Sem exportação de vídeo, GIF e HEIC |
+| [US-01](US-01-central-de-projetos.md) | Central de projetos | ⚠️ | Login/2FA e HTTPS (sem backend), idiomas nas demais telas, notificação do sistema |
+| [US-03](US-03-continuidade-e-protecao.md) | Continuidade e proteção | ⚠️ | Envio de logs só funciona com um endereço HTTPS configurado |
+| [US-04](US-04-ajustes-de-cor-e-tonalidade.md) | Ajustes de cor | ✅ | Cor seletiva só tem 7 cores fixas |
+| [US-05](US-05-correcoes-geometricas.md) | Geometria | ⚠️ | Correção automática de rotação do vídeo pelos metadados |
+| [US-08](US-08-camadas-nao-destrutiva.md) | Camadas | ✅ | Caneta (pressão) sem teste em aparelho real |
+| [US-09](US-09-efeitos-e-overlays.md) | Efeitos e overlays | ✅ | Overlays "internos" são texturas geradas por código |
+| [US-11](US-11-importacao-raw.md) | RAW | ⚠️ | Decodificação real de RAW (TODO) |
+| [US-14](US-14-timeline-multifaixa.md) | Timeline multifaixa | ⚠️ | Medir vídeo longo em 4K; faixa de imagem |
+| [US-15](US-15-edicao-de-precisao.md) | Edição de precisão | ⚠️ | Remover objetos do vídeo (TODO) |
+| [US-16](US-16-transicoes-e-montagem.md) | Transições e montagem | ⚠️ | Transição que cruza os dois clipes (hoje: escurece e entra) |
+| [US-30](US-30-exportacao.md) | Exportação | ⚠️ | HEIC (TODO), GIF lento, medir RNF-011 em aparelho real |
 
-## Bloqueios que atravessam várias histórias
-- **Sem player de vídeo** (US-14, US-15, US-16): só há `expo-video-thumbnails`.
-- **Sem codificador de vídeo / FFmpeg** (US-16, US-30): `FFmpegVideoExportAdapter` é um stub.
-- **Sem backend** (US-01, US-03): login, 2FA, sincronização HTTPS e envio de logs dependem dele.
-- **Sem i18n** (US-01): o app está só em português.
+## Dependências adicionadas (registradas em `docs/dependencies.md`)
+- `expo-video`: player real no editor de vídeo (US-14/15/16).
+- Media3 Transformer (módulo local `modules/pixelmorph-video-export`, Android): exportação de vídeo, quadros exatos e transições (US-16/30). O FFmpeg-kit está arquivado e não foi usado.
+- `modern-gif`: exportação de GIF animado (US-30).
 
 ## Fora do escopo por decisão (com TODO no código)
 - **Login, 2FA e HTTPS na sincronização** (US-01): dependem de um backend que o projeto não tem.
@@ -28,3 +27,7 @@ Verificação de cada user story da Sprint 1, feita em 04/10/2026 no emulador `P
 - **Remover objetos do vídeo** (US-15): `TODO(RF-013)` em `VideoEditorScreen.tsx`.
 - **HEIC** (US-30): `TODO(HEIC)` em `exportMath.ts`.
 - **Decodificação real de RAW** (US-11): `TODO(RAW)` em `rawImport.ts`.
+
+## Observações de ambiente
+- Build release no Windows: o caminho do projeto passa de 260 caracteres. Mapear uma unidade curta (`subst R: C:\Users\templ\Desktop\Facul\TristezaParaMobile`) e rodar o Gradle em `R:\PIXELMORPH\android`. Detalhes em `US-01-central-de-projetos.md`.
+- Tudo foi medido no emulador, em x86_64. Falta confirmar em aparelho Android real.
