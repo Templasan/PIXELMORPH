@@ -169,11 +169,6 @@ export default function AccountScreen({ navigation }: Props) {
           {/* TODO: real terms / privacy-policy documents. */}
           <ArrowRow label="Termos de uso" />
           <ArrowRow label="Política de privacidade" />
-          {/* Dev-only shortcut to the TASK-003 Skia spike, kept for regression testing. */}
-          <ArrowRow
-            label="Photo Editor Spike (teste técnico)"
-            onPress={() => navigation.navigate('PhotoEditorSpike')}
-          />
           {/* TODO: real sign-out flow (clear session, navigate to Login). */}
           <Pressable
             style={styles.signOutButton}

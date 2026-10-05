@@ -14,7 +14,6 @@ import PresetsScreen from '../screens/PresetsScreen';
 import StorageScreen from '../screens/StorageScreen';
 import AccountScreen from '../screens/AccountScreen';
 import HelpScreen from '../screens/HelpScreen';
-import PhotoEditorSpikeScreen from '../screens/PhotoEditorSpikeScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -36,8 +35,6 @@ export type RootStackParamList = {
   Storage: undefined;
   Account: undefined;
   Help: undefined;
-  /** TASK-003 technical spike, kept reachable from Account > Diagnóstico for regression testing. */
-  PhotoEditorSpike: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -98,7 +95,6 @@ export default function RootNavigator() {
       <Stack.Screen name="Storage" component={StorageScreen} />
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Help" component={HelpScreen} />
-      <Stack.Screen name="PhotoEditorSpike" component={PhotoEditorSpikeScreen} />
     </Stack.Navigator>
   );
 }

@@ -8,11 +8,4 @@ export * from './audio';
 export * from './exportPlan';
 export * from './loopRange';
 export * from './gifPlan';
-
-// Hexagonal architecture
-export * from './ports';
-export * from './infrastructure';
-
-// Bootstrap
-export { VideoEditorModuleFactory } from './bootstrap';
 export * from './orientation';
