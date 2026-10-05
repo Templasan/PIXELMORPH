@@ -134,10 +134,6 @@ const TOOLBAR = [
   { id: 'panorama', icon: 'camera', label: 'Panorama' },
 ] as const;
 
-// Fallback only for the no-project spike entry point — every real project uses its own
-// imported asset (see projectPhotoUri).
-const DEMO_PHOTO_URI =
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=533&fit=crop&auto=format';
 const BRUSH_COLORS = ['#E5484D', '#F5A623', '#F5D90A', '#30A46C', '#3B82F6', '#FFFFFF', '#000000'];
 
 interface Adjustments {
@@ -377,7 +373,7 @@ function bakePerspective(image: SkImage, matrix: readonly number[]): SkImage | n
 
 export default function PhotoEditorScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
-  // Falls back to a fixed key so the spike/dev entry point (no project id) still gets
+  // Falls back to a fixed key so an editor opened without a project id still gets
   // working undo/redo instead of crashing — RF-027 just won't survive across app restarts.
   const sessionId = projectId ?? 'unsaved-photo-session';
   const history = usePersistedHistory(sessionId);
@@ -472,10 +468,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [panoramaOffsets, setPanoramaOffsets] = useState<number[]>([]);
   const [panoramaOverlapWidth, setPanoramaOverlapWidth] = useState(50);
   const [isStitching, setIsStitching] = useState(false);
-  // Real projects have no photo to show until their asset loads — falling back to the demo
-  // URI here would fire a slow network fetch that can resolve *after* the real one and clobber
-  // it (useImage race). Only the no-project spike entry point gets the demo photo immediately.
-  const photoUri = projectPhotoUri ?? (projectId ? null : DEMO_PHOTO_URI);
+  // Nothing to show until the project's own asset loads.
+  const photoUri = projectPhotoUri;
 
   // RF-057: a ref to the on-screen Canvas so ExportSheet can snapshot the real composited
   // result (adjustments + geometry + effects + paint layers, exactly as rendered on screen).
