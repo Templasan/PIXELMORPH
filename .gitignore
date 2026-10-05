@@ -23,6 +23,13 @@ dist/
 build/
 android/app/build/
 android/.gradle/
+modules/*/android/.gradle/
+modules/*/android/build/
+
+# Performance measurement and logs
+logcat.txt
+monkey_logs.txt
+scripts/perf/results/
 
 # Test coverage
 coverage/

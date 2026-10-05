@@ -42,6 +42,9 @@
       ],
       "@app/*": [
         "src/app/*"
+      ],
+      "react-native-view-shot": [
+        "node_modules/react-native-view-shot/lib/index.d.ts"
       ]
     }
   },
