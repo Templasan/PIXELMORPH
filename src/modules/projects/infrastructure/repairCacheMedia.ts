@@ -7,6 +7,8 @@ import type { MediaFileStore } from '../ports/MediaFileStore';
  * project id.
  */
 const PROJECT_KEYS = /^(project|history|layers|editorImages):(.+)$/;
+/** Set after a complete pass: new media is persisted at intake, so one pass is enough. */
+export const REPAIR_DONE_KEY = 'migration:cacheMedia:v1';
 
 /** Distinct URIs in `text` that start with `prefix` (a URI ends at a quote, backslash or space). */
 export function findUris(text: string, prefix: string): string[] {
@@ -18,13 +20,14 @@ export function findUris(text: string, prefix: string): string[] {
  * One-time repair for data saved before media was persisted: every cache URI still referenced by
  * a project's stored values is copied into the project's permanent media folder (when the file
  * still exists) and rewritten in place. Files the system already purged cannot be recovered and
- * are left as they are. Idempotent. Returns how many references were rewritten.
+ * are left as they are. Runs once: it reads every project value, which is too much work for every
+ * app start. Returns how many references were rewritten.
  */
 export async function repairCacheMedia(
   files: Pick<MediaFileStore, 'persist' | 'exists'>,
   cachePrefix: string
 ): Promise<number> {
-  if (!cachePrefix) return 0;
+  if (!cachePrefix || (await AsyncStorage.getItem(REPAIR_DONE_KEY))) return 0;
   let rewritten = 0;
   // The same file is often referenced from several keys of one project: copy it once.
   const copies = new Map<string, string>();
@@ -46,5 +49,6 @@ ${uri}`;
     }
     if (next !== json) await AsyncStorage.setItem(key, next);
   }
+  await AsyncStorage.setItem(REPAIR_DONE_KEY, String(Date.now()));
   return rewritten;
 }

@@ -113,7 +113,8 @@ describe('project media persistence', () => {
     expect(await AsyncStorage.getItem('project:p1')).toContain('perm://p1/clip.mp4');
     expect(await AsyncStorage.getItem('layers:p1')).toContain('file:///c/gone.png'); // lost: left as is
     expect(await AsyncStorage.getItem('unrelated')).toBe('file:///c/clip.mp4');
-    expect(await repairCacheMedia(store, 'file:///c/')).toBe(0); // idempotent
+    expect(await repairCacheMedia(store, 'file:///c/')).toBe(0); // runs once
+    expect(persist).toHaveBeenCalledTimes(1);
     expect(await repairCacheMedia(store, '')).toBe(0); // no cache dir known: never match everything
   });
 });
