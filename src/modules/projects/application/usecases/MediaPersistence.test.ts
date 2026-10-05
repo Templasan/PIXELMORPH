@@ -1,5 +1,6 @@
 import { AddMediaAssetUseCase } from './AddMediaAssetUseCase';
 import { DeleteProjectUseCase } from './DeleteProjectUseCase';
+import { UpdateProjectUseCase } from './UpdateProjectUseCase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { findUris, repairCacheMedia } from '../../infrastructure/repairCacheMedia';
 import { createProject } from '../../domain/entities/Project';
@@ -76,6 +77,16 @@ describe('project media persistence', () => {
       'perm://p1/raw.dng',
       'perm://p1/raw.jpg',
     ]);
+  });
+
+  it('UpdateProject stores the thumbnail as a persisted file and refuses inline base64', async () => {
+    const { repo, project, store } = setup();
+    const update = new UpdateProjectUseCase(repo as unknown as ProjectRepository, store);
+    await update.execute(project.id, { thumbnailUri: 'file:///cache/export.png' });
+    expect((await repo.findById(project.id))!.thumbnailUri).toBe('perm://p1/export.png');
+    await expect(
+      update.execute(project.id, { thumbnailUri: 'data:image/png;base64,AAAA' })
+    ).rejects.toThrow('file URI');
   });
 
   it('DeleteProject removes the project media folder', async () => {

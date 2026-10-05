@@ -33,7 +33,7 @@ export function createProjectsModule() {
     listProjects: new ListProjectsUseCase(repository),
     getProject: new GetProjectUseCase(repository),
     createProject: new CreateProjectUseCase(repository),
-    updateProject: new UpdateProjectUseCase(repository),
+    updateProject: new UpdateProjectUseCase(repository, files),
     deleteProject: new DeleteProjectUseCase(repository, files),
     archiveProject: new ArchiveProjectUseCase(repository),
     unarchiveProject: new UnarchiveProjectUseCase(repository),
