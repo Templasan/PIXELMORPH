@@ -249,3 +249,17 @@ Fora do escopo: features fora do backlog da Sprint 2; reconstruir `ai`/`audio` (
 | Abrir editor de vídeo (ms) | | |
 | Frames janky arrastando timeline (%) | | |
 | Abrir menu lateral com N projetos (ms) | | |
+
+---
+
+## 8. Log de execução
+
+Registro do que foi feito, em ordem. Cada linha = um commit (ou um passo sem commit, quando indicado).
+
+| Data | Passo | Commit | Resultado / observações |
+|---|---|---|---|
+| 2026-10-05 | Plano | `c75e127` | Plano aprovado |
+| 2026-10-05 | 0.1 `.gitattributes` | `0fa537b` | Índice já estava em LF; nenhum arquivo renormalizado |
+| 2026-10-05 | 0.2 Prettier | `f5e33ae` | 13 arquivos reformatados; tsc/jest/eslint sem regressão |
+| 2026-10-05 | 2.1 C1 (antecipado) | `daf60d7` | `catch` no load do histórico; falha vira sessão nova + log |
+| 2026-10-05 | 2.2 C2 (antecipado) | `fbd95e0` | RNF-017 exige 5 MB → mantido, mas em segmentos de 256 KB; escrita serializada; migração do valor antigo; +3 testes (348 passando) |
