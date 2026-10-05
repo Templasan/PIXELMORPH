@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  Image,
-  LayoutChangeEvent,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -51,7 +42,6 @@ import {
   orientationToTransform,
   readExifOrientation,
   createPaintLayer,
-  BRUSH_SHAPES,
   type BrushShape,
   createShapeLayer,
   createTextLayer,
@@ -64,22 +54,14 @@ import {
   type EditorLayer,
   RETRO_EFFECTS_SKSL,
 } from '@modules/photo-editor';
-import { GeometryDrawer } from './photo-editor/GeometryDrawer';
 import { PerspectiveHandles } from './photo-editor/PerspectiveHandles';
 import { LightPositionHandle } from './photo-editor/LightPositionHandle';
-import { MasksDrawer } from './photo-editor/MasksDrawer';
-import { RetouchDrawer } from './photo-editor/RetouchDrawer';
-import { EffectsDrawer, type DoubleExposureImage } from './photo-editor/EffectsDrawer';
-import { ElementsDrawer, type ShapeDraft, type TextDraft } from './photo-editor/ElementsDrawer';
-import { AIDrawer } from './photo-editor/AIDrawer';
-import { PresetsDrawer } from './photo-editor/PresetsDrawer';
-import { PanoramaDrawer } from './photo-editor/PanoramaDrawer';
 import { BatchEditSheet } from './photo-editor/BatchEditSheet';
 import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
 import { createPhotoEditorStore } from '@modules/photo-editor';
 import { EditorCanvas } from './photo-editor/EditorCanvas';
-import { AdjustDrawerHost, WithAdjustments } from './photo-editor/WithAdjustments';
+import { WithAdjustments } from './photo-editor/WithAdjustments';
 import {
   ADJUST_DRAWER_FIELDS,
   DEFAULT_ADJUSTMENTS,
@@ -89,6 +71,12 @@ import {
   perspectiveMatrixOf,
 } from '@modules/photo-editor/domain/adjustments';
 import { PHOTO_WIDTH, PHOTO_HEIGHT } from './photo-editor/dims';
+import { EditorTopBar } from './photo-editor/EditorTopBar';
+import { EditorToolbar, TOOL_ORDER } from './photo-editor/EditorToolbar';
+import { BrushBar } from './photo-editor/BrushBar';
+import { ToolDrawerHost } from './photo-editor/ToolDrawerHost';
+import type { DoubleExposureImage } from './photo-editor/EffectsDrawer';
+import type { ShapeDraft, TextDraft } from './photo-editor/ElementsDrawer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -104,21 +92,6 @@ type Tool =
   | 'presets'
   | 'panorama'
   | null;
-
-const TOOLBAR = [
-  { id: 'ajustes', icon: 'sliders', label: 'Ajustes' },
-  { id: 'geometria', icon: 'crop', label: 'Geometria' },
-  { id: 'mascaras', icon: 'mask', label: 'Máscaras' },
-  { id: 'retoque', icon: 'retouch', label: 'Retoque' },
-  { id: 'camadas', icon: 'layers', label: 'Camadas' },
-  { id: 'efeitos', icon: 'effects', label: 'Efeitos' },
-  { id: 'elementos', icon: 'type', label: 'Elementos' },
-  { id: 'ia', icon: 'robot', label: 'IA' },
-  { id: 'presets', icon: 'preset', label: 'Presets' },
-  { id: 'panorama', icon: 'camera', label: 'Panorama' },
-] as const;
-
-const BRUSH_COLORS = ['#E5484D', '#F5A623', '#F5D90A', '#30A46C', '#3B82F6', '#FFFFFF', '#000000'];
 
 // Compiled once per app run, not per mount/render.
 let adjustmentsEffectCache: SkRuntimeEffect | null | undefined;
@@ -797,8 +770,10 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     }
   }, [photoUri, commitAdjustment, editor]);
 
-  const toggleTool = (tool: Exclude<Tool, null>) =>
-    setActiveTool((prev) => (prev === tool ? null : tool));
+  const toggleTool = useCallback(
+    (tool: Exclude<Tool, null>) => setActiveTool((prev) => (prev === tool ? null : tool)),
+    []
+  );
 
   // RF-076: quick shortcuts without menus (touch; React Native has no hardware-key events
   // without a native module): 2-finger tap = undo, 3-finger tap = redo, 2-finger double tap =
@@ -808,13 +783,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       .minPointers(3)
       .numberOfTaps(2)
       .runOnJS(true)
-      .onEnd((_e: unknown, ok: boolean) => {
-        if (!ok) return;
-        setActiveTool((prev) => {
-          const i = TOOLBAR.findIndex((t) => t.id === prev);
-          return TOOLBAR[(i + 1) % TOOLBAR.length].id;
-        });
-      }),
+      .onEnd((_e: unknown, ok: boolean) => ok && editor.nextTool(TOOL_ORDER)),
     Gesture.Tap()
       .minPointers(3)
       .runOnJS(true)
@@ -896,36 +865,28 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     [commitAdjustment]
   );
 
+  const handleNavigateBack = useCallback(() => navigation.navigate('Projects'), [navigation]);
+  const handleToggleCompare = useCallback(() => setCompareMode((c) => !c), []);
+  const handleBatchEdit = useCallback(() => setBatchEditOpen(true), []);
+  const handleMaskPainter = useCallback(() => setMaskPainterOpen(true), []);
+  const handleExport = useCallback(() => setExportOpen(true), []);
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => navigation.navigate('Projects')} hitSlop={8}>
-          <Icon name="chevronLeft" size={20} />
-        </Pressable>
-        <Text style={styles.fileName} numberOfLines={1}>
-          {projectName} {history.canUndo && <Text style={styles.unsavedDot}>●</Text>}
-        </Text>
-        <Pressable onPress={() => setCompareMode((c) => !c)} hitSlop={6}>
-          <Icon name="compare" size={18} color={compareMode ? colors.acento : colors.icone} />
-        </Pressable>
-        <Pressable onPress={handleUndo} disabled={!history.canUndo} hitSlop={6}>
-          <Icon name="undo" size={18} color={history.canUndo ? colors.icone : colors.linha} />
-        </Pressable>
-        <Pressable onPress={handleRedo} disabled={!history.canRedo} hitSlop={6}>
-          <Icon name="redo" size={18} color={history.canRedo ? colors.icone : colors.linha} />
-        </Pressable>
-        {projectId && (
-          <Pressable onPress={() => setBatchEditOpen(true)} hitSlop={6}>
-            <Icon name="copy" size={18} color={colors.icone} />
-          </Pressable>
-        )}
-        <Pressable onPress={() => setMaskPainterOpen(true)} hitSlop={6}>
-          <Icon name="layers" size={18} color={colors.icone} />
-        </Pressable>
-        <Pressable style={styles.exportButton} onPress={() => setExportOpen(true)}>
-          <Text style={styles.exportButtonText}>EXPORTAR</Text>
-        </Pressable>
-      </View>
+      <EditorTopBar
+        projectName={projectName}
+        canUndo={history.canUndo}
+        canRedo={history.canRedo}
+        compareMode={compareMode}
+        hasProjectId={!!projectId}
+        onNavigateBack={handleNavigateBack}
+        onToggleCompare={handleToggleCompare}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onBatchEdit={handleBatchEdit}
+        onMaskPainter={handleMaskPainter}
+        onExport={handleExport}
+      />
 
       <View style={styles.techStrip}>
         {/* Real values from the decoded image and the project's asset — no color space or
@@ -1028,61 +989,17 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               )}
             </View>
             {paintModeActive && (
-              <View style={[styles.brushBar, brushBarFit]}>
-                {BRUSH_COLORS.map((c) => (
-                  <Pressable
-                    key={c}
-                    onPress={() => setBrushColor(c)}
-                    style={[
-                      styles.brushSwatch,
-                      { backgroundColor: c },
-                      brushColor === c && styles.brushSwatchActive,
-                    ]}
-                  />
-                ))}
-                <Pressable onPress={() => setBrushSize((s) => Math.max(2, s - 2))} hitSlop={6}>
-                  <Icon name="minus" size={14} color={colors.texto} />
-                </Pressable>
-                <Text style={styles.brushSizeText}>{brushSize}px</Text>
-                <Pressable onPress={() => setBrushSize((s) => Math.min(40, s + 2))} hitSlop={6}>
-                  <Icon name="plus" size={14} color={colors.texto} />
-                </Pressable>
-              </View>
-            )}
-            {paintModeActive && (
-              <View style={[styles.brushBar, brushBarFit]}>
-                {BRUSH_SHAPES.map((shape) => (
-                  <Pressable
-                    key={shape.id}
-                    onPress={() => setBrushShape(shape.id)}
-                    accessibilityLabel={shape.name}
-                    style={[
-                      styles.brushShapeChip,
-                      brushShape === shape.id && styles.brushShapeChipActive,
-                    ]}
-                  >
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.brushSizeText,
-                        brushShape === shape.id && { color: colors.acento },
-                      ]}
-                    >
-                      {shape.glyph}
-                    </Text>
-                  </Pressable>
-                ))}
-                <Pressable onPress={() => setBrushOpacity((o) => Math.max(10, o - 10))} hitSlop={6}>
-                  <Icon name="minus" size={14} color={colors.texto} />
-                </Pressable>
-                <Text style={styles.brushSizeText}>{brushOpacity}%</Text>
-                <Pressable
-                  onPress={() => setBrushOpacity((o) => Math.min(100, o + 10))}
-                  hitSlop={6}
-                >
-                  <Icon name="plus" size={14} color={colors.texto} />
-                </Pressable>
-              </View>
+              <BrushBar
+                brushColor={brushColor}
+                brushSize={brushSize}
+                brushShape={brushShape}
+                brushOpacity={brushOpacity}
+                maxWidth={brushBarFit.maxWidth as number}
+                onColorChange={setBrushColor}
+                onSizeChange={setBrushSize}
+                onShapeChange={setBrushShape}
+                onOpacityChange={setBrushOpacity}
+              />
             )}
 
             {compareMode && canvasWidth > 0 && photoUri && (
@@ -1171,106 +1088,52 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         </View>
       </GestureDetector>
 
-      {activeTool && activeTool !== 'camadas' && (
-        <View style={styles.toolDrawer}>
-          <View style={styles.drawerHandleRow}>
-            <View style={styles.drawerHandle} />
-          </View>
-          <ScrollView style={{ flex: 1 }}>
-            {activeTool === 'ajustes' && (
-              <AdjustDrawerHost
-                editor={editor}
-                histogram={histogram}
-                setField={setAdjustmentField}
-                onCommit={commitAdjustment}
-                onBake={handleBakeAdjustments}
-                skiaImage={skiaImage}
-                adjustmentsEffect={adjustmentsEffect}
-              />
-            )}
-            {activeTool === 'geometria' && (
-              <WithAdjustments editor={editor}>
-                {(adjustments) => (
-                  <GeometryDrawer
-                    adjustments={adjustments}
-                    setField={setAdjustmentField}
-                    onCommit={commitAdjustment}
-                    perspectiveEditMode={perspectiveEditMode}
-                    onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
-                    onApplyExif={applyExifOrientation}
-                    onBakePerspective={handleBakePerspective}
-                  />
-                )}
-              </WithAdjustments>
-            )}
-            {activeTool === 'mascaras' && <MasksDrawer />}
-            {activeTool === 'retoque' && <RetouchDrawer />}
-            {activeTool === 'efeitos' && (
-              <WithAdjustments editor={editor}>
-                {(adjustments) => (
-                  <EffectsDrawer
-                    adjustments={adjustments}
-                    setField={setAdjustmentField}
-                    onCommit={commitAdjustment}
-                    frameColor={frameColor}
-                    onFrameColorChange={setFrameColor}
-                    frameGradientColor={frameGradientColor}
-                    onFrameGradientColorChange={setFrameGradientColor}
-                    lightEditMode={lightEditMode}
-                    onToggleLightEditMode={() => setLightEditMode((v) => !v)}
-                    doubleExposureImage={doubleExposureImage}
-                    onPickDoubleExposureImage={setDoubleExposureImage}
-                    onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
-                    overlayImage={overlayImage}
-                    onPickOverlayImage={setOverlayImage}
-                    onClearOverlayImage={() => setOverlayImage(null)}
-                    currentProjectId={projectId}
-                  />
-                )}
-              </WithAdjustments>
-            )}
-            {activeTool === 'elementos' && (
-              <ElementsDrawer
-                textDraft={textDraft}
-                onChangeTextDraft={(patch) => setTextDraft((prev) => ({ ...prev, ...patch }))}
-                onSubmitText={submitTextLayer}
-                isEditingText={selectedLayer?.kind === 'text'}
-                shapeDraft={shapeDraft}
-                onChangeShapeDraft={changeShapeDraft}
-                onSubmitShape={submitShapeLayer}
-                isEditingShape={selectedLayer?.kind === 'shape'}
-                onSubmitMeme={submitMeme}
-                onAddSticker={addSticker}
-                onSubmitCollage={submitCollage}
-              />
-            )}
-            {activeTool === 'ia' && <AIDrawer />}
-            {activeTool === 'presets' && (
-              <WithAdjustments editor={editor}>
-                {(adjustments) => (
-                  <PresetsDrawer
-                    adjustments={adjustments}
-                    onApplyPreset={editor.applyAdjustments}
-                  />
-                )}
-              </WithAdjustments>
-            )}
-            {activeTool === 'panorama' && (
-              <PanoramaDrawer
-                selectedImages={selectedPanoramaImages}
-                onAddImage={handleAddPanoramaImage}
-                onRemoveImage={handleRemovePanoramaImage}
-                onOffsetChange={handlePanoramaOffsetChange}
-                onOverlapChange={handlePanoramaOverlapChange}
-                onStitch={submitPanorama}
-                overlapWidth={panoramaOverlapWidth}
-                offsets={panoramaOffsets}
-                isStitching={isStitching}
-              />
-            )}
-          </ScrollView>
-        </View>
-      )}
+      <ToolDrawerHost
+        activeTool={activeTool}
+        editor={editor}
+        histogram={histogram}
+        skiaImage={skiaImage}
+        adjustmentsEffect={adjustmentsEffect}
+        perspectiveEditMode={perspectiveEditMode}
+        frameColor={frameColor}
+        frameGradientColor={frameGradientColor}
+        lightEditMode={lightEditMode}
+        doubleExposureImage={doubleExposureImage}
+        overlayImage={overlayImage}
+        currentProjectId={projectId}
+        textDraft={textDraft}
+        selectedLayerKind={selectedLayer?.kind}
+        shapeDraft={shapeDraft}
+        selectedPanoramaImages={selectedPanoramaImages}
+        panoramaOffsets={panoramaOffsets}
+        panoramaOverlapWidth={panoramaOverlapWidth}
+        isStitching={isStitching}
+        onSetAdjustmentField={setAdjustmentField}
+        onCommitAdjustment={commitAdjustment}
+        onBakeAdjustments={handleBakeAdjustments}
+        onTogglePerspectiveEditMode={() => setPerspectiveEditMode((v) => !v)}
+        onApplyExif={applyExifOrientation}
+        onBakePerspective={handleBakePerspective}
+        onChangeTextDraft={(patch) => setTextDraft((prev) => ({ ...prev, ...patch }))}
+        onSubmitText={submitTextLayer}
+        onChangeShapeDraft={changeShapeDraft}
+        onSubmitShape={submitShapeLayer}
+        onSubmitMeme={submitMeme}
+        onAddSticker={addSticker}
+        onSubmitCollage={submitCollage}
+        onChangeFrameColor={setFrameColor}
+        onChangeFrameGradientColor={setFrameGradientColor}
+        onToggleLightEditMode={() => setLightEditMode((v) => !v)}
+        onPickDoubleExposureImage={setDoubleExposureImage}
+        onClearDoubleExposureImage={() => setDoubleExposureImage(null)}
+        onPickOverlayImage={setOverlayImage}
+        onClearOverlayImage={() => setOverlayImage(null)}
+        onAddPanoramaImage={handleAddPanoramaImage}
+        onRemovePanoramaImage={handleRemovePanoramaImage}
+        onPanoramaOffsetChange={handlePanoramaOffsetChange}
+        onPanoramaOverlapChange={handlePanoramaOverlapChange}
+        onSubmitPanorama={submitPanorama}
+      />
 
       {stereoInfo.isStereoscopic && (
         <View
@@ -1298,25 +1161,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <View style={styles.bottomToolbar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {TOOLBAR.map(({ id, icon, label }) => {
-            const isActive = activeTool === id;
-            return (
-              <Pressable
-                key={id}
-                style={[styles.toolbarItem, isActive && styles.toolbarItemActive]}
-                onPress={() => toggleTool(id)}
-              >
-                <Icon name={icon} size={22} color={isActive ? colors.acento : colors.icone} />
-                <Text style={[styles.toolbarLabel, isActive && styles.toolbarLabelActive]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+      <EditorToolbar activeTool={activeTool} onToggleTool={toggleTool} />
 
       {batchEditOpen && projectId && (
         <BatchEditSheet
@@ -1363,36 +1208,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.canvas,
-  },
-  topBar: {
-    height: 48,
-    backgroundColor: colors.barra,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.linha,
-    elevation: 4,
-  },
-  fileName: {
-    flex: 1,
-    fontSize: fontSize.sm,
-    color: colors.texto,
-  },
-  unsavedDot: {
-    color: colors.perigo,
-  },
-  exportButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: colors.acento,
-  },
-  exportButtonText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1,
-    color: '#0D2036',
   },
   techStrip: {
     height: 28,
@@ -1500,82 +1315,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.texto,
     width: 36,
-    textAlign: 'center',
-  },
-  toolDrawer: {
-    height: '45%',
-    backgroundColor: colors.barra,
-    borderTopWidth: 1,
-    borderTopColor: colors.linha,
-  },
-  drawerHandleRow: {
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  drawerHandle: {
-    width: 32,
-    height: 3,
-    backgroundColor: colors.linha,
-  },
-  bottomToolbar: {
-    backgroundColor: colors.barra,
-    borderTopWidth: 1,
-    borderTopColor: colors.linha,
-  },
-  toolbarItem: {
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  toolbarItemActive: {
-    backgroundColor: colors.canvas,
-  },
-  toolbarLabel: {
-    fontSize: 10,
-    color: colors.texto2,
-  },
-  toolbarLabelActive: {
-    color: colors.acento,
-  },
-  brushBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(37,37,37,0.92)',
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  brushSwatch: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  brushSwatchActive: {
-    borderColor: colors.acento,
-    borderWidth: 2,
-  },
-  brushShapeChip: {
-    flexShrink: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  brushShapeChipActive: {
-    borderColor: colors.acento,
-  },
-  brushSizeText: {
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
-    color: colors.texto,
-    width: 32,
     textAlign: 'center',
   },
 });
