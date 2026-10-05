@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlphaType, ColorType, type SkImage } from '@shopify/react-native-skia';
+import { AlphaType, ColorType, Skia, type SkImage } from '@shopify/react-native-skia';
 import {
   applyFullAdjustmentsRGB,
   type FullAdjustmentUniforms,
@@ -12,9 +12,42 @@ export interface RGBHistogram {
 }
 
 const HISTOGRAM_BINS = 40;
-// Every 8th pixel is plenty to approximate a photo histogram's shape and keeps the
-// recompute (run on the JS thread on every slider tick) well under a frame budget.
-const SAMPLE_STRIDE_PX = 8;
+/**
+ * The histogram is computed from a downscaled copy (longest side this many px), read back once:
+ * a full-resolution readPixels of a phone photo is ~10 MB on the JS thread, and the shape of a
+ * 40-bin histogram does not need more than a few tens of thousands of samples.
+ */
+const SAMPLE_MAX_SIDE_PX = 192;
+
+/** RGBA pixels of `image` scaled to fit SAMPLE_MAX_SIDE_PX (or the original if smaller). */
+function readSamplePixels(image: SkImage): Uint8Array | null {
+  const scale = Math.min(1, SAMPLE_MAX_SIDE_PX / Math.max(image.width(), image.height()));
+  const width = Math.max(1, Math.round(image.width() * scale));
+  const height = Math.max(1, Math.round(image.height() * scale));
+  let source = image;
+  if (scale < 1) {
+    const surface = Skia.Surface.Make(width, height);
+    if (surface) {
+      surface
+        .getCanvas()
+        .drawImageRect(
+          image,
+          Skia.XYWHRect(0, 0, image.width(), image.height()),
+          Skia.XYWHRect(0, 0, width, height),
+          Skia.Paint()
+        );
+      surface.flush();
+      source = surface.makeImageSnapshot();
+    }
+  }
+  const pixels = source.readPixels(0, 0, {
+    width: source.width(),
+    height: source.height(),
+    colorType: ColorType.RGBA_8888,
+    alphaType: AlphaType.Unpremul,
+  });
+  return pixels instanceof Uint8Array ? pixels : null;
+}
 
 function emptyHistogram(): RGBHistogram {
   return {
@@ -39,16 +72,8 @@ export function useImageHistogram(image: SkImage | null) {
     setReady(false);
     if (!image) return;
 
-    const width = image.width();
-    const height = image.height();
-    const pixels = image.readPixels(0, 0, {
-      width,
-      height,
-      colorType: ColorType.RGBA_8888,
-      alphaType: AlphaType.Unpremul,
-    });
-
-    if (pixels instanceof Uint8Array) {
+    const pixels = readSamplePixels(image);
+    if (pixels) {
       bufferRef.current = pixels;
       setReady(true);
     }
@@ -61,7 +86,7 @@ export function useImageHistogram(image: SkImage | null) {
     const rBins = new Array(HISTOGRAM_BINS).fill(0);
     const gBins = new Array(HISTOGRAM_BINS).fill(0);
     const bBins = new Array(HISTOGRAM_BINS).fill(0);
-    const stride = 4 * SAMPLE_STRIDE_PX;
+    const stride = 4; // every pixel of the downscaled sample
 
     for (let i = 0; i + 3 < data.length; i += stride) {
       const [r, g, b] = applyFullAdjustmentsRGB(
