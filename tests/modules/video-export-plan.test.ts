@@ -25,6 +25,13 @@ const track = (clips: ReturnType<typeof createClip>[], over: Partial<Track> = {}
 });
 
 describe('planExport (US-16 / US-30)', () => {
+  it('carries the video clip gain (0..1) into the plan', () => {
+    const plan = planExport([
+      track([clip({ startMs: 0 }), { ...clip({ startMs: 10_000 }), volume: 40 }]),
+    ]);
+    expect(plan.clips.map((c) => c.volume)).toEqual([1, 0.4]);
+  });
+
   it('returns nothing for a timeline without video clips', () => {
     expect(planExport([])).toEqual({ clips: [], audio: [], transitions: [], durationMs: 0 });
     expect(planExport([track([])])).toEqual({

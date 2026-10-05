@@ -154,6 +154,7 @@ export function VideoExportSheet({
             inMs: piece.inMs,
             outMs: piece.outMs,
             speed: piece.speed,
+            volume: piece.volume,
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),

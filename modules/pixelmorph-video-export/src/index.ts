@@ -7,6 +7,8 @@ export interface ExportClip {
   outMs?: number;
   holdMs?: number;
   speed?: number;
+  /** Gain of the clip's own audio, 0..1. */
+  volume?: number;
   rotation?: number;
   transitionIn?: 'fade' | 'slide' | 'zoom' | 'wipe' | '';
   transitionInMs?: number;

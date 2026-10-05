@@ -331,6 +331,9 @@ class PixelMorphVideoExportModule : Module() {
       videoEffects.add(SpeedChangeEffect(clip.speed.toFloat()))
       audioProcessors.add(SonicAudioProcessor().apply { setSpeed(clip.speed.toFloat()) })
     }
+    if (!isImage && clip.volume != 1.0) {
+      audioProcessors.add(GainAudioProcessor(clip.volume.toFloat(), 0, 0, clip.outMs - clip.inMs))
+    }
     // Fit to the output size first, so the slide/zoom moves the frame the viewer sees.
     if (fit != null) videoEffects.add(fit)
     if (fit != null) videoEffects.addAll(transitionEffects(clip, width, height))

@@ -15,6 +15,8 @@ data class ExportClip(
   /** Only for kind == "image": how long the still is shown. */
   @Field val holdMs: Long = 0,
   @Field val speed: Double = 1.0,
+  /** Gain of the clip's own audio, 0..1. */
+  @Field val volume: Double = 1.0,
   /** Clockwise degrees: 0, 90, 180, 270. */
   @Field val rotation: Int = 0,
   /** How this clip begins: "fade", "slide", "zoom" or "wipe"; empty for a plain cut. */

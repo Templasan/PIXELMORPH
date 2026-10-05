@@ -16,6 +16,8 @@ export interface PlannedClip {
   stillTimeMs: number;
   holdMs: number;
   speed: number;
+  /** Gain of the clip's own audio, 0..1. */
+  volume: number;
   rotation: number;
   /** How the clip begins ('' = plain cut) and for how long, in finished-video ms. */
   transitionIn: '' | 'fade' | 'slide' | 'zoom' | 'wipe';
@@ -145,6 +147,7 @@ function toPlanned(clip: Clip): PlannedClip {
       stillTimeMs: clip.inPointMs,
       holdMs: clip.holdMs ?? clipDurationMs(clip),
       speed: 1,
+      volume: 1,
       rotation,
       ...NO_TRANSITION,
       outputMs: clip.holdMs ?? clipDurationMs(clip),
@@ -158,6 +161,7 @@ function toPlanned(clip: Clip): PlannedClip {
     stillTimeMs: 0,
     holdMs: 0,
     speed: clip.speed ?? 1,
+    volume: (clip.volume ?? 100) / 100,
     rotation,
     ...NO_TRANSITION,
     outputMs: clipDurationMs(clip),

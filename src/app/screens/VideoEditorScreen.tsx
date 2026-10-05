@@ -887,7 +887,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 sourceTimeMs={sourceTimeMs}
                 playing={playing}
                 rate={currentClip.speed ?? 1}
-                volume={1}
+                volume={(currentClip.volume ?? 100) / 100}
                 style={rotatedFrameStyle(currentClip.rotation, previewSize)}
               />
             )}
@@ -1045,7 +1045,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   onPress={() => setClipTab(t)}
                   disabled={
                     (t === 'Transição' && !previousOfSelected) ||
-                    (t === 'Áudio' && selected.track.kind !== 'audio')
+                    (t === 'Áudio' &&
+                      selected.track.kind !== 'audio' &&
+                      selected.track.kind !== 'video')
                   }
                 >
                   <Text
@@ -1053,7 +1055,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       styles.clipTabText,
                       clipTab === t && styles.clipTabTextActive,
                       ((t === 'Transição' && !previousOfSelected) ||
-                        (t === 'Áudio' && selected.track.kind !== 'audio')) &&
+                        (t === 'Áudio' &&
+                          selected.track.kind !== 'audio' &&
+                          selected.track.kind !== 'video')) &&
                         styles.clipTabTextDisabled,
                     ]}
                   >
@@ -1470,6 +1474,19 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                     />
                   </>
                 )}
+              </View>
+            )}
+            {clipTab === 'Áudio' && selected.track.kind === 'video' && (
+              <View style={{ gap: 4 }}>
+                <Slider
+                  label="Volume"
+                  value={selected.clip.volume ?? 100}
+                  min={0}
+                  max={100}
+                  unit="%"
+                  onChange={(v) => setClipField('volume', v)}
+                  onSlidingComplete={(v, from) => commitClipField('volume', v, from)}
+                />
               </View>
             )}
             {clipTab === 'Áudio' && selected.track.kind === 'audio' && (
