@@ -45,7 +45,6 @@ export interface ClipPanelProps {
   sphericalInfo: SphericalInfo;
   pipClipId: string | null;
   setPipClipId: (id: string | null) => void;
-  captureAndExportPip: () => Promise<void>;
 }
 
 export const ClipPanel = memo(function ClipPanel({
@@ -56,7 +55,6 @@ export const ClipPanel = memo(function ClipPanel({
   sphericalInfo,
   pipClipId,
   setPipClipId,
-  captureAndExportPip,
 }: ClipPanelProps) {
   const selected = useStore(editor.store, selectedClipOf, shallowEqual);
   // PiP placement being edited: local to the panel so dragging these sliders re-renders the
@@ -482,14 +480,6 @@ export const ClipPanel = memo(function ClipPanel({
                 >
                   <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
                     Remover
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={captureAndExportPip}
-                  style={[styles.button, { flex: 1, backgroundColor: colors.ok }]}
-                >
-                  <Text style={{ color: colors.branco, fontWeight: '600', fontSize: 12 }}>
-                    Exportar Frame
                   </Text>
                 </Pressable>
               </View>

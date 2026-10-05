@@ -8,7 +8,6 @@ import {
   View,
   type GestureResponderEvent,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 
 import {
   CameraView,
@@ -26,7 +25,7 @@ import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { errorLogger } from '@core/reliability';
 import { probeFileMetadata, uprightDimensions } from '@modules/device-media';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
-import { useARTracking, getARViewerUri, type ARSession } from '@modules/camera/ar';
+import { type ARSession } from '@modules/camera/ar';
 import { FILTER_PRESETS, adjustmentsToOverlayColor, type CameraMode } from './camera/cameraFormat';
 import CameraTopBar from './camera/CameraTopBar';
 import FilterStrip from './camera/FilterStrip';
@@ -38,6 +37,7 @@ import CountdownOverlay from './camera/CountdownOverlay';
 import AudioMeter from './camera/AudioMeter';
 import StopMotionFrameStrip from './camera/StopMotionFrameStrip';
 import AROverlay from './camera/AROverlay';
+import { ARAnchorsLayer } from './camera/ARAnchorsLayer';
 import StopMotionPanel from './camera/StopMotionPanel';
 import ARControlPanel from './camera/ARControlPanel';
 
@@ -78,7 +78,6 @@ export default function CameraScreen({ navigation }: Props) {
     enabled: false,
   });
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
-  useARTracking(arSession.enabled, 0.08);
 
   // Tap-to-focus square: expo-camera's Android backend has no manual focus-point API
   // (CameraX already runs continuous autofocus on its own), so this is the visual
@@ -101,28 +100,7 @@ export default function CameraScreen({ navigation }: Props) {
     [focusAnim]
   );
 
-  // Sync anchors with WebView
-  useEffect(() => {
-    if (mode !== 'AR' || !webViewRef.current) return;
-
-    arSession.anchors.forEach((anchor) => {
-      const jsCode = `
-        window.addARObject(
-          '${anchor.id}',
-          '${anchor.type}',
-          ${anchor.x},
-          ${anchor.y},
-          ${anchor.scale},
-          ${anchor.rotation},
-          '${anchor.color}'
-        );
-      `;
-      webViewRef.current?.injectJavaScript(jsCode);
-    });
-  }, [arSession.anchors, mode]);
-
   const cameraRef = useRef<CameraView | null>(null);
-  const webViewRef = useRef<any>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
@@ -313,31 +291,16 @@ export default function CameraScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.previewWrap}>
-        {mode === 'AR' ? (
-          <WebView
-            ref={webViewRef}
+        <Pressable style={styles.preview} onPress={handleFocusTap}>
+          <CameraView
+            ref={cameraRef}
             style={styles.preview}
-            source={{ uri: getARViewerUri() }}
-            onMessage={(_event: any) => {
-              // Handle messages from WebView
-            }}
-            javaScriptEnabled
-            domStorageEnabled
-            startInLoadingState
-            scalesPageToFit={false}
+            facing={facing}
+            enableTorch={torch}
+            mode={mode === 'VÍDEO' ? 'video' : 'picture'}
+            mute={false}
           />
-        ) : (
-          <Pressable style={styles.preview} onPress={handleFocusTap}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.preview}
-              facing={facing}
-              enableTorch={torch}
-              mode={mode === 'VÍDEO' ? 'video' : 'picture'}
-              mute={false}
-            />
-          </Pressable>
-        )}
+        </Pressable>
         <FilterTint
           filterName={filterPreset.name}
           filterOverlayColor={filterOverlayColor}
@@ -363,6 +326,9 @@ export default function CameraScreen({ navigation }: Props) {
         {mode === 'STOP-MOTION' && <StopMotionFrameStrip stopFrames={stopFrames} />}
 
         {mode === 'AR' && <AROverlay />}
+        {mode === 'AR' && (
+          <ARAnchorsLayer anchors={arSession.anchors} selectedId={selectedAnchorId} />
+        )}
       </View>
 
       <FilterStrip
