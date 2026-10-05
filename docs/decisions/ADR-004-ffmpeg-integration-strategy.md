@@ -1,7 +1,7 @@
 # ADR-004: FFmpeg Integration Strategy for Video Export
 
 **Date**: 2026-09-22  
-**Status**: PROPOSED  
+**Status**: SUPERSEDED by ADR-005 (never implemented; video export uses the native module `modules/pixelmorph-video-export`)  
 **Context**: Video export requires FFmpeg for encoding, but Expo managed workflow doesn't support native FFmpeg.
 
 ## Problem

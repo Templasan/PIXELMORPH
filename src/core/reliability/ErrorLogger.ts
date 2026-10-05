@@ -38,7 +38,7 @@ declare const global: {
 /**
  * Local, rotating error log plus anonymous reporting (RNF-017). Reports go to
  * `CONFIG.errorReportUrl` over HTTPS only; with no URL configured (this repo has no backend,
- * see ARCHITECTURE.md) entries simply stay in the local log.
+ * see docs/architecture.md) entries simply stay in the local log.
  */
 export class ErrorLogger {
   /** Writes are read-modify-write; chaining them keeps concurrent log() calls from losing entries. */

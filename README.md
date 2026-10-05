@@ -256,4 +256,4 @@ backlog/
 └── backlog sprint 3/         # US da Sprint 3
 ```
 
-Documentação técnica de arquitetura e decisões: [`ARCHITECTURE.md`](ARCHITECTURE.md) e [`docs/`](docs/).
+Documentação técnica de arquitetura e decisões: [`docs/architecture.md`](docs/architecture.md), [`docs/decisions/`](docs/decisions/) e [`docs/`](docs/).
