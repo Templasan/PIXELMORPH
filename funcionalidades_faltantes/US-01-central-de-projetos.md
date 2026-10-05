@@ -23,7 +23,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código. Atualizado dep
 - **RNF-015:** a tela de Projetos se adapta em 480x800 e 1440x3120.
 
 ## Pendências
-- **Idiomas nas demais telas:** o editor de foto, o editor de vídeo, câmera, Comunidade, Tutoriais, Presets e Ajuda continuam só em português. Basta envolver os textos com `t('…')` e acrescentar as chaves em `src/core/i18n/locales/en.ts` e `es.ts`.
+- **Idiomas nas demais telas: marcado com `TODO(i18n)` em `src/core/i18n/i18n.ts`.** Faltam o editor de foto e de vídeo (a maior parte do texto), câmera, Comunidade, Tutoriais, Presets, Ajuda, Cadastro, conversor RAW e as duas telas de exportação. Cada uma precisa de `t('…')` nos textos e das chaves em `locales/en.ts` e `es.ts`. Decisão do usuário: pular esta etapa por enquanto.
 - **Projetos antigos:** os projetos criados antes da correção (por exemplo os "Ensaio Praia 04" CR3) continuam com dimensões, tamanho e taxa de bits em "—". Só vale para projetos criados dali em diante. Taxa de bits de vídeo gravado pela câmera continua vazia, pois a câmera não informa a duração.
 - **Datas** continuam no formato dd/mm/aaaa em todos os idiomas.
 - **RNF-001 / RNF-002:** a interface de login e 2FA existe, mas aceita qualquer entrada (`LoginScreen.tsx` tem `TODO`). Depende de decisão sobre backend (conta local com TOTP, ou API própria).

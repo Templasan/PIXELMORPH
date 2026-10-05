@@ -16,6 +16,6 @@ Verificação feita em 04/10/2026 lendo o código (`rawImport.ts`, `RawConverter
 - A prévia preta do conversor foi corrigida (faltava o segundo `ImageShader`, o `maskImage`).
 
 ## Pendências
-- **Não há decodificação real de RAW.** O app trabalha com a prévia JPEG embutida no arquivo, e não com os dados do sensor (sem demosaicing). O próprio código e a tela do conversor avisam disso: precisaria de uma biblioteca nativa fora do Expo gerenciado. Na prática, o "balanço de branco" age sobre um JPEG já processado pela câmera, o que limita o ajuste de tons que o fotógrafo espera de um RAW.
+- **Decodificação real de RAW: fora do escopo, marcada com `TODO(RAW)` em `rawImport.ts`.** Precisaria de um decodificador nativo (por exemplo LibRaw) embrulhado como módulo Expo. Decisão do usuário: deixar como TODO documentado. Hoje o app usa só a prévia JPEG embutida, e o balanço de branco age sobre um JPEG já processado.
 - **Projetos de demonstração.** Os projetos "Ensaio Praia 04" (CR3 e NEF) na grade vêm do `seedDemoProjects.ts`, com a mesma imagem de praia. Não representam um RAW real.
 - **Não testei com um arquivo RAW real** (CR3, NEF etc.) importado do aparelho. Falta saber o que acontece quando o arquivo não tem prévia embutida.

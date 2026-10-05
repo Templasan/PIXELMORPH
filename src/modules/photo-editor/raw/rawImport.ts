@@ -5,6 +5,11 @@
  * deliberately removed from the functional description. Consistent with that, this
  * module works with a RAW file's embedded full-resolution preview (the same fallback
  * every non-RAW-aware viewer uses), not the raw sensor data itself.
+ *
+ * TODO(RAW): real RAW development (Bayer demosaic, white balance on linear sensor data, highlight
+ * recovery) needs a native decoder such as LibRaw wrapped as an Expo module; the white balance
+ * and tone curve in the converter act on an already-processed JPEG. Out of scope for now; see
+ * funcionalidades_faltantes/US-11-importacao-raw.md.
  */
 
 export interface RawFormatInfo {

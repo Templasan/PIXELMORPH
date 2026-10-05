@@ -83,6 +83,8 @@ const TOOLBAR_ITEMS = [
   { icon: 'image', label: 'Time-lapse', action: 'timelapse' },
 ] as const;
 
+// TODO(RF-013): removing unwanted objects from video frames (inpainting) is not implemented — it
+// needs a segmentation + inpainting model run per frame; see funcionalidades_faltantes/US-15.
 const CLIP_TABS = [
   'Aparar',
   'Quadro',

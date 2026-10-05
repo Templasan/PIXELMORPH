@@ -3,6 +3,11 @@
  * strings simply render as written, and each non-source language is its own module that is
  * only loaded when selected — a new language is one more `loaders` entry plus a locale file.
  * Pure (no React Native imports) so Jest can test it.
+ *
+ * TODO(i18n): only Projects, the side drawer, Account, Login and Storage are translated so far.
+ * Not yet covered, by size: the photo and video editors and their drawers (the bulk of the text),
+ * Camera, Community, Tutorials, Presets, Help, Sign up, the RAW converter, and both export sheets.
+ * Each needs its literals wrapped in `t('…')` plus entries in locales/en.ts and locales/es.ts.
  */
 
 export type LanguageCode = 'pt' | 'en' | 'es';

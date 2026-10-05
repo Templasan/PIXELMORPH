@@ -21,3 +21,10 @@ Verificação de cada user story da Sprint 1, feita em 04/10/2026 no emulador `P
 - **Sem codificador de vídeo / FFmpeg** (US-16, US-30): `FFmpegVideoExportAdapter` é um stub.
 - **Sem backend** (US-01, US-03): login, 2FA, sincronização HTTPS e envio de logs dependem dele.
 - **Sem i18n** (US-01): o app está só em português.
+
+## Fora do escopo por decisão (com TODO no código)
+- **Login, 2FA e HTTPS na sincronização** (US-01): dependem de um backend que o projeto não tem.
+- **Idiomas EN/ES nas demais telas** (US-01): `TODO(i18n)` em `src/core/i18n/i18n.ts`.
+- **Remover objetos do vídeo** (US-15): `TODO(RF-013)` em `VideoEditorScreen.tsx`.
+- **HEIC** (US-30): `TODO(HEIC)` em `exportMath.ts`.
+- **Decodificação real de RAW** (US-11): `TODO(RAW)` em `rawImport.ts`.

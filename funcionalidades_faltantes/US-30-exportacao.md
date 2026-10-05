@@ -25,7 +25,7 @@ Verificado em 04/10/2026 no emulador `Pixel_7` e lendo o código (`ExportSheet.t
 
 ## Pendências
 - **GIF é lento:** 37 quadros a 240 px levaram 39 s e 95 quadros a 360 px levaram 96 s no emulador, em build de desenvolvimento. A codificação roda na thread JS e trava a tela no fim. Fazer: medir em build release e em aparelho real; se continuar lento, mover a codificação para uma thread nativa.
-- **HEIC não é suportado** (`UNSUPPORTED_IMAGE_FORMATS`). Depende de um codificador nativo que o Skia não tem. Fazer: avaliar, ou deixar fora do escopo.
+- **HEIC: fora do escopo, marcado com `TODO(HEIC)` em `exportMath.ts`.** O Android só consegue codificar HEIC a partir da API 34, e nada no Expo SDK expõe isso. Decisão do usuário: deixar como TODO documentado.
 - **Transições no arquivo: funcionam, em versão simplificada.** Fade, zoom, deslize e wipe aparecem no mp4, mas **não cruzam os dois clipes**: o clipe que sai escurece e o que entra sobe do preto (fade e zoom) ou desliza para dentro (deslize e wipe, ambos entrando pela direita; o wipe ainda não tem direção própria). Fazer: uma transição de verdade, com os dois clipes aparecendo ao mesmo tempo. Tentei com uma segunda camada de vídeo e o compositor do Media3, mas a camada de cima não aparecia nos quadros (a causa não ficou clara) e troquei por efeitos por clipe.
 - **Só a primeira faixa de vídeo é exportada.** Faixas de texto, imagem sobreposta, picture-in-picture, correção de brilho, estabilização, 360° e áudio da faixa A1 ainda não são aplicados no arquivo.
 - **Só Android.** O módulo é Kotlin. O iOS precisaria de uma versão em AVFoundation (o app, por ora, só roda Android).
