@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -37,6 +37,10 @@ function isDraft(project: Project): boolean {
 let mediaRepair: Promise<unknown> | null = null;
 
 export default function ProjectsScreen({ navigation }: Props) {
+  // Floating buttons are absolutely positioned, so they must clear the system navigation bar
+  // themselves (3-button navigation takes ~150 px on many phones; SafeAreaView padding does not
+  // move absolute children).
+  const insets = useSafeAreaInsets();
   const { t } = useI18n();
   const { projects: projectsModule } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -306,16 +310,22 @@ export default function ProjectsScreen({ navigation }: Props) {
       {!multiSelect && (
         <>
           <Pressable
-            style={[styles.fab, styles.fabGallery]}
+            style={[styles.fab, styles.fabGallery, { bottom: 156 + insets.bottom }]}
             onPress={importFromGallery}
             disabled={importing}
           >
             <Icon name="image" size={20} color={colors.branco} />
           </Pressable>
-          <Pressable style={[styles.fab, styles.fabRaw]} onPress={() => setRawImportOpen(true)}>
+          <Pressable
+            style={[styles.fab, styles.fabRaw, { bottom: 88 + insets.bottom }]}
+            onPress={() => setRawImportOpen(true)}
+          >
             <Icon name="upload" size={20} color={colors.branco} />
           </Pressable>
-          <Pressable style={styles.fab} onPress={() => navigation.navigate('Camera')}>
+          <Pressable
+            style={[styles.fab, { bottom: 20 + insets.bottom }]}
+            onPress={() => navigation.navigate('Camera')}
+          >
             <Icon name="camera" size={24} color={colors.branco} />
           </Pressable>
         </>

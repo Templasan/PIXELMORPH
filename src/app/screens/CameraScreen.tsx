@@ -19,6 +19,7 @@ import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppModules } from '../hooks';
 import { colors } from '@core/theme';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
@@ -56,6 +57,8 @@ const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEna
  * RF-018 is left out rather than faked with a slider that would not do anything.
  */
 export default function CameraScreen({ navigation }: Props) {
+  // The app draws edge to edge: keep the controls clear of the status and navigation bars.
+  const insets = useSafeAreaInsets();
   const { projects } = useAppModules();
   const [activeFilter, setActiveFilter] = useState(0);
   const [intensity, setIntensity] = useState(100);
@@ -289,7 +292,7 @@ export default function CameraScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.previewWrap}>
         <Pressable style={styles.preview} onPress={handleFocusTap}>
           <CameraView
