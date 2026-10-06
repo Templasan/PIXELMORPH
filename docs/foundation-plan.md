@@ -380,3 +380,14 @@ Cada achado foi conferido no código pelo Opus antes de entrar aqui; os descarta
 | Abrir/fechar menu lateral ×5 | 197 | 1,5 | 8 | 12 | 93 |
 
 No aparelho quase tudo cabe no orçamento de 16 ms/frame. **Próximo alvo medido: montar a gaveta de Ajustes** (12,5 % janky, p99 73 ms) e a abertura do editor de foto (p50 26 ms). O slider não foi medido no celular (alteraria um projeto real).
+
+### As 3 etapas seguintes (executadas)
+1. **Barras do sistema no celular** (`bb72aa6`): o app desenha edge-to-edge e, com navegação de 3 botões (barra de 153 px), o painel inferior da Câmera (o "+" do AR) e os FABs de Projetos ficavam embaixo dela. Os dois agora usam os insets da área segura. No celular: o "+" do AR adiciona a âncora, que aparece desenhada sobre a câmera; a varredura (Haiku) não achou nada coberto em Projetos, menu lateral, editor de foto, exportar, Comunidade e Ajuda. O editor de vídeo não foi varrido (a navegação até ele falhou no script).
+2. **Gaveta de Ajustes** (`eb8a030`): o histograma espera a animação de abertura terminar (`InteractionManager`), e os gestos de cada slider passam a ser montados uma vez só (`useMemo`). No celular, mediana de 5:
+
+| Cenário | Antes Janky % | Depois Janky % | Antes p50 / p99 ms | Depois p50 / p99 ms |
+|---|---|---|---|---|
+| Abrir editor de foto | 15 | 13,6 | 26 / 69 | **11** / 69 |
+| Abrir/fechar gaveta Ajustes ×5 | 12,5 | **8,3** | 16 / 73 | 14 / **65** |
+
+3. **"Ajustes recentes"** (`ab26e51`): removido. Nenhuma história ou RF pede isso (o "recentes" do RF-001 é a grade de projetos) e nenhuma tela chamava o recurso. Saíram os use cases, a porta, o repositório AsyncStorage e o tipo de domínio.
