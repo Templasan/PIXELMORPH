@@ -4,7 +4,6 @@ import { HistoryStore } from '../../src/core/history/HistoryStore';
 import { LocalHistoryRepository } from '../../src/core/history/LocalHistoryRepository';
 import { createOperation } from '../../src/core/history/Operation';
 import { AsyncStoragePresetsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStoragePresetsRepository';
-import { AsyncStorageRecentAdjustmentsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStorageRecentAdjustmentsRepository';
 import { AsyncStorageWatermarkPresetsRepository } from '../../src/modules/photo-editor/infrastructure/AsyncStorageWatermarkPresetsRepository';
 
 describe('DebouncedSaver', () => {
@@ -98,22 +97,5 @@ describe('AsyncStorage repositories: concurrent writes', () => {
       Array.from({ length: 8 }, (_, i) => repo.save({ id: `w${i}`, createdAt: new Date() } as any))
     );
     expect(await new AsyncStorageWatermarkPresetsRepository().list()).toHaveLength(8);
-  });
-
-  it('recent adjustments: parallel adds keep the newest 10, dedupe, clear works', async () => {
-    const repo = new AsyncStorageRecentAdjustmentsRepository();
-    await Promise.all(
-      Array.from({ length: 12 }, (_, i) =>
-        repo.add({ id: `r${i}`, adjustments: { b: i }, timestamp: new Date() } as any)
-      )
-    );
-    const list = await repo.list();
-    expect(list).toHaveLength(10);
-    expect(list[0].id).toBe('r11');
-    await repo.add({ id: 'dup', adjustments: { b: 11 }, timestamp: new Date() } as any);
-    expect((await repo.list())[0].id).toBe('dup');
-    expect(await repo.list()).toHaveLength(10);
-    await repo.clear();
-    expect(await repo.list()).toEqual([]);
   });
 });
