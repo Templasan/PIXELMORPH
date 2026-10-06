@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -99,45 +99,49 @@ export function Slider({
   // `onChange` (React re-render + shader-uniform recompute + GPU redraw) on every touch event.
   const frameCounter = useSharedValue(0);
 
-  const pan = Gesture.Pan()
-    .onBegin((e) => {
-      isDragging.value = true;
-      frameCounter.value = 0;
-      if (trackWidth <= 0) return;
-      const next = snapValue(e.x, trackWidth, min, max, step);
-      pctSV.value = toPct(next, min, max);
-      runOnJS(beginGesture)();
-      runOnJS(commitValue)(next);
-    })
-    .onUpdate((e) => {
-      if (trackWidth <= 0) return;
-      const next = snapValue(e.x, trackWidth, min, max, step);
-      pctSV.value = toPct(next, min, max);
-      frameCounter.value += 1;
-      if (frameCounter.value % 3 === 0) {
-        runOnJS(commitValue)(next);
-      }
-    })
-    .onEnd((e) => {
-      isDragging.value = false;
-      if (trackWidth > 0) {
+  // Built once per configuration, not on every render: a drawer mounts many sliders at once.
+  const gesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .onBegin((e) => {
+        isDragging.value = true;
+        frameCounter.value = 0;
+        if (trackWidth <= 0) return;
         const next = snapValue(e.x, trackWidth, min, max, step);
+        pctSV.value = toPct(next, min, max);
+        runOnJS(beginGesture)();
         runOnJS(commitValue)(next);
-      }
+      })
+      .onUpdate((e) => {
+        if (trackWidth <= 0) return;
+        const next = snapValue(e.x, trackWidth, min, max, step);
+        pctSV.value = toPct(next, min, max);
+        frameCounter.value += 1;
+        if (frameCounter.value % 3 === 0) {
+          runOnJS(commitValue)(next);
+        }
+      })
+      .onEnd((e) => {
+        isDragging.value = false;
+        if (trackWidth > 0) {
+          const next = snapValue(e.x, trackWidth, min, max, step);
+          runOnJS(commitValue)(next);
+        }
+        runOnJS(commitSlidingComplete)();
+      });
+
+    // No beginGesture here: Pan.onBegin already fires on every touch-down, and a second begin()
+    // after Pan emitted would reset `from` to the already-emitted value.
+    const tap = Gesture.Tap().onEnd((e) => {
+      if (trackWidth <= 0) return;
+      const next = snapValue(e.x, trackWidth, min, max, step);
+      pctSV.value = toPct(next, min, max);
+      runOnJS(commitValue)(next);
       runOnJS(commitSlidingComplete)();
     });
 
-  // No beginGesture here: Pan.onBegin already fires on every touch-down, and a second begin()
-  // after Pan emitted would reset `from` to the already-emitted value.
-  const tap = Gesture.Tap().onEnd((e) => {
-    if (trackWidth <= 0) return;
-    const next = snapValue(e.x, trackWidth, min, max, step);
-    pctSV.value = toPct(next, min, max);
-    runOnJS(commitValue)(next);
-    runOnJS(commitSlidingComplete)();
-  });
-
-  const gesture = Gesture.Race(pan, tap);
+    return Gesture.Race(pan, tap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shared values are stable refs
+  }, [trackWidth, min, max, step, beginGesture, commitValue, commitSlidingComplete]);
 
   const fillStyle = useAnimatedStyle(() => ({ width: `${pctSV.value}%` }));
   const thumbStyle = useAnimatedStyle(() => ({ left: `${pctSV.value}%` }));
