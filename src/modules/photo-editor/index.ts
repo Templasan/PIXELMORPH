@@ -11,8 +11,6 @@ import {
   createApplyLiquifyStrokeUseCase,
   createComputeWatermarkRenderingUseCase,
   createValidateQRCodeUseCase,
-  createAddRecentAdjustmentUseCase,
-  createListRecentAdjustmentsUseCase,
   createSaveWatermarkPresetUseCase,
   createListWatermarkPresetsUseCase,
 } from './application';
@@ -34,8 +32,6 @@ type PhotoEditorModule = {
   applyLiquifyStroke: ReturnType<typeof createApplyLiquifyStrokeUseCase>;
   computeWatermarkRendering: ReturnType<typeof createComputeWatermarkRenderingUseCase>;
   validateQRCode: ReturnType<typeof createValidateQRCodeUseCase>;
-  addRecentAdjustment: ReturnType<typeof createAddRecentAdjustmentUseCase>;
-  listRecentAdjustments: ReturnType<typeof createListRecentAdjustmentsUseCase>;
   saveWatermarkPreset: ReturnType<typeof createSaveWatermarkPresetUseCase>;
   listWatermarkPresets: ReturnType<typeof createListWatermarkPresetsUseCase>;
 };
@@ -46,10 +42,6 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   if (photoEditorModule) return photoEditorModule;
 
   const presetsRepo = new AsyncStoragePresetsRepository();
-  const {
-    AsyncStorageRecentAdjustmentsRepository,
-  } = require('./infrastructure/AsyncStorageRecentAdjustmentsRepository');
-  const recentRepo = new AsyncStorageRecentAdjustmentsRepository();
   const {
     AsyncStorageWatermarkPresetsRepository,
   } = require('./infrastructure/AsyncStorageWatermarkPresetsRepository');
@@ -67,8 +59,6 @@ export function createPhotoEditorModule(): PhotoEditorModule {
     applyLiquifyStroke: createApplyLiquifyStrokeUseCase(),
     computeWatermarkRendering: createComputeWatermarkRenderingUseCase(),
     validateQRCode: createValidateQRCodeUseCase(),
-    addRecentAdjustment: createAddRecentAdjustmentUseCase(recentRepo),
-    listRecentAdjustments: createListRecentAdjustmentsUseCase(recentRepo),
     saveWatermarkPreset: createSaveWatermarkPresetUseCase(watermarkPresetsRepo),
     listWatermarkPresets: createListWatermarkPresetsUseCase(watermarkPresetsRepo),
   };

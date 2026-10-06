@@ -49,7 +49,7 @@ Never imports `src/modules` or `src/app` (enforced by lint).
 - `domain/adjustments/`: the adjustments model and pure derivations (shader uniforms, perspective matrix, rotation) shared by the live canvas and the bake actions.
 - `application/photoEditorStore.ts`: adjustments, open tool, compare/zoom, layers, brush and the live stroke, with the undo rules.
 - `application/`: use cases (presets, masks, strokes, watermark, QR) and hooks (histogram from a 192 px sample, gyro parallax).
-- `ports/` + `infrastructure/`: preset/recent/watermark repositories (AsyncStorage), layer storage, Skia collage and panorama composition.
+- `ports/` + `infrastructure/`: preset/watermark repositories (AsyncStorage), layer storage, Skia collage and panorama composition.
 - Public entry: `createPhotoEditorModule()` (used by presets, batch edit and mask painter).
 
 ### `export` — image encoding and sizing (US-30)

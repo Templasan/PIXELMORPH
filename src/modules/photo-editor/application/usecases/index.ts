@@ -11,7 +11,5 @@ export { createApplyCloneStrokeUseCase } from './ApplyCloneStrokeUseCase';
 export { createApplyLiquifyStrokeUseCase } from './ApplyLiquifyStrokeUseCase';
 export { createComputeWatermarkRenderingUseCase } from './ComputeWatermarkRenderingUseCase';
 export { createValidateQRCodeUseCase } from './ValidateQRCodeUseCase';
-export { createAddRecentAdjustmentUseCase } from './AddRecentAdjustmentUseCase';
-export { createListRecentAdjustmentsUseCase } from './ListRecentAdjustmentsUseCase';
 export { createSaveWatermarkPresetUseCase } from './SaveWatermarkPresetUseCase';
 export { createListWatermarkPresetsUseCase } from './ListWatermarkPresetsUseCase';

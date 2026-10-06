@@ -6,7 +6,6 @@ export * from './Liquify';
 export * from './Watermark';
 export * from './WatermarkPreset';
 export * from './QRCode';
-export * from './RecentAdjustment';
 
 // Refactored domain files by subfolder
 export * from './collage';
