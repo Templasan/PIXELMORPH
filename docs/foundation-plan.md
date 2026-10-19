@@ -391,3 +391,33 @@ No aparelho quase tudo cabe no orçamento de 16 ms/frame. **Próximo alvo medido
 | Abrir/fechar gaveta Ajustes ×5 | 12,5 | **8,3** | 16 / 73 | 14 / **65** |
 
 3. **"Ajustes recentes"** (`ab26e51`): removido. Nenhuma história ou RF pede isso (o "recentes" do RF-001 é a grade de projetos) e nenhuma tela chamava o recurso. Saíram os use cases, a porta, o repositório AsyncStorage e o tipo de domínio.
+
+### Mídia pesada: cópia leve para editar, original para exportar (`b0cc1be`, `8d7cbc8`)
+Os testes anteriores usavam mídia leve demais (vídeos de 0,1 a 1,6 MB, foto de 24 MP com 8 MB). Agora a mídia de teste é gerada com ffmpeg, com ruído para não comprimir (`C:\testmedia`): foto de 48 MP (40 MB), foto de 12 MP (10 MB), vídeo 4K H.264 80 Mbps de 30 s (300 MB) e vídeo 4K de 15 s com tag de rotação 90°. Medições no emulador Pixel_7, release, mediana de 3.
+
+**Foto:** o canvas ao vivo desenha uma cópia com borda longa de 2048 px. A exportação re-renderiza a cena fora da tela (`drawAsImage`) com a foto original. Antes, a exportação tirava um print do canvas de 340×227 dp, então uma foto de 48 MP saía no tamanho da tela.
+
+| 48 MP | Antes | Depois |
+|---|---|---|
+| Slider Ajustes: janky / p50 / p99 | 9,2 % / 27 / 46 ms | 3,6 % / 17 / 31 ms |
+| Gaveta Ajustes: p50 / p99 | 25 / 57 ms | 17 / 32 ms |
+| Abrir editor (mesmo método) | 2,17 s | 2,39 s |
+| Exportação | ~tamanho da tela | 8000×5341, ~13 s |
+
+**Vídeo:**
+- O buffer do player de prévia foi limitado a 32 MB e 5 s. O padrão do ExoPlayer, ~130 MB, enchia o heap Java (limite de 192 MB) com o 4K de 80 Mbps, e qualquer segundo decodificador dava OutOfMemory.
+- Fontes acima de 1280 px ganham uma cópia de 720p, gerada em segundo plano (~55 s para 30 s de vídeo) e guardada ao lado do arquivo do projeto.
+- A exportação usa o original e pausa a fila de cópias.
+
+| 4K 80 Mbps | Antes | Depois |
+|---|---|---|
+| Arrastar timeline: janky / p90 / p99 | 31 % / 121 / 500 ms | 10 % / 21 / 38 ms |
+| Abrir editor: p50 / p90 | 24 / 200 ms | 17 / 61 ms |
+| Memória (TOTAL PSS) | 804 MB | ~354 MB |
+
+**Achados registrados e não corrigidos:**
+- O preset "Original" da exportação de vídeo tem teto de 1920×1080, mesmo com fonte 4K.
+- A camada de texto não apareceu no editor de foto no teste, nem na prévia nem na exportação.
+- `bakePerspective` aplica a matriz calculada em unidades de 340×227 sobre pixels da imagem.
+- Os campos omitidos nos records do módulo nativo chegam como 0 ou null, e não com o default do Kotlin.
+- Um SIGSEGV isolado no GC do Hermes ao iniciar o app, uma vez, sem reprodução.
