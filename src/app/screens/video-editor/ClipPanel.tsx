@@ -37,6 +37,9 @@ type ClipTab = (typeof CLIP_TABS)[number];
 const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 const ONE_FRAME_MS = 1000 / 30; // DEFAULT_FPS = 30
 
+const DEFAULT_PIP_POSITION = { x: 0.65, y: 0.65 };
+const DEFAULT_PIP_SIZE = { width: 0.3, height: 0.3 };
+
 export interface ClipPanelProps {
   editor: VideoEditorStore;
   stepFrame: (direction: 1 | -1) => void;
@@ -57,12 +60,6 @@ export const ClipPanel = memo(function ClipPanel({
   setPipClipId,
 }: ClipPanelProps) {
   const selected = useStore(editor.store, selectedClipOf, shallowEqual);
-  // PiP placement being edited: local to the panel so dragging these sliders re-renders the
-  // panel only (it used to live in the screen and re-render the whole editor on every tick).
-  const [pipX, setPipX] = useState(0.7);
-  const [pipY, setPipY] = useState(0.7);
-  const [pipWidth, setPipWidth] = useState(0.3);
-  const [pipHeight, setPipHeight] = useState(0.3);
   const freezeHoldMs = useStore(editor.store, (st) => st.freezeHoldMs);
   const loopReview = useStore(editor.store, (st) => st.loopReview);
 
@@ -85,6 +82,18 @@ export const ClipPanel = memo(function ClipPanel({
   const setClipField = (field: 'volume' | 'fadeInMs' | 'fadeOutMs', value: number) =>
     editor.liveClip((c) => ({ ...c, [field]: value }));
   const endSliderGesture = () => editor.endGesture();
+  // PiP sliders read the selected clip's own placement (they used to start at 0.7 for every
+  // clip and commit the other axes from that stale local state).
+  const livePip = (patch: Partial<{ x: number; y: number; width: number; height: number }>) =>
+    editor.liveClip((c) => {
+      const pos = c.pipPosition ?? DEFAULT_PIP_POSITION;
+      const size = c.pipSize ?? DEFAULT_PIP_SIZE;
+      return setPipTransform(
+        c,
+        { x: patch.x ?? pos.x, y: patch.y ?? pos.y },
+        { width: patch.width ?? size.width, height: patch.height ?? size.height }
+      );
+    });
 
   return (
     <View style={styles.clipPanel}>
@@ -423,55 +432,39 @@ export const ClipPanel = memo(function ClipPanel({
               </Text>
               <Slider
                 label="Posição X"
-                value={pipX}
+                value={(selected.clip.pipPosition ?? DEFAULT_PIP_POSITION).x}
                 min={0}
                 max={1}
                 step={0.05}
-                onChange={setPipX}
-                onSlidingComplete={(v) =>
-                  editor.commitClip((c) =>
-                    setPipTransform(c, { x: v, y: pipY }, { width: pipWidth, height: pipHeight })
-                  )
-                }
+                onChange={(v) => livePip({ x: v })}
+                onSlidingComplete={endSliderGesture}
               />
               <Slider
                 label="Posição Y"
-                value={pipY}
+                value={(selected.clip.pipPosition ?? DEFAULT_PIP_POSITION).y}
                 min={0}
                 max={1}
                 step={0.05}
-                onChange={setPipY}
-                onSlidingComplete={(v) =>
-                  editor.commitClip((c) =>
-                    setPipTransform(c, { x: pipX, y: v }, { width: pipWidth, height: pipHeight })
-                  )
-                }
+                onChange={(v) => livePip({ y: v })}
+                onSlidingComplete={endSliderGesture}
               />
               <Slider
                 label="Largura"
-                value={pipWidth}
+                value={(selected.clip.pipSize ?? DEFAULT_PIP_SIZE).width}
                 min={0.1}
                 max={1}
                 step={0.05}
-                onChange={setPipWidth}
-                onSlidingComplete={(v) =>
-                  editor.commitClip((c) =>
-                    setPipTransform(c, { x: pipX, y: pipY }, { width: v, height: pipHeight })
-                  )
-                }
+                onChange={(v) => livePip({ width: v })}
+                onSlidingComplete={endSliderGesture}
               />
               <Slider
                 label="Altura"
-                value={pipHeight}
+                value={(selected.clip.pipSize ?? DEFAULT_PIP_SIZE).height}
                 min={0.1}
                 max={1}
                 step={0.05}
-                onChange={setPipHeight}
-                onSlidingComplete={(v) =>
-                  editor.commitClip((c) =>
-                    setPipTransform(c, { x: pipX, y: pipY }, { width: pipWidth, height: v })
-                  )
-                }
+                onChange={(v) => livePip({ height: v })}
+                onSlidingComplete={endSliderGesture}
               />
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Pressable
@@ -488,10 +481,14 @@ export const ClipPanel = memo(function ClipPanel({
             <Pressable
               onPress={() => {
                 setPipClipId(selected.clip.id);
-                setPipX(0.65);
-                setPipY(0.65);
-                setPipWidth(0.3);
-                setPipHeight(0.3);
+                // Placed right away, so the overlay shows before any slider is touched.
+                editor.commitClip((c) =>
+                  setPipTransform(
+                    c,
+                    c.pipPosition ?? DEFAULT_PIP_POSITION,
+                    c.pipSize ?? DEFAULT_PIP_SIZE
+                  )
+                );
               }}
               style={[styles.button, { backgroundColor: colors.acento }]}
             >
