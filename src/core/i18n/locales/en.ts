@@ -124,6 +124,8 @@ const en: Record<string, string> = {
   'Seu trabalho salvo não foi afetado.': 'Your saved work was not affected.',
   'Tentar novamente': 'Try again',
   Voltar: 'Back',
+  // Video editor
+  'Preparando prévia leve… {p}%': 'Preparing light preview… {p}%',
 };
 
 export default en;

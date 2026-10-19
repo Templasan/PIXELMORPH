@@ -10,8 +10,10 @@ import {
 } from 'react';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { previousClipOf, topClipAt, type Clip, type Track } from '@modules/video-editor';
+import { useStore } from '@core/state';
 import { ClipVideo } from './ClipVideo';
 import { useTime, type TimeStore } from './timeStore';
+import { proxyStore } from './previewProxy';
 
 export interface TransitionBlend {
   progress: number;
@@ -66,6 +68,14 @@ const sameDerived = (a: Derived, b: Derived) =>
 export const sourceTimeAt = (clip: Clip, timeMs: number) =>
   clip.inPointMs + (timeMs - clip.startMs) * (clip.speed ?? 1);
 
+/** What the live preview decodes for `sourceUri`: its 720p proxy once ready, else the original. */
+export function useProxyUri(sourceUri: string | undefined): string | undefined {
+  const readyUri = useStore(proxyStore, (s) =>
+    sourceUri && s[sourceUri]?.status === 'ready' ? s[sourceUri].uri : undefined
+  );
+  return readyUri ?? sourceUri;
+}
+
 /** The real video for `clip`: the only part of the preview that follows the continuous clock. */
 export function LiveClipVideo({
   store,
@@ -76,7 +86,8 @@ export function LiveClipVideo({
   'sourceTimeMs' | 'uri'
 >) {
   const t = useTime(store);
-  return <ClipVideo {...rest} uri={clip.sourceUri} sourceTimeMs={sourceTimeAt(clip, t)} />;
+  const uri = useProxyUri(clip.sourceUri) ?? clip.sourceUri;
+  return <ClipVideo {...rest} uri={uri} sourceTimeMs={sourceTimeAt(clip, t)} />;
 }
 
 /**
@@ -116,6 +127,7 @@ export function PreviewDerived({
   if (clipRef) clipRef.current = currentClip;
 
   const [previewFrameUri, setPreviewFrameUri] = useState<string | null>(null);
+  const posterUri = useProxyUri(currentClip?.sourceUri);
   useEffect(() => {
     // While playing the real player draws the picture; extracting posters would only churn.
     if (playing) return;
@@ -128,22 +140,23 @@ export function PreviewDerived({
     const posterTimeMs = currentClip.frozen
       ? currentClip.inPointMs
       : sourceTimeAt(currentClip, store.get());
-    VideoThumbnails.getThumbnailAsync(currentClip.sourceUri, { time: posterTimeMs })
+    VideoThumbnails.getThumbnailAsync(posterUri ?? currentClip.sourceUri, { time: posterTimeMs })
       .then((result) => {
         if (!cancelled) setPreviewFrameUri(result.uri);
       })
       .catch(() => {
         // Not a video (e.g. an image clip) — the raw source is already a displayable image.
-        if (!cancelled) setPreviewFrameUri(currentClip.sourceUri);
+        if (!cancelled) setPreviewFrameUri(posterUri ?? currentClip.sourceUri);
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentClip?.id, currentClip?.sourceUri, playing]);
+  }, [currentClip?.id, currentClip?.sourceUri, posterUri, playing]);
 
   const [fromFrameUri, setFromFrameUri] = useState<string | null>(null);
   const fromUri = transitionBlend?.fromUri;
+  const fromPlayUri = useProxyUri(fromUri);
   const fromTimeMs = transitionBlend?.fromTimeMs ?? 0;
   useEffect(() => {
     if (!fromUri) {
@@ -151,17 +164,17 @@ export function PreviewDerived({
       return;
     }
     let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(fromUri, { time: fromTimeMs })
+    VideoThumbnails.getThumbnailAsync(fromPlayUri ?? fromUri, { time: fromTimeMs })
       .then((result) => {
         if (!cancelled) setFromFrameUri(result.uri);
       })
       .catch(() => {
-        if (!cancelled) setFromFrameUri(fromUri);
+        if (!cancelled) setFromFrameUri(fromPlayUri ?? fromUri);
       });
     return () => {
       cancelled = true;
     };
-  }, [fromUri, fromTimeMs]);
+  }, [fromUri, fromPlayUri, fromTimeMs]);
 
   return <>{children({ currentClip, transitionBlend, previewFrameUri, fromFrameUri })}</>;
 }
