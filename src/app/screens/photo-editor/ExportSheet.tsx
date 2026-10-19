@@ -32,8 +32,8 @@ interface ExportSheetProps {
   onClose: () => void;
   /** Which pipeline this sheet is exporting from — video has no real encoder in this build. */
   mediaKind?: 'photo' | 'video';
-  /** RF-057: real Skia snapshot of the current edit, e.g. `() => canvasRef.current?.makeImageSnapshot() ?? null`. */
-  getSourceImage?: () => SkImage | null;
+  /** RF-057: the current edit as a Skia image at full resolution, e.g. an offscreen re-render; may resolve null. */
+  getSourceImage?: () => SkImage | null | Promise<SkImage | null>;
   /** Called once encoding succeeds, so the caller can mark its project as no longer a draft. */
   onExported?: (result: EncodedImage) => void;
 }
@@ -116,15 +116,16 @@ export function ExportSheet({
       );
       return;
     }
-    const source = getSourceImage();
+    setExportState('exporting');
+    setSaveState('idle');
+    // Rendering the full-resolution edit can take a moment, so the spinner is already up.
+    // A failed render lands in the same "could not capture" error as a null one.
+    const source = await Promise.resolve().then(getSourceImage).catch(() => null);
     if (!source) {
       setExportState('error');
       setErrorMessage('Não foi possível capturar a imagem atual do editor.');
       return;
     }
-
-    setExportState('exporting');
-    setSaveState('idle');
     // Let "Processando..." paint before the (synchronous) encode work runs.
     await new Promise((r) => setTimeout(r, 30));
     try {
