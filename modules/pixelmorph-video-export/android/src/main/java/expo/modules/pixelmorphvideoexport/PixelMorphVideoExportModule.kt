@@ -60,6 +60,7 @@ class PixelMorphVideoExportModule : Module() {
         try {
           start(options, promise)
         } catch (error: Throwable) {
+          Log.e("PixelMorphExport", "export could not start", error)
           promise.reject("ERR_VIDEO_EXPORT", error.message ?: "Video export failed", error)
         }
       }
@@ -104,6 +105,37 @@ class PixelMorphVideoExportModule : Module() {
           retriever.setDataSource(context, Uri.parse(uri))
           val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
           promise.resolve(rotation?.toIntOrNull())
+        } catch (error: Throwable) {
+          promise.resolve(null)
+        } finally {
+          retriever.release()
+        }
+      }.start()
+    }
+
+    // Stored size, rotation tag and duration from the container metadata (no frame decode).
+    // Null when the file cannot be read or has no video track.
+    AsyncFunction("probeVideo") { uri: String, promise: Promise ->
+      Thread {
+        val retriever = MediaMetadataRetriever()
+        try {
+          retriever.setDataSource(context, Uri.parse(uri))
+          fun key(k: Int) = retriever.extractMetadata(k)?.toIntOrNull()
+          val width = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+          val height = key(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+          val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+          if (width == null || height == null || durationMs == null) {
+            promise.resolve(null)
+          } else {
+            promise.resolve(
+              mapOf(
+                "width" to width,
+                "height" to height,
+                "rotation" to (key(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) ?: 0),
+                "durationMs" to durationMs
+              )
+            )
+          }
         } catch (error: Throwable) {
           promise.resolve(null)
         } finally {

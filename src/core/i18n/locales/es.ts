@@ -126,6 +126,8 @@ const es: Record<string, string> = {
   'Seu trabalho salvo não foi afetado.': 'Tu trabajo guardado no se vio afectado.',
   'Tentar novamente': 'Intentar de nuevo',
   Voltar: 'Volver',
+  // Video editor
+  'Preparando prévia leve… {p}%': 'Preparando vista previa ligera… {p}%',
 };
 
 export default es;

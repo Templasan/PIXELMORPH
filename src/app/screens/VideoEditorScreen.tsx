@@ -24,6 +24,8 @@ import { errorLogger } from '@core/reliability';
 import { LiveTimecode } from './video-editor/LiveTimecode';
 import { Playhead } from './video-editor/Playhead';
 import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
+import { PreviewProxyLabel } from './video-editor/PreviewProxyLabel';
+import { requestSourceProxy } from './video-editor/previewProxy';
 import { createTimeStore } from './video-editor/timeStore';
 import { ClipPanel } from './video-editor/ClipPanel';
 import { useStore } from '@core/state';
@@ -327,6 +329,14 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const handleUndo = editor.undo;
   const handleRedo = editor.redo;
+
+  // Live preview plays a 720p proxy of each heavy video source; re-checked when clips are added.
+  useEffect(() => {
+    for (const track of tracks) {
+      if (track.kind !== 'video') continue;
+      for (const clip of track.clips) requestSourceProxy(clip.sourceUri);
+    }
+  }, [tracks]);
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
@@ -668,6 +678,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
               </Text>
             </View>
+            <PreviewProxyLabel />
             <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
               <Icon name="maximize" size={16} color={colors.branco} />
             </Pressable>

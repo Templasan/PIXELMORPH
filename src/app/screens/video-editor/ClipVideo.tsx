@@ -43,9 +43,14 @@ export function ClipVideo({
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.timeUpdateEventInterval = 0.25;
+    // ExoPlayer's default buffer is sized by bytes (~130 MB for video): an 80 Mbps 4K file fills
+    // it and the Java heap (192 MB cap) has no room left for export or a second decoder.
+    p.bufferOptions = { preferredForwardBufferDuration: 5, maxBufferBytes: 32 * 1024 * 1024 };
   });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
-  const ready = status === 'readyToPlay';
+  // When `uri` changes (proxy ready) the hook makes a new player, but useEvent keeps the old
+  // player's last status: check the current player too, so the seek to sourceTimeMs runs again.
+  const ready = status === 'readyToPlay' && player.status === 'readyToPlay';
   // Once the first frame is playable keep the surface mounted: the status drops to 'loading'
   // on every seek, and unmounting the VideoView there made the picture blink.
   const [shown, setShown] = useState(false);

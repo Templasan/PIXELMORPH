@@ -11,6 +11,7 @@ import {
 } from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
 import { exportGif } from './gifExporter';
+import { pauseProxiesForExport, resumeProxies } from './previewProxy';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
@@ -108,6 +109,8 @@ export function VideoExportSheet({
     setSaveState('idle');
     setState({ phase: 'exporting', progress: 0 });
     const startedAt = Date.now();
+    // The encoder is single-slot: the preview proxies stop before the export touches it.
+    await pauseProxiesForExport();
     try {
       if (format === 'gif') {
         const gif = await exportGif(
@@ -198,6 +201,7 @@ export function VideoExportSheet({
       });
     } finally {
       exportingRef.current = false;
+      resumeProxies();
     }
   }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight]);
 
