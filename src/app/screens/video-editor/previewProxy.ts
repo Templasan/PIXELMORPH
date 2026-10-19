@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { createStore } from '@core/state';
+import { createStore, shallowEqual, useStore } from '@core/state';
 import { errorLogger } from '@core/reliability';
 import { uprightDimensions } from '@modules/device-media/uprightDimensions';
 import {
@@ -14,7 +14,11 @@ const PROXY_BITRATE = 5_000_000;
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
 
-export type ProxyStatus = 'pending' | 'running' | 'ready' | 'failed';
+/**
+ * 'checking' while the source is probed; 'none' when it needs no proxy (small, outside the
+ * documents folder, or unreadable). Only 'pending' and 'running' are still being prepared.
+ */
+export type ProxyStatus = 'checking' | 'none' | 'pending' | 'running' | 'ready' | 'failed';
 
 export interface ProxyEntry {
   status: ProxyStatus;
@@ -149,7 +153,9 @@ export async function requestProxy(
   sourceHeight: number,
   durationMs: number
 ): Promise<void> {
-  if (proxyStore.get()[sourceUri]) return;
+  // 'checking' is set by requestSourceProxy before the probe and must not block this request.
+  const existing = proxyStore.get()[sourceUri];
+  if (existing && existing.status !== 'checking') return;
   const uri = proxyPathOf(sourceUri);
   const size = proxyDimensions(sourceWidth, sourceHeight);
   if (!uri || !size || !(durationMs > 0)) return;
@@ -215,15 +221,58 @@ const probes = new Map<string, Promise<ProbedVideo | null>>();
  * Does nothing for sources outside the documents folder.
  */
 export function requestSourceProxy(sourceUri: string): Promise<void> {
-  if (!proxyPathOf(sourceUri)) return Promise.resolve();
+  const current = () => proxyStore.get()[sourceUri]?.status;
+  if (!proxyPathOf(sourceUri)) {
+    if (!current()) patch(sourceUri, { status: 'none', progress: 0 });
+    return Promise.resolve();
+  }
+  if (!current()) patch(sourceUri, { status: 'checking', progress: 0 });
   let probe = probes.get(sourceUri);
   if (!probe) {
     probe = probeSource(sourceUri);
     probes.set(sourceUri, probe);
   }
   return probe
-    .then((size) =>
-      size ? requestProxy(sourceUri, size.width, size.height, size.durationMs) : undefined
-    )
-    .catch((error) => errorLogger.log(error, 'previewProxy.request'));
+    .then(async (size) => {
+      if (size && proxyDimensions(size.width, size.height)) {
+        await requestProxy(sourceUri, size.width, size.height, size.durationMs);
+      } else if (current() === 'checking') {
+        // Probe failed, or the source is already within 720p: nothing to transcode.
+        patch(sourceUri, { status: 'none', progress: 0 });
+      }
+    })
+    .catch((error) => {
+      // Never leave 'checking' behind: the editor would wait on it forever.
+      if (current() === 'checking') patch(sourceUri, { status: 'failed', progress: 0 });
+      errorLogger.log(error, 'previewProxy.request');
+    });
+}
+
+export interface SourcesReadiness {
+  /** Every source is ready, has no proxy, or failed (the editor then plays the original). */
+  ready: boolean;
+  /** 0..100, averaged over the sources still being prepared; 0 while only queued or checking. */
+  progress: number;
+}
+
+/** Pure readiness of `uris` in `state`. A source with no entry yet counts as still preparing. */
+export function sourcesReadiness(
+  state: Record<string, ProxyEntry>,
+  uris: readonly string[]
+): SourcesReadiness {
+  let preparing = 0;
+  let sum = 0;
+  for (const uri of uris) {
+    const entry = state[uri];
+    if (entry?.status === 'ready' || entry?.status === 'none' || entry?.status === 'failed')
+      continue;
+    preparing += 1;
+    if (entry?.status === 'running') sum += entry.progress;
+  }
+  return { ready: preparing === 0, progress: preparing ? sum / preparing : 0 };
+}
+
+/** Editor gate: whether the sources' preview copies are ready, and how far along they are. */
+export function useSourcesReady(uris: readonly string[]): SourcesReadiness {
+  return useStore(proxyStore, (state) => sourcesReadiness(state, uris), shallowEqual);
 }
