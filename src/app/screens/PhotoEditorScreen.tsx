@@ -5,11 +5,13 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import {
   FilterMode,
+  Group,
   MipmapMode,
   Skia,
   type SkImage,
   type SkRuntimeEffect,
   TileMode,
+  drawAsImage,
   processUniforms,
   useCanvasRef,
   useImage,
@@ -58,6 +60,8 @@ import { MaskPainterSheet } from './photo-editor/MaskPainterSheet';
 import { LayersPanel } from './photo-editor/LayersPanel';
 import { createPhotoEditorStore } from '@modules/photo-editor';
 import { EditorCanvas } from './photo-editor/EditorCanvas';
+import { EditorScene } from './photo-editor/EditorScene';
+import { exportScaleOf, fitLongEdgeOf, PREVIEW_LONG_EDGE } from './photo-editor/resolution';
 import { WithAdjustments } from './photo-editor/WithAdjustments';
 import {
   ADJUST_DRAWER_FIELDS,
@@ -146,6 +150,30 @@ function bakePerspective(image: SkImage, matrix: readonly number[]): SkImage | n
   const canvas = surface.getCanvas();
   canvas.concat(matrix as number[]);
   canvas.drawImage(image, 0, 0);
+  surface.flush();
+  return surface.makeImageSnapshot();
+}
+
+/**
+ * Smaller copy of `image` for the live canvas, long edge at most `maxLongEdge`. Returns `image`
+ * itself when it is already small enough or the surface cannot be made.
+ */
+function downscaleToLongEdge(image: SkImage, maxLongEdge: number): SkImage {
+  const srcW = image.width();
+  const srcH = image.height();
+  const { width, height } = fitLongEdgeOf(srcW, srcH, maxLongEdge);
+  if (width === srcW && height === srcH) return image;
+  const surface = Skia.Surface.Make(width, height);
+  if (!surface) return image;
+  surface
+    .getCanvas()
+    .drawImageRectOptions(
+      image,
+      Skia.XYWHRect(0, 0, srcW, srcH),
+      Skia.XYWHRect(0, 0, width, height),
+      FilterMode.Linear,
+      MipmapMode.Linear
+    );
   surface.flush();
   return surface.makeImageSnapshot();
 }
@@ -240,14 +268,18 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // Nothing to show until the project's own asset loads.
   const photoUri = projectPhotoUri;
 
-  // RF-057: a ref to the on-screen Canvas so ExportSheet can snapshot the real composited
-  // result (adjustments + geometry + effects + paint layers, exactly as rendered on screen).
   const canvasRef = useCanvasRef();
 
   // RF-047/RF-063/RF-059: real GPU color-grading pipeline (see @modules/photo-editor/color)
   // instead of the flat tint overlay this screen used to fake it with.
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
-  const skiaImage = useImage(photoUri, () => setImageLoadFailed(true));
+  // Full-resolution photo: export and the bake actions read it; the live canvas does not.
+  const fullImage = useImage(photoUri, () => setImageLoadFailed(true));
+  // Live preview proxy: the scene draws this, so a 12 MP photo is never sampled at full size.
+  const skiaImage = useMemo(
+    () => (fullImage ? downscaleToLongEdge(fullImage, PREVIEW_LONG_EDGE) : null),
+    [fullImage]
+  );
   const doubleExposureSkImage = useImage(doubleExposureImage?.uri ?? null);
   const overlaySkImage = useImage(overlayImage?.uri ?? null);
   const adjustmentsEffect = getAdjustmentsEffect();
@@ -571,13 +603,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   // fields to neutral so the next drag starts a fresh pass on top — geometry/effects/frame
   // are untouched and keep working the usual (always-relative-to-original) way.
   const handleBakeAdjustments = useCallback(async () => {
-    if (!skiaImage || !adjustmentsEffect) return;
+    if (!fullImage || !adjustmentsEffect) return;
     const uniforms = adjustmentUniforms(editor.store.get().adjustments);
-    const baked = bakeAdjustments(skiaImage, adjustmentsEffect, uniforms);
+    const baked = bakeAdjustments(fullImage, adjustmentsEffect, uniforms);
     if (!baked) return;
     await persistBakedImage(baked);
     editor.resetFields(ADJUST_DRAWER_FIELDS);
-  }, [skiaImage, adjustmentsEffect, persistBakedImage, editor]);
+  }, [fullImage, adjustmentsEffect, persistBakedImage, editor]);
 
   // Same cumulative pattern for "Corrigir perspectiva": the 4 corner handles always warp
   // from the identity quad, so a second correction on top of an already-corrected photo
@@ -588,13 +620,45 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       PHOTO_WIDTH,
       PHOTO_HEIGHT
     );
-    if (!skiaImage || !perspectiveMatrix) return;
-    const baked = bakePerspective(skiaImage, perspectiveMatrix);
+    if (!fullImage || !perspectiveMatrix) return;
+    const baked = bakePerspective(fullImage, perspectiveMatrix);
     if (!baked) return;
     await persistBakedImage(baked);
     editor.resetFields(PERSPECTIVE_FIELDS);
     setPerspectiveEditMode(false);
-  }, [skiaImage, persistBakedImage, editor]);
+  }, [fullImage, persistBakedImage, editor]);
+
+  // Export replays the live scene at full resolution: the same EditorScene, drawn offscreen with
+  // the photo at its native size (exportScaleOf). Parallax is a live gyro effect, so it is off.
+  const renderFullResolution = useCallback(async () => {
+    if (!fullImage || !adjustmentsEffect) return null;
+    const scale = exportScaleOf(fullImage.width(), fullImage.height(), PHOTO_WIDTH, PHOTO_HEIGHT);
+    return drawAsImage(
+      <Group transform={[{ scale }]}>
+        <EditorScene
+          editor={editor}
+          skiaImage={fullImage}
+          adjustmentsEffect={adjustmentsEffect}
+          retroEffect={retroEffect}
+          parallaxOffset={{ x: 0, y: 0 }}
+          doubleExposureSkImage={doubleExposureSkImage}
+          overlaySkImage={overlaySkImage}
+          frameColor={frameColor}
+          frameGradientColor={frameGradientColor}
+        />
+      </Group>,
+      { width: Math.round(PHOTO_WIDTH * scale), height: Math.round(PHOTO_HEIGHT * scale) }
+    );
+  }, [
+    fullImage,
+    adjustmentsEffect,
+    retroEffect,
+    editor,
+    doubleExposureSkImage,
+    overlaySkImage,
+    frameColor,
+    frameGradientColor,
+  ]);
 
   const applyExifOrientation = useCallback(async () => {
     if (!photoUri) return;
@@ -742,7 +806,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         {/* Real values from the decoded image and the project's asset — no color space or
             bit depth is shown because nothing in this build reads them from the file. */}
         <Text style={styles.techText}>
-          {skiaImage ? `${skiaImage.width()} × ${skiaImage.height()}` : '…'}
+          {fullImage ? `${fullImage.width()} × ${fullImage.height()}` : '…'}
           {assetInfo?.format ? ` · ${assetInfo.format}` : ''}
         </Text>
         <Text style={styles.techText}>
@@ -1028,7 +1092,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         <ExportSheet
           onClose={() => setExportOpen(false)}
           mediaKind="photo"
-          getSourceImage={() => canvasRef.current?.makeImageSnapshot() ?? null}
+          getSourceImage={renderFullResolution}
           onExported={async (result) => {
             if (!projectId) return;
             try {
