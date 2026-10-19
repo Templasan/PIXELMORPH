@@ -433,3 +433,11 @@ Os testes anteriores usavam mídia leve demais (vídeos de 0,1 a 1,6 MB, foto de
   - Uma edição feita antes do histórico carregar sumia do desfazer (resolvido pelo bloqueio).
 - **Achado de ambiente:** o emulador ficou sem disco (2% livre) com as cópias de 300 MB. A importação falhou com "Não foi possível importar" e as cópias leves não conseguiram ser gravadas. Liberado com autorização do usuário.
 - **Não verificado:** voltar e reentrar no meio da preparação de um vídeo (o progresso deveria continuar), e o slider de escala do AR, onde a auditoria apontou um frame de fallback entre o rascunho e o valor confirmado.
+
+### Gaveta de Ajustes mantida montada (`<Activity>`)
+- O "janky %" do gfxinfo engana no emulador. A GPU traduzida (RX 6800 XT do host) coloca todo frame em ~17 ms, logo acima do limite de 16,7 ms. A primeira medição pareceu não mostrar ganho (55,6 % → 52,4 %).
+- O `gfxinfo framestats`, separado por fase, mostra o ganho real ao reabrir:
+  - montagem React (anim): 12 → 2–4 ms;
+  - gravação (record): até 15 → ≤ 2 ms;
+  - frame total: 21–53 → 17–19 ms.
+- Daqui em diante, medições de UI no emulador devem usar framestats por fase, não só o janky %.
