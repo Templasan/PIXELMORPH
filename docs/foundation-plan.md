@@ -401,7 +401,7 @@ Os testes anteriores usavam mídia leve demais (vídeos de 0,1 a 1,6 MB, foto de
 |---|---|---|
 | Slider Ajustes: janky / p50 / p99 | 9,2 % / 27 / 46 ms | 3,6 % / 17 / 31 ms |
 | Gaveta Ajustes: p50 / p99 | 25 / 57 ms | 17 / 32 ms |
-| Abrir editor (mesmo método) | 2,17 s | 2,39 s |
+| Abrir editor | < 0,6 s | < 0,6 s (os 2,17/2,39 s medidos antes eram o uiautomator esperando a tela ficar ociosa) |
 | Exportação | ~tamanho da tela | 8000×5341, ~13 s |
 
 **Vídeo:**
@@ -421,3 +421,15 @@ Os testes anteriores usavam mídia leve demais (vídeos de 0,1 a 1,6 MB, foto de
 - `bakePerspective` aplica a matriz calculada em unidades de 340×227 sobre pixels da imagem.
 - Os campos omitidos nos records do módulo nativo chegam como 0 ou null, e não com o default do Kotlin.
 - Um SIGSEGV isolado no GC do Hermes ao iniciar o app, uma vez, sem reprodução.
+
+### Editores bloqueados até a mídia estar pronta; rollback dos sliders (`14ca224`, `7259542`)
+- **Regra do usuário:** mídia que ainda não tem a cópia leve não pode ser editada. Os dois editores mostram "Preparando mídia para edição…" com progresso até a cópia existir e o projeto e o histórico terem carregado. Dá para voltar, e o job continua em segundo plano. A tela de Projetos não mudou.
+- **Foto:** a cópia de 2048 px (`<nome>.proxy2048.jpg`) fica salva ao lado da foto. A foto inteira só é decodificada na exportação e nas bakes. Com o editor aberto, TOTAL PSS foi de 334 para 295 MB.
+- **Rollback dos sliders, causa:** o rastreador de eco esquecia os valores emitidos durante o arrasto assim que o dedo saía. Com o JS ocupado, um valor intermediário renderizado depois de soltar era aceito como mudança externa, e o cursor voltava. Isso afetava todos os sliders.
+- **Rollback dos sliders, correção:** como os ecos chegam em ordem, cada eco descarta os valores emitidos antes dele. O que ainda está em trânsito continua reconhecido por 1 s depois de soltar. Teste no emulador: 15 arrastos sob carga, nenhum rollback.
+- **Corrigidos junto:**
+  - Os sliders de PiP usavam um estado local que começava em 0,7 para qualquer clipe.
+  - O snap mostrava 0.8500000000000001.
+  - Uma edição feita antes do histórico carregar sumia do desfazer (resolvido pelo bloqueio).
+- **Achado de ambiente:** o emulador ficou sem disco (2% livre) com as cópias de 300 MB. A importação falhou com "Não foi possível importar" e as cópias leves não conseguiram ser gravadas. Liberado com autorização do usuário.
+- **Não verificado:** voltar e reentrar no meio da preparação de um vídeo (o progresso deveria continuar), e o slider de escala do AR, onde a auditoria apontou um frame de fallback entre o rascunho e o valor confirmado.
