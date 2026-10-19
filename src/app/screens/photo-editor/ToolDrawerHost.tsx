@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { Activity, memo, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { SkImage, SkRuntimeEffect } from '@shopify/react-native-skia';
 import { colors } from '@core/theme';
@@ -106,94 +106,104 @@ export const ToolDrawerHost = memo(function ToolDrawerHost({
   onPanoramaOverlapChange,
   onSubmitPanorama,
 }: ToolDrawerHostProps) {
-  if (!activeTool || activeTool === 'camadas') {
+  // Ajustes mounts ~7 sliders with their gestures; once opened it stays mounted (hidden by
+  // Activity, state kept) so reopening it does not rebuild them. The other drawers still mount
+  // fresh each time, as before.
+  const ajustesOpened = useRef(false);
+  if (activeTool === 'ajustes') ajustesOpened.current = true;
+  const drawerOpen = !!activeTool && activeTool !== 'camadas';
+  if (!drawerOpen && !ajustesOpened.current) {
     return null;
   }
 
   return (
-    <View style={styles.toolDrawer}>
-      <View style={styles.drawerHandleRow}>
-        <View style={styles.drawerHandle} />
+    <Activity mode={drawerOpen ? 'visible' : 'hidden'}>
+      <View style={styles.toolDrawer}>
+        <View style={styles.drawerHandleRow}>
+          <View style={styles.drawerHandle} />
+        </View>
+        <ScrollView style={{ flex: 1 }}>
+          {ajustesOpened.current && histogram && (
+            <Activity mode={activeTool === 'ajustes' ? 'visible' : 'hidden'}>
+              <AdjustDrawerHost
+                editor={editor}
+                histogram={histogram}
+                setField={onSetAdjustmentField}
+                onCommit={onCommitAdjustment}
+                onBake={onBakeAdjustments}
+                skiaImage={skiaImage}
+                adjustmentsEffect={adjustmentsEffect}
+              />
+            </Activity>
+          )}
+          {activeTool === 'geometria' && (
+            <WithAdjustments editor={editor}>
+              {(adjustments) => (
+                <GeometryDrawer
+                  adjustments={adjustments}
+                  setField={onSetAdjustmentField}
+                  onCommit={onCommitAdjustment}
+                  perspectiveEditMode={perspectiveEditMode}
+                  onTogglePerspectiveEditMode={onTogglePerspectiveEditMode}
+                  onApplyExif={onApplyExif}
+                  onBakePerspective={onBakePerspective}
+                />
+              )}
+            </WithAdjustments>
+          )}
+          {activeTool === 'mascaras' && <MasksDrawer />}
+          {activeTool === 'retoque' && <RetouchDrawer />}
+          {activeTool === 'efeitos' && (
+            <WithAdjustments editor={editor}>
+              {(adjustments) => (
+                <EffectsDrawer
+                  adjustments={adjustments}
+                  setField={onSetAdjustmentField}
+                  onCommit={onCommitAdjustment}
+                  frameColor={frameColor}
+                  onFrameColorChange={onChangeFrameColor}
+                  frameGradientColor={frameGradientColor}
+                  onFrameGradientColorChange={onChangeFrameGradientColor}
+                  lightEditMode={lightEditMode}
+                  onToggleLightEditMode={onToggleLightEditMode}
+                  doubleExposureImage={doubleExposureImage}
+                  onPickDoubleExposureImage={onPickDoubleExposureImage}
+                  onClearDoubleExposureImage={onClearDoubleExposureImage}
+                  overlayImage={overlayImage}
+                  onPickOverlayImage={onPickOverlayImage}
+                  onClearOverlayImage={onClearOverlayImage}
+                  currentProjectId={currentProjectId}
+                />
+              )}
+            </WithAdjustments>
+          )}
+          {activeTool === 'elementos' && (
+            <ElementsDrawerHost editor={editor} onSubmitCollage={onSubmitCollage} />
+          )}
+          {activeTool === 'ia' && <AIDrawer />}
+          {activeTool === 'presets' && (
+            <WithAdjustments editor={editor}>
+              {(adjustments) => (
+                <PresetsDrawer adjustments={adjustments} onApplyPreset={editor.applyAdjustments} />
+              )}
+            </WithAdjustments>
+          )}
+          {activeTool === 'panorama' && (
+            <PanoramaDrawer
+              selectedImages={selectedPanoramaImages}
+              onAddImage={onAddPanoramaImage}
+              onRemoveImage={onRemovePanoramaImage}
+              onOffsetChange={onPanoramaOffsetChange}
+              onOverlapChange={onPanoramaOverlapChange}
+              onStitch={onSubmitPanorama}
+              overlapWidth={panoramaOverlapWidth}
+              offsets={panoramaOffsets}
+              isStitching={isStitching}
+            />
+          )}
+        </ScrollView>
       </View>
-      <ScrollView style={{ flex: 1 }}>
-        {activeTool === 'ajustes' && histogram && (
-          <AdjustDrawerHost
-            editor={editor}
-            histogram={histogram}
-            setField={onSetAdjustmentField}
-            onCommit={onCommitAdjustment}
-            onBake={onBakeAdjustments}
-            skiaImage={skiaImage}
-            adjustmentsEffect={adjustmentsEffect}
-          />
-        )}
-        {activeTool === 'geometria' && (
-          <WithAdjustments editor={editor}>
-            {(adjustments) => (
-              <GeometryDrawer
-                adjustments={adjustments}
-                setField={onSetAdjustmentField}
-                onCommit={onCommitAdjustment}
-                perspectiveEditMode={perspectiveEditMode}
-                onTogglePerspectiveEditMode={onTogglePerspectiveEditMode}
-                onApplyExif={onApplyExif}
-                onBakePerspective={onBakePerspective}
-              />
-            )}
-          </WithAdjustments>
-        )}
-        {activeTool === 'mascaras' && <MasksDrawer />}
-        {activeTool === 'retoque' && <RetouchDrawer />}
-        {activeTool === 'efeitos' && (
-          <WithAdjustments editor={editor}>
-            {(adjustments) => (
-              <EffectsDrawer
-                adjustments={adjustments}
-                setField={onSetAdjustmentField}
-                onCommit={onCommitAdjustment}
-                frameColor={frameColor}
-                onFrameColorChange={onChangeFrameColor}
-                frameGradientColor={frameGradientColor}
-                onFrameGradientColorChange={onChangeFrameGradientColor}
-                lightEditMode={lightEditMode}
-                onToggleLightEditMode={onToggleLightEditMode}
-                doubleExposureImage={doubleExposureImage}
-                onPickDoubleExposureImage={onPickDoubleExposureImage}
-                onClearDoubleExposureImage={onClearDoubleExposureImage}
-                overlayImage={overlayImage}
-                onPickOverlayImage={onPickOverlayImage}
-                onClearOverlayImage={onClearOverlayImage}
-                currentProjectId={currentProjectId}
-              />
-            )}
-          </WithAdjustments>
-        )}
-        {activeTool === 'elementos' && (
-          <ElementsDrawerHost editor={editor} onSubmitCollage={onSubmitCollage} />
-        )}
-        {activeTool === 'ia' && <AIDrawer />}
-        {activeTool === 'presets' && (
-          <WithAdjustments editor={editor}>
-            {(adjustments) => (
-              <PresetsDrawer adjustments={adjustments} onApplyPreset={editor.applyAdjustments} />
-            )}
-          </WithAdjustments>
-        )}
-        {activeTool === 'panorama' && (
-          <PanoramaDrawer
-            selectedImages={selectedPanoramaImages}
-            onAddImage={onAddPanoramaImage}
-            onRemoveImage={onRemovePanoramaImage}
-            onOffsetChange={onPanoramaOffsetChange}
-            onOverlapChange={onPanoramaOverlapChange}
-            onStitch={onSubmitPanorama}
-            overlapWidth={panoramaOverlapWidth}
-            offsets={panoramaOffsets}
-            isStitching={isStitching}
-          />
-        )}
-      </ScrollView>
-    </View>
+    </Activity>
   );
 });
 
