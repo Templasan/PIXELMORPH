@@ -126,8 +126,10 @@ const es: Record<string, string> = {
   'Seu trabalho salvo não foi afetado.': 'Tu trabajo guardado no se vio afectado.',
   'Tentar novamente': 'Intentar de nuevo',
   Voltar: 'Volver',
-  // Video editor
-  'Preparando prévia leve… {p}%': 'Preparando vista previa ligera… {p}%',
+  // Media preparation gate (editors)
+  'Preparando mídia para edição…': 'Preparando medios para editar…',
+  'Arquivos grandes levam alguns segundos na primeira vez.':
+    'Los archivos grandes tardan unos segundos la primera vez.',
 };
 
 export default es;

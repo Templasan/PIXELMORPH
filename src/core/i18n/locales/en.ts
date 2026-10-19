@@ -124,8 +124,10 @@ const en: Record<string, string> = {
   'Seu trabalho salvo não foi afetado.': 'Your saved work was not affected.',
   'Tentar novamente': 'Try again',
   Voltar: 'Back',
-  // Video editor
-  'Preparando prévia leve… {p}%': 'Preparing light preview… {p}%',
+  // Media preparation gate (editors)
+  'Preparando mídia para edição…': 'Preparing media for editing…',
+  'Arquivos grandes levam alguns segundos na primeira vez.':
+    'Large files take a few seconds the first time.',
 };
 
 export default en;

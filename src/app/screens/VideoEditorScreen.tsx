@@ -24,8 +24,8 @@ import { errorLogger } from '@core/reliability';
 import { LiveTimecode } from './video-editor/LiveTimecode';
 import { Playhead } from './video-editor/Playhead';
 import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
-import { PreviewProxyLabel } from './video-editor/PreviewProxyLabel';
-import { requestSourceProxy } from './video-editor/previewProxy';
+import { requestSourceProxy, useSourcesReady } from './video-editor/previewProxy';
+import { PreparingMediaOverlay } from './shared/PreparingMediaOverlay';
 import { createTimeStore } from './video-editor/timeStore';
 import { ClipPanel } from './video-editor/ClipPanel';
 import { useStore } from '@core/state';
@@ -256,6 +256,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const { projects: projectsModule } = useAppModules();
 
   const [project, setProject] = useState<Project | null>(null);
+  const [projectSettled, setProjectSettled] = useState(!projectId);
   const [projectName, setProjectName] = useState('Novo projeto');
   // Timeline, selection, playback and tool state live in the video editor store; the screen
   // and its parts subscribe by selector. The history adapter reads the latest hook value.
@@ -309,7 +310,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           setProjectName(p.name);
         }
       })
-      .catch((error) => errorLogger.log(error, 'VideoEditorScreen.getProject'));
+      .catch((error) => errorLogger.log(error, 'VideoEditorScreen.getProject'))
+      .finally(() => setProjectSettled(true));
   }, [projectId]);
 
   const initialTracks = useMemo(() => buildInitialTracks(project), [project]);
@@ -330,13 +332,26 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const handleUndo = editor.undo;
   const handleRedo = editor.redo;
 
-  // Live preview plays a 720p proxy of each heavy video source; re-checked when clips are added.
+  // The editor is locked until every video source has its 720p preview copy (or needs none).
+  // Re-checked when clips are added, so a clip added mid-session locks the editor again.
+  const videoSourceUris = useMemo(
+    () =>
+      tracks.flatMap((track) =>
+        track.kind === 'video' ? track.clips.map((c) => c.sourceUri) : []
+      ),
+    [tracks]
+  );
+  const { ready: sourcesReady, progress: mediaProgress } = useSourcesReady(videoSourceUris);
+  // Also locked until the project and its undo log are loaded: an edit made before the log
+  // replays was lost from undo (and could be overwritten by the replay).
+  const mediaReady = sourcesReady && projectSettled && history.ready;
   useEffect(() => {
-    for (const track of tracks) {
-      if (track.kind !== 'video') continue;
-      for (const clip of track.clips) requestSourceProxy(clip.sourceUri);
-    }
-  }, [tracks]);
+    for (const uri of videoSourceUris) requestSourceProxy(uri);
+  }, [videoSourceUris]);
+  // Nothing plays behind the overlay.
+  useEffect(() => {
+    if (!mediaReady && playing) editor.setPlaying(false);
+  }, [mediaReady, playing, editor]);
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
@@ -595,68 +610,71 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       <View style={{ flex: 1 }} onLayout={onContentLayout}>
         <View style={{ height: `${previewRatio * 100}%` }}>
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
-            <PreviewDerived
-              store={timeStore}
-              tracks={tracks}
-              playing={playing}
-              clipRef={currentClipRef}
-            >
-              {({ currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
-                <>
-                  {transitionBlend && (
+            {/* Not mounted until ready: the 4K original is never decoded while it is locked. */}
+            {mediaReady && (
+              <PreviewDerived
+                store={timeStore}
+                tracks={tracks}
+                playing={playing}
+                clipRef={currentClipRef}
+              >
+                {({ currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
+                  <>
+                    {transitionBlend && (
+                      <Image
+                        source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                        style={styles.previewImage}
+                      />
+                    )}
                     <Image
-                      source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                      style={styles.previewImage}
-                    />
-                  )}
-                  <Image
-                    source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-                    style={[
-                      styles.previewImage,
-                      rotatedFrameStyle(currentClip?.rotation, previewSize),
-                      transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
-                      transitionBlend?.type === 'slide' && {
-                        transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
-                      },
-                      transitionBlend?.type === 'zoom' && {
-                        opacity: transitionBlend.progress,
-                        transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
-                      },
-                      transitionBlend?.type === 'wipe' && {
-                        opacity: transitionBlend.progress > 0.05 ? 1 : 0,
-                      },
-                    ]}
-                  />
-                  {currentClip && !currentClip.frozen && (
-                    <LiveClipVideo
-                      store={timeStore}
-                      clip={currentClip}
-                      key={currentClip.sourceUri}
-                      hidden={!!transitionBlend}
-                      timeRef={playerTimeRef}
-                      playing={playing}
-                      rate={currentClip.speed ?? 1}
-                      volume={(currentClip.volume ?? 100) / 100}
-                      style={rotatedFrameStyle(currentClip.rotation, previewSize)}
-                    />
-                  )}
-                  {currentClip?.colorCorrection ? (
-                    <View
-                      pointerEvents="none"
+                      source={previewFrameUri ? { uri: previewFrameUri } : undefined}
                       style={[
-                        StyleSheet.absoluteFill,
-                        {
-                          backgroundColor:
-                            currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
-                          opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                        styles.previewImage,
+                        rotatedFrameStyle(currentClip?.rotation, previewSize),
+                        transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
+                        transitionBlend?.type === 'slide' && {
+                          transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
+                        },
+                        transitionBlend?.type === 'zoom' && {
+                          opacity: transitionBlend.progress,
+                          transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
+                        },
+                        transitionBlend?.type === 'wipe' && {
+                          opacity: transitionBlend.progress > 0.05 ? 1 : 0,
                         },
                       ]}
                     />
-                  ) : null}
-                </>
-              )}
-            </PreviewDerived>
-            {pipClip && pipClip.pipPosition && pipClip.pipSize && (
+                    {currentClip && !currentClip.frozen && (
+                      <LiveClipVideo
+                        store={timeStore}
+                        clip={currentClip}
+                        key={currentClip.sourceUri}
+                        hidden={!!transitionBlend}
+                        timeRef={playerTimeRef}
+                        playing={playing}
+                        rate={currentClip.speed ?? 1}
+                        volume={(currentClip.volume ?? 100) / 100}
+                        style={rotatedFrameStyle(currentClip.rotation, previewSize)}
+                      />
+                    )}
+                    {currentClip?.colorCorrection ? (
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          StyleSheet.absoluteFill,
+                          {
+                            backgroundColor:
+                              currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
+                            opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                          },
+                        ]}
+                      />
+                    ) : null}
+                  </>
+                )}
+              </PreviewDerived>
+            )}
+            {mediaReady && pipClip && pipClip.pipPosition && pipClip.pipSize && (
               <Image
                 source={{ uri: pipClip.sourceUri }}
                 style={[
@@ -678,7 +696,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
               </Text>
             </View>
-            <PreviewProxyLabel />
             <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
               <Icon name="maximize" size={16} color={colors.branco} />
             </Pressable>
@@ -942,6 +959,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           </View>
         </SafeAreaView>
       </Modal>
+      {!mediaReady && (
+        <PreparingMediaOverlay progress={mediaProgress} onBack={() => navigation.goBack()} />
+      )}
     </SafeAreaView>
   );
 }

@@ -8,6 +8,8 @@ import {
   requestProxy,
   requestSourceProxy,
   resumeProxies,
+  sourcesReadiness,
+  type ProxyStatus,
 } from '@app/screens/video-editor/previewProxy';
 import * as native from '../../modules/pixelmorph-video-export/src';
 
@@ -231,7 +233,8 @@ describe('pauseProxiesForExport / resumeProxies', () => {
 describe('requestSourceProxy', () => {
   test('probes a sideways portrait video and requests its upright 720p proxy', async () => {
     probeVideo.mockResolvedValue({ width: 3840, height: 2160, rotation: 90, durationMs: 12500 });
-    exportVideo.mockReturnValueOnce(new Promise(() => {}));
+    const job = deferred();
+    exportVideo.mockReturnValueOnce(job.promise);
 
     await requestSourceProxy('file:///docs/media/g/g.mp4');
 
@@ -240,6 +243,9 @@ describe('requestSourceProxy', () => {
       height: 1280,
       clips: [{ outMs: 12500 }],
     });
+    // Let the job finish so the queue is free for the tests after this one.
+    job.resolve();
+    await flush();
   });
 
   test('sources outside the documents folder are not probed', async () => {
@@ -248,5 +254,102 @@ describe('requestSourceProxy', () => {
     await requestSourceProxy('file:///storage/emulated/0/DCIM/x.mp4');
 
     expect(probeVideo).not.toHaveBeenCalled();
+  });
+});
+
+describe('requestSourceProxy status', () => {
+  test('a small source is checking while probed, then none, and never queues a transcode', async () => {
+    const probe = deferred<{
+      width: number;
+      height: number;
+      rotation: number;
+      durationMs: number;
+    }>();
+    probeVideo.mockReturnValueOnce(probe.promise);
+    const uri = 'file:///docs/media/small/small.mp4';
+
+    const request = requestSourceProxy(uri);
+    expect(proxyStore.get()[uri]).toEqual({ status: 'checking', progress: 0 });
+
+    probe.resolve({ width: 1280, height: 720, rotation: 0, durationMs: 4000 });
+    await request;
+
+    expect(proxyStore.get()[uri]).toEqual({ status: 'none', progress: 0 });
+    expect(exportVideo).not.toHaveBeenCalled();
+  });
+
+  test('a big source goes checking, then pending/running through the queue', async () => {
+    probeVideo.mockResolvedValueOnce({ width: 3840, height: 2160, rotation: 0, durationMs: 6000 });
+    const job = deferred();
+    exportVideo.mockReturnValueOnce(job.promise);
+    const uri = 'file:///docs/media/big/big.mp4';
+
+    await requestSourceProxy(uri);
+    await flush();
+
+    expect(proxyStore.get()[uri]?.status).toBe('running');
+    expect(exportVideo).toHaveBeenCalledTimes(1);
+
+    job.resolve();
+    await flush();
+    expect(proxyStore.get()[uri]?.status).toBe('ready');
+  });
+
+  test('an unreadable source ends as none instead of staying checking', async () => {
+    probeVideo.mockRejectedValueOnce(new Error('unreadable'));
+    const uri = 'file:///docs/media/broken/broken.mp4';
+
+    await requestSourceProxy(uri);
+
+    expect(proxyStore.get()[uri]?.status).toBe('none');
+  });
+
+  test('a source outside the documents folder is none straight away', async () => {
+    const uri = 'file:///storage/emulated/0/DCIM/outside.mp4';
+
+    await requestSourceProxy(uri);
+
+    expect(proxyStore.get()[uri]?.status).toBe('none');
+  });
+});
+
+describe('sourcesReadiness', () => {
+  const entry = (status: ProxyStatus, progress = 0) => ({ status, progress });
+
+  test('no sources is ready', () => {
+    expect(sourcesReadiness({}, [])).toEqual({ ready: true, progress: 0 });
+  });
+
+  test('ready, none and failed all count as ready', () => {
+    const state = {
+      a: entry('ready', 100),
+      b: entry('none'),
+      c: entry('failed'),
+    };
+    expect(sourcesReadiness(state, ['a', 'b', 'c'])).toEqual({ ready: true, progress: 0 });
+  });
+
+  test('a source with no entry yet, or still checking or queued, is not ready', () => {
+    expect(sourcesReadiness({}, ['x']).ready).toBe(false);
+    expect(sourcesReadiness({ x: entry('checking') }, ['x'])).toEqual({
+      ready: false,
+      progress: 0,
+    });
+    expect(sourcesReadiness({ x: entry('pending') }, ['x'])).toEqual({
+      ready: false,
+      progress: 0,
+    });
+  });
+
+  test('progress averages over the sources still preparing, counting queued ones as 0', () => {
+    const state = {
+      done: entry('ready', 100),
+      run: entry('running', 40),
+      queued: entry('pending'),
+    };
+    expect(sourcesReadiness(state, ['done', 'run', 'queued'])).toEqual({
+      ready: false,
+      progress: 20,
+    });
   });
 });
