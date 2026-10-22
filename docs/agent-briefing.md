@@ -133,6 +133,26 @@ Known bugs found, not fixed (verify, then fix or ask):
 5. Not verified: leaving and re-entering a video editor while its proxy is still being made
    (progress should continue). One isolated Hermes GC SIGSEGV at startup, not reproduced.
 
+Found by the repo audit of 2026-10-22 (not fixed yet):
+6. **One corrupted project hides every project.** `LocalProjectRepository.findAll` throws when a
+   project and its backups are all unreadable, and `ProjectsScreen.loadProjects` does not catch
+   it: the list stays on "loading" forever. Fix: skip (and log) the failing project in `findAll`;
+   add a test with one corrupted project in the list.
+7. **Clips added with "+" are never deleted.** `copyToAppStorage` puts them in `imports/`, which
+   no project owns: deleting the project leaves them (and their proxies) on disk, and nothing
+   cleans that folder. Fix: copy them into `media/<projectId>/` with `MediaFileStore.persist`.
+8. **Video export cancel hangs (confirmed: Media3 1.9 `Transformer.cancel()` calls no
+   listener).** The JS promise of `exportVideo` never settles and the 250 ms progress poll runs
+   forever. Effects: the export sheet stays "exportando" after CANCELAR; and when an export pauses
+   a running proxy (`pauseProxiesForExport`), that transcode never settles, `active` stays set and
+   no other proxy is made for the rest of the session. Fix in the Kotlin module: keep the pending
+   promise, and in `cancel` reject it with message `CANCELLED` and set `finished = true`.
+9. Every video export stays in the cache (~78 MB for 1:30 1080p) until Android or "limpar cache"
+   removes it.
+10. A proxy that failed is not retried in the same session (`requestProxy` returns early).
+11. Project info sheet: "Apagar projeto" sits behind the 3-button navigation bar on the Poco
+    (only ~20 px tappable); the sheet ignores the bottom inset.
+
 Owner decisions still pending (documented in foundation-plan.md): video history as diffs,
 lightweight project-list index, small per-project thumbnails, true AR via ARCore (US-23), real
 batch apply (US-02, its fake button was removed).

@@ -247,6 +247,9 @@ export function VideoExportSheet({
         }
       }
 
+      // CANCELAR tapped while the proxies paused or the transition frames were extracted: the
+      // native export has not started, so cancelVideoExport() had nothing to stop.
+      if (cancelledRef.current) throw new Error('CANCELLED');
       const outputPath = `${FileSystem.cacheDirectory}pixelmorph_export_${Date.now()}.mp4`.replace(
         'file://',
         ''

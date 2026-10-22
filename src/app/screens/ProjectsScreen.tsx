@@ -104,11 +104,17 @@ export default function ProjectsScreen({ navigation }: Props) {
       .repairCacheMedia()
       .catch((error: unknown) => errorLogger.log(error, 'ProjectsScreen.persistMedia'));
     await mediaRepair;
-    const all = await mod.listProjects.execute({ status: 'active' });
-    // Most recently modified first.
-    all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-    setProjects(all);
-    setLoading(false);
+    try {
+      const all = await mod.listProjects.execute({ status: 'active' });
+      // Most recently modified first.
+      all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      setProjects(all);
+    } catch (error) {
+      // Unreadable project list: show what we have instead of loading forever.
+      errorLogger.log(error, 'ProjectsScreen.loadProjects');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // Reload every time the screen regains focus, e.g. coming back from an editor.

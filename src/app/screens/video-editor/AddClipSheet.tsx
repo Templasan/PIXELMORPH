@@ -26,13 +26,21 @@ interface AddClipSheetProps {
   trackKind?: 'video' | 'image' | 'text' | 'audio';
   onClose: () => void;
   onConfirm: (result: AddClipResult) => void;
+  /** Imported files are copied into this project's media folder. */
+  projectId?: string;
 }
 
 const DEFAULT_IMAGE_CLIP_MS = 4000;
 const DEFAULT_AUDIO_CLIP_MS = 30000;
 
 /** RF-058/RF-036: appends another clip to a track — a real device import, or from the project library. */
-export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddClipSheetProps) {
+export function AddClipSheet({
+  trackName,
+  trackKind,
+  onClose,
+  onConfirm,
+  projectId,
+}: AddClipSheetProps) {
   const isAudio = trackKind === 'audio';
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [picking, setPicking] = useState(false);
@@ -57,7 +65,7 @@ export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddCl
         onConfirm({
           name: picked.fileName,
           // The picker hands back a cache copy; the timeline must reference a permanent one.
-          sourceUri: await copyToAppStorage(picked.uri, picked.fileName),
+          sourceUri: await copyToAppStorage(picked.uri, picked.fileName, projectId),
           sourceDurationMs: DEFAULT_AUDIO_CLIP_MS,
         });
         return;
@@ -66,7 +74,7 @@ export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddCl
       if (!picked) return;
       onConfirm({
         name: picked.fileName ?? 'Clipe importado',
-        sourceUri: await copyToAppStorage(picked.uri, picked.fileName),
+        sourceUri: await copyToAppStorage(picked.uri, picked.fileName, projectId),
         sourceDurationMs: picked.durationMs ?? DEFAULT_IMAGE_CLIP_MS,
       });
     } catch (error) {

@@ -596,7 +596,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       // Permanent copies: the picker's cache files can be wiped (see copyToAppStorage).
       const frames = await Promise.all(
         picked.map(async (p) => ({
-          uri: await copyToAppStorage(p.uri, p.fileName),
+          uri: await copyToAppStorage(p.uri, p.fileName, projectId),
           name: p.fileName ?? '',
         }))
       );
@@ -979,6 +979,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           trackKind={tracks.find((t) => t.id === addClipTrackId)?.kind}
           onClose={() => setAddClipTrackId(null)}
           onConfirm={(result) => handleAddClip(addClipTrackId, result)}
+          projectId={projectId}
         />
       )}
 
