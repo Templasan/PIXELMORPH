@@ -174,14 +174,16 @@ const ClipBlock = memo(function ClipBlock({
   const clipId = clip.id;
   const enabled = !track.locked;
   const trimEnabled = !track.locked && !clip.frozen;
+  // onStart/onFinalize, not onBegin/onEnd: onBegin fires on any touch (a tap that selects a clip)
+  // but onEnd only after a real drag, which left a gesture snapshot open forever.
   const moveGesture = useMemo(
     () =>
       Gesture.Pan()
         .minDistance(10)
         .enabled(enabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onMove, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [enabled, trackId, clipId, msPerPx, onBeginDrag, onMove, onEndDrag]
   );
   const trimInGesture = useMemo(
@@ -189,9 +191,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onTrimIn, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimIn, onEndDrag]
   );
   const trimOutGesture = useMemo(
@@ -199,9 +201,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onTrimOut, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimOut, onEndDrag]
   );
 

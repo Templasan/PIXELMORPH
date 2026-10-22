@@ -72,6 +72,17 @@ describe('video editor store', () => {
     expect(past).toHaveLength(1);
   });
 
+  it('a gesture left open by a tap does not roll a later drag back over discrete edits', () => {
+    const { editor, a, tracks } = setup();
+    editor.beginGesture(); // a touch that never became a drag
+    editor.toggleSelect(a.id);
+    editor.split(2000); // discrete edit: 3 clips now
+    const after = tracks()[0].clips.length;
+    editor.liveClip((c) => ({ ...c, volume: 50 }));
+    editor.endGesture();
+    expect(tracks()[0].clips).toHaveLength(after);
+  });
+
   it('a gesture (drag/slider) records one entry from its start, however many live updates', () => {
     const { editor, past, a, tracks } = setup();
     editor.toggleSelect(a.id);
