@@ -131,6 +131,7 @@ describe('requestProxy queue', () => {
         width: 1280,
         height: 720,
         bitrate: 5_000_000,
+        keyFrameIntervalSeconds: 1,
         outputPath: '/docs/media/a/a.proxy720.mp4.tmp.mp4',
       }),
       expect.any(Function)
@@ -179,6 +180,30 @@ describe('requestProxy queue', () => {
     expect(proxyStore.get()['file:///docs/media/d/d.mp4']?.uri).toBe(
       'file:///docs/media/d/d.proxy720.mp4'
     );
+  });
+});
+
+describe('540p proxy (Baixa tier)', () => {
+  test('is 960x540 with 1 s keyframes, next to the source, tracked under its own key', async () => {
+    expect(proxyDimensions(3840, 2160, '540')).toEqual({ width: 960, height: 540 });
+    expect(proxyDimensions(1080, 1920, '540')).toEqual({ width: 540, height: 960 });
+    expect(proxyDimensions(960, 540, '540')).toBeNull();
+    expect(proxyPathOf('file:///docs/media/a/a.mp4', '540')).toBe('file:///docs/media/a/a.proxy540.mp4');
+    exportVideo.mockResolvedValueOnce(undefined);
+    await requestProxy('file:///docs/media/q/q.mp4', 1920, 1080, 4000, '540');
+    await flush();
+    expect(exportVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        width: 960,
+        height: 540,
+        bitrate: 3_000_000,
+        keyFrameIntervalSeconds: 1,
+        outputPath: '/docs/media/q/q.proxy540.mp4.tmp.mp4',
+      }),
+      expect.any(Function)
+    );
+    expect(proxyStore.get()['file:///docs/media/q/q.mp4#540']?.status).toBe('ready');
+    expect(proxyStore.get()['file:///docs/media/q/q.mp4']).toBeUndefined();
   });
 });
 
