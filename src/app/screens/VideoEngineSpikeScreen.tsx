@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as MediaLibrary from 'expo-media-library/legacy';
 import { File, FileMode, Paths, type FileHandle } from 'expo-file-system';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '@core/theme';
@@ -118,15 +117,8 @@ export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
     if (!cur) throw new Error('export not started');
     cur.handle.close();
     exportFile.current = null;
+    // No media-store copy: it asked for photo access on the owner's phone. The file stays in cache.
     console.log('[webengine-export]', cur.file.uri, cur.file.size);
-    // Spike only: a copy in the media store so the PC can pull it (release builds have no run-as).
-    try {
-      await MediaLibrary.requestPermissionsAsync();
-      const asset = await MediaLibrary.createAssetAsync(cur.file.uri);
-      console.log('[webengine-export] media store copy', asset.uri, asset.filename);
-    } catch (e) {
-      console.log('[webengine-export] media store copy failed', String(e));
-    }
     return `${cur.file.uri} (${cur.file.size} bytes)`;
   }, []);
 

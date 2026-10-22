@@ -352,7 +352,7 @@ export class Engine {
     const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
     await Promise.all(
       [...feedMap].map(async ([op, feed]) => {
-        got.set(op, await feed.at((op as VideoOp).sourceTimeMs / 1000));
+        got.set(op, await feed.seek((op as VideoOp).sourceTimeMs / 1000));
       })
     );
     this.drawOps(ops, (op) => got.get(op) ?? null);
@@ -391,10 +391,18 @@ export class Engine {
     const t0 = performance.now();
     await this.host.startExport();
     let bytes = 0;
+    let writeMs = 0;
+    // Chunks cross the bridge in the background: awaiting each write stalled the encode loop.
+    let writes = Promise.resolve();
     const writable = new WritableStream<StreamTargetChunk>({
-      write: async (chunk) => {
+      write: (chunk) => {
         bytes = Math.max(bytes, chunk.position + chunk.data.byteLength);
-        await this.host.writeExportChunk(chunk.position, bytesToB64(chunk.data));
+        const b64 = bytesToB64(chunk.data);
+        writes = writes.then(async () => {
+          const w0 = performance.now();
+          await this.host.writeExportChunk(chunk.position, b64);
+          writeMs += performance.now() - w0;
+        });
       },
     });
     const output = new Output({
@@ -423,25 +431,35 @@ export class Engine {
     let bgFrames = 0;
     let longestPause = 0;
     let last = performance.now();
+    let decodeMs = 0;
+    let drawMs = 0;
+    let encodeMs = 0;
     for (let f = 0; f < total; f += 1) {
       const t = (f * 1000) / FPS;
       const ops = drawListAt(this.scene, t);
       const feedMap = await this.feedsOf(ops);
       const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
+      const d0 = performance.now();
       await Promise.all(
         [...feedMap].map(async ([op, feed]) => {
           got.set(op, await feed.at((op as VideoOp).sourceTimeMs / 1000));
         })
       );
+      const d1 = performance.now();
       this.drawOps(ops, (op) => got.get(op) ?? null);
+      const d2 = performance.now();
       await source.add(f / FPS, 1 / FPS);
       const now = performance.now();
+      decodeMs += d1 - d0;
+      drawMs += d2 - d1;
+      encodeMs += now - d2;
       longestPause = Math.max(longestPause, now - last);
       last = now;
       if (this.appState !== 'active') bgFrames += 1;
       if (f % 15 === 0) this.hud(`export ${f}/${total}`);
     }
     await output.finalize();
+    await writes;
     const path = await this.host.finishExport();
     const ms = performance.now() - t0;
     this.busy = false;
@@ -456,6 +474,13 @@ export class Engine {
           bytes,
           framesWhileBackground: bgFrames,
           longestPauseMs: Math.round(longestPause),
+          // Where the time went: decode (3 layers), canvas draw, encoder add, bridge writes (overlapped).
+          splitMs: {
+            decode: Math.round(decodeMs),
+            draw: Math.round(drawMs),
+            encode: Math.round(encodeMs),
+            write: Math.round(writeMs),
+          },
           path,
           hardwareEncoder: hw,
           audio: 'not exported (out of scope)',
