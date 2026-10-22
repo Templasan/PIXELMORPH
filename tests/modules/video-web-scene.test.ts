@@ -181,3 +181,33 @@ describe('scene audio', () => {
     expect(spanGainAt(span, 2_500)).toBe(0);
   });
 });
+
+describe('pictures on the timeline', () => {
+  const photo = clip({ id: 'p', startMs: 0, sourceUri: 'file:///p.jpg' });
+  const images: Track = { ...track([photo]), id: 'img', kind: 'image' };
+
+  it('an image piece draws the picture, not a video frame', () => {
+    const ops = drawListAt(buildEditorScene([images]), 500);
+    expect(ops.map((o) => o.kind)).toEqual(['clear', 'image']);
+    expect(ops[1]).toMatchObject({ uri: 'file:///p.jpg', layer: 'main' });
+  });
+
+  it('a transition out of a picture lays the picture over the incoming clip', () => {
+    const next = clip({
+      id: 'n',
+      startMs: 2_000,
+      sourceUri: 'file:///n.mp4',
+      transitionIn: { type: 'fade', durationMs: 500 },
+    });
+    const s = buildEditorScene([track([next]), { ...images, id: 'img2' }]);
+    const ops = drawListAt(s, 2_100);
+    expect(ops.find((o) => o.kind === 'image')).toMatchObject({
+      layer: 'out',
+      uri: 'file:///p.jpg',
+    });
+    expect(ops.find((o) => o.kind === 'video')).toMatchObject({
+      layer: 'main',
+      uri: 'file:///n.mp4',
+    });
+  });
+});
