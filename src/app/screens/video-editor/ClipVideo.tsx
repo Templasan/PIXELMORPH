@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useEvent } from 'expo';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 
 /** Seconds of drift between the timeline clock and the player before we re-seek while playing (a seek blanks the surface, so only for real jumps). */
 const MAX_DRIFT_S = 1.2;
 
 /** Scrubbing asks for a new frame every ~100 ms of media (dozens a second); each seek flushes the decoder, so only one per this many ms goes through. */
 const SEEK_EVERY_MS = 100;
+
+/** If no readyToPlay event arrived by then, check the player once. */
+const READY_FALLBACK_MS = 1500;
 
 interface ClipVideoProps {
   uri: string;
@@ -47,10 +49,24 @@ export function ClipVideo({
     // it and the Java heap (192 MB cap) has no room left for export or a second decoder.
     p.bufferOptions = { preferredForwardBufferDuration: 5, maxBufferBytes: 32 * 1024 * 1024 };
   });
-  const { status } = useEvent(player, 'statusChange', { status: player.status });
-  // When `uri` changes (proxy ready) the hook makes a new player, but useEvent keeps the old
-  // player's last status: check the current player too, so the seek to sourceTimeMs runs again.
-  const ready = status === 'readyToPlay' && player.status === 'readyToPlay';
+  // Status comes from events only, tagged with the player it belongs to: reading `player.status`
+  // is a synchronous native call, and doing it on every render blocked the JS thread for
+  // 100-200 ms whenever the main thread was busy. A new player (proxy swap) starts not ready.
+  const [readyPlayer, setReadyPlayer] = useState<VideoPlayer | null>(null);
+  useEffect(() => {
+    const sub = player.addListener('statusChange', ({ status }) =>
+      setReadyPlayer(status === 'readyToPlay' ? player : null)
+    );
+    // Covers a player that became ready before this listener attached (one read, not per render).
+    const late = setTimeout(() => {
+      if (player.status === 'readyToPlay') setReadyPlayer(player);
+    }, READY_FALLBACK_MS);
+    return () => {
+      sub.remove();
+      clearTimeout(late);
+    };
+  }, [player]);
+  const ready = readyPlayer === player;
   // Once the first frame is playable keep the surface mounted: the status drops to 'loading'
   // on every seek, and unmounting the VideoView there made the picture blink.
   const [shown, setShown] = useState(false);
