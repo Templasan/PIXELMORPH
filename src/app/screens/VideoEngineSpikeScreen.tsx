@@ -149,11 +149,6 @@ export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
         <WebEngine
           dom={{
             style: { width, height: Math.round((width * 9) / 16) },
-            useExpoDOMWebView: false,
-            allowFileAccess: true,
-            allowFileAccessFromFileURLs: true,
-            allowUniversalAccessFromFileURLs: true,
-            mediaPlaybackRequiresUserAction: false,
             webviewDebuggingEnabled: true,
           }}
           scene={scene}

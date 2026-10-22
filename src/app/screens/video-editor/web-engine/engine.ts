@@ -361,6 +361,7 @@ export class Engine {
 
   async seekBench(n = 20) {
     await this.pause();
+    if (this.busy) return;
     this.busy = true;
     const rnd = mulberry32(1234);
     const lat: number[] = [];
@@ -383,6 +384,7 @@ export class Engine {
 
   async exportMp4() {
     await this.pause();
+    if (this.busy) return;
     this.busy = true;
     const endMs = Math.min(this.scene.durationMs, EXPORT_MAX_MS);
     const total = Math.floor((endMs / 1000) * FPS);
@@ -399,11 +401,22 @@ export class Engine {
       format: new Mp4OutputFormat(),
       target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
     });
+    // The emulator has no hardware encoder: fall back to software and say so in the metrics.
+    const hw = await VideoEncoder.isConfigSupported({
+      codec: 'avc1.640028',
+      width: 1920,
+      height: 1080,
+      bitrate: 10_000_000,
+      hardwareAcceleration: 'prefer-hardware',
+    }).then(
+      (r) => !!r.supported,
+      () => false
+    );
     const source = new CanvasSource(this.canvas, {
       codec: 'avc',
       bitrate: 10_000_000,
       keyFrameInterval: 1,
-      hardwareAcceleration: 'prefer-hardware',
+      hardwareAcceleration: hw ? 'prefer-hardware' : 'no-preference',
     });
     output.addVideoTrack(source, { frameRate: FPS });
     await output.start();
@@ -444,6 +457,7 @@ export class Engine {
           framesWhileBackground: bgFrames,
           longestPauseMs: Math.round(longestPause),
           path,
+          hardwareEncoder: hw,
           audio: 'not exported (out of scope)',
         },
       })
