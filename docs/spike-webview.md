@@ -83,6 +83,10 @@ say anything about the phone.
   cannot show its own message. The RN screen therefore shows, after 10 s without any status, "O
   motor de vídeo precisa do Android System WebView atualizado (o motor não iniciou em 10 s)". No
   crash. (Chrome 69 has no WebCodecs anyway; it arrived in Chrome 94.)
+- Below the message, "Atualizar o WebView na Play Store" opens `market://details?id=com.google.android.webview`;
+  without a Play Store app (this AVD) it falls back to the same page on play.google.com in the
+  browser. Verified on Pixel_API28. Real Android 9 phones update the System WebView through the Play
+  Store, so this button is the planned path for them; the old editor stays usable meanwhile.
 
 ## Easy / hard
 
