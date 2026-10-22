@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Slider, Switch } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { useStore } from '@core/state';
@@ -49,15 +49,22 @@ export function TextClipTab({ editor, clip }: { editor: VideoEditorStore; clip: 
   const mapText = (fn: (t: ClipText) => ClipText) => (c: Clip) =>
     c.text ? { ...c, text: fn(c.text) } : c;
   // Discrete edits: one undo entry each.
-  const patch = (p: Partial<ClipText>) => editor.commitClip(mapText((t) => ({ ...t, ...p })));
+  // Tapping a control does not blur the field on Android: dismissing the keyboard does, which
+  // commits the typed text (onEndEditing) before this edit.
+  const patch = (p: Partial<ClipText>) => {
+    Keyboard.dismiss();
+    editor.commitClip(mapText((t) => ({ ...t, ...p })));
+  };
   const commitContent = () => {
     if (draft === text.content) return;
     editor.commitClip((c) =>
       c.text ? { ...c, name: captionName(draft), text: { ...c.text, content: draft } } : c
     );
   };
-  const patchAnim = (key: AnimKey, p: Partial<{ type: TextAnimation; ms: number }>) =>
+  const patchAnim = (key: AnimKey, p: Partial<{ type: TextAnimation; ms: number }>) => {
+    Keyboard.dismiss();
     editor.commitClip(mapText((t) => ({ ...t, [key]: { ...t[key], ...p } })));
+  };
   // Gestures (sliders): live while dragging, one undo entry at release.
   const liveAnimMs = (key: AnimKey, ms: number) =>
     editor.liveClip(mapText((t) => ({ ...t, [key]: { ...t[key], ms } })));
