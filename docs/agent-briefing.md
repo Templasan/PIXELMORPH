@@ -1,6 +1,7 @@
 # Agent Briefing — rules and continuity
 
-Handoff for the next agent on branch `sprint-2` (state as of 2026-10-19, HEAD after `971eea2`).
+Handoff for the next agent on branch `sprint-2` (updated 2026-10-22; see §7 for the newest
+work, which lives on branch `video-engine` in worktree `C:\ve`).
 Read [AGENTS.md](../AGENTS.md) first; this file adds what was learned while restoring the
 foundation and is the starting point for continuing Sprint 2. Detailed history and every
 measurement: [foundation-plan.md](foundation-plan.md) §7–§9 (Portuguese).
@@ -133,34 +134,99 @@ Known bugs found, not fixed (verify, then fix or ask):
 5. Not verified: leaving and re-entering a video editor while its proxy is still being made
    (progress should continue). One isolated Hermes GC SIGSEGV at startup, not reproduced.
 
-Found by the repo audit of 2026-10-22 (not fixed yet):
-6. **One corrupted project hides every project.** `LocalProjectRepository.findAll` throws when a
-   project and its backups are all unreadable, and `ProjectsScreen.loadProjects` does not catch
-   it: the list stays on "loading" forever. Fix: skip (and log) the failing project in `findAll`;
-   add a test with one corrupted project in the list.
-7. **Clips added with "+" are never deleted.** `copyToAppStorage` puts them in `imports/`, which
-   no project owns: deleting the project leaves them (and their proxies) on disk, and nothing
-   cleans that folder. Fix: copy them into `media/<projectId>/` with `MediaFileStore.persist`.
-8. **Video export cancel hangs (confirmed: Media3 1.9 `Transformer.cancel()` calls no
-   listener).** The JS promise of `exportVideo` never settles and the 250 ms progress poll runs
-   forever. Effects: the export sheet stays "exportando" after CANCELAR; and when an export pauses
-   a running proxy (`pauseProxiesForExport`), that transcode never settles, `active` stays set and
-   no other proxy is made for the rest of the session. Fix in the Kotlin module: keep the pending
-   promise, and in `cancel` reject it with message `CANCELLED` and set `finished = true`.
+Found by the repo audit of 2026-10-22. 6, 7, 8 and 11 are FIXED on branch `audit-fixes`
+(`6947748`, `2a6ca86`, `f5ee523`, `3cd6e86`), already merged into `video-engine`, not yet in
+`sprint-2` (owner review pending):
+6. ~~One corrupted project hides every project~~ (findAll skips and logs it; the screen stops
+   loading if the list itself is unreadable).
+7. ~~Clips added with "+" are never deleted~~ (copyToAppStorage takes the project id and copies
+   into `media/<projectId>/`; files already in `imports/` stay).
+8. ~~Video export cancel hangs~~ (Media3 1.9 `Transformer.cancel()` calls no listener: `cancel`
+   now rejects the pending promise with `CANCELLED`; a cancel tapped before the native export
+   starts is honoured too).
 9. Every video export stays in the cache (~78 MB for 1:30 1080p) until Android or "limpar cache"
    removes it.
 10. A proxy that failed is not retried in the same session (`requestProxy` returns early).
-11. Project info sheet: "Apagar projeto" sits behind the 3-button navigation bar on the Poco
-    (only ~20 px tappable); the sheet ignores the bottom inset.
+11. ~~Project info sheet: "Apagar projeto" behind the navigation bar~~ (bottom inset added).
+
+Found on the owner's Poco on 2026-10-22 (not fixed yet):
+12. **Video export sheet: the EXPORTAR button sits mostly behind the 3-button navigation bar**
+    (only its top edge, y≈2492 of 2712, is tappable). Same cause as 11: add the bottom inset
+    (`useSafeAreaInsets`) to the sheet's scroll content. Gesture-nav emulators do not show it.
+13. Preview quality menu copy is stale: it says only the default engine has audio; the web
+    engine has audio since `aedfdbd`.
+14. Full-screen preview: its top bar (badge + close) overlaps the Android status bar.
+15. Automatic preview tier picks **Alta** on an 8 GB phone even for 4K sources: decoding the 4K
+    original (80 Mbps, 8 s GOP) gives 29 fps with 41 late frames per 10 s and seeks up to 1.8 s.
+    Fix idea: in Automática, sources above 1080p use Média (720p proxy). The automatic
+    step-down already rescues it after a few seconds.
+16. Not verified: an export with the app in the background on the phone (the phone locked
+    during the test). On the emulator / in the browser test it kept going at ~1/3 speed.
 
 Owner decisions still pending (documented in foundation-plan.md): video history as diffs,
 lightweight project-list index, small per-project thumbnails, true AR via ARCore (US-23), real
 batch apply (US-02, its fake button was removed).
 
-## 7. Next step: continue Sprint 2
+## 7. Where things stand (2026-10-22, evening) and next steps
 
-Sprint 2 stories: US-01, US-10, US-12, US-16, US-17, US-30, US-33
-(`backlog/backlog sprint 2/`). Suggested first move: one read-only subagent maps every acceptance
-criterion of these stories to the code (done / partial / missing, with file refs), the lead agent
-verifies the gaps, then plan with the owner one story per commit. Measure on the phone again
-only when the owner allows it.
+Branches (all local unless noted; nothing goes into `sprint-2` before the owner sees it):
+- `sprint-2` (pushed): part 1 (speed ripple, shared frame plan, gesture rollback fix) and the
+  Saída/Entrada transitions are merged (`7fc43ff`). Sprint 2 audit and decisions:
+  `docs/sprint-2-plan.md`.
+- `audit-fixes` (worktree `C:\pw`): bugs 6, 7, 8, 11 above.
+- `video-engine` (worktree **`C:\ve`**, the newest work): the video editor's new engine — a
+  WebCodecs engine in an Expo DOM component (WebView). Preview AND export (mp4 and GIF) come
+  from ONE function `drawListAt` (`src/modules/video-editor/domain/webScene.ts`), so they cannot
+  drift. Has: 3+ video layers, sound (Web Audio clock drives the picture), photos/time-lapse/
+  stop-motion, colour correction, transitions, text over video (RF-008: 5 fonts, colours, shadow,
+  outline, 8 in/out animations, drag/pinch), preview quality tiers (Alta/Média/Baixa, automatic
+  + manual), fallback to the old preview when the System WebView is too old. Behind a setting:
+  default engine is still `native`; the user switches by tapping the preview's quality badge.
+  Full story, numbers and decisions: `docs/video-engine-migration.md` and `docs/spike-webview.md`
+  on that branch.
+- Poco numbers (`be5e79a`): Média/Baixa 30.7 fps, seek 0.11–0.29 s, ~700–750 MB; export of a
+  1 min 4K+1080p project with sound and text in 44 s (peak ~810 MB).
+
+Next steps, in order:
+1. Fix bugs 12–15 (12, 13, 14 are small UI; 15 is the tier rule in `previewTier.ts`, pure +
+   tested).
+2. Make `web` the default engine, then remove the old preview path (expo-video players,
+   frozen-frame transition layers in VideoEditorScreen/PreviewDerived) — ask the owner first
+   whether the native Media3 exporter stays as a fallback or goes.
+3. Owner reviews `video-engine` (includes `audit-fixes`) → merge into `sprint-2`, push.
+4. Rest of Sprint 2, one part at a time, asking decisions first (`docs/sprint-2-plan.md`):
+   photo editor US-10/US-12 + P0 #6/#7, projects/help/i18n, photo export US-30 + HEIC,
+   login/2FA/sync (owner creates the Supabase account), gap media-drop, zoom Entrada.
+
+## 8. Rules for any agent, especially low-budget models (Haiku etc.)
+
+Read §1–§4 first. Then, without exception:
+- **Phone (`T4PVUC79WGS4FE8T`)**: only when the owner says so in this session. `install -r` only,
+  never uninstall/clear data, never touch the owner's projects (only a test project you created,
+  deleted at the end with the owner's OK), never grant permissions or tap system dialogs, never
+  save to the owner's gallery. Stop if the phone is locked or the screen is off.
+- **Always** `adb -s <serial>`; emulator is `emulator-5554` (AVD `Pixel_7`). In Git Bash run
+  `export MSYS_NO_PATHCONV=1` before adb commands with device paths.
+- **Builds**: Windows paths over ~250 chars break CMake. Build only in short worktrees
+  (`C:\ve`, `C:\pw`), never inside `.claude/worktrees/...`:
+  `cd C:/ve/android && ./gradlew.bat assembleRelease -PreactNativeArchitectures=x86_64` (emulator)
+  or `arm64-v8a` (phone). Copy APKs to `C:\apks\`.
+- **Verify loop**: `npx tsc --noEmit`, `npx eslint <touched files>` (never `--fix .`),
+  `npx jest --testPathIgnorePatterns worktrees` (the main checkout otherwise also runs the
+  worktrees' copies of the tests and they fail).
+- **Do not change** without the lead's review: `web-engine/engine.ts`, `web-engine/audio.ts`,
+  `web-engine/feed.ts`, `domain/webScene.ts`, `domain/framePlan.ts`, `domain/textCaption.ts`,
+  the Kotlin export module, `LocalProjectRepository.ts`. These are the critical areas the lead
+  (Opus) codes itself. UI around them is fine.
+- **Gestures**: use `.onStart`/`.onUpdate`/`.onFinalize` with `scheduleOnRN`, never
+  `onBegin`/`onEnd` (see the rollback bug in VideoEditorScreen). Edits go through the store's
+  `commit*` (one undo entry) or `live*` + `endGesture` (sliders, drags, typing).
+- **Native module records**: pass every field from JS (omitted ones arrive as 0/null).
+- **Emulator numbers are for correctness only**; performance is measured on the phone.
+  Phone measurement scripts: `scripts/perf/poco-tier.sh` and `scripts/perf/poco-set-tier.sh`
+  (screen-record frame counting, seek, memory; read them before running).
+- **No new dependencies** without the owner. Licences must allow closed commercial use and go in
+  `THIRD_PARTY_NOTICES.md`.
+- Talk to the owner in Portuguese; code, commits and docs in English; one scoped change per
+  commit, ending with the session's `Co-Authored-By` line. Push only `sprint-2`, only when asked.
+- When stuck: write the exact error and what you tried, and stop; do not guess or widen scope.

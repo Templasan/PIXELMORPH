@@ -12,7 +12,7 @@ In order:
 4. [docs/agent-rules.md](docs/agent-rules.md) — hard rules (no cross-module imports, no unscoped refactors, no mocks in production code, dependency policy, etc.) — violating these gets a PR rejected
 5. [docs/definition-of-done.md](docs/definition-of-done.md) — when a task is actually finished
 6. [docs/backlog.md](docs/backlog.md) / [docs/requirements.md](docs/requirements.md) — how stories map to functional requirements
-7. [docs/agent-briefing.md](docs/agent-briefing.md) — current state, owner's working rules, device safety, measurement traps and what to do next (read before continuing Sprint 2)
+7. [docs/agent-briefing.md](docs/agent-briefing.md) — current state, owner's working rules, device safety, measurement traps and what to do next (read before continuing Sprint 2). Its §7 says where the newest work is (branch `video-engine`, worktree `C:\ve`) and §8 lists the rules every agent must follow, small/cheap models included
 
 Golden rule from `docs/README.md`: if it's not documented, that's a doc bug, not permission to invent behavior.
 
