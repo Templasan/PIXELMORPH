@@ -10,6 +10,7 @@ licences declared in `package.json` / `package-lock.json`.
 | react-dom | 19.2.3 | MIT | https://github.com/facebook/react | Required by Expo DOM components (web bundle) |
 | react-native-web | 0.21.x | MIT | https://github.com/necolas/react-native-web | Required by Expo DOM components (web bundle) |
 | @expo/metro-runtime | 56.0.x | MIT | https://github.com/expo/expo | Required by Expo DOM components (web bundle) |
+| @expo/dom-webview | 56.0.6 | MIT | https://github.com/expo/expo | Expo's own WebView for DOM components (react-native-webview does not work for them, see docs/spike-webview.md) |
 
 MPL-2.0 note: mediabunny is not modified; if it is ever patched, the patched files must be
 published under MPL-2.0.
