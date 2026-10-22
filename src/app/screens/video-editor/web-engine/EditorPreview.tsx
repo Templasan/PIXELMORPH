@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { DOMProps } from 'expo/dom';
 import type { WebScene } from '../../../../modules/video-editor/domain/webScene';
 import { Engine, type FileMode } from './engine';
+import { NEEDS_WEBVIEW } from '../previewTier';
 
 /**
  * The video editor's preview (a DOM component = a WebView). Props go in, events come out through
@@ -26,8 +27,6 @@ export interface EditorPreviewProps {
   onEvent(json: string): Promise<void>;
   onStatus(text: string): Promise<void>;
 }
-
-export const NEEDS_WEBVIEW = 'O motor de vídeo precisa do Android System WebView atualizado';
 
 async function hardware1080(): Promise<boolean> {
   try {
