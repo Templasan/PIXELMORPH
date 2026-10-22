@@ -251,9 +251,10 @@ class PixelMorphVideoExportModule : Module() {
 
   /**
    * A transition is the last frame of the clip that leaves, laid over the first moments of the
-   * clip that arrives (a Media3 bitmap overlay on the incoming clip, so it is a true cross: the
-   * incoming video plays underneath while the old frame fades, slides or grows away). The old
-   * clip is frozen on its last frame for the duration, as in the editor preview.
+   * clip that arrives (a Media3 bitmap overlay on the incoming clip). The incoming clip plays
+   * underneath from its first frame while the old frame, frozen, fades out (fade), leaves to the
+   * left (slide), leaves to the right (wipe) or grows to 130% while fading (zoom). The video is
+   * not lengthened: the transition plays over the start of the incoming clip.
    * Frame times passed to the overlay are on the whole timeline, so each clip subtracts its start.
    */
   private fun transitionEffects(clip: ExportClip, width: Int, height: Int): List<Effect> {
@@ -288,7 +289,15 @@ class PixelMorphVideoExportModule : Module() {
   /** The leaving clip's frame, turned by its editor rotation and cropped to the output size. */
   private fun outgoingFrame(clip: ExportClip, width: Int, height: Int): Bitmap? {
     val path = Uri.parse(clip.transitionFrameUri).path ?: return null
-    val raw = BitmapFactory.decodeFile(path) ?: return null
+    // The frame can be a full-size photo (time-lapse): decode it no larger than ~2x the output.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= width * 2 && bounds.outHeight / (sample * 2) >= height * 2) {
+      sample *= 2
+    }
+    val raw = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+      ?: return null
     val turned = if (clip.transitionFrameRotation != 0) {
       Bitmap.createBitmap(
         raw, 0, 0, raw.width, raw.height,

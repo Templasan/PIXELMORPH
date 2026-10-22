@@ -5,6 +5,7 @@ export * from './frameMath';
 export * from './transitions';
 export * from './freezeFrame';
 export * from './audio';
+export * from './framePlan';
 export * from './exportPlan';
 export * from './loopRange';
 export * from './gifPlan';

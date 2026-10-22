@@ -33,6 +33,7 @@ import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
   type Clip,
+  type Frame,
   createClip,
   clipDurationMs,
   findClip,
@@ -280,7 +281,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const [exportOpen, setExportOpen] = useState(false);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
-  const currentClipRef = useRef<Clip | null>(null);
+  const currentClipRef = useRef<Frame | null>(null);
   // Playhead lives in a store, not state: only the components that draw it subscribe.
   const timeStore = useRef(createTimeStore(0)).current;
   const setCurrentTimeMs = timeStore.set;
@@ -388,13 +389,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         // The video player is the clock when it is running: counter and picture can't part.
         let base = t;
         let step = dt;
-        const clip = currentClipRef.current;
+        const piece = currentClipRef.current?.piece;
         const src = playerTimeRef.current?.();
         // Right after a manual seek the player still reports the old position: don't follow it.
         const seeking = now - lastSeekAtRef.current < 600;
         if (seeking) step = 0;
-        else if (clip && !clip.frozen && src != null) {
-          const fromPlayer = clip.startMs + (src - clip.inPointMs) / (clip.speed ?? 1);
+        else if (piece?.kind === 'video' && src != null) {
+          const fromPlayer = piece.startMs + (src - piece.inMs) / piece.speed;
           if (Math.abs(fromPlayer - t) < 1500) {
             base = fromPlayer;
             step = 0;
@@ -618,7 +619,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 playing={playing}
                 clipRef={currentClipRef}
               >
-                {({ currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
+                {({ frame, currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
                   <>
                     {transitionBlend && (
                       <Image
@@ -630,7 +631,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                       source={previewFrameUri ? { uri: previewFrameUri } : undefined}
                       style={[
                         styles.previewImage,
-                        rotatedFrameStyle(currentClip?.rotation, previewSize),
+                        rotatedFrameStyle(frame?.piece.rotation, previewSize),
                         transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
                         transitionBlend?.type === 'slide' && {
                           transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
@@ -644,17 +645,17 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                         },
                       ]}
                     />
-                    {currentClip && !currentClip.frozen && (
+                    {frame?.piece.kind === 'video' && (
                       <LiveClipVideo
                         store={timeStore}
-                        clip={currentClip}
-                        key={currentClip.sourceUri}
+                        piece={frame.piece}
+                        key={frame.piece.sourceUri}
                         hidden={!!transitionBlend}
                         timeRef={playerTimeRef}
                         playing={playing}
-                        rate={currentClip.speed ?? 1}
-                        volume={(currentClip.volume ?? 100) / 100}
-                        style={rotatedFrameStyle(currentClip.rotation, previewSize)}
+                        rate={frame.piece.speed}
+                        volume={frame.piece.volume}
+                        style={rotatedFrameStyle(frame.piece.rotation, previewSize)}
                       />
                     )}
                     {currentClip?.colorCorrection ? (

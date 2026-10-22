@@ -16,15 +16,22 @@ export const DEFAULT_TRANSITION_MS = 500;
 
 /**
  * A transition can never outlast either clip it sits between — otherwise one side would
- * finish "fading" before it has even started playing.
+ * finish "fading" before it has even started playing. Lengths are the ones actually shown.
  */
+export function clampTransitionMs(
+  durationMs: number,
+  previousMs: number,
+  currentMs: number
+): number {
+  return Math.max(0, Math.min(durationMs, previousMs / 2, currentMs / 2));
+}
+
 export function clampTransitionDurationMs(
   durationMs: number,
   previousClip: Clip,
   clip: Clip
 ): number {
-  const maxAllowed = Math.min(clipDurationMs(previousClip), clipDurationMs(clip)) / 2;
-  return Math.max(0, Math.min(durationMs, maxAllowed));
+  return clampTransitionMs(durationMs, clipDurationMs(previousClip), clipDurationMs(clip));
 }
 
 export function setTransition(
