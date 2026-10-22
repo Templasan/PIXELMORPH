@@ -2,9 +2,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { errorLogger } from '@core/reliability';
 import type { Project } from '@modules/projects';
 import {
+  CARD_THUMB_TIMEOUT_MS,
   cardThumbPathOf,
   cardThumbStore,
   requestCardThumb,
+  retryFailedCardThumbs,
   type MakeCardThumb,
 } from '@app/screens/projects/cardThumb';
 
@@ -186,5 +188,32 @@ describe('requestCardThumb', () => {
 
     expect(make).not.toHaveBeenCalled();
     expect(cardThumbStore.get()).toEqual({});
+  });
+});
+
+describe('card thumb robustness', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('a make that never settles times out, frees the queue and can be retried', async () => {
+    const src = (id: string) => ({
+      originalUri: `file:///docs/media/${id}/a.jpg`,
+      workingUri: `file:///docs/media/${id}/a.jpg`,
+    });
+    const hung = makeProject('hung', src('hung'));
+    const next = makeProject('next', src('next'));
+    const neverEnds: MakeCardThumb = () => new Promise<void>(() => {});
+    const ok = jest.fn<Promise<void>, [string, string]>(async () => undefined);
+    await requestCardThumb(hung, neverEnds);
+    await requestCardThumb(next, ok);
+    await jest.advanceTimersByTimeAsync(CARD_THUMB_TIMEOUT_MS + 1);
+    const hungPath = cardThumbPathOf(hung)!;
+    const nextPath = cardThumbPathOf(next)!;
+    expect(cardThumbStore.get()[hungPath]).toBe('failed');
+    expect(ok).toHaveBeenCalled();
+    expect(cardThumbStore.get()[nextPath]).toBe('ready');
+    retryFailedCardThumbs();
+    expect(cardThumbStore.get()[hungPath]).toBeUndefined();
+    expect(cardThumbStore.get()[nextPath]).toBe('ready');
   });
 });
