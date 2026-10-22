@@ -663,7 +663,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         <View style={{ height: `${previewRatio * 100}%` }}>
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {/* Not mounted until ready: the 4K original is never decoded while it is locked. */}
-            {mediaReady && webMode && (
+            {/* One engine at a time: in full screen the preview moves into the modal. */}
+            {mediaReady && webMode && !fullscreenPreview && (
               <EnginePreview
                 tracks={tracks}
                 timeStore={timeStore}
@@ -768,11 +769,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 {webMode && tierNow ? ` · ${TIER_SPECS[tierNow].label}` : ''}
               </Text>
             </Pressable>
-            {!webMode && (
-              <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
-                <Icon name="maximize" size={16} color={colors.branco} />
-              </Pressable>
-            )}
+            <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
+              <Icon name="maximize" size={16} color={colors.branco} />
+            </Pressable>
             <PreviewNotices />
             <View style={styles.transportOverlay}>
               <View style={styles.timeRow}>
@@ -973,7 +972,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         statusBarTranslucent
       >
         <SafeAreaView style={styles.fullscreenPreview} edges={['top', 'bottom']}>
-          {fullscreenPreview && (
+          {fullscreenPreview && webMode && (
+            <EnginePreview
+              tracks={tracks}
+              timeStore={timeStore}
+              playing={playing}
+              loopRange={loopRange}
+              onEnded={() => editor.setPlaying(false)}
+            />
+          )}
+          {fullscreenPreview && !webMode && (
             <PreviewDerived store={timeStore} tracks={tracks} playing={playing} clipRef={null}>
               {({ transitionBlend, previewFrameUri, fromFrameUri }) => (
                 <>
