@@ -152,3 +152,17 @@ environment problems were a large share).
 Notes from the phone run: the media-store copy of each export asks for photo access on Android 14+
 (spike-only; must go before any real use). Seek and export speed lag the browser test on the same
 files, so the decoder feed (restart on jump, per-frame pulls) is the first thing to optimise.
+
+### Second phone run, after two fixes (same files, same day)
+
+- Seek now decodes the target frame directly (`Feed.seek` → `VideoSampleSink.getSample`) instead of
+  restarting the sample iterator, which left the old decoder closing while a new one opened for each
+  of the 3 layers: **1.14 s / p90 3.12 s → 0.37 s / p90 0.48 s (max 0.48 s)**, the browser test's figure.
+- Export no longer awaits each 4 MB chunk crossing the bridge (writes are chained in the background):
+  **20 s, 3 layers: ~27 s → 16.4 s (1.22x realtime)**. Split: encoder add 10.1 s, canvas draw 3.9 s,
+  decode 1.3 s, bridge writes 4.4 s (overlapped). Next levers: draw with WebGL instead of Canvas 2D;
+  the encoder share is mostly hardware.
+- Playback unchanged: 103 fps average, 30 frames/s per layer, worst 1 s window 93 fps.
+- Export with the app home-screened for 30 s: finished, 429 of 600 frames encoded in the background,
+  33.7 s in total, longest pause 1.4 s.
+- The media-store copy was removed (it asked for photo access); exports stay in the app cache.

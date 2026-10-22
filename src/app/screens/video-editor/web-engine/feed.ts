@@ -101,7 +101,25 @@ export class Feed {
     return this.cur;
   }
 
-  /** Seek / export: waits until the sample at `sec` is decoded. */
+  /**
+   * Seek: one direct decode of the frame at `sec` instead of restarting the iterator. Restarting
+   * left the old decoder closing while a new one opened (3 layers at once), which on the phone made
+   * seeks 1.1 s on average with 3 s spikes; playback restarts its iterator lazily on the next tick.
+   */
+  async seek(sec: number): Promise<VideoSample | null> {
+    await this.busy;
+    const my = ++this.epoch;
+    this.releaseAll();
+    const s = await this.sink.getSample(Math.max(0, sec));
+    if (my !== this.epoch) {
+      s?.close();
+      return this.cur;
+    }
+    this.cur = s;
+    return s;
+  }
+
+  /** Export: waits until the sample at `sec` is decoded, reading forward. */
   async at(sec: number): Promise<VideoSample | null> {
     await this.busy;
     if (this.needsRestart(sec)) await this.restart(sec);
