@@ -22,6 +22,8 @@ data class ExportClip(
   /** How this clip begins: "fade", "slide", "zoom" or "wipe"; empty for a plain cut. */
   @Field val transitionIn: String = "",
   @Field val transitionInMs: Long = 0,
+  /** "out" (default): the old frame leaves over the live new clip; "in": the new clip also moves in (slide/wipe). */
+  @Field val transitionMode: String = "out",
   /** Last frame of the clip that leaves (JPEG file), laid over this clip while the transition plays. */
   @Field val transitionFrameUri: String = "",
   /** Clockwise degrees the leaving clip was rotated by in the editor. */

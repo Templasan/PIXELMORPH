@@ -1,42 +1,10 @@
-import { clampFadeMs } from './audio';
-import { clipDurationMs, type Clip, type Track } from './Track';
+import { clipDurationMs, type Track } from './Track';
+import { planSequence, type SequencePlan } from './framePlan';
 
 /**
  * US-16/US-30: turns the editor timeline into the ordered list of pieces the native exporter
  * stitches together. Pure (no native imports) so it can be tested in Jest.
  */
-
-export interface PlannedClip {
-  /** "video": a range of the source file. "still": one frame of it held for `holdMs`. */
-  kind: 'video' | 'still';
-  sourceUri: string;
-  inMs: number;
-  outMs: number;
-  /** For "still": the instant of the source to freeze, in ms. */
-  stillTimeMs: number;
-  holdMs: number;
-  speed: number;
-  /** Gain of the clip's own audio, 0..1. */
-  volume: number;
-  rotation: number;
-  /** How the clip begins ('' = plain cut) and for how long, in finished-video ms. */
-  transitionIn: '' | 'fade' | 'slide' | 'zoom' | 'wipe';
-  transitionInMs: number;
-  /** The frame of the previous clip that is laid over this one while the transition plays. */
-  transitionFrom: { sourceUri: string; timeMs: number; rotation: number } | null;
-  /** Length of this clip in the finished video. */
-  outputMs: number;
-  /** Where this clip starts in the finished video. */
-  startMs: number;
-}
-
-/** A transition at the junction into a clip; used to describe the export to the user. */
-export interface PlannedTransition {
-  type: 'fade' | 'slide' | 'zoom' | 'wipe';
-  /** Where the incoming clip starts on the finished video. */
-  atMs: number;
-  durationMs: number;
-}
 
 /** RF-036: a background-audio clip mixed under the video's own sound. */
 export interface PlannedAudio {
@@ -51,56 +19,18 @@ export interface PlannedAudio {
   fadeOutMs: number;
 }
 
-export interface ExportPlan {
-  clips: PlannedClip[];
+export interface ExportPlan extends SequencePlan {
   /** Audio-track clips, in time order, non-overlapping, cut to the video's length. */
   audio: PlannedAudio[];
-  transitions: PlannedTransition[];
-  /** Length of the finished video. */
-  durationMs: number;
 }
 
-/** First visible video track's clips in time order. Gaps are closed; other tracks are ignored. */
+/**
+ * The timeline's visible video and image tracks as one sequence (see framePlan.ts for the
+ * rules: topmost track wins, gaps closed) plus the audio-track clips mixed under it.
+ */
 export function planExport(tracks: readonly Track[]): ExportPlan {
-  const track = tracks.find((t) => t.kind === 'video' && t.visible && t.clips.length > 0);
-  if (!track) return { clips: [], audio: [], transitions: [], durationMs: 0 };
-
-  const ordered = [...track.clips].sort((a, b) => a.startMs - b.startMs);
-  const planned = ordered.map((clip) => ({ clip, piece: toPlanned(clip) }));
-  const kept = planned.filter(({ piece }) => piece.holdMs > 0 || piece.outMs > piece.inMs);
-  const clips = kept.map(({ piece }) => piece);
-
-  const transitions: PlannedTransition[] = [];
-  let atMs = 0;
-  kept.forEach(({ clip }, index) => {
-    const length = clipDurationMs(clip);
-    clips[index].startMs = atMs;
-    const previous = kept[index - 1];
-    if (previous && clip.transitionIn) {
-      // Same rule the editor applies: never longer than half of either neighbouring clip.
-      const durationMs = Math.min(
-        clip.transitionIn.durationMs,
-        clipDurationMs(previous.clip) / 2,
-        length / 2
-      );
-      if (durationMs > 0) {
-        const type = clip.transitionIn.type;
-        transitions.push({ type, atMs, durationMs });
-        clips[index].transitionIn = type;
-        clips[index].transitionInMs = durationMs;
-        const out = clips[index - 1];
-        clips[index].transitionFrom = {
-          sourceUri: out.sourceUri,
-          // A still holds its own instant; a video leaves on (almost) its last frame.
-          timeMs: out.kind === 'still' ? out.stillTimeMs : Math.max(out.inMs, out.outMs - 50),
-          rotation: out.rotation,
-        };
-      }
-    }
-    atMs += length;
-  });
-
-  return { clips, audio: planAudio(tracks, atMs), transitions, durationMs: atMs };
+  const sequence = planSequence(tracks);
+  return { ...sequence, audio: planAudio(tracks, sequence.durationMs) };
 }
 
 function planAudio(tracks: readonly Track[], videoMs: number): PlannedAudio[] {
@@ -121,54 +51,16 @@ function planAudio(tracks: readonly Track[], videoMs: number): PlannedAudio[] {
       outMs: inMs + lengthMs,
       startMs,
       volume: (clip.volume ?? 100) / 100,
-      fadeInMs: clampFadeMs(clip.fadeInMs ?? 0, clip),
-      fadeOutMs: clampFadeMs(clip.fadeOutMs ?? 0, clip),
+      // Against the length actually played (trimmed, cut to the video), not the whole clip.
+      fadeInMs: Math.max(0, Math.min(clip.fadeInMs ?? 0, lengthMs)),
+      fadeOutMs: Math.max(0, Math.min(clip.fadeOutMs ?? 0, lengthMs)),
     });
     cursor = startMs + lengthMs;
   }
   return out;
 }
 
-const NO_TRANSITION = {
-  transitionIn: '' as const,
-  transitionInMs: 0,
-  transitionFrom: null,
-  startMs: 0,
-};
-
-function toPlanned(clip: Clip): PlannedClip {
-  const rotation = clip.rotation ?? 0;
-  if (clip.frozen) {
-    return {
-      kind: 'still',
-      sourceUri: clip.sourceUri,
-      inMs: 0,
-      outMs: 0,
-      stillTimeMs: clip.inPointMs,
-      holdMs: clip.holdMs ?? clipDurationMs(clip),
-      speed: 1,
-      volume: 1,
-      rotation,
-      ...NO_TRANSITION,
-      outputMs: clip.holdMs ?? clipDurationMs(clip),
-    };
-  }
-  return {
-    kind: 'video',
-    sourceUri: clip.sourceUri,
-    inMs: clip.inPointMs,
-    outMs: clip.outPointMs,
-    stillTimeMs: 0,
-    holdMs: 0,
-    speed: clip.speed ?? 1,
-    volume: (clip.volume ?? 100) / 100,
-    rotation,
-    ...NO_TRANSITION,
-    outputMs: clipDurationMs(clip),
-  };
-}
-
-/** RF-017: social presets for video — real target resolutions and bitrates, never upscaled. */
+/** RF-017: social presets for video — real target resolutions and bitrates; a source with another shape is scaled to fill the frame and cropped. */
 export interface VideoPreset {
   name: string;
   width: number;
