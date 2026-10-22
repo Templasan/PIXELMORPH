@@ -13,6 +13,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import { createVideoPlayer } from 'expo-video';
 import { IMPORTS_DIR_NAME } from '@core/reliability/storageUsage';
 
+/** File-name stamp: Date.now() alone collided when several files were copied in the same
+ * millisecond (a multi-photo time-lapse pick), so one photo overwrote another. */
+function uniqueStamp(): string {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export interface PickedMedia {
   uri: string;
   width: number;
@@ -125,7 +131,7 @@ export async function saveImageToGallery(
   }
 
   const extension = format === 'JPEG' ? 'jpg' : format.toLowerCase();
-  const tempUri = `${FileSystem.cacheDirectory}pixelmorph_export_${Date.now()}.${extension}`;
+  const tempUri = `${FileSystem.cacheDirectory}pixelmorph_export_${uniqueStamp()}.${extension}`;
   await FileSystem.writeAsStringAsync(tempUri, base64, {
     encoding: FileSystem.EncodingType.Base64,
   });
@@ -144,7 +150,7 @@ export async function writeImageToCache(
   format: 'JPEG' | 'PNG' | 'WebP'
 ): Promise<string> {
   const extension = format === 'JPEG' ? 'jpg' : format.toLowerCase();
-  const uri = `${FileSystem.cacheDirectory}pixelmorph_collage_${Date.now()}.${extension}`;
+  const uri = `${FileSystem.cacheDirectory}pixelmorph_collage_${uniqueStamp()}.${extension}`;
   await FileSystem.writeAsStringAsync(uri, base64, {
     encoding: FileSystem.EncodingType.Base64,
   });
@@ -180,7 +186,7 @@ export async function copyToAppStorage(uri: string, fileName?: string | null): P
   const dir = `${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
   const extension = (fileName ?? uri).match(/\.(\w{2,5})$/)?.[1] ?? 'jpg';
-  const destination = `${dir}${Date.now()}.${extension}`;
+  const destination = `${dir}${uniqueStamp()}.${extension}`;
   await FileSystem.copyAsync({ from: uri, to: destination });
   return destination;
 }

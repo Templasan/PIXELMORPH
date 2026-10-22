@@ -5,6 +5,7 @@ import {
   ensureImageTrack,
   findClip,
   rippleShiftAfter,
+  setClipSpeed,
   splitClipAtMs,
   trimClipIn,
   trimClipOut,
@@ -81,6 +82,9 @@ export function createVideoEditorStore(
   const setTracks = (tracks: Track[]) => set({ tracks });
 
   function commit(fn: (tracks: Track[]) => Track[]) {
+    // A discrete edit cannot happen inside a drag: a snapshot still open here was left behind by
+    // a gesture that never ended, and replaying a later drag on it would roll the timeline back.
+    gestureStart = null;
     const before = get().tracks;
     const after = fn(before);
     if (after === before) return;
@@ -163,6 +167,14 @@ export function createVideoEditorStore(
     },
     liveOnSelected(fn: (start: Track[], trackId: string, clip: Clip) => Track[]) {
       withSelected(({ track, clip }) => live((start) => fn(start, track.id, clip)));
+    },
+
+    /** Speed change that pushes/pulls the following clips (see setClipSpeed). */
+    setSpeed(speed: number, mode: 'commit' | 'live') {
+      const apply = (t: Track[], trackId: string, clip: Clip) =>
+        setClipSpeed(t, trackId, clip.id, speed);
+      if (mode === 'commit') this.commitOnSelected(apply);
+      else this.liveOnSelected(apply);
     },
 
     split(atMs: number) {

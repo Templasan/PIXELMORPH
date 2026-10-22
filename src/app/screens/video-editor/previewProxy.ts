@@ -101,6 +101,7 @@ async function transcode(run: Run) {
             rotation: 0,
             transitionIn: '',
             transitionInMs: 0,
+            transitionMode: 'out',
             startMs: 0,
           },
         ],

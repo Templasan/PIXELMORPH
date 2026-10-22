@@ -44,7 +44,7 @@ describe('planExport (US-16 / US-30)', () => {
   });
 
   it('orders clips by start time and keeps trim, speed and rotation', () => {
-    const late = { ...clip({ startMs: 5_000, inPointMs: 1_000, outPointMs: 3_000 }), speed: 2 };
+    const late = { ...clip({ startMs: 4_000, inPointMs: 1_000, outPointMs: 3_000 }), speed: 2 };
     const early = { ...clip({ startMs: 0, inPointMs: 0, outPointMs: 4_000 }), rotation: 90 };
     const plan = planExport([track([late, early])]);
 
@@ -161,7 +161,7 @@ describe('planExport transitions (RF-032)', () => {
         startMs: 1_000,
         volume: 0.5,
         fadeInMs: 500,
-        fadeOutMs: 8_000,
+        fadeOutMs: 3_000, // the 3 s actually played, not the 8 s of the whole clip
       },
     ]);
     expect(planExport([track([v]), { ...aud, visible: false }]).audio).toEqual([]);

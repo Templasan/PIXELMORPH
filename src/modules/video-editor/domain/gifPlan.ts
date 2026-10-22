@@ -15,6 +15,8 @@ export interface GifFrame {
   sourceUri: string;
   /** Instant of the source file to grab, in ms. */
   sourceTimeMs: number;
+  /** The source is a picture: use the file itself instead of extracting a video frame (empty uri = black). */
+  image?: boolean;
   /** How long this frame stays on screen, in ms. */
   delayMs: number;
 }
@@ -39,7 +41,7 @@ export function planGifFrames(
   let truncated = false;
 
   for (const clip of plan.clips) {
-    const length = clip.kind === 'still' ? clip.holdMs : (clip.outMs - clip.inMs) / clip.speed;
+    const length = clip.kind !== 'video' ? clip.holdMs : (clip.outMs - clip.inMs) / clip.speed;
     if (length <= 0) continue;
 
     for (let t = 0; t < length; t += step) {
@@ -49,7 +51,8 @@ export function planGifFrames(
       }
       frames.push({
         sourceUri: clip.sourceUri,
-        sourceTimeMs: clip.kind === 'still' ? clip.stillTimeMs : clip.inMs + t * clip.speed,
+        sourceTimeMs: clip.kind === 'video' ? clip.inMs + t * clip.speed : clip.stillTimeMs,
+        ...((clip.kind === 'image' || clip.kind === 'gap') && { image: true }),
         delayMs: Math.round(step),
       });
     }

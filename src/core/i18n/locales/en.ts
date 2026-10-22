@@ -128,6 +128,9 @@ const en: Record<string, string> = {
   'Preparando mídia para edição…': 'Preparing media for editing…',
   'Arquivos grandes levam alguns segundos na primeira vez.':
     'Large files take a few seconds the first time.',
+  // Clip transition mode
+  Saída: 'Out',
+  Entrada: 'In',
 };
 
 export default en;

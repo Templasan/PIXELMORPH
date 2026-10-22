@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { AlphaType, ColorType } from '@shopify/react-native-skia';
 import { encode } from 'modern-gif';
+import { blackFrameUri } from './blackFrame';
 import { extractFrame } from '../../../../modules/pixelmorph-video-export/src';
 import { resizeImageCover } from '@modules/export';
 import { loadSkImage } from '@modules/photo-editor';
@@ -58,7 +59,9 @@ export async function exportGif(
     const frame = planned[i];
     const key = `${frame.sourceUri}@${Math.round(frame.sourceTimeMs)}`;
     if (key !== lastKey || !lastPixels) {
-      const thumb = await extractFrame(frame.sourceUri, frame.sourceTimeMs, options.maxWidth * 2);
+      const thumb = frame.image
+        ? { uri: frame.sourceUri || (await blackFrameUri()) }
+        : await extractFrame(frame.sourceUri, frame.sourceTimeMs, options.maxWidth * 2);
       const source = await loadSkImage(thumb.uri);
       const scaled = resizeImageCover(source, width, height);
       const pixels = scaled.readPixels(0, 0, {

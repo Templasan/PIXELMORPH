@@ -9,6 +9,8 @@ export type TrackKind = 'video' | 'image' | 'text' | 'audio';
 export interface TransitionSpec {
   type: 'fade' | 'slide' | 'zoom' | 'wipe';
   durationMs: number;
+  /** 'out' (default): the old frame leaves over the live new clip. 'in': the new clip moves in, pushing the old frame out (slide/wipe only). */
+  mode?: 'out' | 'in';
 }
 
 export interface Clip {

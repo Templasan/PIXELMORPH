@@ -33,6 +33,7 @@ import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
   type Clip,
+  type Frame,
   createClip,
   clipDurationMs,
   findClip,
@@ -41,6 +42,7 @@ import {
   stepFrameMs,
   formatTimecode,
   buildTimelapseTrack,
+  MIN_CLIP_DURATION_MS,
   advancePlayhead,
   loopBounds,
   createVideoEditorStore,
@@ -49,6 +51,9 @@ import {
   moveClip,
   trimClipIn,
   trimClipOut,
+  transitionTransforms,
+  type LayerTransform,
+  type TransitionType,
 } from '@modules/video-editor';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
@@ -93,7 +98,30 @@ function rotatedFrameStyle(rotation: number | undefined, panel: { width: number;
   };
 }
 
+/** Layer style for one side of a transition (see transitionTransforms). */
+const layerStyle = (t: LayerTransform) => ({
+  opacity: t.opacity,
+  transform: [{ translateX: t.translateX }, { scale: t.scale }],
+});
+
 function buildInitialTracks(project: Project | null): Track[] {
+  // A video project made only of photos (stop-motion) opens as an image sequence, not with a
+  // JPEG on the video track (the player showed black and the exporter rejected the file).
+  // shortcut: fixed 200 ms per frame; the fps picked in the camera is not stored yet (US-22).
+  const assets = project?.assets ?? [];
+  if (assets.length > 0 && assets.every((a) => a.type === 'image')) {
+    const frames = buildTimelapseTrack(
+      assets.map((a, i) => ({ uri: a.workingUri || a.originalUri, name: `Quadro ${i + 1}` })),
+      MIN_CLIP_DURATION_MS,
+      TRACK_COLORS.image
+    );
+    return [
+      { id: 'v1', name: 'V1', kind: 'video', visible: true, locked: false, clips: [] },
+      { ...frames, id: 'img', name: 'IMG' },
+      { id: 'txt', name: 'TXT', kind: 'text', visible: true, locked: false, clips: [] },
+      { id: 'a1', name: 'A1', kind: 'audio', visible: true, locked: false, clips: [] },
+    ];
+  }
   const asset = project?.assets[0];
   // The clip must point at the real media file. It used to prefer the project's thumbnail
   // (a JPEG), so the player and frame extraction never saw the actual video.
@@ -173,14 +201,16 @@ const ClipBlock = memo(function ClipBlock({
   const clipId = clip.id;
   const enabled = !track.locked;
   const trimEnabled = !track.locked && !clip.frozen;
+  // onStart/onFinalize, not onBegin/onEnd: onBegin fires on any touch (a tap that selects a clip)
+  // but onEnd only after a real drag, which left a gesture snapshot open forever.
   const moveGesture = useMemo(
     () =>
       Gesture.Pan()
         .minDistance(10)
         .enabled(enabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onMove, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [enabled, trackId, clipId, msPerPx, onBeginDrag, onMove, onEndDrag]
   );
   const trimInGesture = useMemo(
@@ -188,9 +218,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onTrimIn, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimIn, onEndDrag]
   );
   const trimOutGesture = useMemo(
@@ -198,9 +228,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onStart(() => scheduleOnRN(onBeginDrag))
         .onUpdate((e) => scheduleOnRN(onTrimOut, trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => scheduleOnRN(onEndDrag)),
+        .onFinalize(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimOut, onEndDrag]
   );
 
@@ -280,7 +310,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const [exportOpen, setExportOpen] = useState(false);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
-  const currentClipRef = useRef<Clip | null>(null);
+  const currentClipRef = useRef<Frame | null>(null);
   // Playhead lives in a store, not state: only the components that draw it subscribe.
   const timeStore = useRef(createTimeStore(0)).current;
   const setCurrentTimeMs = timeStore.set;
@@ -388,13 +418,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         // The video player is the clock when it is running: counter and picture can't part.
         let base = t;
         let step = dt;
-        const clip = currentClipRef.current;
+        const piece = currentClipRef.current?.piece;
         const src = playerTimeRef.current?.();
         // Right after a manual seek the player still reports the old position: don't follow it.
         const seeking = now - lastSeekAtRef.current < 600;
         if (seeking) step = 0;
-        else if (clip && !clip.frozen && src != null) {
-          const fromPlayer = clip.startMs + (src - clip.inPointMs) / (clip.speed ?? 1);
+        else if (piece?.kind === 'video' && src != null) {
+          const fromPlayer = piece.startMs + (src - piece.inMs) / piece.speed;
           if (Math.abs(fromPlayer - t) < 1500) {
             base = fromPlayer;
             step = 0;
@@ -618,60 +648,70 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 playing={playing}
                 clipRef={currentClipRef}
               >
-                {({ currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
-                  <>
-                    {transitionBlend && (
-                      <Image
-                        source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                        style={styles.previewImage}
-                      />
-                    )}
-                    <Image
-                      source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-                      style={[
-                        styles.previewImage,
-                        rotatedFrameStyle(currentClip?.rotation, previewSize),
-                        transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
-                        transitionBlend?.type === 'slide' && {
-                          transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
-                        },
-                        transitionBlend?.type === 'zoom' && {
-                          opacity: transitionBlend.progress,
-                          transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
-                        },
-                        transitionBlend?.type === 'wipe' && {
-                          opacity: transitionBlend.progress > 0.05 ? 1 : 0,
-                        },
-                      ]}
-                    />
-                    {currentClip && !currentClip.frozen && (
-                      <LiveClipVideo
-                        store={timeStore}
-                        clip={currentClip}
-                        key={currentClip.sourceUri}
-                        hidden={!!transitionBlend}
-                        timeRef={playerTimeRef}
-                        playing={playing}
-                        rate={currentClip.speed ?? 1}
-                        volume={(currentClip.volume ?? 100) / 100}
-                        style={rotatedFrameStyle(currentClip.rotation, previewSize)}
-                      />
-                    )}
-                    {currentClip?.colorCorrection ? (
-                      <View
-                        pointerEvents="none"
-                        style={[
-                          StyleSheet.absoluteFill,
-                          {
-                            backgroundColor:
-                              currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
-                            opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </>
-                )}
+                {({ frame, currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => {
+                  // Same layout as the export: the incoming clip plays live underneath and the
+                  // outgoing clip's frozen frame sits on top (transitionTransforms is shared).
+                  const tf = transitionBlend
+                    ? transitionTransforms(
+                        transitionBlend.type as TransitionType,
+                        transitionBlend.mode,
+                        transitionBlend.progress,
+                        previewSize.width
+                      )
+                    : null;
+                  return (
+                    <>
+                      <View style={[StyleSheet.absoluteFill, tf && layerStyle(tf.incoming)]}>
+                        <Image
+                          source={previewFrameUri ? { uri: previewFrameUri } : undefined}
+                          style={[
+                            styles.previewImage,
+                            rotatedFrameStyle(frame?.piece.rotation, previewSize),
+                          ]}
+                        />
+                        {frame?.piece.kind === 'video' && (
+                          <LiveClipVideo
+                            store={timeStore}
+                            piece={frame.piece}
+                            key={frame.piece.sourceUri}
+                            timeRef={playerTimeRef}
+                            playing={playing}
+                            rate={frame.piece.speed}
+                            volume={frame.piece.volume}
+                            style={rotatedFrameStyle(frame.piece.rotation, previewSize)}
+                          />
+                        )}
+                      </View>
+                      {transitionBlend && tf && (
+                        <View
+                          pointerEvents="none"
+                          style={[StyleSheet.absoluteFill, layerStyle(tf.outgoing)]}
+                        >
+                          <Image
+                            source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                            style={[
+                              styles.previewImage,
+                              rotatedFrameStyle(transitionBlend.fromRotation, previewSize),
+                            ]}
+                          />
+                        </View>
+                      )}
+                      {currentClip?.colorCorrection ? (
+                        <View
+                          pointerEvents="none"
+                          style={[
+                            StyleSheet.absoluteFill,
+                            {
+                              backgroundColor:
+                                currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
+                              opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </>
+                  );
+                }}
               </PreviewDerived>
             )}
             {mediaReady && pipClip && pipClip.pipPosition && pipClip.pipSize && (

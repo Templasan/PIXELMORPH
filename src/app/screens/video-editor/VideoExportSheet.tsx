@@ -10,6 +10,7 @@ import {
   type ExportClip,
 } from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
+import { blackFrameUri } from './blackFrame';
 import { exportGif } from './gifExporter';
 import { pauseProxiesForExport, resumeProxies } from './previewProxy';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
@@ -34,7 +35,10 @@ async function transitionFrame(
 ): Promise<Pick<ExportClip, 'transitionFrameUri' | 'transitionFrameRotation'>> {
   if (!piece.transitionIn || !piece.transitionFrom) return {};
   const from = piece.transitionFrom;
-  const frame = await extractFrame(from.sourceUri, from.timeMs, width);
+  // A picture already is the frame; only videos need one pulled out.
+  const frame = from.image
+    ? { uri: from.sourceUri }
+    : await extractFrame(from.sourceUri, from.timeMs, width);
   return { transitionFrameUri: frame.uri, transitionFrameRotation: from.rotation };
 }
 
@@ -65,10 +69,10 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * US-16/US-30: real video export — stitches the timeline's first video track (trim, speed,
- * rotation, freeze frames) into one H.264/AAC mp4 with Android's Media3 Transformer, at a
- * chosen social preset, then saves it to the device gallery. Transitions are not rendered in
- * the file (cuts only) and GIF is not produced; see funcionalidades_faltantes/US-30.
+ * US-16/US-30: real video export — stitches the timeline (video and image tracks: trim, speed,
+ * rotation, freeze frames, time-lapse photos, transitions) into one H.264/AAC mp4 with Android's
+ * Media3 Transformer, at a chosen social preset, then saves it to the device gallery. GIF is
+ * produced separately; see funcionalidades_faltantes/US-30.
  */
 export function VideoExportSheet({
   tracks,
@@ -103,7 +107,14 @@ export function VideoExportSheet({
   );
 
   const startExport = useCallback(async () => {
-    if (plan.clips.length === 0 || exportingRef.current) return;
+    if (exportingRef.current) return;
+    if (plan.clips.length === 0 || plan.durationMs <= 0) {
+      setState({
+        phase: 'error',
+        message: 'Não há nada para exportar: adicione vídeos ou fotos visíveis.',
+      });
+      return;
+    }
     exportingRef.current = true;
     cancelledRef.current = false;
     setSaveState('idle');
@@ -137,16 +148,42 @@ export function VideoExportSheet({
       }
       const clips: ExportClip[] = [];
       for (const piece of plan.clips) {
-        if (piece.kind === 'still') {
+        if (piece.kind === 'gap') {
+          // Empty time is a black picture held for the gap's length.
+          clips.push({
+            uri: await blackFrameUri(),
+            kind: 'image',
+            holdMs: Math.round(piece.holdMs),
+            rotation: 0,
+            transitionIn: '',
+            transitionInMs: 0,
+            transitionMode: 'out',
+            startMs: Math.round(piece.startMs),
+          });
+        } else if (piece.kind === 'image') {
+          // A photo of the image track: the file itself is held for its (speed-adjusted) length.
+          clips.push({
+            uri: piece.sourceUri,
+            kind: 'image',
+            holdMs: Math.round(piece.holdMs),
+            rotation: piece.rotation,
+            transitionIn: piece.transitionIn,
+            transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
+            ...(await transitionFrame(piece, preset.width)),
+            startMs: Math.round(piece.startMs),
+          });
+        } else if (piece.kind === 'still') {
           // A freeze frame has no file of its own: pull the frame out as an image to hold.
           const still = await extractFrame(piece.sourceUri, piece.stillTimeMs);
           clips.push({
             uri: still.uri,
             kind: 'image',
-            holdMs: piece.holdMs,
+            holdMs: Math.round(piece.holdMs),
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
             ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
@@ -161,6 +198,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
             ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
@@ -331,8 +369,8 @@ export function VideoExportSheet({
 
             <Text style={styles.note}>
               {plan.clips.length === 0
-                ? 'Não há clipes de vídeo na primeira faixa para exportar.'
-                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. A faixa de áudio A1 é misturada ao som do vídeo; só a primeira faixa de vídeo é exportada.`}
+                ? 'Não há vídeos ou fotos visíveis na linha do tempo para exportar.'
+                : `${plan.clips.filter((c) => c.kind !== 'gap').length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. Vídeos e fotos das faixas visíveis entram em sequência (a faixa de cima vale onde se sobrepõem; espaços vazios viram tela preta). A faixa de áudio A1 é misturada ao som.`}
             </Text>
 
             {exporting && (
