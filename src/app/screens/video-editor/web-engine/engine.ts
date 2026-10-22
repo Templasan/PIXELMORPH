@@ -325,6 +325,33 @@ export class Engine {
           if (s) s.draw(ctx, -w / 2, -h / 2, w, h);
           else if (bm) ctx.drawImage(bm, -w / 2, -h / 2, w, h);
         }
+      } else if (op.kind === 'caption') {
+        ctx.globalAlpha = op.opacity;
+        ctx.font = `bold ${op.fontPx}px ${op.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        ctx.translate(op.cx, op.cy);
+        ctx.scale(op.scale, op.scale);
+        const lines = op.text.split('\n');
+        const lineH = op.fontPx * 1.2;
+        lines.forEach((line, i) => {
+          const y = (i - (lines.length - 1) / 2) * lineH;
+          if (op.shadow) {
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = op.fontPx * 0.12;
+            ctx.shadowOffsetY = op.fontPx * 0.04;
+          }
+          if (op.strokePx > 0) {
+            ctx.lineWidth = op.strokePx * 2; // half of a centred stroke is hidden under the fill
+            ctx.strokeStyle = op.strokeColor;
+            ctx.strokeText(line, 0, y);
+            ctx.shadowColor = 'transparent'; // one shadow, cast by the outline
+          }
+          ctx.fillStyle = op.color;
+          ctx.fillText(line, 0, y);
+          ctx.shadowColor = 'transparent';
+        });
       } else if (op.kind === 'tint') {
         ctx.globalAlpha = op.opacity;
         ctx.fillStyle = op.color;

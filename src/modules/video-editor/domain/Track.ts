@@ -4,6 +4,8 @@
  * "current playback frame" concept baked in — VideoEditorScreen owns that as UI state.
  */
 
+import type { ClipText } from './textCaption';
+
 export type TrackKind = 'video' | 'image' | 'text' | 'audio';
 
 export interface TransitionSpec {
@@ -49,6 +51,8 @@ export interface Clip {
   sphericalPitch?: number; // -90 to 90
   sphericalYaw?: number; // -180 to 180
   sphericalRoll?: number; // -180 to 180
+  /** RF-008: a clip on a text track is a text over the video. */
+  text?: ClipText;
 }
 
 export interface Track {
