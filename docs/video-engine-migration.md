@@ -104,3 +104,28 @@ the fullscreen preview are not wired in web mode (the fullscreen button is hidde
 down was not triggered live (software decode on the emulator makes drops, but Automática resolves to Baixa
 there already); rotated sources (rotation tag) not checked in the engine; Poco measurement (memory without the
 old editor, tier calibration by forcing tiers) is the lead's.
+
+## Stage 2 status (2026-10-22, emulator-verified; Poco numbers pending)
+
+Owner decisions: fallback = only the "update WebView" message; the 4 extra deps approved; tiers
+calibrated on the Poco by forcing tiers; text animations = basic pack; text placed by drag/pinch.
+
+Done in web mode (preview AND export use the same drawOps):
+- Sound (`aedfdbd`): each video piece's own audio at its speed + A1 clips with volume/fades;
+  the preview's Web Audio clock drives the picture; pause suspends the device; export mixes 10 s
+  windows to AAC (Opus fallback), interleaved with the frames.
+- Export from the editor (`aedfdbd`): originals at the preset size, cropped to fill like the
+  native exporter, own canvas/decoders, progress, cancel, "Salvar na galeria".
+- Pictures (`32b2d68`): photos, time-lapse and stop-motion, decoded at canvas width, 12 kept.
+- Colour correction (`09db7a8`): now real in the export too (the native export ignored it).
+- Full screen (`052117a`).
+- Text over video, RF-008 (`906118a` core, `6b7798f`..`6183d38` UI): content, 5 fonts, colours,
+  shadow, outline, size, in/out animation (none, fade, slide x4, zoom, typewriter) with duration,
+  drag and pinch on the preview. Native mode shows a note: text needs the new engine.
+- GIF (`be88f99`): same frames as the preview, encoded in the page by modern-gif.
+- Audit fixes merged (export cancel hang, unreadable project, clip files, info sheet inset).
+
+Still to do: Poco measurements per tier (playback, seek, memory, a real 4K phone video exported
+with sound and text, background); then make `web` the default engine, remove the old preview
+(expo-video players, frozen-frame layers) and decide the native exporter's fate (keep for GIF/
+native fallback or delete); pinch only tested by code review (adb cannot pinch).
