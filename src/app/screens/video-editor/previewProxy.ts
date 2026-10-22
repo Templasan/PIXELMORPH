@@ -11,6 +11,21 @@ import {
 /** Sources whose long edge is above this get a proxy; the proxy's long edge is this. */
 export const PROXY_LONG_EDGE = 1280;
 const PROXY_BITRATE = 5_000_000;
+/** Proxies keyframe every second: long gaps made seeks slow (the engine decodes from the keyframe). */
+const PROXY_KEYFRAME_SECONDS = 1;
+
+/**
+ * '720': the editor's default proxy (every editor needs it). '540': only the web engine's Baixa
+ * tier asks for it. Its entries sit in proxyStore under `<source uri>#540`.
+ */
+export type ProxyVariant = '720' | '540';
+const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number }> = {
+  '720': { longEdge: PROXY_LONG_EDGE, bitrate: PROXY_BITRATE },
+  '540': { longEdge: 960, bitrate: 3_000_000 },
+};
+/** The proxyStore key of a source's proxy. */
+export const proxyKey = (sourceUri: string, variant: ProxyVariant = '720') =>
+  variant === '540' ? `${sourceUri}#540` : sourceUri;
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
 
@@ -34,31 +49,32 @@ export const proxyStore = createStore<Record<string, ProxyEntry>>({});
 /** Output size of the 720p proxy, or null when the source is already small enough. */
 export function proxyDimensions(
   width: number,
-  height: number
+  height: number,
+  variant: ProxyVariant = '720'
 ): { width: number; height: number } | null {
   if (!(width > 0 && height > 0)) return null;
+  const edge = VARIANTS[variant].longEdge;
   const long = Math.max(width, height);
-  if (long <= PROXY_LONG_EDGE) return null;
-  const scale = PROXY_LONG_EDGE / long;
+  if (long <= edge) return null;
+  const scale = edge / long;
   // H.264 wants even sides; rounding to the nearest even keeps the aspect within a pixel.
   const short = 2 * Math.round((Math.min(width, height) * scale) / 2);
-  return width >= height
-    ? { width: PROXY_LONG_EDGE, height: short }
-    : { width: short, height: PROXY_LONG_EDGE };
+  return width >= height ? { width: edge, height: short } : { width: short, height: edge };
 }
 
 /**
  * The proxy sits next to its source (`<name>.proxy720.mp4`). Only sources inside the app's
  * documents folder get one; anything else plays the original.
  */
-export function proxyPathOf(sourceUri: string): string | null {
+export function proxyPathOf(sourceUri: string, variant: ProxyVariant = '720'): string | null {
   const dir = FileSystem.documentDirectory;
   if (!dir || !sourceUri.startsWith(dir)) return null;
-  return `${sourceUri.replace(/\.[^./]+$/, '')}.proxy720.mp4`;
+  return `${sourceUri.replace(/\.[^./]+$/, '')}.proxy${variant}.mp4`;
 }
 
 interface Job {
   sourceUri: string;
+  variant: ProxyVariant;
   uri: string;
   tmpUri: string;
   width: number;
@@ -76,8 +92,8 @@ const queue: Job[] = [];
 let active: Run | null = null;
 let paused = false;
 
-function patch(sourceUri: string, entry: ProxyEntry) {
-  proxyStore.set((s) => ({ ...s, [sourceUri]: entry }));
+function patch(key: string, entry: ProxyEntry) {
+  proxyStore.set((s) => ({ ...s, [key]: entry }));
 }
 
 const nativePath = (uri: string) => uri.replace(/^file:\/\//, '');
@@ -85,7 +101,8 @@ const nativePath = (uri: string) => uri.replace(/^file:\/\//, '');
 /** One transcode: written to a .tmp file and renamed only when it finished, so a killed app never leaves a half proxy that looks ready. */
 async function transcode(run: Run) {
   const { job } = run;
-  patch(job.sourceUri, { status: 'running', progress: 0 });
+  const key = proxyKey(job.sourceUri, job.variant);
+  patch(key, { status: 'running', progress: 0 });
   try {
     await exportVideo(
       {
@@ -108,24 +125,25 @@ async function transcode(run: Run) {
         audio: [],
         width: job.width,
         height: job.height,
-        bitrate: PROXY_BITRATE,
+        bitrate: VARIANTS[job.variant].bitrate,
+        keyFrameIntervalSeconds: PROXY_KEYFRAME_SECONDS,
         outputPath: nativePath(job.tmpUri),
       },
-      (progress) => patch(job.sourceUri, { status: 'running', progress })
+      (progress) => patch(key, { status: 'running', progress })
     );
     await FileSystem.deleteAsync(job.uri, { idempotent: true });
     await FileSystem.moveAsync({ from: job.tmpUri, to: job.uri });
-    patch(job.sourceUri, { status: 'ready', progress: 100, uri: job.uri });
+    patch(key, { status: 'ready', progress: 100, uri: job.uri });
   } catch (error) {
     await FileSystem.deleteAsync(job.tmpUri, { idempotent: true }).catch(() => {});
     if (run.cancelled) {
       // Paused for an export: this job goes back to the front and runs again on resume.
       queue.unshift(job);
-      patch(job.sourceUri, { status: 'pending', progress: 0 });
+      patch(key, { status: 'pending', progress: 0 });
       return;
     }
     errorLogger.log(error, 'previewProxy.transcode');
-    patch(job.sourceUri, { status: 'failed', progress: 0 });
+    patch(key, { status: 'failed', progress: 0 });
   }
 }
 
@@ -152,22 +170,25 @@ export async function requestProxy(
   sourceUri: string,
   sourceWidth: number,
   sourceHeight: number,
-  durationMs: number
+  durationMs: number,
+  variant: ProxyVariant = '720'
 ): Promise<void> {
   // 'checking' is set by requestSourceProxy before the probe and must not block this request.
-  const existing = proxyStore.get()[sourceUri];
+  const key = proxyKey(sourceUri, variant);
+  const existing = proxyStore.get()[key];
   if (existing && existing.status !== 'checking') return;
-  const uri = proxyPathOf(sourceUri);
-  const size = proxyDimensions(sourceWidth, sourceHeight);
+  const uri = proxyPathOf(sourceUri, variant);
+  const size = proxyDimensions(sourceWidth, sourceHeight, variant);
   if (!uri || !size || !(durationMs > 0)) return;
-  patch(sourceUri, { status: 'pending', progress: 0 });
+  patch(key, { status: 'pending', progress: 0 });
   const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
   if (info.exists) {
-    patch(sourceUri, { status: 'ready', progress: 100, uri });
+    patch(key, { status: 'ready', progress: 100, uri });
     return;
   }
   queue.push({
     sourceUri,
+    variant,
     uri,
     tmpUri: `${uri}.tmp.mp4`,
     width: size.width,
@@ -221,13 +242,17 @@ const probes = new Map<string, Promise<ProbedVideo | null>>();
  * Editor entry point: reads the source's size once (cached per uri), then queues its proxy.
  * Does nothing for sources outside the documents folder.
  */
-export function requestSourceProxy(sourceUri: string): Promise<void> {
-  const current = () => proxyStore.get()[sourceUri]?.status;
-  if (!proxyPathOf(sourceUri)) {
-    if (!current()) patch(sourceUri, { status: 'none', progress: 0 });
+export function requestSourceProxy(
+  sourceUri: string,
+  variant: ProxyVariant = '720'
+): Promise<void> {
+  const key = proxyKey(sourceUri, variant);
+  const current = () => proxyStore.get()[key]?.status;
+  if (!proxyPathOf(sourceUri, variant)) {
+    if (!current()) patch(key, { status: 'none', progress: 0 });
     return Promise.resolve();
   }
-  if (!current()) patch(sourceUri, { status: 'checking', progress: 0 });
+  if (!current()) patch(key, { status: 'checking', progress: 0 });
   let probe = probes.get(sourceUri);
   if (!probe) {
     probe = probeSource(sourceUri);
@@ -235,16 +260,16 @@ export function requestSourceProxy(sourceUri: string): Promise<void> {
   }
   return probe
     .then(async (size) => {
-      if (size && proxyDimensions(size.width, size.height)) {
-        await requestProxy(sourceUri, size.width, size.height, size.durationMs);
+      if (size && proxyDimensions(size.width, size.height, variant)) {
+        await requestProxy(sourceUri, size.width, size.height, size.durationMs, variant);
       } else if (current() === 'checking') {
-        // Probe failed, or the source is already within 720p: nothing to transcode.
-        patch(sourceUri, { status: 'none', progress: 0 });
+        // Probe failed, or the source is already within the proxy size: nothing to transcode.
+        patch(key, { status: 'none', progress: 0 });
       }
     })
     .catch((error) => {
       // Never leave 'checking' behind: the editor would wait on it forever.
-      if (current() === 'checking') patch(sourceUri, { status: 'failed', progress: 0 });
+      if (current() === 'checking') patch(key, { status: 'failed', progress: 0 });
       errorLogger.log(error, 'previewProxy.request');
     });
 }
