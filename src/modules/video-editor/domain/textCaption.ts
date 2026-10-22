@@ -160,3 +160,15 @@ export function captionAt(
     opacity: s.opacity,
   };
 }
+
+/** Font chips of the text tab (the same five families as the photo editor's text). */
+export const TEXT_FONTS: readonly { label: string; family: string }[] = [
+  { label: 'Padrão', family: 'sans-serif' },
+  { label: 'Condensada', family: 'sans-serif-condensed' },
+  { label: 'Serifada', family: 'serif' },
+  { label: 'Monoespaçada', family: 'monospace' },
+  { label: 'Negrito extra', family: 'sans-serif-black' },
+];
+
+/** Outline width of the "Contorno" switch when on (fraction of the line height). */
+export const TEXT_OUTLINE_WIDTH = 0.06;
