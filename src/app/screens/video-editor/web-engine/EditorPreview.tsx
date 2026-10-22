@@ -75,6 +75,8 @@ export default function EditorPreview(props: EditorPreviewProps) {
     );
   }, []);
 
+  // Props arrive re-serialised on every emit: compare by content, not identity.
+  const sceneKey = JSON.stringify(scene);
   // Scene: the engine is created for the first one; later ones redraw the current frame.
   useEffect(() => {
     if (!scene || !canvasRef.current || typeof VideoDecoder === 'undefined') return;
@@ -114,7 +116,7 @@ export default function EditorPreview(props: EditorPreviewProps) {
       })
       .catch(fail);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene]);
+  }, [sceneKey]);
 
   useEffect(
     () => () => {
@@ -136,7 +138,7 @@ export default function EditorPreview(props: EditorPreviewProps) {
   useEffect(() => {
     if (ready.current) void engineRef.current?.seek(seek.ms).catch(fail);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seek]);
+  }, [seek.id]); // not the object: a prop re-emit would replay an old seek
 
   useEffect(() => {
     const e = engineRef.current;

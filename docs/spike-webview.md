@@ -166,3 +166,9 @@ files, so the decoder feed (restart on jump, per-frame pulls) is the first thing
 - Export with the app home-screened for 30 s: finished, 429 of 600 frames encoded in the background,
   33.7 s in total, longest pause 1.4 s.
 - The media-store copy was removed (it asked for photo access); exports stay in the app cache.
+
+## After the spike
+
+The streaming read is now implemented with a read-ahead block cache and measured against XHR (numbers in
+`docs/video-engine-migration.md`, "Stage 1 status"): XHR stays the default. The bench screen is unchanged
+(`arquivo: auto/xhr/bridge`); `auto` now means XHR with the bridge as fallback (and above 1 GiB in the editor).
