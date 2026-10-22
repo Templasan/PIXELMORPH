@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Slider } from '@core/ui';
@@ -54,6 +53,7 @@ import {
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
 import { copyToAppStorage, pickMultipleImagesFromGallery } from '@modules/device-media';
+import { scheduleOnRN } from 'react-native-worklets';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -178,9 +178,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(10)
         .enabled(enabled)
-        .onBegin(() => runOnJS(onBeginDrag)())
-        .onUpdate((e) => runOnJS(onMove)(trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => runOnJS(onEndDrag)()),
+        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onUpdate((e) => scheduleOnRN(onMove, trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => scheduleOnRN(onEndDrag)),
     [enabled, trackId, clipId, msPerPx, onBeginDrag, onMove, onEndDrag]
   );
   const trimInGesture = useMemo(
@@ -188,9 +188,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => runOnJS(onBeginDrag)())
-        .onUpdate((e) => runOnJS(onTrimIn)(trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => runOnJS(onEndDrag)()),
+        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onUpdate((e) => scheduleOnRN(onTrimIn, trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimIn, onEndDrag]
   );
   const trimOutGesture = useMemo(
@@ -198,9 +198,9 @@ const ClipBlock = memo(function ClipBlock({
       Gesture.Pan()
         .minDistance(4)
         .enabled(trimEnabled)
-        .onBegin(() => runOnJS(onBeginDrag)())
-        .onUpdate((e) => runOnJS(onTrimOut)(trackId, clipId, e.translationX * msPerPx))
-        .onEnd(() => runOnJS(onEndDrag)()),
+        .onBegin(() => scheduleOnRN(onBeginDrag))
+        .onUpdate((e) => scheduleOnRN(onTrimOut, trackId, clipId, e.translationX * msPerPx))
+        .onEnd(() => scheduleOnRN(onEndDrag)),
     [trimEnabled, trackId, clipId, msPerPx, onBeginDrag, onTrimOut, onEndDrag]
   );
 
@@ -455,8 +455,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const rulerGesture = useMemo(
     () =>
       Gesture.Race(
-        Gesture.Pan().onUpdate((e) => runOnJS(updateTimeFromX)(e.x)),
-        Gesture.Tap().onEnd((e) => runOnJS(updateTimeFromX)(e.x))
+        Gesture.Pan().onUpdate((e) => scheduleOnRN(updateTimeFromX, e.x)),
+        Gesture.Tap().onEnd((e) => scheduleOnRN(updateTimeFromX, e.x))
       ),
     [updateTimeFromX]
   );
@@ -478,7 +478,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             0.15,
             Math.min(0.75, dividerStartRatio.current + e.translationY / contentHeightRef.current)
           );
-          runOnJS(setPreviewRatio)(next);
+          scheduleOnRN(setPreviewRatio, next);
         }),
     []
   );

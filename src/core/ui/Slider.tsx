@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, LayoutChangeEvent } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { Gesture, GestureDetector, type ComposedGesture } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { colors, fontSize, monoFontFamily } from '../theme';
 import { createEchoTracker, snapValue, toPct } from './sliderEcho';
+import { scheduleOnRN } from 'react-native-worklets';
 
 interface SliderProps {
   label: string;
@@ -108,8 +113,8 @@ export function Slider({
         if (trackWidth <= 0) return;
         const next = snapValue(e.x, trackWidth, min, max, step);
         pctSV.value = toPct(next, min, max);
-        runOnJS(beginGesture)();
-        runOnJS(commitValue)(next);
+        scheduleOnRN(beginGesture);
+        scheduleOnRN(commitValue, next);
       })
       .onUpdate((e) => {
         if (trackWidth <= 0) return;
@@ -117,16 +122,16 @@ export function Slider({
         pctSV.value = toPct(next, min, max);
         frameCounter.value += 1;
         if (frameCounter.value % 3 === 0) {
-          runOnJS(commitValue)(next);
+          scheduleOnRN(commitValue, next);
         }
       })
       .onEnd((e) => {
         isDragging.value = false;
         if (trackWidth > 0) {
           const next = snapValue(e.x, trackWidth, min, max, step);
-          runOnJS(commitValue)(next);
+          scheduleOnRN(commitValue, next);
         }
-        runOnJS(commitSlidingComplete)();
+        scheduleOnRN(commitSlidingComplete);
       });
 
     // No beginGesture here: Pan.onBegin already fires on every touch-down, and a second begin()
@@ -135,47 +140,29 @@ export function Slider({
       if (trackWidth <= 0) return;
       const next = snapValue(e.x, trackWidth, min, max, step);
       pctSV.value = toPct(next, min, max);
-      runOnJS(commitValue)(next);
-      runOnJS(commitSlidingComplete)();
+      scheduleOnRN(commitValue, next);
+      scheduleOnRN(commitSlidingComplete);
     });
 
     return Gesture.Race(pan, tap);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- shared values are stable refs
   }, [trackWidth, min, max, step, beginGesture, commitValue, commitSlidingComplete]);
 
-  const fillStyle = useAnimatedStyle(() => ({ width: `${pctSV.value}%` }));
-  const thumbStyle = useAnimatedStyle(() => ({ left: `${pctSV.value}%` }));
-
   return (
     <View style={styles.row}>
       <Text style={[styles.label, { width: labelWidth }]} numberOfLines={1}>
         {label}
       </Text>
-      <GestureDetector gesture={gesture}>
-        <View style={styles.trackHit} onLayout={onLayout}>
-          <View
-            style={[
-              styles.track,
-              !gradientColors && { backgroundColor: trackColor ?? colors.linha },
-            ]}
-          >
-            {gradientColors && trackWidth > 0 && (
-              <Svg width={trackWidth} height={2} style={StyleSheet.absoluteFill}>
-                <Defs>
-                  <LinearGradient id="trackGradient" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor={gradientColors[0]} />
-                    <Stop offset="1" stopColor={gradientColors[1]} />
-                  </LinearGradient>
-                </Defs>
-                <Rect x={0} y={0} width={trackWidth} height={2} fill="url(#trackGradient)" />
-              </Svg>
-            )}
-            {!trackColor && !gradientColors && <Animated.View style={[styles.fill, fillStyle]} />}
-            {bipolar && <View style={styles.centerTick} />}
-            <Animated.View style={[styles.thumb, thumbStyle]} />
-          </View>
-        </View>
-      </GestureDetector>
+      <SliderTrack
+        gesture={gesture}
+        onLayout={onLayout}
+        trackWidth={trackWidth}
+        gradientFrom={gradientColors?.[0]}
+        gradientTo={gradientColors?.[1]}
+        trackColor={trackColor}
+        bipolar={bipolar}
+        pct={pctSV}
+      />
       <Text style={styles.value}>
         {showSign && value > 0 ? `+${value}` : value}
         {unit}
@@ -183,6 +170,57 @@ export function Slider({
     </View>
   );
 }
+
+/**
+ * The track, thumb and gesture. Memoized apart from the value label: the slider being dragged
+ * re-renders on every tick for its label, and re-rendering this part re-parsed the SVG gradient
+ * and re-attached the gesture each time. The thumb itself moves on the UI thread via `pct`.
+ */
+const SliderTrack = memo(function SliderTrack({
+  gesture,
+  onLayout,
+  trackWidth,
+  gradientFrom,
+  gradientTo,
+  trackColor,
+  bipolar,
+  pct,
+}: {
+  gesture: ComposedGesture;
+  onLayout: (e: LayoutChangeEvent) => void;
+  trackWidth: number;
+  gradientFrom?: string;
+  gradientTo?: string;
+  trackColor?: string;
+  bipolar: boolean;
+  pct: SharedValue<number>;
+}) {
+  const fillStyle = useAnimatedStyle(() => ({ width: `${pct.value}%` }));
+  const thumbStyle = useAnimatedStyle(() => ({ left: `${pct.value}%` }));
+  const gradient = gradientFrom !== undefined && gradientTo !== undefined;
+  return (
+    <GestureDetector gesture={gesture}>
+      <View style={styles.trackHit} onLayout={onLayout}>
+        <View style={[styles.track, !gradient && { backgroundColor: trackColor ?? colors.linha }]}>
+          {gradient && trackWidth > 0 && (
+            <Svg width={trackWidth} height={2} style={StyleSheet.absoluteFill}>
+              <Defs>
+                <LinearGradient id="trackGradient" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor={gradientFrom} />
+                  <Stop offset="1" stopColor={gradientTo} />
+                </LinearGradient>
+              </Defs>
+              <Rect x={0} y={0} width={trackWidth} height={2} fill="url(#trackGradient)" />
+            </Svg>
+          )}
+          {!trackColor && !gradient && <Animated.View style={[styles.fill, fillStyle]} />}
+          {bipolar && <View style={styles.centerTick} />}
+          <Animated.View style={[styles.thumb, thumbStyle]} />
+        </View>
+      </View>
+    </GestureDetector>
+  );
+});
 
 const styles = StyleSheet.create({
   row: {
