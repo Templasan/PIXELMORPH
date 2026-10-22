@@ -128,7 +128,8 @@ android {
         }
     }
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+        // !*.map: the web engine's DOM bundle ships source maps (~5 MB each) users never need.
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~:!*.map'
     }
 }
 
@@ -178,5 +179,17 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
+    }
+}
+
+// The web engine's DOM bundle is exported into generated/assets/react/<variant>/www.bundle without
+// clearing it first, so every build's old bundle piled up inside the APK (95 MB instead of 60).
+tasks.configureEach { task ->
+    if (task.name ==~ /createBundle.*JsAndAssets/) {
+        task.doFirst {
+            project.delete(fileTree(layout.buildDirectory.dir("generated/assets/react")) {
+                include "**/www.bundle/**"
+            })
+        }
     }
 }
