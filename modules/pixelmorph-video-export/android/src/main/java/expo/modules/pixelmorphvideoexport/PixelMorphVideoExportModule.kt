@@ -185,10 +185,13 @@ class PixelMorphVideoExportModule : Module() {
 
     val encoderFactory = DefaultEncoderFactory.Builder(context)
       .apply {
-        if (options.bitrate > 0) {
-          setRequestedVideoEncoderSettings(
-            VideoEncoderSettings.Builder().setBitrate(options.bitrate).build()
-          )
+        if (options.bitrate > 0 || options.keyFrameIntervalSeconds > 0) {
+          val settings = VideoEncoderSettings.Builder()
+          if (options.bitrate > 0) settings.setBitrate(options.bitrate)
+          if (options.keyFrameIntervalSeconds > 0) {
+            settings.setiFrameIntervalSeconds(options.keyFrameIntervalSeconds.toFloat())
+          }
+          setRequestedVideoEncoderSettings(settings.build())
         }
       }
       .build()

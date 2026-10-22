@@ -1,5 +1,6 @@
 import { createClip, type Clip, type Track } from '../../src/modules/video-editor/domain/Track';
 import {
+  buildEditorScene,
   buildSpikeScene,
   drawListAt,
   sampleKeyframes,
@@ -106,5 +107,34 @@ describe('web scene: one draw list for preview and export', () => {
     expect(sampleKeyframes(keys, 0)).toBe(1);
     expect(sampleKeyframes(keys, 150)).toBe(2);
     expect(sampleKeyframes(keys, 999)).toBe(3);
+  });
+});
+
+describe('buildEditorScene', () => {
+  const tracks = [track([a, b])];
+
+  it('is the main sequence only, 1080p by default', () => {
+    const s = buildEditorScene(tracks);
+    expect([s.width, s.height]).toEqual([1920, 1080]);
+    expect(s.pips).toEqual([]);
+    expect(s.texts).toEqual([]);
+    expect(s.stickers).toEqual([]);
+    expect(s.durationMs).toBe(s.main.durationMs);
+    const ops = drawListAt(s, 500);
+    expect(ops.map((o) => o.kind)).toEqual(['clear', 'video']);
+  });
+
+  it('draws black in a gap and honours the size option', () => {
+    const s = buildEditorScene(tracks, { width: 1280, height: 720 });
+    expect([s.width, s.height]).toEqual([1280, 720]);
+    expect(drawListAt(s, 2_500).map((o) => o.kind)).toEqual(['clear']);
+  });
+
+  it('maps every source uri, including the outgoing side of a transition', () => {
+    const butted = [track([a, { ...b, startMs: 2_000 }])];
+    const s = buildEditorScene(butted, { mapUri: (u) => u.replace('.mp4', '.proxy.mp4') });
+    const ops = drawListAt(s, 2_100);
+    expect(video(ops, 'main')?.uri).toBe('file:///b.proxy.mp4');
+    expect(video(ops, 'out')?.uri).toBe('file:///a.proxy.mp4');
   });
 });
