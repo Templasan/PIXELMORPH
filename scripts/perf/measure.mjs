@@ -118,7 +118,8 @@ function gfxRead() {
 
 const PROJECTS_TITLE = /^Projetos$/;
 const PHOTO_CARD = /· JPEG/; // project card accessibility label: "<name>, <date> · JPEG"
-const VIDEO_CARD = /· MP4/;
+// The 4K landscape test clip ("0:30, <name>, <date> · MP4 · 4K"); older/empty video projects can sit first.
+const VIDEO_CARD = new RegExp(opt("video-card", "· MP4 · 4K"));
 const PHOTO_EDITOR_READY = /^Ajustes$/; // photo editor tool bar
 const ADJUST_TOOL = /^Ajustes$/;
 const SLIDER_LABEL = /^Saturação$/; // "Básico" tab of the Ajustes drawer
