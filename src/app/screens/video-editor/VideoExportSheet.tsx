@@ -366,7 +366,7 @@ export function VideoExportSheet({
             <Text style={styles.note}>
               {plan.clips.length === 0
                 ? 'Não há vídeos ou fotos visíveis na linha do tempo para exportar.'
-                : `${plan.clips.length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. Vídeos e fotos das faixas visíveis entram em sequência (a faixa de cima vale onde se sobrepõem; espaços vazios viram tela preta). A faixa de áudio A1 é misturada ao som.`}
+                : `${plan.clips.filter((c) => c.kind !== 'gap').length} clipe(s) · ${formatDuration(plan.durationMs)}${plan.transitions.length > 0 ? ` · ${plan.transitions.length} transição(ões)` : ''}. Vídeos e fotos das faixas visíveis entram em sequência (a faixa de cima vale onde se sobrepõem; espaços vazios viram tela preta). A faixa de áudio A1 é misturada ao som.`}
             </Text>
 
             {exporting && (
