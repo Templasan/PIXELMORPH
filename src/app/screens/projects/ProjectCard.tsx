@@ -4,6 +4,8 @@ import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import type { Project } from '@modules/projects';
 import { dateFormatter, formatDuration, formatTypeLabel, primaryAsset } from './projectFormat';
+import { useCardThumb } from './cardThumb';
+import { makeCardThumb } from './cardThumbMaker';
 
 interface CardProps {
   project: Project;
@@ -23,7 +25,7 @@ export const ProjectCard = memo(function ProjectCard({
   onInfo,
 }: CardProps) {
   const asset = primaryAsset(project);
-  const thumbUri = project.thumbnailUri ?? asset?.originalUri;
+  const thumbUri = useCardThumb(project, makeCardThumb);
   const isVideo = project.type === 'video';
   const duration = formatDuration(asset?.metadata.durationMs);
   return (

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import { Icon } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { createProjectsModule, type Project } from '@modules/projects';
 import { copyToAppStorage, pickFromGallery, pickAudioFromDevice } from '@modules/device-media';
+import { ProjectThumb } from '@app/screens/projects/ProjectThumb';
 
 export interface AddClipResult {
   name: string;
@@ -123,7 +123,7 @@ export function AddClipSheet({ trackName, trackKind, onClose, onConfirm }: AddCl
                     })
                   }
                 >
-                  <Image source={{ uri }} style={styles.itemThumb} />
+                  <ProjectThumb project={p} style={styles.itemThumb} />
                   <Text style={styles.itemName} numberOfLines={1}>
                     {p.name}
                   </Text>
