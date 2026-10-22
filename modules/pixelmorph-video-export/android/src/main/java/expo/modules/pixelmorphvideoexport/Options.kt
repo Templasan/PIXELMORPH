@@ -53,6 +53,8 @@ data class ExportOptions(
   @Field val height: Int,
   /** Target video bitrate in bits per second; 0 lets the encoder pick. */
   @Field val bitrate: Int = 0,
+  /** Seconds between keyframes of the encoded video; 0 keeps the encoder default (preview proxies use 1). */
+  @Field val keyFrameIntervalSeconds: Double = 0.0,
   @Field val outputPath: String
 ) : Record
 

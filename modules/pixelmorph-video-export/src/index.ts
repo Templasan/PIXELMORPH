@@ -39,6 +39,8 @@ export interface ExportOptions {
   width: number;
   height: number;
   bitrate?: number;
+  /** Seconds between keyframes; omit (0) for the encoder default. Preview proxies pass 1. */
+  keyFrameIntervalSeconds?: number;
   outputPath: string;
 }
 

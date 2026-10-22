@@ -127,6 +127,40 @@ export function sampleKeyframes(keys: readonly Keyframe[], tMs: number): number 
 
 const SLIDE_IN_MS = 600;
 
+export interface EditorSceneOptions {
+  width?: number;
+  height?: number;
+  /** Swaps a clip's source for the file the preview should decode (a proxy); default: as is. */
+  mapUri?: (sourceUri: string) => string;
+}
+
+/**
+ * The editor's scene: the main sequence only (`planSequence`), no PiP/text/sticker extras.
+ * Image-track pieces are not drawn yet (stage 2 of docs/video-engine-migration.md).
+ */
+export function buildEditorScene(
+  tracks: readonly Track[],
+  opts: EditorSceneOptions = {}
+): WebScene {
+  const { mapUri } = opts;
+  const mapped = mapUri
+    ? tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => ({ ...c, sourceUri: mapUri(c.sourceUri) })),
+      }))
+    : tracks;
+  const main = planSequence(mapped);
+  return {
+    width: opts.width ?? 1920,
+    height: opts.height ?? 1080,
+    durationMs: main.durationMs,
+    main,
+    pips: [],
+    texts: [],
+    stickers: [],
+  };
+}
+
 export function buildSpikeScene(tracks: readonly Track[], opts: SpikeSceneOptions): WebScene {
   const width = opts.width ?? 1920;
   const height = opts.height ?? 1080;
