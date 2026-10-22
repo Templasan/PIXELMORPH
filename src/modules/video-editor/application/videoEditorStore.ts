@@ -82,6 +82,9 @@ export function createVideoEditorStore(
   const setTracks = (tracks: Track[]) => set({ tracks });
 
   function commit(fn: (tracks: Track[]) => Track[]) {
+    // A discrete edit cannot happen inside a drag: a snapshot still open here was left behind by
+    // a gesture that never ended, and replaying a later drag on it would roll the timeline back.
+    gestureStart = null;
     const before = get().tracks;
     const after = fn(before);
     if (after === before) return;
