@@ -472,3 +472,14 @@ Perfil por amostragem (`react-native-release-profiler` 0.4.5, MIT, instalado só
 
 - **Lição:** o emulador varia ~20–40 % entre dias e estados. Comparar builds só na mesma janela, recompilando o "antes" quando preciso.
 - **Sem desperdício a cortar** na agulha e no contador de tempo da timeline. A criação do player (~310 ms, uma vez por abertura) é inerente ao `expo-video`.
+
+### Prévia de vídeo "como os apps grandes": investigação (2026-10-22)
+- **Skia `useVideo` (2.6.2): descartado como motor de prévia.**
+  - Não tem velocidade de reprodução.
+  - Áudio num `MediaPlayer` separado, sem sincronia garantida com os frames.
+  - Busca só por keyframe.
+  - Bug que descarta o frame e deixa o canvas preto (#4000, corrigido só na 2.14). O protótipo no emulador ficou preto, com `RNSkia: Buffer not found`.
+  - Removido na linha 3.x.
+- **Editores open source:** nenhum editor mobile ativo, com licença permissiva e prévia composta na GPU com timeline completa. CapCut, InShot e KineMaster são fechados. Referências válidas: Media3 (Apache-2.0) e OpenReel (MIT, web, só arquitetura).
+- **Caminho estável para efeitos ao vivo no vídeo:** módulo nativo próprio com ExoPlayer + `setVideoEffects` (Media3, `@UnstableApi`, a mesma categoria do Transformer que já usamos), com os mesmos efeitos da exportação. `CompositionPlayer` segue fora por ser `@ExperimentalApi`.
+- **Antes de decidir:** medir no celular se o 4K original toca liso no hardware, sem a cópia de 720p, já com o buffer limitado em 32 MB.
