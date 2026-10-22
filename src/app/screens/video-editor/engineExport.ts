@@ -4,6 +4,8 @@ export interface EngineExportPreset {
   width: number;
   height: number;
   bitrate: number;
+  /** An animated GIF of this size instead of an mp4. */
+  gif?: { fps: number; maxColors: number };
 }
 
 export interface EngineExportRequest extends EngineExportPreset {
@@ -14,6 +16,8 @@ export interface EngineExportResult {
   uri: string;
   sizeBytes: number;
   durationMs: number;
+  frameCount?: number;
+  truncated?: boolean;
 }
 
 /**

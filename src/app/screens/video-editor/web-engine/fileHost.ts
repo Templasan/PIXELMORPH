@@ -30,8 +30,8 @@ export function createFileHost() {
   let exporting: { file: File; handle: FileHandle } | null = null;
   return {
     /** The engine's export writes here: the app cache, like the native exporter's output. */
-    async startExport() {
-      const file = new File(Paths.cache, `pixelmorph_export_${Date.now()}.mp4`);
+    async startExport(ext = 'mp4') {
+      const file = new File(Paths.cache, `pixelmorph_export_${Date.now()}.${ext}`);
       file.create({ overwrite: true });
       exporting = { file, handle: file.open(FileMode.WriteOnly) };
     },

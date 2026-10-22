@@ -108,6 +108,7 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
         ? {
             id: exportRequest.id,
             bitrate: exportRequest.bitrate,
+            gif: exportRequest.gif,
             scene: buildEditorScene(tracks, {
               width: exportRequest.width,
               height: exportRequest.height,
@@ -128,6 +129,8 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
         path?: string;
         bytes?: number;
         durationMs?: number;
+        frameCount?: number;
+        truncated?: boolean;
         error?: string;
       };
       if (out.error || !out.path) {
@@ -139,6 +142,8 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
         uri: out.path,
         sizeBytes: out.bytes ?? 0,
         durationMs: out.durationMs ?? 0,
+        frameCount: out.frameCount,
+        truncated: out.truncated,
       };
       settleEngineExport(id, { result });
     },

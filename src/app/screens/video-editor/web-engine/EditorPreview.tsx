@@ -27,10 +27,15 @@ export interface EditorPreviewProps {
   onEvent(json: string): Promise<void>;
   onStatus(text: string): Promise<void>;
   /** An export to run (originals at the preset size); a new `id` starts it. */
-  exportJob: { id: number; scene: WebScene; bitrate: number } | null;
+  exportJob: {
+    id: number;
+    scene: WebScene;
+    bitrate: number;
+    gif?: { fps: number; maxColors: number };
+  } | null;
   /** Bumped to cancel the running export. */
   cancelExportId: number;
-  startExport(): Promise<void>;
+  startExport(ext?: string): Promise<void>;
   writeExportChunk(position: number, b64: string): Promise<void>;
   finishExport(): Promise<string>;
   onExportProgress(id: number, pct: number): Promise<void>;
@@ -100,7 +105,7 @@ export default function EditorPreview(props: EditorPreviewProps) {
       {
         readChunk: (...a) => latest.current.readChunk(...a),
         getFileSize: (...a) => latest.current.getFileSize(...a),
-        startExport: () => latest.current.startExport(),
+        startExport: (ext) => latest.current.startExport(ext),
         writeExportChunk: (...a) => latest.current.writeExportChunk(...a),
         finishExport: () => latest.current.finishExport(),
         onMetrics: async () => {},
@@ -164,6 +169,7 @@ export default function EditorPreview(props: EditorPreviewProps) {
     e.exportMp4({
       scene: job.scene,
       bitrate: job.bitrate,
+      gif: job.gif,
       onProgress: (pct) => void latest.current.onExportProgress(job.id, pct),
       isCancelled: () => latest.current.cancelExportId !== cancelAtStart,
     })
