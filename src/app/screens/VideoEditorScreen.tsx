@@ -35,6 +35,8 @@ import {
 } from './video-editor/previewSettings';
 import { TIER_SPECS } from './video-editor/previewTier';
 import { ClipPanel } from './video-editor/ClipPanel';
+import { TextGestureLayer } from './video-editor/TextGestureLayer';
+import { createTextClip } from './video-editor/textEdit';
 import { useStore } from '@core/state';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import { VideoExportSheet } from './video-editor/VideoExportSheet';
@@ -620,6 +622,13 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const toggleVisible = editor.toggleVisible;
   const toggleLocked = editor.toggleLocked;
 
+  // A text clip needs no media: "+" on the TXT track adds it at the playhead and selects it.
+  const handleAddText = (trackId: string) => {
+    const clip = createTextClip(TRACK_COLORS.text);
+    editor.addClipAt(trackId, clip, timeStore.get());
+    editor.toggleSelect(clip.id);
+  };
+
   const handleAddClip = (trackId: string, result: AddClipResult) => {
     const track = tracks.find((t) => t.id === trackId);
     if (!track) return;
@@ -673,6 +682,18 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 onEnded={() => editor.setPlaying(false)}
               />
             )}
+            {/* Under the badges and transport (they stay tappable); drags move the selected text. */}
+            {mediaReady &&
+              webMode &&
+              !fullscreenPreview &&
+              previewSize.width > 0 &&
+              selected?.track.kind === 'text' && (
+                <TextGestureLayer
+                  editor={editor}
+                  width={previewSize.width}
+                  height={previewSize.height}
+                />
+              )}
             {mediaReady && !webMode && (
               <PreviewDerived
                 store={timeStore}
@@ -854,7 +875,14 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                         color={track.locked ? colors.perigo : colors.linha}
                       />
                     </Pressable>
-                    <Pressable onPress={() => setAddClipTrackId(track.id)} hitSlop={6}>
+                    <Pressable
+                      onPress={() =>
+                        track.kind === 'text'
+                          ? handleAddText(track.id)
+                          : setAddClipTrackId(track.id)
+                      }
+                      hitSlop={6}
+                    >
                       <Icon name="plus" size={12} color={colors.texto2} />
                     </Pressable>
                   </View>
