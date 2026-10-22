@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { retryFailedCardThumbs } from './projects/cardThumb';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
@@ -114,6 +115,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       loadProjects();
+      retryFailedCardThumbs();
     }, [loadProjects])
   );
 

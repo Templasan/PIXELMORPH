@@ -43,6 +43,10 @@ interface Job {
   make: MakeCardThumb;
 }
 
+/** A make that never settles (a stuck decode) would hold the one-at-a-time queue forever and
+ * leave every later card on its placeholder; past this it counts as failed. */
+export const CARD_THUMB_TIMEOUT_MS = 20_000;
+
 const queue: Job[] = [];
 let busy = false;
 
@@ -69,7 +73,16 @@ async function runJob({ path, source, make }: Job): Promise<void> {
     await FileSystem.makeDirectoryAsync(path.slice(0, path.lastIndexOf('/')), {
       intermediates: true,
     });
-    await make(source, tmpUri);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      make(source, tmpUri),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`card thumb timed out after ${CARD_THUMB_TIMEOUT_MS} ms`)),
+          CARD_THUMB_TIMEOUT_MS
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
     await FileSystem.deleteAsync(path, { idempotent: true });
     await FileSystem.moveAsync({ from: tmpUri, to: path });
     patch(path, 'ready');
@@ -99,12 +112,22 @@ export async function requestCardThumb(project: Project, make: MakeCardThumb): P
   pump();
 }
 
+/** Forgets failed thumbs so their cards ask again (called when the Projects screen regains focus). */
+export function retryFailedCardThumbs(): void {
+  const state = cardThumbStore.get();
+  if (!Object.values(state).includes('failed')) return;
+  cardThumbStore.set(
+    Object.fromEntries(Object.entries(state).filter(([, status]) => status !== 'failed'))
+  );
+}
+
 /** The thumb file, once it is ready; null while it is being made (show the placeholder). */
 export function useCardThumb(project: Project, make: MakeCardThumb): string | null {
   const path = cardThumbPathOf(project);
   const status = useStore(cardThumbStore, (s) => (path ? s[path] : undefined));
+  // Also re-requests after retryFailedCardThumbs cleared this card's failed state.
   useEffect(() => {
-    requestCardThumb(project, make);
-  }, [project, make]);
+    if (status === undefined) requestCardThumb(project, make);
+  }, [project, make, status]);
   return path && status === 'ready' ? path : null;
 }
