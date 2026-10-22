@@ -20,28 +20,53 @@ interface Props {
 export function TextGestureLayer({ editor, width, height }: Props) {
   const gesture = useMemo(() => {
     // Plain functions go into the worklets (the store object itself must not be captured).
-    const begin = editor.beginGesture;
-    const end = editor.endGesture;
+    // Pan and pinch run together: both feed ONE live update (liveClip always starts from the
+    // gesture's snapshot, so two separate updates would each undo the other's change).
     const frame = videoFrameRect({ width, height });
-    const moveText = (dx: number, dy: number) =>
+    let active = 0;
+    let moved = { dx: 0, dy: 0, scale: 1 };
+    const apply = () =>
       editor.liveClip((c) =>
-        c.text ? { ...c, text: { ...c.text, ...movedCentre(c.text, dx, dy) } } : c
+        c.text
+          ? {
+              ...c,
+              text: {
+                ...c.text,
+                ...movedCentre(c.text, moved.dx, moved.dy),
+                size: pinchedSize(c.text.size, moved.scale),
+              },
+            }
+          : c
       );
-    const scaleText = (scale: number) =>
-      editor.liveClip((c) =>
-        c.text ? { ...c, text: { ...c.text, size: pinchedSize(c.text.size, scale) } } : c
-      );
-    const pan = Gesture.Pan()
+    const begin = () => {
+      if (active++ === 0) {
+        moved = { dx: 0, dy: 0, scale: 1 };
+        editor.beginGesture();
+      }
+    };
+    const end = () => {
+      // onFinalize also fires for a touch that never became a gesture (no onStart): ignore it.
+      if (active > 0 && --active === 0) editor.endGesture();
+    };
+    const pan = (dx: number, dy: number) => {
+      moved = { ...moved, dx, dy };
+      apply();
+    };
+    const pinch = (scale: number) => {
+      moved = { ...moved, scale };
+      apply();
+    };
+    const panGesture = Gesture.Pan()
       .onStart(() => scheduleOnRN(begin))
       .onUpdate((e) =>
-        scheduleOnRN(moveText, e.translationX / frame.width, e.translationY / frame.height)
+        scheduleOnRN(pan, e.translationX / frame.width, e.translationY / frame.height)
       )
       .onFinalize(() => scheduleOnRN(end));
-    const pinch = Gesture.Pinch()
+    const pinchGesture = Gesture.Pinch()
       .onStart(() => scheduleOnRN(begin))
-      .onUpdate((e) => scheduleOnRN(scaleText, e.scale))
+      .onUpdate((e) => scheduleOnRN(pinch, e.scale))
       .onFinalize(() => scheduleOnRN(end));
-    return Gesture.Simultaneous(pan, pinch);
+    return Gesture.Simultaneous(panGesture, pinchGesture);
   }, [editor, width, height]);
 
   return (

@@ -35,6 +35,8 @@ export function TextClipTab({ editor, clip }: { editor: VideoEditorStore; clip: 
   const text = clip.text;
   const [draft, setDraft] = useState(text?.content ?? '');
   useEffect(() => setDraft(text?.content ?? ''), [text?.content]);
+  // Typing is a gesture (live per keystroke, one undo entry); leaving the tab closes it.
+  useEffect(() => () => editor.endGesture(), [editor]);
 
   // The text is drawn by the web engine only; the native preview and export ignore it.
   if (!text) return null;
@@ -55,10 +57,12 @@ export function TextClipTab({ editor, clip }: { editor: VideoEditorStore; clip: 
     Keyboard.dismiss();
     editor.commitClip(mapText((t) => ({ ...t, ...p })));
   };
-  const commitContent = () => {
-    if (draft === text.content) return;
-    editor.commitClip((c) =>
-      c.text ? { ...c, name: captionName(draft), text: { ...c.text, content: draft } } : c
+  // Every keystroke reaches the timeline (the preview shows what is typed, and closing the panel
+  // cannot lose it); the whole edit is one undo entry, closed when typing ends.
+  const typeContent = (value: string) => {
+    setDraft(value);
+    editor.liveClip((c) =>
+      c.text ? { ...c, name: captionName(value), text: { ...c.text, content: value } } : c
     );
   };
   const patchAnim = (key: AnimKey, p: Partial<{ type: TextAnimation; ms: number }>) => {
@@ -104,8 +108,8 @@ export function TextClipTab({ editor, clip }: { editor: VideoEditorStore; clip: 
       <TextInput
         style={styles.input}
         value={draft}
-        onChangeText={setDraft}
-        onEndEditing={commitContent}
+        onChangeText={typeContent}
+        onEndEditing={() => editor.endGesture()}
         multiline
         placeholder="Digite o texto"
         placeholderTextColor={colors.texto2}
