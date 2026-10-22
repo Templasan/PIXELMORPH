@@ -58,6 +58,17 @@ describe('LocalProjectRepository — backup + integrity (RNF-006)', () => {
     expect(await repo.verifyIntegrity('p4')).toBe('unrecoverable');
   });
 
+  it('lists the other projects when one is unrecoverable', async () => {
+    const repo = new LocalProjectRepository();
+    await repo.create(createProject('p5', 'Saudável', 'photo'));
+    await repo.create(createProject('p6', 'Estragado', 'video'));
+
+    await AsyncStorage.setItem('project:p6', 'not json at all');
+    await AsyncStorage.setItem('projectBackup:p6', 'also not json');
+
+    expect((await repo.findAll()).map((p) => p.id)).toEqual(['p5']);
+  });
+
   it('keeps the backup one version behind after multiple updates, enabling recovery', async () => {
     const repo = new LocalProjectRepository();
     const project = createProject('p5', 'Logo Cliente', 'photo');
