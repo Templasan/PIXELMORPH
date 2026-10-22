@@ -2,6 +2,9 @@
  * Preview quality tiers of the web engine. Pure (no RN, DOM or Skia) so Jest can test it and the
  * DOM bundle can import it. Export ALWAYS uses the originals; tiers only change the preview.
  */
+/** The web side's status when the System WebView has no WebCodecs (also the fallback trigger). */
+export const NEEDS_WEBVIEW = 'O motor de vídeo precisa do Android System WebView atualizado';
+
 export type Tier = 'alta' | 'media' | 'baixa';
 export type TierSetting = 'auto' | Tier;
 

@@ -3,11 +3,11 @@ import { AppState, View } from 'react-native';
 import { createStore, shallowEqual, useStore } from '@core/state';
 import type { Track } from '@modules/video-editor';
 import { buildEditorScene } from '../../../modules/video-editor/domain/webScene';
-import EditorPreview, { NEEDS_WEBVIEW } from './web-engine/EditorPreview';
+import EditorPreview from './web-engine/EditorPreview';
 import { createFileHost, STREAM_ABOVE_BYTES } from './web-engine/fileHost';
 import { patchPreviewSession, previewSession, previewSettings } from './previewSettings';
 import { proxyKey, proxyStore, requestSourceProxy, type ProxyEntry } from './previewProxy';
-import { autoTier, resolveTier, TIER_SPECS, type Tier } from './previewTier';
+import { autoTier, NEEDS_WEBVIEW, resolveTier, TIER_SPECS, type Tier } from './previewTier';
 import type { TimeStore } from './timeStore';
 
 /** No sign of life from the web side in this long: the System WebView is too old to run it. */
