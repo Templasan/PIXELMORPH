@@ -4,6 +4,7 @@ import {
   appendClip,
   ensureImageTrack,
   findClip,
+  moveClip,
   rippleShiftAfter,
   setClipSpeed,
   splitClipAtMs,
@@ -198,6 +199,10 @@ export function createVideoEditorStore(
     },
     addClip(trackId: string, clip: Clip) {
       commit((t) => appendClip(t, trackId, clip));
+    },
+    /** Adds a clip at `startMs` (or the nearest free spot) in one undo entry. */
+    addClipAt(trackId: string, clip: Clip, startMs: number) {
+      commit((t) => moveClip(appendClip(t, trackId, clip), trackId, clip.id, startMs));
     },
     addTrack(track: Track) {
       commit((t) => [...t, track]);
