@@ -24,7 +24,7 @@ const HISTOGRAM_BINS = 40;
  * The histogram is computed from a downscaled copy (longest side this many px): the shape of a
  * 40-bin histogram does not need more than a few tens of thousands of samples.
  */
-const SAMPLE_MAX_SIDE_PX = 192;
+const SAMPLE_MAX_SIDE_PX = 128; // ~12k samples: 40 bins keep their shape, binning runs every tick
 
 /** `image` scaled to fit SAMPLE_MAX_SIDE_PX (or the original if smaller). */
 function makeSample(image: SkImage): SkImage {

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Slider } from '@core/ui';
 
 interface Props {
@@ -23,6 +23,13 @@ export const AdjustSlider = memo(function AdjustSlider({
   setField,
   onCommit,
 }: Props) {
+  // Stable callbacks: a new function per render made the Slider rebuild its gesture and send it
+  // to the UI thread again on every tick of the slider being dragged.
+  const onChange = useCallback((v: number) => setField(field, v), [setField, field]);
+  const onSlidingComplete = useCallback(
+    (v: number, from: number) => onCommit(field, v, from),
+    [onCommit, field]
+  );
   return (
     <Slider
       label={label}
@@ -32,8 +39,8 @@ export const AdjustSlider = memo(function AdjustSlider({
       bipolar={min < 0}
       showSign={min < 0}
       gradientColors={gradientColors}
-      onChange={(v) => setField(field, v)}
-      onSlidingComplete={(v, from) => onCommit(field, v, from)}
+      onChange={onChange}
+      onSlidingComplete={onSlidingComplete}
     />
   );
 });
