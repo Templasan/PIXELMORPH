@@ -66,3 +66,41 @@ B. Approve the 4 dependencies the spike needed: `react-dom`, `react-native-web`,
 C. A weaker test phone (3-4 GB RAM) for tier calibration: is one available? Otherwise tiers are
    calibrated on the Poco by forcing Medium/Low.
 D. Order: start stage 1 now, after merging part 1 + transitions into `sprint-2`.
+
+## Stage 1 status (branch `video-engine`, emulator-verified; Poco numbers pending)
+
+Done:
+- `VideoEditorScreen` renders the web engine (`EnginePreview.tsx` + DOM component `web-engine/EditorPreview.tsx`,
+  same `Engine` as the spike) instead of the expo-video layers when the persisted setting `videoEngine` is
+  `web` (default `native`, because preview audio and the web export are stage 2). Switch and quality live in the
+  menu opened by the quality badge on the preview; it says "sem áudio na prévia (em breve)".
+- The engine owns the clock and reports time ~10 Hz into `timeStore`; a `timeStore` value the engine did not
+  report is a user seek (coalesced: only the latest pending seek runs, `Feed.seek` decodes the frame directly;
+  seeking while playing just moves the clock origin). Timeline edits rebuild the scene (`buildEditorScene`) and
+  the engine redraws the current frame (`Engine.setScene`) keeping the playhead; verified split, transition
+  (Saída and Entrada), speed 2x, tier change, scrub and play across a junction.
+- Fallback: no WebCodecs, an error before the first frame, or no sign of life in 10 s falls back to the native
+  preview for the session and shows a one-time non-blocking banner (with the "Atualizar o WebView na Play
+  Store" button for the WebView case). Verified on the Pixel_API28 AVD (WebView 69). No dev flag was added.
+- Tiers (`previewTier.ts`, pure, Jest): Alta = sources as they are, 1080p canvas; Média = 720p proxy, 1080p
+  canvas; Baixa = 540p proxy (`.proxy540.mp4`, made only when Baixa is in use; 720p proxy until it exists),
+  720p canvas, at most 2 live video layers. Automatic: `navigator.deviceMemory` (<=3 GB Baixa, <=6 Média, else
+  Alta; no 1080p hardware decode caps at Média) and one automatic step down per session (Automática only) when
+  more than 10 % of layer draws in a 5 s window are late (>100 ms behind) or dropped; notice "Prévia reduzida
+  para manter a fluidez". Manual choice persisted. Export never uses the tiers.
+- Proxies keyframe every second (`keyFrameIntervalSeconds` in the native `ExportOptions`, passed only by proxy
+  jobs). Probed on device: 720p proxy 1280x720 and 540p proxy 960x540, keyframes at 0,1,2,3,4,5 s; the 4K
+  original has them every 8.3 s. Proxies made by older builds keep their long GOP.
+- File reads: XHR Blob by default, chunk bridge (1 MiB blocks, 24-block LRU, read-ahead, `BlockReader`) when XHR
+  fails or the file is above 1 GiB (`STREAM_ABOVE_BYTES`). Emulator numbers, 40 MB 1080p file: XHR open 104-153 ms,
+  seek x20 mean 701 ms / p90 1152 ms, renderer PSS 100 MB (app 394 MB); bridge open 23 ms, seek mean 881 ms /
+  p90 1583 ms, renderer 140 MB at open, 247 MB after the seek run (app 409 MB). 300 MB 4K file: XHR open 994 ms,
+  renderer 125 MB at open and 189 MB after a seek run; bridge renderer 323 MB at open and 1.2 GB (181 MB swapped)
+  after the same run. XHR keeps the file out of the JS heap (Blob), so it is cheaper in RAM and speed here.
+  Emulator numbers are for correctness and relative cost only.
+
+Not done / known gaps: no audio in web mode; image-track pieces draw black; colour-correction overlay and
+the fullscreen preview are not wired in web mode (the fullscreen button is hidden there); the automatic step
+down was not triggered live (software decode on the emulator makes drops, but Automática resolves to Baixa
+there already); rotated sources (rotation tag) not checked in the engine; Poco measurement (memory without the
+old editor, tier calibration by forcing tiers) is the lead's.
