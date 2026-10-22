@@ -50,6 +50,8 @@ class PixelMorphVideoExportModule : Module() {
     get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
   private val main = Handler(Looper.getMainLooper())
   private var current: Transformer? = null
+  /** The promise of the running export; settled by its listener, or by cancel. */
+  private var pending: Promise? = null
 
   override fun definition() = ModuleDefinition {
     Name("PixelMorphVideoExport")
@@ -149,6 +151,9 @@ class PixelMorphVideoExportModule : Module() {
       main.post {
         current?.cancel()
         current = null
+        // Media3's cancel() calls no listener: settle the promise here or JS waits forever.
+        pending?.reject("ERR_VIDEO_EXPORT", "CANCELLED", null)
+        pending = null
       }
     }
   }
@@ -206,6 +211,7 @@ class PixelMorphVideoExportModule : Module() {
         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
           finished = true
           current = null
+          pending = null
           promise.resolve(
             ExportResultRecord(
               uri = Uri.fromFile(outputFile).toString(),
@@ -222,6 +228,7 @@ class PixelMorphVideoExportModule : Module() {
         ) {
           finished = true
           current = null
+          pending = null
           Log.e("PixelMorphExport", "export failed", exportException)
           // The top-level message ("Video frame processing error") hides the real reason.
           val root = generateSequence<Throwable>(exportException) { it.cause }.last()
@@ -235,12 +242,14 @@ class PixelMorphVideoExportModule : Module() {
       .build()
 
     current = transformer
+    pending = promise
     transformer.start(composition, options.outputPath)
 
     val holder = ProgressHolder()
     val poll = object : Runnable {
       override fun run() {
-        if (finished) return
+        // A cancelled export never reaches the listener, so also stop once it is no longer current.
+        if (finished || current !== transformer) return
         if (transformer.getProgress(holder) != Transformer.PROGRESS_STATE_NOT_STARTED) {
           sendEvent("onProgress", mapOf("progress" to holder.progress))
         }
