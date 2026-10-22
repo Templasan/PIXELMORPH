@@ -77,6 +77,10 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
     shallowEqual
   );
 
+  useEffect(() => {
+    if (session.env) console.log('[editor-engine] tier', tier, JSON.stringify(mapping));
+  }, [tier, mapping, session.env]);
+
   const scene = useMemo(
     () =>
       session.env
@@ -147,6 +151,8 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
         patchPreviewSession({
           env: { deviceMemoryGb: e.deviceMemoryGb, hardware1080: !!e.hardware1080 },
         });
+      } else if (e.type === 'probe') {
+        console.log('[editor-engine] probe', json);
       } else if (e.type === 'ready') {
         readyRef.current = true;
         setReady(true);
@@ -176,7 +182,16 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
   );
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+      }}
+    >
       <EditorPreview
         dom={{ style: { width: '100%', height: '100%' }, webviewDebuggingEnabled: true }}
         scene={scene}
