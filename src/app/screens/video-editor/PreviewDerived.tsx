@@ -8,7 +8,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react';
-import * as VideoThumbnails from 'expo-video-thumbnails';
+import { extractFrame } from '../../../../modules/pixelmorph-video-export/src';
 import { previousClipOf, topClipAt, type Clip, type Track } from '@modules/video-editor';
 import { useStore } from '@core/state';
 import { ClipVideo } from './ClipVideo';
@@ -76,6 +76,9 @@ export function useProxyUri(sourceUri: string | undefined): string | undefined {
   return readyUri ?? sourceUri;
 }
 
+/** Posters are shown in the preview box; the 720p preview copy is already this wide. */
+const POSTER_MAX_WIDTH = 1280;
+
 /** The real video for `clip`: the only part of the preview that follows the continuous clock. */
 export function LiveClipVideo({
   store,
@@ -140,7 +143,8 @@ export function PreviewDerived({
     const posterTimeMs = currentClip.frozen
       ? currentClip.inPointMs
       : sourceTimeAt(currentClip, store.get());
-    VideoThumbnails.getThumbnailAsync(posterUri ?? currentClip.sourceUri, { time: posterTimeMs })
+    // Exact frame (expo-video-thumbnails, now deprecated, snapped to keyframes on Android).
+    extractFrame(posterUri ?? currentClip.sourceUri, posterTimeMs, POSTER_MAX_WIDTH)
       .then((result) => {
         if (!cancelled) setPreviewFrameUri(result.uri);
       })
@@ -164,7 +168,7 @@ export function PreviewDerived({
       return;
     }
     let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(fromPlayUri ?? fromUri, { time: fromTimeMs })
+    extractFrame(fromPlayUri ?? fromUri, fromTimeMs, POSTER_MAX_WIDTH)
       .then((result) => {
         if (!cancelled) setFromFrameUri(result.uri);
       })
