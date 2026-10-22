@@ -188,7 +188,9 @@ describe('540p proxy (Baixa tier)', () => {
     expect(proxyDimensions(3840, 2160, '540')).toEqual({ width: 960, height: 540 });
     expect(proxyDimensions(1080, 1920, '540')).toEqual({ width: 540, height: 960 });
     expect(proxyDimensions(960, 540, '540')).toBeNull();
-    expect(proxyPathOf('file:///docs/media/a/a.mp4', '540')).toBe('file:///docs/media/a/a.proxy540.mp4');
+    expect(proxyPathOf('file:///docs/media/a/a.mp4', '540')).toBe(
+      'file:///docs/media/a/a.proxy540.mp4'
+    );
     exportVideo.mockResolvedValueOnce(undefined);
     await requestProxy('file:///docs/media/q/q.mp4', 1920, 1080, 4000, '540');
     await flush();

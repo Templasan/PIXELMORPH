@@ -54,7 +54,8 @@ export class BlockReader {
     const parts = Array.from({ length: last - first + 1 }, (_, k) => this.block(first + k));
     if (first === this.lastBlock || first === this.lastBlock + 1) {
       const maxBlock = Math.floor((this.o.size - 1) / this.blockSize);
-      for (let k = 1; k <= this.readAhead && last + k <= maxBlock; k += 1) void this.block(last + k);
+      for (let k = 1; k <= this.readAhead && last + k <= maxBlock; k += 1)
+        void this.block(last + k);
     }
     this.lastBlock = last;
     const out = new Uint8Array(end2 - start);
