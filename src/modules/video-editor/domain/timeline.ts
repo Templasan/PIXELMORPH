@@ -274,6 +274,28 @@ export function ensureImageTrack(tracks: Track[]): Track[] {
   return [...tracks.slice(0, at), imageTrack, ...tracks.slice(at)];
 }
 
+/**
+ * RF-049: sets a clip's speed. That changes its length on the track, so every later clip on the
+ * same track moves by the difference (push/pull): none overlap, gaps between them are kept.
+ */
+export function setClipSpeed(
+  tracks: Track[],
+  trackId: string,
+  clipId: string,
+  speed: number
+): Track[] {
+  const found = findClip(tracks, clipId);
+  if (!found || found.track.id !== trackId) return tracks;
+  const oldEnd = clipEndMs(found.clip);
+  const delta = clipEndMs({ ...found.clip, speed }) - oldEnd;
+  const changed = tracks.map((t) =>
+    t.id === trackId
+      ? { ...t, clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed } : c)) }
+      : t
+  );
+  return rippleShiftAfter(changed, trackId, oldEnd, delta);
+}
+
 /** The clip shown at `timeMs`: the topmost visible video/image track wins (later track = higher layer). */
 export function topClipAt(tracks: readonly Track[], timeMs: number): Clip | null {
   const media = tracks.filter((t) => (t.kind === 'video' || t.kind === 'image') && t.visible);

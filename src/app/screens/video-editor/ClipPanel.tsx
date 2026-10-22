@@ -78,7 +78,7 @@ export const ClipPanel = memo(function ClipPanel({
   const nudgeTrimOut = (deltaFrames: number) => editor.nudgeTrimOut(deltaFrames * ONE_FRAME_MS);
   const applyColorCorrection = (value: number) =>
     editor.liveClip((c) => ({ ...c, colorCorrection: value }));
-  const applySpeed = (value: number) => editor.liveClip((c) => ({ ...c, speed: value }));
+  const applySpeed = (value: number) => editor.setSpeed(value, 'live');
   const setClipField = (field: 'volume' | 'fadeInMs' | 'fadeOutMs', value: number) =>
     editor.liveClip((c) => ({ ...c, [field]: value }));
   const endSliderGesture = () => editor.endGesture();
@@ -240,7 +240,7 @@ export const ClipPanel = memo(function ClipPanel({
               <Pressable
                 key={preset}
                 style={[styles.chip, (selected.clip.speed ?? 1) === preset && styles.chipActive]}
-                onPress={() => editor.commitClip((c) => ({ ...c, speed: preset }))}
+                onPress={() => editor.setSpeed(preset, 'commit')}
               >
                 <Text
                   style={[
