@@ -283,7 +283,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const overlaySkImage = useImage(overlayImage?.uri ?? null);
   const adjustmentsEffect = getAdjustmentsEffect();
   const retroEffect = getRetroEffect();
-  const histogram = useImageHistogram(skiaImage);
+  const histogram = useImageHistogram(skiaImage, adjustmentsEffect);
   // RF-071: gyro-responsive parallax for stereoscopic photos
   const parallaxOffset = useGyroParallax(gyroParallaxEnabled && stereoInfo.isStereoscopic, 20);
 
