@@ -37,13 +37,22 @@ interface Props {
   loopRange: { startMs: number; endMs: number } | null;
   /** Stop the transport: the engine reached the end, or the app went to the background. */
   onEnded: () => void;
+  /** Maximum long edge (width or height) of any video source in the project, for auto-tier logic. */
+  maxSourceLongEdge?: number;
 }
 
 /**
  * The web engine as the editor's preview. The engine owns the clock while playing and reports
  * time into `timeStore`; a timeStore change that did not come from the engine is a user seek.
  */
-export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }: Props) {
+export function EnginePreview({
+  tracks,
+  timeStore,
+  playing,
+  loopRange,
+  onEnded,
+  maxSourceLongEdge,
+}: Props) {
   const settings = useStore(previewSettings);
   const session = useStore(previewSession);
   const [ready, setReady] = useState(false);
@@ -57,7 +66,7 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
 
   const tier = resolveTier(
     settings.quality,
-    session.env ? autoTier(session.env) : 'media',
+    session.env ? autoTier(session.env, maxSourceLongEdge ?? 0) : 'media',
     session.steppedDown
   );
   useEffect(() => {

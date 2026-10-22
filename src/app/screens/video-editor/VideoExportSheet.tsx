@@ -366,7 +366,7 @@ export function VideoExportSheet({
             )}
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.body}>
+          <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 12 }]}>
             <View style={styles.formatRow}>
               {(['mp4', 'gif'] as const).map((f) => (
                 <Pressable

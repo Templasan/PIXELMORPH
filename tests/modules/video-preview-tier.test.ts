@@ -21,6 +21,17 @@ describe('preview tiers', () => {
     expect(autoTier({ deviceMemoryGb: undefined, hardware1080: true })).toBe('media');
   });
 
+  it('drops 4K sources to Média in Automática even with 8 GB and hardware decode', () => {
+    // 8 GB + hw1080 would pick Alta, but a 4K source starts at Média to avoid 4K decode cost.
+    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 2160)).toBe('media');
+    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 3840)).toBe('media');
+    // Baixa always stays Baixa for 4K.
+    expect(autoTier({ deviceMemoryGb: 3, hardware1080: true }, 2160)).toBe('baixa');
+    // 1080p sources are unchanged.
+    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 1080)).toBe('alta');
+    expect(autoTier({ deviceMemoryGb: 4, hardware1080: true }, 720)).toBe('media');
+  });
+
   it('steps down one tier and stops at Baixa', () => {
     expect(stepDownTier('alta')).toBe('media');
     expect(stepDownTier('media')).toBe('baixa');
