@@ -5,6 +5,7 @@ import {
   createNativeStackNavigator,
   type NativeStackScreenProps,
 } from '@react-navigation/native-stack';
+import type { Track } from '@modules/video-editor';
 import { withScreenBoundary } from './ScreenErrorBoundary';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
@@ -30,6 +31,8 @@ export type RootStackParamList = {
     rawMimeType: string;
   };
   VideoEditor: { projectId?: string } | undefined;
+  /** SPIKE: WebCodecs-in-WebView engine (docs/spike-webview.md). */
+  VideoEngineSpike: { tracks: Track[] };
   Community: undefined;
   Tutorials: undefined;
   Presets: undefined;
@@ -48,6 +51,7 @@ const loaders = {
   PhotoEditor: () => import('../screens/PhotoEditorScreen'),
   RawConverter: () => import('../screens/RawConverterScreen'),
   VideoEditor: () => import('../screens/VideoEditorScreen'),
+  VideoEngineSpike: () => import('../screens/VideoEngineSpikeScreen'),
 };
 
 function lazyScreen<K extends keyof RootStackParamList>(
@@ -67,6 +71,7 @@ const CameraScreen = lazyScreen(loaders.Camera);
 const PhotoEditorScreen = lazyScreen(loaders.PhotoEditor);
 const RawConverterScreen = lazyScreen(loaders.RawConverter);
 const VideoEditorScreen = lazyScreen(loaders.VideoEditor);
+const VideoEngineSpikeScreen = lazyScreen(loaders.VideoEngineSpike);
 
 // Every route renders inside its own error boundary (ScreenErrorBoundary); built once here so
 // screens are not re-created on each render of the navigator.
@@ -78,6 +83,7 @@ const screens = {
   PhotoEditor: withScreenBoundary(PhotoEditorScreen, 'PhotoEditor'),
   RawConverter: withScreenBoundary(RawConverterScreen, 'RawConverter'),
   VideoEditor: withScreenBoundary(VideoEditorScreen, 'VideoEditor'),
+  VideoEngineSpike: withScreenBoundary(VideoEngineSpikeScreen, 'VideoEngineSpike'),
   Community: withScreenBoundary(CommunityScreen, 'Community'),
   Tutorials: withScreenBoundary(TutorialsScreen, 'Tutorials'),
   Presets: withScreenBoundary(PresetsScreen, 'Presets'),
@@ -108,6 +114,7 @@ export default function RootNavigator() {
       <Stack.Screen name="PhotoEditor" component={screens.PhotoEditor} />
       <Stack.Screen name="RawConverter" component={screens.RawConverter} />
       <Stack.Screen name="VideoEditor" component={screens.VideoEditor} />
+      <Stack.Screen name="VideoEngineSpike" component={screens.VideoEngineSpike} />
       <Stack.Screen name="Community" component={screens.Community} />
       <Stack.Screen name="Tutorials" component={screens.Tutorials} />
       <Stack.Screen name="Presets" component={screens.Presets} />
