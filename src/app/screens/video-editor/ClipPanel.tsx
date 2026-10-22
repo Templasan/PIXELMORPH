@@ -23,6 +23,7 @@ import {
   setSphericalOrientation,
 } from '@modules/video-editor';
 import { applySpeedRamp } from '@modules/video-editor/domain/speedRamp';
+import { TextClipTab } from './TextClipTab';
 import type { SphericalInfo } from '@modules/video-editor/domain/spherical';
 
 const CLIP_TABS = [
@@ -34,7 +35,8 @@ const CLIP_TABS = [
   'Áudio',
   'Sobreposição',
 ] as const;
-type ClipTab = (typeof CLIP_TABS)[number];
+const TEXT_TABS = ['Aparar', 'Texto'] as const;
+type ClipTab = (typeof CLIP_TABS)[number] | (typeof TEXT_TABS)[number];
 
 const SPEED_PRESETS = [0.25, 0.5, 1, 2, 4] as const;
 const ONE_FRAME_MS = 1000 / 30; // DEFAULT_FPS = 30
@@ -68,10 +70,10 @@ export const ClipPanel = memo(function ClipPanel({
 
   const [clipTab, setClipTab] = useState<ClipTab>('Aparar');
 
-  // Reset tab to 'Aparar' when selection changes
+  // Reset tab when selection changes: a text clip opens on its text tab.
   useEffect(() => {
-    setClipTab('Aparar');
-  }, [selected?.clip.id]);
+    setClipTab(selected?.track.kind === 'text' ? 'Texto' : 'Aparar');
+  }, [selected?.clip.id, selected?.track.kind]);
 
   if (!selected) return null;
 
@@ -101,7 +103,7 @@ export const ClipPanel = memo(function ClipPanel({
   return (
     <View style={styles.clipPanel}>
       <View style={styles.clipTabsRow}>
-        {CLIP_TABS.map((t) => (
+        {(selected.track.kind === 'text' ? TEXT_TABS : CLIP_TABS).map((t) => (
           <Pressable
             key={t}
             onPress={() => setClipTab(t)}
@@ -149,6 +151,9 @@ export const ClipPanel = memo(function ClipPanel({
             <Icon name="plus" size={12} color={colors.texto2} />
           </Pressable>
         </View>
+      )}
+      {clipTab === 'Texto' && selected.track.kind === 'text' && (
+        <TextClipTab key={selected.clip.id} editor={editor} clip={selected.clip} />
       )}
       {clipTab === 'Quadro' && (
         <View>
