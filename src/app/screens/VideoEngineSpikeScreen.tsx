@@ -9,12 +9,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Asset } from 'expo-asset';
 import { File, FileMode, Paths, type FileHandle } from 'expo-file-system';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { colors } from '@core/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { buildSpikeScene } from '../../modules/video-editor/domain/webScene';
+import { STICKER_DATA_URI } from './video-editor/web-engine/stickerData';
 import WebEngine from './video-editor/web-engine/WebEngine';
 import type { EngineCommand } from './video-editor/web-engine/WebEngine';
 import type { FileMode as FileAccessMode } from './video-editor/web-engine/engine';
@@ -46,7 +46,6 @@ const MODES: FileAccessMode[] = ['auto', 'xhr', 'bridge'];
 export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [sticker, setSticker] = useState<string | null>(null);
   const [status, setStatus] = useState('carregando...');
   const [metricsText, setMetricsText] = useState('{}');
   const [command, setCommand] = useState<EngineCommand>({ id: 0, type: 'pause' });
@@ -62,24 +61,17 @@ export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
     return () => sub.remove();
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const asset = Asset.fromModule(require('../../../assets/icon.png'));
-      await asset.downloadAsync();
-      const b64 = await new File(asset.localUri ?? asset.uri).base64();
-      if (alive) setSticker(`data:image/png;base64,${b64}`);
-    })().catch((e) => setStatus(`sticker: ${String(e)}`));
-    return () => {
-      alive = false;
+  useEffect(
+    () => () => {
       handles.current.forEach((h) => h.close());
       handles.current.clear();
-    };
-  }, []);
+    },
+    []
+  );
 
   const scene = useMemo(
-    () => (sticker ? buildSpikeScene(route.params.tracks, { stickerDataUri: sticker }) : null),
-    [sticker, route.params.tracks]
+    () => buildSpikeScene(route.params.tracks, { stickerDataUri: STICKER_DATA_URI }),
+    [route.params.tracks]
   );
 
   const readChunk = useCallback(async (uri: string, offset: number, length: number) => {
