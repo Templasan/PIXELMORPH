@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -347,6 +347,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const [contentHeight, setContentHeight] = useState(1);
   const [addClipTrackId, setAddClipTrackId] = useState<string | null>(null);
   const [pipClipId, setPipClipId] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   // RF-021: 360° video detection
 
   useEffect(() => {
@@ -405,6 +406,23 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
+  const maxSourceLongEdge = useMemo(
+    () =>
+      Math.max(
+        0,
+        ...tracks.flatMap((t) =>
+          t.kind === 'video'
+            ? t.clips.map((c) => {
+                const asset = project?.assets.find(
+                  (a) => a.originalUri === c.sourceUri || a.workingUri === c.sourceUri
+                );
+                return asset ? Math.max(asset.metadata.width ?? 0, asset.metadata.height ?? 0) : 0;
+              })
+            : []
+        )
+      ),
+    [tracks, project]
+  );
 
   // A real (if approximated) playhead — this app has no video decoder installed, so play
   // advances elapsed time and swaps the poster image per clip rather than decoding frames.
@@ -680,6 +698,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 playing={playing}
                 loopRange={loopRange}
                 onEnded={() => editor.setPlaying(false)}
+                maxSourceLongEdge={maxSourceLongEdge}
               />
             )}
             {/* Under the badges and transport (they stay tappable); drags move the selected text. */}
@@ -1028,7 +1047,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               )}
             </PreviewDerived>
           )}
-          <View style={styles.fullscreenTopBar}>
+          <View style={[styles.fullscreenTopBar, { top: insets.top + 12 }]}>
             <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
               <Text style={styles.qualityBadgeText}>
                 {project?.assets[0]?.metadata.width ?? 3840}×

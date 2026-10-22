@@ -51,7 +51,7 @@ export function PreviewQualityMenu({ onClose }: { onClose: () => void }) {
           </View>
           <Text style={styles.hint}>
             {web
-              ? 'sem áudio na prévia (em breve)'
+              ? 'Áudio ativo na prévia e no motor web.'
               : 'Prévia com áudio. O motor web (em teste) permite várias camadas.'}
           </Text>
           {fallback && (
