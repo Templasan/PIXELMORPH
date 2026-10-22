@@ -127,27 +127,26 @@ export default function ProjectsScreen({ navigation }: Props) {
 
       const mod = projectsModule;
       const name = picked.fileName?.replace(/\.[^./]+$/, '') || 'Importado da galeria';
-      const project = await mod.createProject.execute(
+      const project = await mod.createProjectWithMedia.execute(
         name,
-        picked.type === 'video' ? 'video' : 'photo'
-      );
-      await mod.addMediaAsset.execute(
-        project.id,
-        createMediaAsset(
-          `asset_${Date.now()}`,
-          picked.type,
-          picked.uri,
-          picked.uri,
-          createMediaMetadata(picked.mimeType, {
-            width: picked.width || undefined,
-            height: picked.height || undefined,
-            durationMs:
-              picked.type === 'video'
-                ? picked.durationMs || (await probeVideoDurationMs(picked.uri))
-                : undefined,
-            fileSizeBytes: picked.fileSizeBytes ?? undefined,
-          })
-        )
+        picked.type === 'video' ? 'video' : 'photo',
+        [
+          createMediaAsset(
+            `asset_${Date.now()}`,
+            picked.type,
+            picked.uri,
+            picked.uri,
+            createMediaMetadata(picked.mimeType, {
+              width: picked.width || undefined,
+              height: picked.height || undefined,
+              durationMs:
+                picked.type === 'video'
+                  ? picked.durationMs || (await probeVideoDurationMs(picked.uri))
+                  : undefined,
+              fileSizeBytes: picked.fileSizeBytes ?? undefined,
+            })
+          ),
+        ]
       );
 
       await loadProjects();

@@ -1,4 +1,5 @@
 export { CreateProjectUseCase } from './CreateProjectUseCase';
+export { CreateProjectWithMediaUseCase } from './CreateProjectWithMediaUseCase';
 export { GetProjectUseCase } from './GetProjectUseCase';
 export { ListProjectsUseCase } from './ListProjectsUseCase';
 export { UpdateProjectUseCase } from './UpdateProjectUseCase';

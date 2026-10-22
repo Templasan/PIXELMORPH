@@ -142,27 +142,26 @@ export default function CameraScreen({ navigation }: Props) {
 
   const openInEditor = useCallback(
     async (uri: string, kind: 'image' | 'video', width: number, height: number) => {
-      const project = await projects.createProject.execute(
-        kind === 'video' ? 'Vídeo da câmera' : 'Foto da câmera',
-        kind === 'video' ? 'video' : 'photo'
-      );
       const probed = await probeFileMetadata(uri, kind);
       // Camera videos are stored sideways with a rotation tag; keep the upright size.
       const rotation = kind === 'video' ? await probeVideoRotation(uri).catch(() => null) : null;
       ({ width, height } = uprightDimensions(width, height, rotation));
-      await projects.addMediaAsset.execute(
-        project.id,
-        createMediaAsset(
-          `asset_${Date.now()}`,
-          kind,
-          uri,
-          uri,
-          createMediaMetadata(kind === 'video' ? 'video/mp4' : 'image/jpeg', {
-            width,
-            height,
-            fileSizeBytes: probed.fileSizeBytes,
-          })
-        )
+      const project = await projects.createProjectWithMedia.execute(
+        kind === 'video' ? 'Vídeo da câmera' : 'Foto da câmera',
+        kind === 'video' ? 'video' : 'photo',
+        [
+          createMediaAsset(
+            `asset_${Date.now()}`,
+            kind,
+            uri,
+            uri,
+            createMediaMetadata(kind === 'video' ? 'video/mp4' : 'image/jpeg', {
+              width,
+              height,
+              fileSizeBytes: probed.fileSizeBytes,
+            })
+          ),
+        ]
       );
       navigation.navigate(kind === 'video' ? 'VideoEditor' : 'PhotoEditor', {
         projectId: project.id,
@@ -175,20 +174,19 @@ export default function CameraScreen({ navigation }: Props) {
     if (stopFrames.length === 0 || busy) return;
     setBusy(true);
     try {
-      const project = await projects.createProject.execute('Stop-motion', 'video');
-
-      for (let i = 0; i < stopFrames.length; i++) {
-        await projects.addMediaAsset.execute(
-          project.id,
+      const project = await projects.createProjectWithMedia.execute(
+        'Stop-motion',
+        'video',
+        stopFrames.map((frame, i) =>
           createMediaAsset(
             `stopmotion_${i}`,
             'image',
-            stopFrames[i],
-            stopFrames[i],
+            frame,
+            frame,
             createMediaMetadata('image/jpeg', { width: 1920, height: 1080 })
           )
-        );
-      }
+        )
+      );
 
       setStopFrames([]);
       navigation.navigate('VideoEditor', { projectId: project.id });

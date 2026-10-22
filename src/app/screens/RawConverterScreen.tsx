@@ -104,21 +104,17 @@ export default function RawConverterScreen({ navigation, route }: Props) {
     if (projectCreationStarted.current) return;
     projectCreationStarted.current = true;
     let cancelled = false;
-    Promise.all([
-      projects.createProject.execute(sourceName, 'photo'),
-      probeFileMetadata(sourceUri, 'image'),
-    ])
-      .then(([project, probed]) =>
-        projects.addMediaAsset.execute(
-          project.id,
+    probeFileMetadata(sourceUri, 'image')
+      .then((probed) =>
+        projects.createProjectWithMedia.execute(sourceName, 'photo', [
           createMediaAsset(
             `asset_${Date.now()}`,
             'image',
             sourceUri,
             sourceUri,
             createMediaMetadata(rawMimeType, probed)
-          )
-        )
+          ),
+        ])
       )
       .then((project) => {
         if (!cancelled) setProjectId(project.id);
