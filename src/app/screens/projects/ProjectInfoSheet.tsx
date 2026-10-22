@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import type { Project, ProjectPriority } from '@modules/projects';
@@ -58,6 +59,7 @@ export function ProjectInfoSheet({
   onConfirmDelete,
 }: ProjectInfoSheetProps) {
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
   const [infoTab, setInfoTab] = useState<InfoTab>('PROPRIEDADES');
   const [historyLog, setHistoryLog] = useState<readonly Operation[]>([]);
   const [dueDateInput, setDueDateInput] = useState(formatDateInput(project.dueDate));
@@ -94,7 +96,7 @@ export function ProjectInfoSheet({
   ];
 
   return (
-    <View style={styles.infoSheet}>
+    <View style={[styles.infoSheet, { paddingBottom: insets.bottom }]}>
       <View style={styles.infoHeader}>
         <View style={{ flexDirection: 'row', gap: 16 }}>
           {(['PROPRIEDADES', 'HISTÓRICO'] as const).map((tab) => (
