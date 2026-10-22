@@ -132,6 +132,21 @@ export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
     }
   }, []);
 
+  // An old System WebView fails before our component runs (e.g. no Object.fromEntries on Chrome 69),
+  // so the web side can never say so itself.
+  useEffect(() => {
+    const t = setTimeout(
+      () =>
+        setStatus((s) =>
+          s === 'carregando...'
+            ? 'O motor de vídeo precisa do Android System WebView atualizado (o motor não iniciou em 10 s)'
+            : s
+        ),
+      10000
+    );
+    return () => clearTimeout(t);
+  }, []);
+
   const onStatus = useCallback(async (text: string) => {
     console.log('[webengine-status]', text);
     setStatus(text);
