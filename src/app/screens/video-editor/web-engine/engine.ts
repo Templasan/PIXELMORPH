@@ -16,6 +16,8 @@ import {
   type WebScene,
 } from '../../../../modules/video-editor/domain/webScene';
 import { Feed } from './feed';
+import { BlockReader } from './blockReader';
+import { createDropMonitor } from '../previewTier';
 
 /**
  * SPIKE web engine (runs inside a WebView). One canvas, one decoder slot per (layer, source), and
@@ -33,12 +35,18 @@ export interface Host {
   finishExport(): Promise<string>;
   onMetrics(json: string): Promise<void>;
   onStatus(text: string): Promise<void>;
+  /** Editor only: playhead time, about 10 times a second while playing. */
+  onTime?(ms: number): Promise<void>;
+  /** Editor only: JSON {type: 'env' | 'ready' | 'ended' | 'drops' | 'warn' | ...}. */
+  onEvent?(json: string): Promise<void>;
 }
 
 const FPS = 30;
 const EXPORT_MAX_MS = 20_000;
 const PLAY_MAX_MS = 30_000;
-const READ_SLICE = 2 * 1024 * 1024;
+const TIME_REPORT_MS = 100;
+/** Streaming reads move 1 MiB blocks across the bridge (base64), with a small read-ahead cache. */
+const STREAM_BLOCK = 1024 * 1024;
 
 type VideoOp = Extract<DrawOp, { kind: 'video' }>;
 
@@ -100,11 +108,21 @@ export class Engine {
   private inputs = new Map<string, Promise<{ input: Input; method: string; ms: number }>>();
   private feeds = new Map<string, Promise<Feed>>();
   private images = new Map<string, ImageBitmap>();
-  private methods: Record<string, { method: string; ms: number }> = {};
+  private methods: Record<string, { method: string; ms: number; bytes?: number }> = {};
   private t = 0;
   private playing = false;
   private raf = 0;
   private busy = false;
+  /** Sources larger than this are streamed through the bridge instead of read whole (auto mode). */
+  streamAboveBytes = Infinity;
+  /** Video layers that decode live while playing; the rest hold their last decoded frame. */
+  maxLive = 8;
+  /** Playback wraps inside this range (scene ms) instead of ending. */
+  loop: { startMs: number; endMs: number } | null = null;
+  private origin = { wall0: 0, startT: 0 };
+  private drops = createDropMonitor();
+  private seekWanted: number | null = null;
+  private draining: Promise<void> | null = null;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -129,35 +147,36 @@ export class Engine {
 
   private async openInputUncached(uri: string) {
     const t0 = performance.now();
-    if (this.fileMode !== 'bridge') {
+    const size = this.fileMode === 'xhr' ? 0 : await this.host.getFileSize(uri).catch(() => 0);
+    const stream =
+      this.fileMode === 'bridge' || (this.fileMode === 'auto' && size > this.streamAboveBytes);
+    if (!stream) {
       try {
         const blob = await xhrBlob(uri);
         const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
-        return this.note(uri, input, 'xhr-blob', t0);
+        return this.note(uri, input, 'xhr-blob', t0, blob.size);
       } catch (e) {
         if (this.fileMode === 'xhr') throw e;
         this.methods[`${uri}#xhr-error`] = { method: String((e as Error).message), ms: 0 };
       }
     }
-    const size = await this.host.getFileSize(uri);
+    const reader = new BlockReader({
+      size,
+      blockSize: STREAM_BLOCK,
+      fetchBlock: async (offset, length) =>
+        b64ToBytes(await this.host.readChunk(uri, offset, length)),
+    });
     const source = new StreamSource({
       getSize: () => size,
       prefetchProfile: 'fileSystem',
-      read: async (start, end) => {
-        const out = new Uint8Array(end - start);
-        for (let at = start; at < end; at += READ_SLICE) {
-          const len = Math.min(READ_SLICE, end - at);
-          out.set(b64ToBytes(await this.host.readChunk(uri, at, len)), at - start);
-        }
-        return out;
-      },
+      read: (start, end) => reader.read(start, end),
     });
-    return this.note(uri, new Input({ source, formats: ALL_FORMATS }), 'chunk-bridge', t0);
+    return this.note(uri, new Input({ source, formats: ALL_FORMATS }), 'chunk-bridge', t0, size);
   }
 
-  private note(uri: string, input: Input, method: string, t0: number) {
+  private note(uri: string, input: Input, method: string, t0: number, bytes = 0) {
     const ms = Math.round(performance.now() - t0);
-    this.methods[uri] = { method, ms };
+    this.methods[uri] = { method, ms, bytes };
     return { input, method, ms };
   }
 
@@ -177,20 +196,26 @@ export class Engine {
   }
 
   /** Opens every source and the sticker images before the first frame. */
-  async prepare() {
-    const first = drawListAt(this.scene, 0).filter((o): o is VideoOp => o.kind === 'video');
-    const all = new Set<string>([
-      ...first.map((o) => o.uri),
-      ...this.scene.main.clips.map((c) => c.sourceUri).filter(Boolean),
-      ...this.scene.pips.map((p) => p.uri),
-    ]);
-    for (const uri of all) await this.openInput(uri);
+  async prepare(eager = true) {
+    const all = this.sourceUris();
+    if (eager) for (const uri of all) await this.openInput(uri);
     for (const s of this.scene.stickers) {
       if (!this.images.has(s.dataUri)) {
         this.images.set(s.dataUri, await createImageBitmap(await (await fetch(s.dataUri)).blob()));
       }
     }
-    await this.seekTo(0);
+    await this.seekTo(this.t);
+    // The editor opens the rest in the background so a later clip does not stall playback.
+    if (!eager) for (const uri of all) void this.openInput(uri).catch(() => {});
+  }
+
+  private sourceUris(): Set<string> {
+    const first = drawListAt(this.scene, this.t).filter((o): o is VideoOp => o.kind === 'video');
+    return new Set<string>([
+      ...first.map((o) => o.uri),
+      ...this.scene.main.clips.map((c) => c.sourceUri).filter(Boolean),
+      ...this.scene.pips.map((p) => p.uri),
+    ]);
   }
 
   // ---- drawing (the only drawing code) ---------------------------------------------------------
@@ -251,14 +276,131 @@ export class Engine {
   // ---- playback ----------------------------------------------------------------------------------
 
   private async renderLive(t: number, feedMap: Map<DrawOp, Feed>, ops: DrawOp[]) {
+    let live = 0;
+    const now = performance.now();
+    let hit = false;
     this.drawOps(ops, (op) => {
       const feed = feedMap.get(op)!;
+      // Layers beyond the cap keep their last decoded frame (no decoding while playing).
+      if (live++ >= this.maxLive) return feed.cur;
       const sec = op.sourceTimeMs / 1000;
+      const droppedBefore = feed.dropped;
       const s = feed.tick(sec);
       if (s) feed.markDrawn(s, sec);
+      const bad = (!s || sec - s.timestamp > 0.1 ? 1 : 0) + (feed.dropped - droppedBefore);
+      hit = this.drops.sample(now, bad > 0 ? 1 : 0) || hit;
       return s;
     });
     this.t = t;
+    if (hit) void this.host.onEvent?.(JSON.stringify({ type: 'drops' }));
+  }
+
+  // ---- editor playback (the engine owns the clock) -------------------------------------------
+
+  /** Plays from the playhead until the end (or around `loop`), reporting time to the host. */
+  async playLive() {
+    if (this.playing || this.busy) return;
+    this.playing = true;
+    await this.draining; // a pending scrub lands first, so we start where the user left it
+    const startT = this.t >= this.scene.durationMs ? 0 : this.t;
+    let lastReport = 0;
+    const finish = async (ended: boolean) => {
+      this.playing = false;
+      cancelAnimationFrame(this.raf);
+      this.stopper = null;
+      await this.host.onTime?.(Math.round(this.t));
+      if (ended) await this.host.onEvent?.(JSON.stringify({ type: 'ended' }));
+    };
+    this.stopper = () => finish(false);
+    // Warm the decoders for the first instant so the run does not start with a stall.
+    await this.seekTo(startT, false);
+    if (!this.playing) return;
+    this.origin = { wall0: performance.now(), startT };
+    this.drops.reset();
+    const loop = async (now: number) => {
+      if (!this.playing) return;
+      let t = this.origin.startT + (now - this.origin.wall0);
+      const end = this.loop
+        ? Math.min(this.loop.endMs, this.scene.durationMs)
+        : this.scene.durationMs;
+      if (t >= end) {
+        if (!this.loop) {
+          this.t = end;
+          await finish(true);
+          return;
+        }
+        t = this.loop.startMs;
+        this.origin = { wall0: now, startT: t };
+      }
+      const ops = drawListAt(this.scene, t);
+      const feedMap = await this.feedsOf(ops);
+      if (!this.playing) return;
+      await this.renderLive(t, feedMap, ops);
+      if (now - lastReport >= TIME_REPORT_MS) {
+        lastReport = now;
+        void this.host.onTime?.(Math.round(t));
+      }
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  /** Moves the playhead: keeps playing from there, or draws that frame (latest request wins). */
+  seek(ms: number) {
+    const t = Math.max(0, Math.min(this.scene.durationMs, ms));
+    if (this.playing) {
+      this.origin = { wall0: performance.now(), startT: t };
+      return Promise.resolve();
+    }
+    this.seekWanted = t;
+    this.draining ??= this.drain();
+    return this.draining;
+  }
+
+  /** Coalesced seeks: while one decodes, newer requests replace each other; only the last runs. */
+  private async drain() {
+    try {
+      while (this.seekWanted !== null) {
+        const ms = this.seekWanted;
+        this.seekWanted = null;
+        this.prune();
+        try {
+          await this.seekTo(ms, false);
+        } catch (e) {
+          void this.host.onEvent?.(JSON.stringify({ type: 'warn', message: String(e) }));
+        }
+      }
+    } finally {
+      this.draining = null;
+    }
+  }
+
+  /** New timeline: redraw the current frame without losing the playhead. */
+  setScene(scene: WebScene) {
+    this.scene = scene;
+    this.drops.reset();
+    this.t = Math.min(this.t, scene.durationMs);
+    if (this.playing) {
+      void Promise.all([...this.sourceUris()].map((u) => this.openInput(u).catch(() => {})));
+      return Promise.resolve();
+    }
+    return this.seek(this.t);
+  }
+
+  /** Releases decoders and files of sources the scene no longer uses (only while idle). */
+  private prune() {
+    if (this.playing) return;
+    const keep = this.sourceUris();
+    for (const [key, p] of this.feeds) {
+      if (keep.has(key.slice(key.indexOf('|') + 1))) continue;
+      this.feeds.delete(key);
+      void p.then((f) => f.dispose()).catch(() => {});
+    }
+    for (const [uri, p] of this.inputs) {
+      if (keep.has(uri)) continue;
+      this.inputs.delete(uri);
+      void p.then((i) => i.input.dispose()).catch(() => {});
+    }
   }
 
   async play() {

@@ -26,6 +26,14 @@ import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
 import { requestSourceProxy, useSourcesReady } from './video-editor/previewProxy';
 import { PreparingMediaOverlay } from './shared/PreparingMediaOverlay';
 import { createTimeStore } from './video-editor/timeStore';
+import { EnginePreview, tierInUse } from './video-editor/EnginePreview';
+import { PreviewNotices, PreviewQualityMenu } from './video-editor/PreviewQualityMenu';
+import {
+  loadPreviewSettings,
+  previewSession,
+  previewSettings,
+} from './video-editor/previewSettings';
+import { TIER_SPECS } from './video-editor/previewTier';
 import { ClipPanel } from './video-editor/ClipPanel';
 import { useStore } from '@core/state';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
@@ -309,6 +317,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   const timelineZoom = useStore(editor.store, (st) => st.timelineZoom);
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  // Persisted switch (default: native). The web engine falls back to native for the session
+  // when the System WebView cannot run it.
+  const engineSetting = useStore(previewSettings, (st) => st.engine);
+  const engineFallback = useStore(previewSession, (st) => st.fallback);
+  const webMode = engineSetting === 'web' && !engineFallback;
+  const tierNow = useStore(tierInUse);
+  useEffect(() => {
+    void loadPreviewSettings();
+  }, []);
   const playerTimeRef = useRef<(() => number | null) | null>(null);
   const currentClipRef = useRef<Frame | null>(null);
   // Playhead lives in a store, not state: only the components that draw it subscribe.
@@ -405,7 +423,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     [loopReview, selStart, selEnd, totalDurationMs]
   );
   useEffect(() => {
-    if (!playing) return;
+    // In web mode the engine owns the clock and reports time into timeStore.
+    if (!playing || webMode) return;
     // Real elapsed time, not a fixed 100 ms: timers run late, and a clock slower than the
     // video player drifts until ClipVideo has to seek (a black frame).
     let last = Date.now();
@@ -436,7 +455,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
       }
     }, 100);
     return () => clearInterval(interval);
-  }, [playing, totalDurationMs, loopRange]);
+  }, [playing, totalDurationMs, loopRange, webMode]);
 
   // RF-021: detect if selected clip is 360° video
   // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an
@@ -644,7 +663,16 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         <View style={{ height: `${previewRatio * 100}%` }}>
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {/* Not mounted until ready: the 4K original is never decoded while it is locked. */}
-            {mediaReady && (
+            {mediaReady && webMode && (
+              <EnginePreview
+                tracks={tracks}
+                timeStore={timeStore}
+                playing={playing}
+                loopRange={loopRange}
+                onEnded={() => editor.setPlaying(false)}
+              />
+            )}
+            {mediaReady && !webMode && (
               <PreviewDerived
                 store={timeStore}
                 tracks={tracks}
@@ -733,15 +761,19 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 ]}
               />
             )}
-            <View style={styles.qualityBadge}>
+            <Pressable style={styles.qualityBadge} onPress={() => setQualityMenuOpen(true)}>
               <Text style={styles.qualityBadgeText}>
                 {project?.assets[0]?.metadata.width ?? 3840}×
                 {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
+                {webMode && tierNow ? ` · ${TIER_SPECS[tierNow].label}` : ''}
               </Text>
-            </View>
-            <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
-              <Icon name="maximize" size={16} color={colors.branco} />
             </Pressable>
+            {!webMode && (
+              <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
+                <Icon name="maximize" size={16} color={colors.branco} />
+              </Pressable>
+            )}
+            <PreviewNotices />
             <View style={styles.transportOverlay}>
               <View style={styles.timeRow}>
                 <LiveTimecode
@@ -922,6 +954,8 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           onConfirm={(result) => handleAddClip(addClipTrackId, result)}
         />
       )}
+
+      {qualityMenuOpen && <PreviewQualityMenu onClose={() => setQualityMenuOpen(false)} />}
 
       {exportOpen && (
         <VideoExportSheet
