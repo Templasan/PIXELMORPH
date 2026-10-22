@@ -135,16 +135,20 @@ environment problems were a large share).
 5. Memory: `adb shell dumpsys meminfo com.anonymous.pixelmorph` every few seconds during playback and
    export (the WebView renderer is a separate `sandboxed_process0` process).
 
-## Owner's phone numbers (to fill)
+## Owner's phone numbers (Poco, 2026-10-22, WebView 154)
 
 | Metric | Browser test (Poco) | Current app (Poco) | WebView spike (Poco) |
 | --- | --- | --- | --- |
-| Screen fps, 3 layers 1080p | 61 | 1 layer only | |
-| Screen fps, 3 layers proxy | - | - | |
-| Dropped/late frames per layer | - | - | |
-| Seek mean / p90 | 0.39-0.45 s | ~0.30-0.36 s | |
-| Export time / x-realtime | 20 s, 3 layers: 14.7 s | 1:30 1080p, 1 layer: 15.8 s | |
-| Export with app in background | ~1/3 speed, kept going | 19.1 s | |
-| Frames encoded in background / longest pause | - | - | |
-| Memory peak / average | - | - | |
-| File access method / open cost | - | - | |
+| Screen fps, 3 layers 1080p | 61 | 1 layer only | 101 avg (120 Hz panel), worst 1 s window 63; 29.9-30 frames/s per layer |
+| Screen fps, 3 layers proxy | - | - | not run (originals were read) |
+| Dropped/late frames per layer | - | - | 3/0, 3/0, 2/19 in 30 s; longest frame gap 66 ms |
+| Seek mean / p90 | 0.39-0.45 s | ~0.30-0.36 s | 1.14 s / 3.12 s (max 3.26 s); files have 1 s GOPs, so this is the engine's seek path, not the media: the browser test seeked the same files in 0.4 s |
+| Export time / x-realtime | 20 s, 3 layers: 14.7 s | 1:30 1080p, 1 layer: 15.8 s | 20 s, 3 layers: ~27 s (0.74x), hardware encoder; output checked (h264 1080p, 600 frames, overlays right) |
+| Export with app in background | ~1/3 speed, kept going | 19.1 s | app home-screened 30 s: kept going, ~35 s total |
+| Frames encoded in background / longest pause | - | - | 424 of 600 / 2.0 s |
+| Memory peak / average | - | - | RSS app + WebView renderer: ~0.9-1.0 GB playing, peak 1.45 GB exporting (old editor still mounted underneath; RSS overcounts shared pages) |
+| File access method / open cost | - | - | xhr-blob, 102-118 ms per 40 MB file |
+
+Notes from the phone run: the media-store copy of each export asks for photo access on Android 14+
+(spike-only; must go before any real use). Seek and export speed lag the browser test on the same
+files, so the decoder feed (restart on jump, per-frame pulls) is the first thing to optimise.
