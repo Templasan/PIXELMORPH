@@ -34,6 +34,8 @@ export interface PlannedClip {
   /** Gain of the clip's own audio, 0..1. */
   volume: number;
   rotation: number;
+  /** -100 (darker) .. 100 (lighter); 0 = none. */
+  colorCorrection: number;
   /** How the clip begins ('' = plain cut) and for how long, in finished-video ms. */
   transitionIn: '' | 'fade' | 'slide' | 'zoom' | 'wipe';
   transitionInMs: number;
@@ -132,6 +134,7 @@ function toPlanned({ clip, image, startMs, endMs }: Segment): PlannedClip {
       speed: 1,
       volume: 1,
       rotation: 0,
+      colorCorrection: 0,
       transitionIn: '',
       transitionInMs: 0,
       transitionMode: 'out',
@@ -144,6 +147,7 @@ function toPlanned({ clip, image, startMs, endMs }: Segment): PlannedClip {
     clipId: clip.id,
     sourceUri: clip.sourceUri,
     rotation: clip.rotation ?? 0,
+    colorCorrection: clip.colorCorrection ?? 0,
     transitionIn: '' as const,
     transitionInMs: 0,
     transitionMode: 'out' as const,

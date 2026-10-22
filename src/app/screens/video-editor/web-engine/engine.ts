@@ -325,6 +325,10 @@ export class Engine {
           if (s) s.draw(ctx, -w / 2, -h / 2, w, h);
           else if (bm) ctx.drawImage(bm, -w / 2, -h / 2, w, h);
         }
+      } else if (op.kind === 'tint') {
+        ctx.globalAlpha = op.opacity;
+        ctx.fillStyle = op.color;
+        ctx.fillRect(0, 0, size.width, size.height);
       } else if (op.kind === 'text') {
         ctx.globalAlpha = op.opacity;
         ctx.font = `bold ${op.fontPx}px sans-serif`;
