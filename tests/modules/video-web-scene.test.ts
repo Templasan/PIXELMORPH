@@ -211,3 +211,20 @@ describe('pictures on the timeline', () => {
     });
   });
 });
+
+describe('colour correction', () => {
+  it('lightens with white and darkens with black, at most half opacity', () => {
+    const light = drawListAt(
+      buildEditorScene([track([clip({ id: 'l', startMs: 0, colorCorrection: 60 })])]),
+      500
+    );
+    expect(light[light.length - 1]).toEqual({ kind: 'tint', color: '#ffffff', opacity: 0.3 });
+    const dark = drawListAt(
+      buildEditorScene([track([clip({ id: 'd', startMs: 0, colorCorrection: -100 })])]),
+      500
+    );
+    expect(dark[dark.length - 1]).toEqual({ kind: 'tint', color: '#000000', opacity: 0.5 });
+    const none = drawListAt(buildEditorScene([track([a])]), 500);
+    expect(none.some((o) => o.kind === 'tint')).toBe(false);
+  });
+});

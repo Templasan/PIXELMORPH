@@ -156,6 +156,12 @@ export type DrawOp =
       rotationDeg: number;
     }
   | {
+      /** A flat colour over the whole frame (colour correction: white lightens, black darkens). */
+      kind: 'tint';
+      color: string;
+      opacity: number;
+    }
+  | {
       kind: 'text';
       text: string;
       x: number;
@@ -363,6 +369,15 @@ export function drawListAt(scene: WebScene, timeMs: number): DrawOp[] {
       );
     } else {
       ops.push({ ...incomingBase, opacity: 1, translateX: 0, scale: 1 });
+    }
+    const cc = frame.piece.colorCorrection;
+    // The editor's look: up to 50% white over the frame (lighter) or black (darker).
+    if (cc) {
+      ops.push({
+        kind: 'tint',
+        color: cc > 0 ? '#ffffff' : '#000000',
+        opacity: Math.min(0.5, Math.abs(cc) / 200),
+      });
     }
   }
 
