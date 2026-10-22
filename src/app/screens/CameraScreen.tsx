@@ -121,9 +121,22 @@ export default function CameraScreen({ navigation }: Props) {
   // access once `recordAsync` starts).
   useEffect(() => {
     if (mode !== 'VÍDEO' || recording || !micPermission?.granted) return;
-    audioRecorder.prepareToRecordAsync().then(() => audioRecorder.record());
+    // The prepare is async: if the screen leaves first (recording done -> editor), the hook has
+    // already released the recorder and touching it crashes the app.
+    let active = true;
+    audioRecorder
+      .prepareToRecordAsync()
+      .then(() => {
+        if (active) audioRecorder.record();
+      })
+      .catch(() => {});
     return () => {
-      if (audioRecorder.isRecording) audioRecorder.stop();
+      active = false;
+      try {
+        if (audioRecorder.isRecording) audioRecorder.stop();
+      } catch {
+        // Already released by useAudioRecorder on unmount.
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, recording, micPermission?.granted]);
