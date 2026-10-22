@@ -79,7 +79,15 @@ export class AudioMixer {
   /** Finished-video time by the audio clock, or null when it is not running. */
   timeMs(): number | null {
     if (!this.ctx || !this.anchor || this.ctx.state !== 'running') return null;
-    return this.anchor.ms + Math.max(0, this.ctx.currentTime - this.anchor.ctxS) * 1000;
+    // currentTime moves in steps of the output buffer (tens of ms on Android): the picture followed
+    // those steps at ~18 fps. The output timestamp ties the audio clock to performance.now(), so
+    // the time stays on the sound but advances smoothly between steps.
+    let audioNow = this.ctx.currentTime;
+    const ts = this.ctx.getOutputTimestamp?.();
+    if (ts?.contextTime !== undefined && ts.performanceTime) {
+      audioNow = ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+    }
+    return this.anchor.ms + Math.max(0, audioNow - this.anchor.ctxS) * 1000;
   }
 
   /** (Re)starts the sound of `spans` from finished-video time `fromMs`. */
