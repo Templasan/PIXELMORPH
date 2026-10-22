@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { historyPartKeys } from '@core/history/LocalHistoryRepository';
+import { errorLogger } from '@core/reliability';
 import { Project, updateProject } from '../../domain';
 import {
   ProjectRepository,
@@ -94,7 +95,11 @@ export class LocalProjectRepository implements ProjectRepository {
       const projects: Project[] = [];
 
       for (const id of list) {
-        const project = await this.findById(id);
+        // One unreadable project (live copy and backups) must not hide all the others.
+        const project = await this.findById(id).catch((error: unknown) => {
+          errorLogger.log(error, `LocalProjectRepository.findAll:${id}`);
+          return null;
+        });
         if (project) {
           projects.push(project);
         }
