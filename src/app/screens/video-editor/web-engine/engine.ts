@@ -2,6 +2,7 @@ import {
   ALL_FORMATS,
   BlobSource,
   CanvasSource,
+  EncodedPacketSink,
   Input,
   Mp4OutputFormat,
   Output,
@@ -204,9 +205,46 @@ export class Engine {
         this.images.set(s.dataUri, await createImageBitmap(await (await fetch(s.dataUri)).blob()));
       }
     }
-    await this.seekTo(this.t);
+    // Through the coalescer: a scene swap during prepare must not dispose what this seek reads.
+    await this.seek(this.t);
     // The editor opens the rest in the background so a later clip does not stall playback.
     if (!eager) for (const uri of all) void this.openInput(uri).catch(() => {});
+    if (!eager) void this.probeSources(all);
+  }
+
+  private probed = new Set<string>();
+
+  /** Reports what each source really is (size, first keyframes) so a proxy can be checked on device. */
+  private async probeSources(uris: Iterable<string>) {
+    for (const uri of uris) {
+      if (this.probed.has(uri)) continue;
+      this.probed.add(uri);
+      try {
+        const { input, method, ms } = await this.openInput(uri);
+        const track = await input.getPrimaryVideoTrack();
+        if (!track) continue;
+        const sink = new EncodedPacketSink(track);
+        const keys: number[] = [];
+        let p = await sink.getFirstPacket();
+        while (p && keys.length < 6) {
+          keys.push(+p.timestamp.toFixed(2));
+          p = await sink.getNextKeyPacket(p);
+        }
+        await this.host.onEvent?.(
+          JSON.stringify({
+            type: 'probe',
+            uri,
+            width: await track.getCodedWidth(),
+            height: await track.getCodedHeight(),
+            keyframes: keys,
+            method,
+            openMs: ms,
+          })
+        );
+      } catch {
+        /* a probe is only a diagnostic */
+      }
+    }
   }
 
   private sourceUris(): Set<string> {
@@ -380,6 +418,7 @@ export class Engine {
     this.scene = scene;
     this.drops.reset();
     this.t = Math.min(this.t, scene.durationMs);
+    void this.probeSources(this.sourceUris());
     if (this.playing) {
       void Promise.all([...this.sourceUris()].map((u) => this.openInput(u).catch(() => {})));
       return Promise.resolve();

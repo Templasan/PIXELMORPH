@@ -57,7 +57,8 @@ export default function EditorPreview(props: EditorPreviewProps) {
 
   // Environment report: the host needs it to pick the tier before it builds the scene.
   useEffect(() => {
-    document.body.style.cssText = 'margin:0;background:#000;overflow:hidden';
+    document.body.style.cssText =
+      'margin:0;background:#000;overflow:hidden;height:100vh;display:flex;align-items:center';
     if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
       void latest.current.onStatus(NEEDS_WEBVIEW);
       return;
@@ -151,7 +152,7 @@ export default function EditorPreview(props: EditorPreviewProps) {
       ref={canvasRef}
       width={w}
       height={h}
-      style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+      style={{ width: '100%', height: 'auto', display: 'block' }}
     />
   );
 }

@@ -1,10 +1,14 @@
 import { File, FileMode, type FileHandle } from 'expo-file-system';
 
 /**
- * RN side of the engine's streaming reads (expo-file-system handle, base64 over the DOM bridge).
- * Sources up to STREAM_ABOVE_BYTES are read whole by XHR inside the WebView instead.
+ * Sources up to this size are read whole by XHR inside the WebView (Blob), larger ones stream
+ * through the bridge. Emulator numbers (docs/video-engine-migration.md): XHR opened a 300 MB file
+ * in ~1 s and kept the renderer at ~190 MB; the chunk bridge ran the renderer to 322 MB at open
+ * and 1.2 GB after a seek run, and opened a 40 MB file slower to seek (0.88 s vs 0.70 s mean).
+ * So XHR is the default and the bridge is the fallback when XHR fails (blocked or no space for
+ * the Blob copy); 1 GiB is where a whole-file Blob copy stops being sane.
  */
-export const STREAM_ABOVE_BYTES = 64 * 1024 * 1024;
+export const STREAM_ABOVE_BYTES = 1024 * 1024 * 1024;
 
 function toBase64(bytes: Uint8Array): string {
   let s = '';
