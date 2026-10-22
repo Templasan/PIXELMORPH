@@ -14,6 +14,7 @@ import { colors, fontSize } from '@core/theme';
 import { createProjectsModule, type Project } from '@modules/projects';
 import { pickImageFromGallery } from '@modules/device-media';
 import { RAW_FORMATS } from '@modules/photo-editor/domain/raw';
+import { ProjectThumb } from './ProjectThumb';
 
 interface RawImportResult {
   sourceUri: string;
@@ -145,7 +146,6 @@ export function RawImportSheet({ onClose, onConfirm }: RawImportSheetProps) {
           <Text style={styles.hint}>Nenhuma imagem disponível.</Text>
         )}
         {projects?.map((p) => {
-          const uri = p.thumbnailUri ?? p.assets[0]?.originalUri;
           const active = !pickedUri && selectedProject?.id === p.id;
           return (
             <Pressable
@@ -156,8 +156,8 @@ export function RawImportSheet({ onClose, onConfirm }: RawImportSheetProps) {
                 setPickedUri(null);
               }}
             >
-              <Image
-                source={{ uri }}
+              <ProjectThumb
+                project={p}
                 style={[styles.itemThumb, active && styles.itemThumbActive]}
               />
               <Text style={styles.itemName} numberOfLines={1}>

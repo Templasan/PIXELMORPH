@@ -7,6 +7,7 @@ import { errorLogger } from '@core/reliability';
 import { createProjectsModule } from '@modules/projects';
 import { copyToAppStorage, pickImageFromGallery } from '@modules/device-media';
 import type { Project } from '@modules/projects';
+import { ProjectThumb } from '@app/screens/projects/ProjectThumb';
 import {
   BLEND_MODE_LABELS,
   FRAME_STYLES,
@@ -286,7 +287,7 @@ export function EffectsDrawer({
                     setPickerOpen(false);
                   }}
                 >
-                  <Image source={{ uri: p.thumbnailUri }} style={styles.projectThumb} />
+                  <ProjectThumb project={p} style={styles.projectThumb} />
                   <Text style={styles.projectName} numberOfLines={1}>
                     {p.name}
                   </Text>
