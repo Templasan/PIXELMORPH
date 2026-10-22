@@ -23,6 +23,7 @@ import {
   GIF_COLOR_OPTIONS,
   GIF_FPS_OPTIONS,
   GIF_WIDTH_OPTIONS,
+  gifSize,
   VIDEO_PRESETS,
   originalPreset,
   planExport,
@@ -131,6 +132,24 @@ export function VideoExportSheet({
     // The encoder is single-slot: the preview proxies stop before the export touches it.
     await pauseProxiesForExport();
     try {
+      if (format === 'gif' && webEngine) {
+        if (cancelledRef.current) throw new Error('CANCELLED');
+        // Same frames as the preview (text, colour, pictures, transitions), at the GIF's size.
+        const size = gifSize(sourceWidth ?? 0, sourceHeight ?? 0, gifWidth);
+        const gif = await exportWithEngine(
+          { ...size, bitrate: 0, gif: { fps: gifFps, maxColors: gifColors } },
+          (progress) => setState({ phase: 'exporting', progress })
+        );
+        setState({
+          phase: 'done',
+          uri: gif.uri,
+          sizeBytes: gif.sizeBytes,
+          summary: `${size.width}×${size.height} · ${gif.frameCount ?? 0} quadros · GIF`,
+          tookMs: Date.now() - startedAt,
+          note: gif.truncated ? 'O GIF foi cortado em 15 s.' : undefined,
+        });
+        return;
+      }
       if (format === 'gif') {
         const gif = await exportGif(
           plan,

@@ -22,6 +22,8 @@ import { Feed } from './feed';
 import { BlockReader } from './blockReader';
 import { createDropMonitor } from '../previewTier';
 import { AudioMixer, mixWindow } from './audio';
+import { encode as encodeGif } from 'modern-gif';
+import { GIF_MAX_DURATION_MS } from '../../../../modules/video-editor/domain/gifPlan';
 
 /**
  * SPIKE web engine (runs inside a WebView). One canvas, one decoder slot per (layer, source), and
@@ -34,7 +36,8 @@ export type FileMode = 'auto' | 'xhr' | 'bridge';
 export interface Host {
   readChunk(uri: string, offset: number, length: number): Promise<string>;
   getFileSize(uri: string): Promise<number>;
-  startExport(): Promise<void>;
+  /** `ext`: 'mp4' (default) or 'gif'. */
+  startExport(ext?: string): Promise<void>;
   writeExportChunk(position: number, base64: string): Promise<void>;
   finishExport(): Promise<string>;
   onMetrics(json: string): Promise<void>;
@@ -113,6 +116,8 @@ const stats = (xs: number[]) => {
 export interface ExportJob {
   scene: WebScene;
   bitrate: number;
+  /** Set for an animated GIF instead of an mp4 (the scene is already at the GIF's size). */
+  gif?: { fps: number; maxColors: number };
   onProgress(pct: number): void;
   isCancelled(): boolean;
 }
@@ -121,6 +126,9 @@ export interface ExportResult {
   path: string;
   bytes: number;
   durationMs: number;
+  /** GIF only. */
+  frameCount?: number;
+  truncated?: boolean;
 }
 
 export class Engine {
@@ -711,7 +719,7 @@ export class Engine {
     this.busy = true;
     const prefix = job ? 'x:' : '';
     try {
-      return await this.encode(job, prefix);
+      return await (job?.gif ? this.encodeGif(job, prefix) : this.encode(job, prefix));
     } finally {
       this.busy = false;
       if (job) {
@@ -723,6 +731,54 @@ export class Engine {
         this.prune(); // closes the originals the preview does not read
       }
     }
+  }
+
+  /**
+   * Animated GIF: the same drawOps per frame (text, tint, pictures, transitions included), then
+   * quantised and LZW-encoded in the page by modern-gif. Capped at GIF_MAX_DURATION_MS.
+   */
+  private async encodeGif(job: ExportJob, prefix: string): Promise<ExportResult> {
+    const { scene } = job;
+    const { fps, maxColors } = job.gif!;
+    const endMs = Math.min(scene.durationMs, GIF_MAX_DURATION_MS);
+    const total = Math.max(1, Math.floor((endMs / 1000) * fps));
+    const canvas = new OffscreenCanvas(scene.width, scene.height);
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true })!;
+    const frames: { data: Uint8ClampedArray<ArrayBuffer>; delay: number }[] = [];
+    for (let f = 0; f < total; f += 1) {
+      if (job.isCancelled()) throw new Error('CANCELLED');
+      const t = (f * 1000) / fps;
+      const ops = drawListAt(scene, t);
+      await this.picturesOf(ops, scene.width);
+      const feedMap = await this.feedsOf(ops, prefix);
+      const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
+      await Promise.all(
+        [...feedMap].map(async ([op, feed]) => {
+          got.set(op, await feed.at((op as VideoOp).sourceTimeMs / 1000));
+        })
+      );
+      this.drawOps(ops, (op) => got.get(op) ?? null, ctx, scene);
+      const { data } = ctx.getImageData(0, 0, scene.width, scene.height);
+      frames.push({ data: new Uint8ClampedArray(data), delay: 1000 / fps });
+      job.onProgress(Math.round(((f + 1) / total) * 90));
+    }
+    const bytes = new Uint8Array(
+      await encodeGif({ width: scene.width, height: scene.height, frames, maxColors })
+    );
+    job.onProgress(97);
+    await this.host.startExport('gif');
+    const CHUNK = 4 * 1024 * 1024;
+    for (let at = 0; at < bytes.length; at += CHUNK) {
+      await this.host.writeExportChunk(at, bytesToB64(bytes.subarray(at, at + CHUNK)));
+    }
+    const path = await this.host.finishExport();
+    return {
+      path,
+      bytes: bytes.length,
+      durationMs: endMs,
+      frameCount: total,
+      truncated: scene.durationMs > GIF_MAX_DURATION_MS,
+    };
   }
 
   private async encode(job: ExportJob | undefined, prefix: string): Promise<ExportResult> {
