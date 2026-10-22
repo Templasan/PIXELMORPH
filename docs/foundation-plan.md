@@ -458,3 +458,17 @@ Três pesquisas (Skia ao vivo; imagens, listas e armazenamento; vídeo/Media3) e
 - Não recomendados por ora: Skia 3 (Vulkan/Graphite, sem evidência de ganho aqui), LUT, `CompositionPlayer` (experimental), Media3 1.11, FlashList v2, MMKV e React Compiler (beta). Vale reavaliar com números do celular.
 - Medição nova de JS: um loop de `requestAnimationFrame` temporário, com fps e maior intervalo por segundo, durante os arrastos.
 - Pendente menor: numa sessão, a miniatura de uma foto recém-importada ficou no ícone até reabrir o app.
+
+### Perfil do Hermes em release + fases 1–3 (2026-10-22)
+Perfil por amostragem (`react-native-release-profiler` 0.4.5, MIT, instalado só no worktree de medição) em 4 sessões fixas de edição: foto 48 MP, foto 640×480, vídeo 4K e vídeo 360p.
+- **Achado central:** o tamanho da mídia quase não muda o custo do JS (pesada ≈ leve). O que sobrava era custo da interface.
+
+| Commit | Mudança | Resultado (JS ocupado por sessão) |
+|---|---|---|
+| `dc20843` | `ClipVideo` lia `player.status` (chamada nativa síncrona) a cada render; agora usa o estado vindo do evento | vídeo 4K 1097 → 732 ms; 360p 883 → 488 ms |
+| `e4638b6` | Amostra do histograma 192 → 128 px; callbacks estáveis no `AdjustSlider` | foto 48 MP 1026 → 771 ms; 640×480 930 → 813 ms |
+| `f19ce39` | Trilha do slider memorizada (SVG e gesto fora do render por tick); gradientes como constantes; `runOnJS` → `scheduleOnRN` | A/B na mesma janela: 1173 → 1048 ms; 1234 → 1005 ms |
+| `be734f0` | Miniatura: tempo limite de 20 s por geração e nova tentativa ao focar Projetos | uma geração travada não bloqueia mais a fila |
+
+- **Lição:** o emulador varia ~20–40 % entre dias e estados. Comparar builds só na mesma janela, recompilando o "antes" quando preciso.
+- **Sem desperdício a cortar** na agulha e no contador de tempo da timeline. A criação do player (~310 ms, uma vez por abertura) é inerente ao `expo-video`.

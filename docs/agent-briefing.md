@@ -39,7 +39,7 @@ measurement: [foundation-plan.md](foundation-plan.md) §7–§9 (Portuguese).
 ## 3. Build, test and measure
 
 - Verify loop: `npx tsc --noEmit`, `npx eslint <touched files>` (never `--fix .` on the repo),
-  `npx jest` (448 tests). Prettier only on touched files.
+  `npx jest` (449 tests). Prettier only on touched files.
 - **Release builds for measurement** in the worktree `C:\pw` (keeps the main checkout free):
   `git -C C:/pw clean -fdq src assets tests && git -C C:/pw checkout -q -- .`, fetch this repo's
   `sprint-2` into it and `checkout --detach FETCH_HEAD`, copy uncommitted files over, then
@@ -65,6 +65,13 @@ measurement: [foundation-plan.md](foundation-plan.md) §7–§9 (Portuguese).
   - gfxinfo does not count the Skia canvas' own frames.
   - The emulator decodes video in software (host CPU); the phone has hardware decoders, so video
     numbers on the emulator overstate the problem. Java heap limit (192 MB) is the same on both.
+- **Release CPU profile** (Hermes sampling profiler is not exposed in release): in the `C:\pw`
+  worktree only, add `debuggable true` to the release buildType, `npm install
+  react-native-release-profiler@0.4.5 @react-native-community/cli-tools`, call
+  `startProfiling()` on editor mount / `stopProfiling(true)` on unmount; the trace lands in
+  `/sdcard/Download/`; convert with `npx react-native-release-profiler --local <file>
+  --sourcemap-path android/app/build/generated/sourcemaps/react/release/index.android.bundle.map`.
+  Compare builds only within the same emulator session (it drifts 20-40 % across days).
 - Live UI checks: drive with `adb shell input`, read with `adb exec-out uiautomator dump /dev/tty`,
   look at `adb exec-out screencap -p`. Release build: no `run-as`; native export errors are logged
   under tag `PixelMorphExport`.
