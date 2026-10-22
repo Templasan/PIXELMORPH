@@ -441,3 +441,20 @@ Os testes anteriores usavam mídia leve demais (vídeos de 0,1 a 1,6 MB, foto de
   - gravação (record): até 15 → ≤ 2 ms;
   - frame total: 21–53 → 17–19 ms.
 - Daqui em diante, medições de UI no emulador devem usar framestats por fase, não só o janky %.
+
+### Rodada de pesquisa + otimização (2026-10-21/22)
+Três pesquisas (Skia ao vivo; imagens, listas e armazenamento; vídeo/Media3) e cada item medido antes e depois. Item sem ganho medido foi desfeito.
+
+| Item | Resultado (emulador) | Commit |
+|---|---|---|
+| Histograma via shader na GPU, no lugar do espelho em CPU (RF-047 exige atualizar a cada movimento) | 27 → 5 ms por atualização no Hermes | `c1ff43a` |
+| Miniatura de 384 px por projeto (grade e seletores), no lugar do original | cold start 1673 → 471 ms; tela de Projetos PSS 308 → 262 MB | `833ac77` |
+| Pôster do vídeo via `extractFrame` nativo; `expo-video-thumbnails` (descontinuado) removido | uma dependência a menos | `780dfae` |
+| Importação que falha não deixa projeto vazio (`createProjectWithMedia`) | bug achado na medição | `3f0e050` |
+| Crash ao sair da câmera logo após gravar vídeo (gravador de áudio liberado) | 4/4 sem crash | `1453b78` |
+| Modo scrubbing do expo-video ao arrastar a timeline | sem diferença mensurável → desfeito | — |
+| Uniforms do shader por shared value (sem re-render React por tick) | JS ~53 fps antes e depois → desfeito (o gargalo era o histograma) | — |
+
+- Não recomendados por ora: Skia 3 (Vulkan/Graphite, sem evidência de ganho aqui), LUT, `CompositionPlayer` (experimental), Media3 1.11, FlashList v2, MMKV e React Compiler (beta). Vale reavaliar com números do celular.
+- Medição nova de JS: um loop de `requestAnimationFrame` temporário, com fps e maior intervalo por segundo, durante os arrastos.
+- Pendente menor: numa sessão, a miniatura de uma foto recém-importada ficou no ícone até reabrir o app.

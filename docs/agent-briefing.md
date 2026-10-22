@@ -39,7 +39,7 @@ measurement: [foundation-plan.md](foundation-plan.md) §7–§9 (Portuguese).
 ## 3. Build, test and measure
 
 - Verify loop: `npx tsc --noEmit`, `npx eslint <touched files>` (never `--fix .` on the repo),
-  `npx jest` (434 tests at handoff). Prettier only on touched files.
+  `npx jest` (448 tests). Prettier only on touched files.
 - **Release builds for measurement** in the worktree `C:\pw` (keeps the main checkout free):
   `git -C C:/pw clean -fdq src assets tests && git -C C:/pw checkout -q -- .`, fetch this repo's
   `sprint-2` into it and `checkout --detach FETCH_HEAD`, copy uncommitted files over, then
@@ -106,6 +106,12 @@ and Projects (`bb72aa6`); earlier foundation work in the plan log.
 
 Heavy-media results (emulator): 4K timeline drag 31 % → 10 % janky, p99 500 → 38 ms; video editor
 memory 804 → ~354 MB; photo slider 9.2 % → 3.6 %; photo export now 8000×5341 (was screen size).
+
+Research + optimization round (2026-10-21/22, see foundation-plan.md): GPU histogram
+(`c1ff43a`), 384 px card thumbnails (`833ac77`), expo-video-thumbnails removed (`780dfae`),
+failed import leaves no project (`3f0e050`), camera recorder crash (`1453b78`).
+Tried and reverted for no measured gain: expo-video scrubbing mode, shader uniforms via
+shared values (the JS thread is no longer the slider bottleneck after the GPU histogram).
 
 ## 6. Open items
 
