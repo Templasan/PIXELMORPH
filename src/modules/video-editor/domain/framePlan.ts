@@ -1,5 +1,5 @@
 import { clipDurationMs, type Clip, type Track } from './Track';
-import { clampTransitionMs } from './transitions';
+import { clampTransitionMs, effectiveMode } from './transitions';
 
 /**
  * ONE answer to "what is on screen at time t", shared by the live preview and the mp4 export so
@@ -37,6 +37,7 @@ export interface PlannedClip {
   /** How the clip begins ('' = plain cut) and for how long, in finished-video ms. */
   transitionIn: '' | 'fade' | 'slide' | 'zoom' | 'wipe';
   transitionInMs: number;
+  transitionMode: 'out' | 'in';
   /** The frame of the previous clip that is laid over this one while the transition plays. */
   transitionFrom: {
     sourceUri: string;
@@ -133,6 +134,7 @@ function toPlanned({ clip, image, startMs, endMs }: Segment): PlannedClip {
       rotation: 0,
       transitionIn: '',
       transitionInMs: 0,
+      transitionMode: 'out',
       transitionFrom: null,
       outputMs: length,
       startMs: 0,
@@ -144,6 +146,7 @@ function toPlanned({ clip, image, startMs, endMs }: Segment): PlannedClip {
     rotation: clip.rotation ?? 0,
     transitionIn: '' as const,
     transitionInMs: 0,
+    transitionMode: 'out' as const,
     transitionFrom: null,
     outputMs: length,
     startMs: 0,
@@ -196,6 +199,7 @@ export function planSequence(tracks: readonly Track[]): SequencePlan {
         transitions.push({ type: spec.type, atMs, durationMs });
         piece.transitionIn = spec.type;
         piece.transitionInMs = durationMs;
+        piece.transitionMode = effectiveMode(spec.type, spec.mode);
         piece.transitionFrom = {
           sourceUri: out.sourceUri,
           // A still holds its own instant; a video leaves on (almost) its last frame.
@@ -212,6 +216,7 @@ export function planSequence(tracks: readonly Track[]): SequencePlan {
 
 export interface FrameTransition {
   type: 'fade' | 'slide' | 'zoom' | 'wipe';
+  mode: 'out' | 'in';
   /** 0 (just started: only the outgoing frame) .. 1 (done: only the incoming clip). */
   progress: number;
   from: NonNullable<PlannedClip['transitionFrom']>;
@@ -244,6 +249,7 @@ export function frameAt(plan: SequencePlan, timeMs: number): Frame | null {
     piece.transitionIn && piece.transitionFrom && into < piece.transitionInMs
       ? {
           type: piece.transitionIn,
+          mode: piece.transitionMode,
           progress: Math.max(0, into) / piece.transitionInMs,
           from: piece.transitionFrom,
         }

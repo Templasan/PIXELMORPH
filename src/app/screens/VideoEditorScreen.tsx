@@ -51,6 +51,9 @@ import {
   moveClip,
   trimClipIn,
   trimClipOut,
+  transitionTransforms,
+  type LayerTransform,
+  type TransitionType,
 } from '@modules/video-editor';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
@@ -94,6 +97,12 @@ function rotatedFrameStyle(rotation: number | undefined, panel: { width: number;
     transform: [{ rotate: `${rotation}deg` }],
   };
 }
+
+/** Layer style for one side of a transition (see transitionTransforms). */
+const layerStyle = (t: LayerTransform) => ({
+  opacity: t.opacity,
+  transform: [{ translateX: t.translateX }, { scale: t.scale }],
+});
 
 function buildInitialTracks(project: Project | null): Track[] {
   // A video project made only of photos (stop-motion) opens as an image sequence, not with a
@@ -639,60 +648,70 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                 playing={playing}
                 clipRef={currentClipRef}
               >
-                {({ frame, currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => (
-                  <>
-                    {transitionBlend && (
-                      <Image
-                        source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                        style={styles.previewImage}
-                      />
-                    )}
-                    <Image
-                      source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-                      style={[
-                        styles.previewImage,
-                        rotatedFrameStyle(frame?.piece.rotation, previewSize),
-                        transitionBlend?.type === 'fade' && { opacity: transitionBlend.progress },
-                        transitionBlend?.type === 'slide' && {
-                          transform: [{ translateX: (1 - transitionBlend.progress) * 100 }],
-                        },
-                        transitionBlend?.type === 'zoom' && {
-                          opacity: transitionBlend.progress,
-                          transform: [{ scale: 0.85 + transitionBlend.progress * 0.15 }],
-                        },
-                        transitionBlend?.type === 'wipe' && {
-                          opacity: transitionBlend.progress > 0.05 ? 1 : 0,
-                        },
-                      ]}
-                    />
-                    {frame?.piece.kind === 'video' && (
-                      <LiveClipVideo
-                        store={timeStore}
-                        piece={frame.piece}
-                        key={frame.piece.sourceUri}
-                        hidden={!!transitionBlend}
-                        timeRef={playerTimeRef}
-                        playing={playing}
-                        rate={frame.piece.speed}
-                        volume={frame.piece.volume}
-                        style={rotatedFrameStyle(frame.piece.rotation, previewSize)}
-                      />
-                    )}
-                    {currentClip?.colorCorrection ? (
-                      <View
-                        pointerEvents="none"
-                        style={[
-                          StyleSheet.absoluteFill,
-                          {
-                            backgroundColor:
-                              currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
-                            opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </>
-                )}
+                {({ frame, currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => {
+                  // Same layout as the export: the incoming clip plays live underneath and the
+                  // outgoing clip's frozen frame sits on top (transitionTransforms is shared).
+                  const tf = transitionBlend
+                    ? transitionTransforms(
+                        transitionBlend.type as TransitionType,
+                        transitionBlend.mode,
+                        transitionBlend.progress,
+                        previewSize.width
+                      )
+                    : null;
+                  return (
+                    <>
+                      <View style={[StyleSheet.absoluteFill, tf && layerStyle(tf.incoming)]}>
+                        <Image
+                          source={previewFrameUri ? { uri: previewFrameUri } : undefined}
+                          style={[
+                            styles.previewImage,
+                            rotatedFrameStyle(frame?.piece.rotation, previewSize),
+                          ]}
+                        />
+                        {frame?.piece.kind === 'video' && (
+                          <LiveClipVideo
+                            store={timeStore}
+                            piece={frame.piece}
+                            key={frame.piece.sourceUri}
+                            timeRef={playerTimeRef}
+                            playing={playing}
+                            rate={frame.piece.speed}
+                            volume={frame.piece.volume}
+                            style={rotatedFrameStyle(frame.piece.rotation, previewSize)}
+                          />
+                        )}
+                      </View>
+                      {transitionBlend && tf && (
+                        <View
+                          pointerEvents="none"
+                          style={[StyleSheet.absoluteFill, layerStyle(tf.outgoing)]}
+                        >
+                          <Image
+                            source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
+                            style={[
+                              styles.previewImage,
+                              rotatedFrameStyle(transitionBlend.fromRotation, previewSize),
+                            ]}
+                          />
+                        </View>
+                      )}
+                      {currentClip?.colorCorrection ? (
+                        <View
+                          pointerEvents="none"
+                          style={[
+                            StyleSheet.absoluteFill,
+                            {
+                              backgroundColor:
+                                currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
+                              opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </>
+                  );
+                }}
               </PreviewDerived>
             )}
             {mediaReady && pipClip && pipClip.pipPosition && pipClip.pipSize && (

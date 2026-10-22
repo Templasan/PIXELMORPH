@@ -130,6 +130,9 @@ const es: Record<string, string> = {
   'Preparando mídia para edição…': 'Preparando medios para editar…',
   'Arquivos grandes levam alguns segundos na primeira vez.':
     'Los archivos grandes tardan unos segundos la primera vez.',
+  // Clip transition mode
+  Saída: 'Salida',
+  Entrada: 'Entrada',
 };
 
 export default es;

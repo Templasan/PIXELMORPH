@@ -17,6 +17,7 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.OverlaySettings
 import androidx.media3.effect.BitmapOverlay
+import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
@@ -283,7 +284,20 @@ class PixelMorphVideoExportModule : Module() {
         return builder.build()
       }
     }
-    return listOf(OverlayEffect(listOf(overlay)))
+    val overlayEffect = OverlayEffect(listOf(overlay))
+    // "Entrada" (slide/wipe): the incoming clip travels with the old frame, side by side. The
+    // outgoing overlay above already leaves to the left (slide) / right (wipe); the clip itself
+    // starts one full width on the opposite side (NDC spans 2) and slides to 0 over the window.
+    // It comes before the overlay, so only the clip moves, not the old frame.
+    if (clip.transitionMode == "in" && (type == "slide" || type == "wipe")) {
+      val fromX = if (type == "slide") 2f else -2f
+      val moveIn = MatrixTransformation { presentationTimeUs ->
+        val p = ((presentationTimeUs - startUs).toFloat() / inUs).coerceIn(0f, 1f)
+        Matrix().apply { postTranslate(fromX * (1f - p), 0f) }
+      }
+      return listOf(moveIn, overlayEffect)
+    }
+    return listOf(overlayEffect)
   }
 
   /** The leaving clip's frame, turned by its editor rotation and cropped to the output size. */

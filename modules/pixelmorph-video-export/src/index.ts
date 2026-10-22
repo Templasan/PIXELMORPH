@@ -12,6 +12,8 @@ export interface ExportClip {
   rotation?: number;
   transitionIn?: 'fade' | 'slide' | 'zoom' | 'wipe' | '';
   transitionInMs?: number;
+  /** 'out' (default): the old frame leaves; 'in': the new clip moves in, pushing it out (slide/wipe). */
+  transitionMode?: 'out' | 'in';
   /** Frame of the clip that leaves (a JPEG), laid over this clip while the transition plays. */
   transitionFrameUri?: string;
   transitionFrameRotation?: number;

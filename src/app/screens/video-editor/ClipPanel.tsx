@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, Slider, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { useStore, shallowEqual } from '@core/state';
+import { useI18n } from '@core/i18n';
 import {
   type VideoEditorStore,
   selectedClipOf,
@@ -12,6 +13,7 @@ import {
   DEFAULT_TRANSITION_MS,
   clampTransitionDurationMs,
   setTransition,
+  effectiveMode,
   clampFadeMs,
   setPipTransform,
   setStabilization,
@@ -59,6 +61,7 @@ export const ClipPanel = memo(function ClipPanel({
   pipClipId,
   setPipClipId,
 }: ClipPanelProps) {
+  const { t: tr } = useI18n();
   const selected = useStore(editor.store, selectedClipOf, shallowEqual);
   const freezeHoldMs = useStore(editor.store, (st) => st.freezeHoldMs);
   const loopReview = useStore(editor.store, (st) => st.loopReview);
@@ -196,6 +199,8 @@ export const ClipPanel = memo(function ClipPanel({
                           previousOfSelected,
                           clip
                         ),
+                        // Zoom has no "Entrada": switching to it falls back to "Saída".
+                        mode: effectiveMode(type, clip.transitionIn?.mode),
                       })
                     )
                   }
@@ -217,6 +222,31 @@ export const ClipPanel = memo(function ClipPanel({
               <Text style={styles.chipText}>Nenhuma</Text>
             </Pressable>
           </View>
+          {selected.clip.transitionIn && selected.clip.transitionIn.type !== 'zoom' && (
+            <View style={styles.chipRow}>
+              {(['out', 'in'] as const).map((mode) => {
+                const spec = selected.clip.transitionIn!;
+                const active = effectiveMode(spec.type, spec.mode) === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() =>
+                      editor.commitOnSelected((t, trackId, clip) =>
+                        clip.transitionIn
+                          ? setTransition(t, trackId, clip.id, { ...clip.transitionIn, mode })
+                          : t
+                      )
+                    }
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {tr(mode === 'out' ? 'Saída' : 'Entrada')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
           {selected.clip.transitionIn && (
             <Slider
               label="Duração"
