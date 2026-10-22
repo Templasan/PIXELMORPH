@@ -355,9 +355,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
 
         const mod = projectsModule;
-        const project = await mod.createProject.execute('Colagem', 'photo');
-        await mod.addMediaAsset.execute(
-          project.id,
+        // Media first, project last: a failed copy leaves no empty project behind.
+        const project = await mod.createProjectWithMedia.execute('Colagem', 'photo', [
           createMediaAsset(
             `asset_${Date.now()}`,
             'image',
@@ -368,8 +367,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
               height: encoded.height,
               fileSizeBytes: encoded.bytes.length,
             })
-          )
-        );
+          ),
+        ]);
         navigation.push('PhotoEditor', { projectId: project.id });
       } catch (error) {
         errorLogger.log(error, 'PhotoEditorScreen.submitCollage');
@@ -438,9 +437,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       const fileUri = await writeImageToCache(encoded.base64, 'JPEG');
 
       const mod = projectsModule;
-      const project = await mod.createProject.execute('Panorama', 'photo');
-      await mod.addMediaAsset.execute(
-        project.id,
+      // Media first, project last: a failed copy leaves no empty project behind.
+      const project = await mod.createProjectWithMedia.execute('Panorama', 'photo', [
         createMediaAsset(
           `asset_${Date.now()}`,
           'image',
@@ -451,8 +449,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
             height: encoded.height,
             fileSizeBytes: encoded.bytes.length,
           })
-        )
-      );
+        ),
+      ]);
 
       setSelectedPanoramaImages([]);
       setPanoramaOffsets([]);

@@ -1,6 +1,21 @@
 import { ProjectRepository, ProjectNotFoundError, type MediaFileStore } from '../../ports';
 import { Project, addAssetToProject, MediaAsset } from '../../domain';
 
+/** Copies the asset's files into the project's permanent folder; returns the asset with those URIs. */
+export async function persistAssetFiles(
+  files: MediaFileStore,
+  projectId: string,
+  asset: MediaAsset
+): Promise<MediaAsset> {
+  // Incoming URIs usually live in the cache; the project must own a permanent copy.
+  const originalUri = await files.persist(asset.originalUri, projectId);
+  const workingUri =
+    asset.workingUri === asset.originalUri
+      ? originalUri
+      : await files.persist(asset.workingUri, projectId);
+  return { ...asset, originalUri, workingUri };
+}
+
 export class AddMediaAssetUseCase {
   constructor(
     private repository: ProjectRepository,
@@ -13,14 +28,10 @@ export class AddMediaAssetUseCase {
       throw new ProjectNotFoundError(projectId);
     }
 
-    // Incoming URIs usually live in the cache; the project must own a permanent copy.
-    const originalUri = await this.files.persist(asset.originalUri, projectId);
-    const workingUri =
-      asset.workingUri === asset.originalUri
-        ? originalUri
-        : await this.files.persist(asset.workingUri, projectId);
-
-    const updated = addAssetToProject(project, { ...asset, originalUri, workingUri });
+    const updated = addAssetToProject(
+      project,
+      await persistAssetFiles(this.files, projectId, asset)
+    );
     await this.repository.update(updated);
 
     return updated;

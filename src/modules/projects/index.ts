@@ -8,6 +8,7 @@ import {
   ListProjectsUseCase,
   GetProjectUseCase,
   CreateProjectUseCase,
+  CreateProjectWithMediaUseCase,
   UpdateProjectUseCase,
   DeleteProjectUseCase,
   ArchiveProjectUseCase,
@@ -33,6 +34,8 @@ export function createProjectsModule() {
     listProjects: new ListProjectsUseCase(repository),
     getProject: new GetProjectUseCase(repository),
     createProject: new CreateProjectUseCase(repository),
+    /** Creates a project and copies its media first; nothing is left behind if the import fails. */
+    createProjectWithMedia: new CreateProjectWithMediaUseCase(repository, files),
     updateProject: new UpdateProjectUseCase(repository, files),
     deleteProject: new DeleteProjectUseCase(repository, files),
     archiveProject: new ArchiveProjectUseCase(repository),
