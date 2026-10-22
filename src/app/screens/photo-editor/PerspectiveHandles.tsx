@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Line, Circle } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  runOnJS,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -11,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors } from '@core/theme';
 import type { Point } from '@modules/photo-editor';
+import { scheduleOnRN } from 'react-native-worklets';
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -65,15 +65,15 @@ function CornerDot({ point, width, height, xSV, ySV, onChange, onCommitValue }: 
       ySV.value = ny * height;
       frameCounter.value += 1;
       if (frameCounter.value % 3 === 0) {
-        runOnJS(onChange)(nx, ny);
+        scheduleOnRN(onChange, nx, ny);
       }
     })
     .onEnd(() => {
       isDragging.value = false;
       const nx = xSV.value / width;
       const ny = ySV.value / height;
-      runOnJS(onChange)(nx, ny);
-      runOnJS(onCommitValue)(nx, ny, startNx.value, startNy.value);
+      scheduleOnRN(onChange, nx, ny);
+      scheduleOnRN(onCommitValue, nx, ny, startNx.value, startNy.value);
     });
 
   const style = useAnimatedStyle(() => ({

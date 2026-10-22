@@ -3,11 +3,11 @@ import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-nati
 import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  runOnJS,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import {
   Canvas,
   Fill,
@@ -185,12 +185,12 @@ function CurveGraph({
       const next = Math.min(1, Math.max(0, startValue1.value - e.translationY / height));
       y1SV.value = next;
       frameCounter1.value += 1;
-      if (frameCounter1.value % 3 === 0) runOnJS(commitField1)(next);
+      if (frameCounter1.value % 3 === 0) scheduleOnRN(commitField1, next);
     })
     .onEnd(() => {
       dragging1.value = false;
-      runOnJS(commitField1)(y1SV.value);
-      runOnJS(commitEnd1)(y1SV.value, startValue1.value);
+      scheduleOnRN(commitField1, y1SV.value);
+      scheduleOnRN(commitEnd1, y1SV.value, startValue1.value);
     });
 
   const pan2 = Gesture.Pan()
@@ -203,12 +203,12 @@ function CurveGraph({
       const next = Math.min(1, Math.max(0, startValue2.value - e.translationY / height));
       y2SV.value = next;
       frameCounter2.value += 1;
-      if (frameCounter2.value % 3 === 0) runOnJS(commitField2)(next);
+      if (frameCounter2.value % 3 === 0) scheduleOnRN(commitField2, next);
     })
     .onEnd(() => {
       dragging2.value = false;
-      runOnJS(commitField2)(y2SV.value);
-      runOnJS(commitEnd2)(y2SV.value, startValue2.value);
+      scheduleOnRN(commitField2, y2SV.value);
+      scheduleOnRN(commitEnd2, y2SV.value, startValue2.value);
     });
 
   const x1 = width / 3;
@@ -258,6 +258,10 @@ interface AdjustDrawerProps {
 }
 
 /** Ajustes drawer: Básico (live RGB histogram + tone sliders), Curvas, Detalhe, Cor seletiva. */
+// Module constants: a new array per render broke AdjustSlider's memo for these two rows.
+const TEMPERATURE_GRADIENT = ['#4477FF', '#FF8833'] as const;
+const TINT_GRADIENT = ['#22C55E', '#D946EF'] as const;
+
 export function AdjustDrawer({
   adjustments,
   setField,
@@ -333,12 +337,12 @@ export function AdjustDrawer({
           {slider('Temperatura', 'temperatura', {
             min: -100,
             max: 100,
-            gradientColors: ['#4477FF', '#FF8833'],
+            gradientColors: TEMPERATURE_GRADIENT,
           })}
           {slider('Matiz de branco', 'tint', {
             min: -100,
             max: 100,
-            gradientColors: ['#22C55E', '#D946EF'],
+            gradientColors: TINT_GRADIENT,
           })}
           {slider('Matiz', 'matiz', { min: -100, max: 100 })}
           {slider('Saturação', 'saturacao', { min: -100, max: 100 })}

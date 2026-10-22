@@ -3,7 +3,6 @@ import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
 import { Canvas, Fill, ImageShader, Shader, Skia, useImage } from '@shopify/react-native-skia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -20,6 +19,7 @@ import {
 import { errorLogger } from '@core/reliability';
 import { probeFileMetadata } from '@modules/device-media';
 import { useAppModules } from '../hooks';
+import { scheduleOnRN } from 'react-native-worklets';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RawConverter'>;
 
@@ -56,7 +56,7 @@ function CurvePoint({ x, value, boxHeight, onChange }: CurvePointProps) {
       startValue.current = value;
     })
     .onUpdate((e) => {
-      runOnJS(updateFromDeltaY)(e.translationY);
+      scheduleOnRN(updateFromDeltaY, e.translationY);
     });
 
   const cy = boxHeight - value * boxHeight;

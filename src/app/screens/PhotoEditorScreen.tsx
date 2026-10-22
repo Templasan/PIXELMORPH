@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
 import {
   FilterMode,
   Group,
@@ -85,6 +84,7 @@ import { EditorToolbar, TOOL_ORDER } from './photo-editor/EditorToolbar';
 import { BrushBar } from './photo-editor/BrushBar';
 import { ToolDrawerHost } from './photo-editor/ToolDrawerHost';
 import type { DoubleExposureImage } from './photo-editor/EffectsDrawer';
+import { scheduleOnRN } from 'react-native-worklets';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -756,7 +756,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   );
 
   const compareDrag = Gesture.Pan().onUpdate((e) => {
-    runOnJS(updateSplitFromX)(e.x);
+    scheduleOnRN(updateSplitFromX, e.x);
   });
 
   // RF-033: real digital painting — points are captured as they come in (works the same
@@ -775,13 +775,13 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   const paintGesture = Gesture.Pan()
     .onBegin((e) => {
-      runOnJS(appendStrokePoint)(e.x, e.y, e.stylusData?.pressure);
+      scheduleOnRN(appendStrokePoint, e.x, e.y, e.stylusData?.pressure);
     })
     .onUpdate((e) => {
-      runOnJS(appendStrokePoint)(e.x, e.y, e.stylusData?.pressure);
+      scheduleOnRN(appendStrokePoint, e.x, e.y, e.stylusData?.pressure);
     })
     .onEnd(() => {
-      runOnJS(commitStroke)();
+      scheduleOnRN(commitStroke);
     });
 
   const setPerspCorner = useCallback((index: 0 | 1 | 2 | 3, nx: number, ny: number) => {
