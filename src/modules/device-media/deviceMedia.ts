@@ -11,7 +11,7 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import { createVideoPlayer } from 'expo-video';
-import { IMPORTS_DIR_NAME } from '@core/reliability/storageUsage';
+import { IMPORTS_DIR_NAME, MEDIA_DIR_NAME } from '@core/reliability/storageUsage';
 
 /** File-name stamp: Date.now() alone collided when several files were copied in the same
  * millisecond (a multi-photo time-lapse pick), so one photo overwrote another. */
@@ -181,9 +181,17 @@ export async function probeFileMetadata(
 /**
  * Copies a file the user picked (the picker's cache copy can be cleared at any time) into the
  * app's permanent folder, so effects that reference it keep working after "Limpar cache".
+ * With `projectId` the copy goes to that project's media folder, so deleting the project deletes
+ * it too; without one it goes to the shared imports folder, which nothing cleans.
  */
-export async function copyToAppStorage(uri: string, fileName?: string | null): Promise<string> {
-  const dir = `${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}/`;
+export async function copyToAppStorage(
+  uri: string,
+  fileName?: string | null,
+  projectId?: string
+): Promise<string> {
+  const dir = projectId
+    ? `${FileSystem.documentDirectory}${MEDIA_DIR_NAME}/${projectId}/`
+    : `${FileSystem.documentDirectory}${IMPORTS_DIR_NAME}/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
   const extension = (fileName ?? uri).match(/\.(\w{2,5})$/)?.[1] ?? 'jpg';
   const destination = `${dir}${uniqueStamp()}.${extension}`;

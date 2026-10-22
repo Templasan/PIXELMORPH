@@ -105,7 +105,7 @@ export function EffectsDrawer({
       if (!picked) return null;
       return {
         name: picked.fileName ?? 'Imagem da galeria',
-        uri: await copyToAppStorage(picked.uri, picked.fileName),
+        uri: await copyToAppStorage(picked.uri, picked.fileName, currentProjectId),
       };
     } catch (error) {
       errorLogger.log(error, 'EffectsDrawer.pickFromDevice');
