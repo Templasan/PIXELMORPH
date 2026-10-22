@@ -51,6 +51,10 @@ const PLAY_MAX_MS = 30_000;
 const TIME_REPORT_MS = 100;
 /** Export mixes sound in windows of this length (bounded memory, interleaved with the frames). */
 const AUDIO_WINDOW_MS = 10_000;
+/** Decoded timeline pictures kept at once (see loadBitmap). */
+const MAX_BITMAPS = 12;
+/** While playing, pictures this far ahead start decoding so a photo is ready when it shows. */
+const PICTURE_LEAD_MS = 600;
 /** Streaming reads move 1 MiB blocks across the bridge (base64), with a small read-ahead cache. */
 const STREAM_BLOCK = 1024 * 1024;
 
@@ -270,7 +274,11 @@ export class Engine {
     const first = drawListAt(this.scene, this.t).filter((o): o is VideoOp => o.kind === 'video');
     return new Set<string>([
       ...first.map((o) => o.uri),
-      ...this.scene.main.clips.map((c) => c.sourceUri).filter(Boolean),
+      // Pictures are decoded on demand (loadBitmap), never opened as media.
+      ...this.scene.main.clips
+        .filter((c) => c.kind !== 'image')
+        .map((c) => c.sourceUri)
+        .filter(Boolean),
       ...this.scene.pips.map((p) => p.uri),
     ]);
   }
@@ -296,12 +304,15 @@ export class Engine {
       if (op.kind === 'clear') {
         ctx.fillStyle = op.color;
         ctx.fillRect(0, 0, size.width, size.height);
-      } else if (op.kind === 'video') {
-        const s = sampleOf(op);
-        if (s) {
+      } else if (op.kind === 'video' || op.kind === 'image') {
+        const s = op.kind === 'video' ? sampleOf(op) : null;
+        const bm = op.kind === 'image' ? this.bitmapFor(op.uri, size.width) : null;
+        const sw = s ? s.displayWidth : bm?.width;
+        const sh = s ? s.displayHeight : bm?.height;
+        if (sw && sh) {
           const quarter = Math.abs(op.rotationDeg) % 180 === 90;
-          const iw = quarter ? s.displayHeight : s.displayWidth;
-          const ih = quarter ? s.displayWidth : s.displayHeight;
+          const iw = quarter ? sh : sw;
+          const ih = quarter ? sw : sh;
           // The main sequence fills the frame when asked (export presets crop like the native
           // exporter); other layers always fit inside their box.
           const fill = size.fit === 'cover' && (op.layer === 'main' || op.layer === 'out');
@@ -311,7 +322,8 @@ export class Engine {
           ctx.translate(op.rect.x + op.rect.w / 2 + op.translateX, op.rect.y + op.rect.h / 2);
           ctx.scale(op.scale, op.scale);
           ctx.rotate((op.rotationDeg * Math.PI) / 180);
-          s.draw(ctx, -w / 2, -h / 2, w, h);
+          if (s) s.draw(ctx, -w / 2, -h / 2, w, h);
+          else if (bm) ctx.drawImage(bm, -w / 2, -h / 2, w, h);
         }
       } else if (op.kind === 'text') {
         ctx.globalAlpha = op.opacity;
@@ -333,6 +345,57 @@ export class Engine {
       }
       ctx.restore();
     }
+  }
+
+  // ---- pictures on the timeline ---------------------------------------------------------------
+
+  /**
+   * Decoded pictures, most recently used last. Each is decoded at the canvas width (a 48 MP photo
+   * never sits whole in memory) and only the last MAX_BITMAPS stay: a stop-motion has dozens.
+   */
+  private bitmaps = new Map<string, Promise<ImageBitmap | null>>();
+  private bitmapReady = new Map<string, ImageBitmap>();
+
+  private loadBitmap(uri: string, width: number): Promise<ImageBitmap | null> {
+    const key = `${width}|${uri}`;
+    let p = this.bitmaps.get(key);
+    if (p) {
+      this.bitmaps.delete(key);
+      this.bitmaps.set(key, p);
+      return p;
+    }
+    p = xhrBlob(uri)
+      .then((blob) => createImageBitmap(blob, { resizeWidth: width, resizeQuality: 'high' }))
+      .then(
+        (bm) => {
+          if (this.bitmaps.has(key)) this.bitmapReady.set(key, bm);
+          else bm.close(); // evicted while decoding
+          return bm;
+        },
+        () => null
+      );
+    this.bitmaps.set(key, p);
+    while (this.bitmaps.size > MAX_BITMAPS) {
+      const oldest = this.bitmaps.keys().next().value as string;
+      this.bitmaps.delete(oldest);
+      this.bitmapReady.get(oldest)?.close();
+      this.bitmapReady.delete(oldest);
+    }
+    return p;
+  }
+
+  /** The picture if decoded; otherwise starts decoding it and the frame shows black for now. */
+  private bitmapFor(uri: string, width: number): ImageBitmap | null {
+    const bm = this.bitmapReady.get(`${width}|${uri}`);
+    if (!bm) void this.loadBitmap(uri, width);
+    return bm ?? null;
+  }
+
+  /** Waits for the pictures `ops` draw (seek, export: the frame must be complete). */
+  private async picturesOf(ops: DrawOp[], width: number) {
+    await Promise.all(
+      ops.filter((o) => o.kind === 'image').map((o) => this.loadBitmap(o.uri, width))
+    );
   }
 
   // ---- playback ----------------------------------------------------------------------------------
@@ -399,6 +462,9 @@ export class Engine {
         this.startAudio(t);
       }
       const ops = drawListAt(this.scene, t);
+      for (const o of drawListAt(this.scene, t + PICTURE_LEAD_MS)) {
+        if (o.kind === 'image') void this.loadBitmap(o.uri, this.scene.width);
+      }
       const feedMap = await this.feedsOf(ops);
       if (!this.playing) return;
       await this.renderLive(t, feedMap, ops);
@@ -570,11 +636,12 @@ export class Engine {
     const ops = drawListAt(this.scene, t);
     const feedMap = await this.feedsOf(ops);
     const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
-    await Promise.all(
-      [...feedMap].map(async ([op, feed]) => {
+    await Promise.all([
+      ...[...feedMap].map(async ([op, feed]) => {
         got.set(op, await feed.seek((op as VideoOp).sourceTimeMs / 1000));
-      })
-    );
+      }),
+      this.picturesOf(ops, this.scene.width),
+    ]);
     this.drawOps(ops, (op) => got.get(op) ?? null);
     this.t = t;
   }
@@ -716,6 +783,7 @@ export class Engine {
       const t = (f * 1000) / FPS;
       await addAudioUpTo(t + 1);
       const ops = drawListAt(scene, t);
+      await this.picturesOf(ops, scene.width);
       const feedMap = await this.feedsOf(ops, prefix);
       const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
       const d0 = performance.now();

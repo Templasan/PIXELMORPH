@@ -145,6 +145,17 @@ export type DrawOp =
       rotationDeg: number;
     }
   | {
+      kind: 'image';
+      /** A picture on the timeline (photo, time-lapse or stop-motion frame). */
+      layer: string;
+      uri: string;
+      rect: Rect;
+      opacity: number;
+      translateX: number;
+      scale: number;
+      rotationDeg: number;
+    }
+  | {
       kind: 'text';
       text: string;
       x: number;
@@ -316,31 +327,40 @@ export function drawListAt(scene: WebScene, timeMs: number): DrawOp[] {
   const ops: DrawOp[] = [{ kind: 'clear', color: '#000000' }];
 
   const frame = frameAt(scene.main, timeMs);
-  if (frame && (frame.piece.kind === 'video' || frame.piece.kind === 'still')) {
+  if (frame && frame.piece.kind !== 'gap') {
     const rotationDeg = frame.piece.rotation;
-    const incomingBase = {
-      kind: 'video' as const,
-      layer: 'main',
-      uri: frame.piece.sourceUri,
-      sourceTimeMs: frame.sourceTimeMs,
-      rect: full,
-      rotationDeg,
-    };
+    const incomingBase =
+      frame.piece.kind === 'image'
+        ? {
+            kind: 'image' as const,
+            layer: 'main',
+            uri: frame.piece.sourceUri,
+            rect: full,
+            rotationDeg,
+          }
+        : {
+            kind: 'video' as const,
+            layer: 'main',
+            uri: frame.piece.sourceUri,
+            sourceTimeMs: frame.sourceTimeMs,
+            rect: full,
+            rotationDeg,
+          };
     if (frame.transition) {
       const { type, mode, progress, from } = frame.transition;
       const { outgoing, incoming } = transitionTransforms(type, mode, progress, width);
       ops.push({ ...incomingBase, ...flat(incoming) });
-      if (!from.image) {
-        ops.push({
-          kind: 'video',
-          layer: 'out',
-          uri: from.sourceUri,
-          sourceTimeMs: from.timeMs,
-          rect: full,
-          rotationDeg: from.rotation,
-          ...flat(outgoing),
-        });
-      }
+      const outgoingBase = {
+        layer: 'out',
+        uri: from.sourceUri,
+        rect: full,
+        rotationDeg: from.rotation,
+      };
+      ops.push(
+        from.image
+          ? { kind: 'image', ...outgoingBase, ...flat(outgoing) }
+          : { kind: 'video', ...outgoingBase, sourceTimeMs: from.timeMs, ...flat(outgoing) }
+      );
     } else {
       ops.push({ ...incomingBase, opacity: 1, translateX: 0, scale: 1 });
     }
