@@ -157,6 +157,7 @@ export function VideoExportSheet({
             rotation: 0,
             transitionIn: '',
             transitionInMs: 0,
+            transitionMode: 'out',
             startMs: Math.round(piece.startMs),
           });
         } else if (piece.kind === 'image') {
@@ -168,6 +169,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
             ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
@@ -181,6 +183,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
             ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });
@@ -195,6 +198,7 @@ export function VideoExportSheet({
             rotation: piece.rotation,
             transitionIn: piece.transitionIn,
             transitionInMs: Math.round(piece.transitionInMs),
+            transitionMode: piece.transitionMode,
             ...(await transitionFrame(piece, preset.width)),
             startMs: Math.round(piece.startMs),
           });

@@ -28,6 +28,7 @@ import { proxyStore } from './previewProxy';
 export interface TransitionBlend {
   progress: number;
   type: string;
+  mode: 'out' | 'in';
   fromUri: string;
   fromTimeMs: number;
   fromRotation: number;
@@ -60,6 +61,7 @@ const sameFrame = (a: Frame | null, b: Frame | null) =>
         !!b.transition &&
         a.transition.progress === b.transition.progress &&
         a.transition.type === b.transition.type &&
+        a.transition.mode === b.transition.mode &&
         a.transition.from === b.transition.from)));
 
 const blendOf = (frame: Frame | null): TransitionBlend | null =>
@@ -67,6 +69,7 @@ const blendOf = (frame: Frame | null): TransitionBlend | null =>
     ? {
         progress: frame.transition.progress,
         type: frame.transition.type,
+        mode: frame.transition.mode,
         fromUri: frame.transition.from.sourceUri,
         fromTimeMs: frame.transition.from.timeMs,
         fromRotation: frame.transition.from.rotation,
