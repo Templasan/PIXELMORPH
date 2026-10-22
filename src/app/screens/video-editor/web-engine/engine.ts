@@ -1,6 +1,8 @@
 import {
   ALL_FORMATS,
+  AudioBufferSource,
   BlobSource,
+  canEncodeAudio,
   CanvasSource,
   EncodedPacketSink,
   Input,
@@ -19,6 +21,7 @@ import {
 import { Feed } from './feed';
 import { BlockReader } from './blockReader';
 import { createDropMonitor } from '../previewTier';
+import { AudioMixer, mixWindow } from './audio';
 
 /**
  * SPIKE web engine (runs inside a WebView). One canvas, one decoder slot per (layer, source), and
@@ -46,6 +49,8 @@ const FPS = 30;
 const EXPORT_MAX_MS = 20_000;
 const PLAY_MAX_MS = 30_000;
 const TIME_REPORT_MS = 100;
+/** Export mixes sound in windows of this length (bounded memory, interleaved with the frames). */
+const AUDIO_WINDOW_MS = 10_000;
 /** Streaming reads move 1 MiB blocks across the bridge (base64), with a small read-ahead cache. */
 const STREAM_BLOCK = 1024 * 1024;
 
@@ -101,6 +106,19 @@ const stats = (xs: number[]) => {
   };
 };
 
+export interface ExportJob {
+  scene: WebScene;
+  bitrate: number;
+  onProgress(pct: number): void;
+  isCancelled(): boolean;
+}
+
+export interface ExportResult {
+  path: string;
+  bytes: number;
+  durationMs: number;
+}
+
 export class Engine {
   scene: WebScene;
   appState = 'active';
@@ -123,6 +141,7 @@ export class Engine {
   private origin = { wall0: 0, startT: 0 };
   private drops = createDropMonitor();
   private seekWanted: number | null = null;
+  private audio = new AudioMixer((uri) => this.openInput(uri).then((i) => i.input));
   private draining: Promise<void> | null = null;
 
   constructor(
@@ -258,30 +277,35 @@ export class Engine {
 
   // ---- drawing (the only drawing code) ---------------------------------------------------------
 
-  private async feedsOf(ops: DrawOp[]) {
+  /** `prefix` gives the export its own decoders, so it does not disturb the preview's. */
+  private async feedsOf(ops: DrawOp[], prefix = '') {
     const map = new Map<DrawOp, Feed>();
     for (const op of ops)
-      if (op.kind === 'video') map.set(op, await this.feedFor(op.layer, op.uri));
+      if (op.kind === 'video') map.set(op, await this.feedFor(prefix + op.layer, op.uri));
     return map;
   }
 
   private drawOps(
     ops: DrawOp[],
-    sampleOf: (op: VideoOp) => import('mediabunny').VideoSample | null
+    sampleOf: (op: VideoOp) => import('mediabunny').VideoSample | null,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D = this.ctx,
+    size: Pick<WebScene, 'width' | 'height' | 'fit'> = this.scene
   ) {
-    const ctx = this.ctx;
     for (const op of ops) {
       ctx.save();
       if (op.kind === 'clear') {
         ctx.fillStyle = op.color;
-        ctx.fillRect(0, 0, this.scene.width, this.scene.height);
+        ctx.fillRect(0, 0, size.width, size.height);
       } else if (op.kind === 'video') {
         const s = sampleOf(op);
         if (s) {
           const quarter = Math.abs(op.rotationDeg) % 180 === 90;
           const iw = quarter ? s.displayHeight : s.displayWidth;
           const ih = quarter ? s.displayWidth : s.displayHeight;
-          const k = Math.min(op.rect.w / iw, op.rect.h / ih);
+          // The main sequence fills the frame when asked (export presets crop like the native
+          // exporter); other layers always fit inside their box.
+          const fill = size.fit === 'cover' && (op.layer === 'main' || op.layer === 'out');
+          const k = (fill ? Math.max : Math.min)(op.rect.w / iw, op.rect.h / ih);
           const [w, h] = quarter ? [ih * k, iw * k] : [iw * k, ih * k];
           ctx.globalAlpha = op.opacity;
           ctx.translate(op.rect.x + op.rect.w / 2 + op.translateX, op.rect.y + op.rect.h / 2);
@@ -344,6 +368,7 @@ export class Engine {
     let lastReport = 0;
     const finish = async (ended: boolean) => {
       this.playing = false;
+      this.audio.stop();
       cancelAnimationFrame(this.raf);
       this.stopper = null;
       await this.host.onTime?.(Math.round(this.t));
@@ -354,10 +379,12 @@ export class Engine {
     await this.seekTo(startT, false);
     if (!this.playing) return;
     this.origin = { wall0: performance.now(), startT };
+    this.startAudio(startT);
     this.drops.reset();
     const loop = async (now: number) => {
       if (!this.playing) return;
-      let t = this.origin.startT + (now - this.origin.wall0);
+      // The audio clock leads when it runs (picture follows sound); the wall clock otherwise.
+      let t = this.audio.timeMs() ?? this.origin.startT + (now - this.origin.wall0);
       const end = this.loop
         ? Math.min(this.loop.endMs, this.scene.durationMs)
         : this.scene.durationMs;
@@ -369,6 +396,7 @@ export class Engine {
         }
         t = this.loop.startMs;
         this.origin = { wall0: now, startT: t };
+        this.startAudio(t);
       }
       const ops = drawListAt(this.scene, t);
       const feedMap = await this.feedsOf(ops);
@@ -388,6 +416,7 @@ export class Engine {
     const t = Math.max(0, Math.min(this.scene.durationMs, ms));
     if (this.playing) {
       this.origin = { wall0: performance.now(), startT: t };
+      this.startAudio(t);
       return Promise.resolve();
     }
     this.seekWanted = t;
@@ -421,9 +450,19 @@ export class Engine {
     void this.probeSources(this.sourceUris());
     if (this.playing) {
       void Promise.all([...this.sourceUris()].map((u) => this.openInput(u).catch(() => {})));
+      this.origin = { wall0: performance.now(), startT: this.t };
+      this.startAudio(this.t);
       return Promise.resolve();
     }
     return this.seek(this.t);
+  }
+
+  /** (Re)starts the sound from `t`: play, seek while playing, loop wrap, new timeline. */
+  private startAudio(t: number) {
+    const end = this.loop
+      ? Math.min(this.loop.endMs, this.scene.durationMs)
+      : this.scene.durationMs;
+    void this.audio.start(this.scene.audio, t, end);
   }
 
   /** Releases decoders and files of sources the scene no longer uses (only while idle). */
@@ -563,12 +602,38 @@ export class Engine {
 
   // ---- export (same drawOps, not real time) ------------------------------------------------------
 
-  async exportMp4() {
+  /**
+   * Encodes a scene to an mp4 that the host writes. With `job` (the editor's export): that scene
+   * (originals at the preset size) on its own canvas and decoders, whole length, progress and
+   * cancel. Without (the bench): the preview's scene and canvas, first 20 s.
+   */
+  async exportMp4(job?: ExportJob): Promise<ExportResult | null> {
     await this.pause();
-    if (this.busy) return;
+    if (this.busy) return null;
     this.busy = true;
-    const endMs = Math.min(this.scene.durationMs, EXPORT_MAX_MS);
+    const prefix = job ? 'x:' : '';
+    try {
+      return await this.encode(job, prefix);
+    } finally {
+      this.busy = false;
+      if (job) {
+        for (const [key, p] of this.feeds) {
+          if (!key.startsWith(prefix)) continue;
+          this.feeds.delete(key);
+          void p.then((f) => f.dispose()).catch(() => {});
+        }
+        this.prune(); // closes the originals the preview does not read
+      }
+    }
+  }
+
+  private async encode(job: ExportJob | undefined, prefix: string): Promise<ExportResult> {
+    const scene = job?.scene ?? this.scene;
+    const endMs = job ? scene.durationMs : Math.min(scene.durationMs, EXPORT_MAX_MS);
     const total = Math.floor((endMs / 1000) * FPS);
+    const canvas = job ? new OffscreenCanvas(scene.width, scene.height) : this.canvas;
+    const ctx = job ? canvas.getContext('2d', { alpha: false })! : this.ctx;
+    const bitrate = job?.bitrate ?? 10_000_000;
     const t0 = performance.now();
     await this.host.startExport();
     let bytes = 0;
@@ -593,22 +658,49 @@ export class Engine {
     // The emulator has no hardware encoder: fall back to software and say so in the metrics.
     const hw = await VideoEncoder.isConfigSupported({
       codec: 'avc1.640028',
-      width: 1920,
-      height: 1080,
-      bitrate: 10_000_000,
+      width: scene.width,
+      height: scene.height,
+      bitrate,
       hardwareAcceleration: 'prefer-hardware',
     }).then(
       (r) => !!r.supported,
       () => false
     );
-    const source = new CanvasSource(this.canvas, {
+    const source = new CanvasSource(canvas, {
       codec: 'avc',
-      bitrate: 10_000_000,
+      bitrate,
       keyFrameInterval: 1,
       hardwareAcceleration: hw ? 'prefer-hardware' : 'no-preference',
     });
     output.addVideoTrack(source, { frameRate: FPS });
+    // AAC where the WebView can encode it, Opus (also valid in MP4) otherwise; no track if silent.
+    const audioCodec = !scene.audio.length
+      ? null
+      : (await canEncodeAudio('aac'))
+        ? 'aac'
+        : (await canEncodeAudio('opus'))
+          ? 'opus'
+          : null;
+    const audioSource = audioCodec
+      ? new AudioBufferSource({ codec: audioCodec, bitrate: 128_000 })
+      : null;
+    if (audioSource) output.addAudioTrack(audioSource);
     await output.start();
+    // Sound goes in AUDIO_WINDOW_MS windows just ahead of the frames, so the muxer interleaves
+    // both tracks instead of holding the whole video while it waits for audio.
+    let audioMs = 0;
+    let audioMixMs = 0;
+    const addAudioUpTo = async (ms: number) => {
+      while (audioSource && audioMs < Math.min(ms, endMs)) {
+        const to = Math.min(audioMs + AUDIO_WINDOW_MS, endMs);
+        const a0 = performance.now();
+        await audioSource.add(
+          await mixWindow(scene.audio, (u) => this.openInput(u).then((i) => i.input), audioMs, to)
+        );
+        audioMixMs += performance.now() - a0;
+        audioMs = to;
+      }
+    };
     let bgFrames = 0;
     let longestPause = 0;
     let last = performance.now();
@@ -616,9 +708,15 @@ export class Engine {
     let drawMs = 0;
     let encodeMs = 0;
     for (let f = 0; f < total; f += 1) {
+      if (job?.isCancelled()) {
+        await output.cancel();
+        await writes.catch(() => {});
+        throw new Error('CANCELLED');
+      }
       const t = (f * 1000) / FPS;
-      const ops = drawListAt(this.scene, t);
-      const feedMap = await this.feedsOf(ops);
+      await addAudioUpTo(t + 1);
+      const ops = drawListAt(scene, t);
+      const feedMap = await this.feedsOf(ops, prefix);
       const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
       const d0 = performance.now();
       await Promise.all(
@@ -627,7 +725,7 @@ export class Engine {
         })
       );
       const d1 = performance.now();
-      this.drawOps(ops, (op) => got.get(op) ?? null);
+      this.drawOps(ops, (op) => got.get(op) ?? null, ctx, scene);
       const d2 = performance.now();
       await source.add(f / FPS, 1 / FPS);
       const now = performance.now();
@@ -637,13 +735,16 @@ export class Engine {
       longestPause = Math.max(longestPause, now - last);
       last = now;
       if (this.appState !== 'active') bgFrames += 1;
-      if (f % 15 === 0) this.hud(`export ${f}/${total}`);
+      if (f % 15 === 0) {
+        this.hud(`export ${f}/${total}`);
+        job?.onProgress(Math.round((f / total) * 100));
+      }
     }
+    await addAudioUpTo(endMs);
     await output.finalize();
     await writes;
     const path = await this.host.finishExport();
     const ms = performance.now() - t0;
-    this.busy = false;
     await this.host.onMetrics(
       JSON.stringify({
         section: 'export',
@@ -661,14 +762,16 @@ export class Engine {
             draw: Math.round(drawMs),
             encode: Math.round(encodeMs),
             write: Math.round(writeMs),
+            audioMix: Math.round(audioMixMs),
           },
           path,
           hardwareEncoder: hw,
-          audio: 'not exported (out of scope)',
+          audio: audioCodec ?? (scene.audio.length ? 'no encoder' : 'silent'),
         },
       })
     );
-    await this.seekTo(0, false);
+    if (!job) await this.seekTo(0, false);
+    return { path, bytes, durationMs: endMs };
   }
 
   fileAccessReport() {
@@ -677,6 +780,7 @@ export class Engine {
 
   dispose() {
     this.playing = false;
+    this.audio.dispose();
     cancelAnimationFrame(this.raf);
     for (const p of this.feeds.values()) void p.then((f) => f.dispose()).catch(() => {});
     for (const p of this.inputs.values()) void p.then((i) => i.input.dispose()).catch(() => {});

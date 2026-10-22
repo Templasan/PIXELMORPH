@@ -1,4 +1,4 @@
-import { File, FileMode, type FileHandle } from 'expo-file-system';
+import { File, FileMode, Paths, type FileHandle } from 'expo-file-system';
 
 /**
  * Sources up to this size are read whole by XHR inside the WebView (Blob), larger ones stream
@@ -18,9 +18,47 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export function createFileHost() {
   const handles = new Map<string, FileHandle>();
+  let exporting: { file: File; handle: FileHandle } | null = null;
   return {
+    /** The engine's export writes here: the app cache, like the native exporter's output. */
+    async startExport() {
+      const file = new File(Paths.cache, `pixelmorph_export_${Date.now()}.mp4`);
+      file.create({ overwrite: true });
+      exporting = { file, handle: file.open(FileMode.WriteOnly) };
+    },
+    async writeExportChunk(position: number, b64: string) {
+      if (!exporting) throw new Error('export not started');
+      exporting.handle.offset = position;
+      exporting.handle.writeBytes(fromBase64(b64));
+    },
+    async finishExport() {
+      if (!exporting) throw new Error('export not started');
+      const { file, handle } = exporting;
+      exporting = null;
+      handle.close();
+      return file.uri;
+    },
+    /** A cancelled or failed export leaves no partial file behind. */
+    abortExport() {
+      if (!exporting) return;
+      const { file, handle } = exporting;
+      exporting = null;
+      handle.close();
+      try {
+        file.delete();
+      } catch {
+        // already gone
+      }
+    },
     async readChunk(uri: string, offset: number, length: number) {
       let h = handles.get(uri);
       if (!h) {
@@ -36,6 +74,7 @@ export function createFileHost() {
     close() {
       handles.forEach((h) => h.close());
       handles.clear();
+      this.abortExport();
     },
   };
 }

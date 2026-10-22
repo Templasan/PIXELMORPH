@@ -26,6 +26,16 @@ export interface EditorPreviewProps {
   onTime(ms: number): Promise<void>;
   onEvent(json: string): Promise<void>;
   onStatus(text: string): Promise<void>;
+  /** An export to run (originals at the preset size); a new `id` starts it. */
+  exportJob: { id: number; scene: WebScene; bitrate: number } | null;
+  /** Bumped to cancel the running export. */
+  cancelExportId: number;
+  startExport(): Promise<void>;
+  writeExportChunk(position: number, b64: string): Promise<void>;
+  finishExport(): Promise<string>;
+  onExportProgress(id: number, pct: number): Promise<void>;
+  /** `json`: `{ path, bytes, durationMs }` or `{ error }` ('CANCELLED' when cancelled). */
+  onExportDone(id: number, json: string): Promise<void>;
 }
 
 async function hardware1080(): Promise<boolean> {
@@ -90,9 +100,9 @@ export default function EditorPreview(props: EditorPreviewProps) {
       {
         readChunk: (...a) => latest.current.readChunk(...a),
         getFileSize: (...a) => latest.current.getFileSize(...a),
-        startExport: async () => {},
-        writeExportChunk: async () => {},
-        finishExport: async () => '',
+        startExport: () => latest.current.startExport(),
+        writeExportChunk: (...a) => latest.current.writeExportChunk(...a),
+        finishExport: () => latest.current.finishExport(),
         onMetrics: async () => {},
         onStatus: (t) => latest.current.onStatus(t),
         onTime: (ms) => latest.current.onTime(ms),
@@ -139,6 +149,27 @@ export default function EditorPreview(props: EditorPreviewProps) {
     if (ready.current) void engineRef.current?.seek(seek.ms).catch(fail);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seek.id]); // not the object: a prop re-emit would replay an old seek
+
+  const exportId = props.exportJob?.id;
+  useEffect(() => {
+    const job = latest.current.exportJob;
+    const e = engineRef.current;
+    if (!job) return;
+    const done = (out: object) => void latest.current.onExportDone(job.id, JSON.stringify(out));
+    if (!e) {
+      done({ error: 'O motor de vídeo ainda não está pronto.' });
+      return;
+    }
+    const cancelAtStart = latest.current.cancelExportId;
+    e.exportMp4({
+      scene: job.scene,
+      bitrate: job.bitrate,
+      onProgress: (pct) => void latest.current.onExportProgress(job.id, pct),
+      isCancelled: () => latest.current.cancelExportId !== cancelAtStart,
+    })
+      .then((r) => done(r ?? { error: 'O motor está ocupado com outro export.' }))
+      .catch((err: unknown) => done({ error: String((err as Error)?.message ?? err) }));
+  }, [exportId]);
 
   useEffect(() => {
     const e = engineRef.current;
