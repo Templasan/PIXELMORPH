@@ -13,6 +13,9 @@ import { Icon } from '@core/ui';
 import { blackFrameUri } from './blackFrame';
 import { exportGif } from './gifExporter';
 import { pauseProxiesForExport, resumeProxies } from './previewProxy';
+import { cancelEngineExport, exportWithEngine } from './engineExport';
+import { previewSession, previewSettings } from './previewSettings';
+import { useStore } from '@core/state';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
@@ -94,6 +97,10 @@ export function VideoExportSheet({
   const exportingRef = useRef(false);
 
   const plan = planExport(tracks);
+  // In web mode the same engine that draws the preview writes the mp4 (one drawing code path).
+  const engineSetting = useStore(previewSettings, (s) => s.engine);
+  const engineFallback = useStore(previewSession, (s) => s.fallback);
+  const webEngine = engineSetting === 'web' && !engineFallback;
 
   // Leaving the sheet mid-export stops the encoder instead of leaving it running unseen.
   useEffect(
@@ -101,6 +108,7 @@ export function VideoExportSheet({
       if (exportingRef.current) {
         cancelledRef.current = true;
         cancelVideoExport();
+        cancelEngineExport();
       }
     },
     []
@@ -143,6 +151,21 @@ export function VideoExportSheet({
           summary: `${gif.width}×${gif.height} · ${gif.frameCount} quadros · GIF`,
           tookMs: Date.now() - startedAt,
           note: gif.truncated ? 'O GIF foi cortado em 15 s.' : undefined,
+        });
+        return;
+      }
+      if (webEngine) {
+        if (cancelledRef.current) throw new Error('CANCELLED');
+        const result = await exportWithEngine(
+          { width: preset.width, height: preset.height, bitrate: preset.bitrate },
+          (progress) => setState({ phase: 'exporting', progress })
+        );
+        setState({
+          phase: 'done',
+          uri: result.uri,
+          sizeBytes: result.sizeBytes,
+          summary: `${preset.width}×${preset.height} · ${formatDuration(result.durationMs || plan.durationMs)} · MP4`,
+          tookMs: Date.now() - startedAt,
         });
         return;
       }
@@ -241,7 +264,7 @@ export function VideoExportSheet({
       exportingRef.current = false;
       resumeProxies();
     }
-  }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight]);
+  }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight, webEngine]);
 
   const saveToGallery = useCallback(async () => {
     if (state.phase !== 'done') return;
@@ -389,6 +412,7 @@ export function VideoExportSheet({
                 onPress={() => {
                   cancelledRef.current = true;
                   cancelVideoExport();
+                  cancelEngineExport();
                 }}
               >
                 <Text style={styles.secondaryText}>CANCELAR</Text>

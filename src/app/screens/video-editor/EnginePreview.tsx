@@ -9,6 +9,12 @@ import { patchPreviewSession, previewSession, previewSettings } from './previewS
 import { proxyKey, proxyStore, requestSourceProxy, type ProxyEntry } from './previewProxy';
 import { autoTier, NEEDS_WEBVIEW, resolveTier, TIER_SPECS, type Tier } from './previewTier';
 import type { TimeStore } from './timeStore';
+import {
+  engineExport,
+  reportEngineExportProgress,
+  settleEngineExport,
+  type EngineExportResult,
+} from './engineExport';
 
 /** No sign of life from the web side in this long: the System WebView is too old to run it. */
 const NO_STATUS_MS = 10_000;
@@ -90,6 +96,61 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
           })
         : null,
     [tracks, tier, mapping, session.env]
+  );
+
+  // The export reads the originals (no proxy) at the preset's size, cropped to fill like the
+  // native exporter.
+  const exportRequest = useStore(engineExport, (s) => s.request);
+  const cancelExportId = useStore(engineExport, (s) => s.cancelId);
+  const exportJob = useMemo(
+    () =>
+      exportRequest
+        ? {
+            id: exportRequest.id,
+            bitrate: exportRequest.bitrate,
+            scene: buildEditorScene(tracks, {
+              width: exportRequest.width,
+              height: exportRequest.height,
+              fit: 'cover',
+            }),
+          }
+        : null,
+    // The timeline cannot change under the open export sheet; the request alone decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [exportRequest]
+  );
+  const onExportProgress = useCallback(async (id: number, pct: number) => {
+    reportEngineExportProgress(id, pct);
+  }, []);
+  const onExportDone = useCallback(
+    async (id: number, json: string) => {
+      const out = JSON.parse(json) as {
+        path?: string;
+        bytes?: number;
+        durationMs?: number;
+        error?: string;
+      };
+      if (out.error || !out.path) {
+        files.abortExport();
+        settleEngineExport(id, { error: out.error ?? 'Não foi possível exportar o vídeo.' });
+        return;
+      }
+      const result: EngineExportResult = {
+        uri: out.path,
+        sizeBytes: out.bytes ?? 0,
+        durationMs: out.durationMs ?? 0,
+      };
+      settleEngineExport(id, { result });
+    },
+    [files]
+  );
+  // Leaving web mode (fallback) or the editor with an export running: it cannot finish.
+  useEffect(
+    () => () => {
+      const req = engineExport.get().request;
+      if (req) settleEngineExport(req.id, { error: 'O motor de vídeo foi fechado.' });
+    },
+    []
   );
 
   // A timeStore value the engine did not report is the user scrubbing (ruler, frame step, jump).
@@ -193,7 +254,12 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
       }}
     >
       <EditorPreview
-        dom={{ style: { width: '100%', height: '100%' }, webviewDebuggingEnabled: true }}
+        dom={{
+          style: { width: '100%', height: '100%' },
+          webviewDebuggingEnabled: __DEV__,
+          // Play is commanded from RN, never a tap inside the page: let the engine's audio start.
+          mediaPlaybackRequiresUserAction: false,
+        }}
         scene={scene}
         playing={playing && ready}
         seek={seek}
@@ -206,6 +272,13 @@ export function EnginePreview({ tracks, timeStore, playing, loopRange, onEnded }
         onTime={onTime}
         onEvent={onEvent}
         onStatus={onStatus}
+        exportJob={exportJob}
+        cancelExportId={cancelExportId}
+        startExport={files.startExport}
+        writeExportChunk={files.writeExportChunk}
+        finishExport={files.finishExport}
+        onExportProgress={onExportProgress}
+        onExportDone={onExportDone}
       />
     </View>
   );

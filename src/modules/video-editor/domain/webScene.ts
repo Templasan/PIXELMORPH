@@ -1,5 +1,6 @@
 import type { Track } from './Track';
 import { frameAt, planSequence, type SequencePlan } from './framePlan';
+import { planExport, type PlannedAudio } from './exportPlan';
 import { transitionTransforms } from './transitions';
 
 /**
@@ -58,11 +59,72 @@ export interface Rect {
   h: number;
 }
 
+/** A stretch of sound on the finished video: a clip's own audio or an audio-track clip. */
+export interface AudioSpan {
+  uri: string;
+  /** Where it starts on the finished video, ms. */
+  startMs: number;
+  /** Its length on the finished video, ms. */
+  outputMs: number;
+  /** Where it starts in the source file, ms. */
+  inMs: number;
+  /** Source ms per finished-video ms (a 2x clip plays its sound twice as fast). */
+  speed: number;
+  /** 0..1 */
+  volume: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+}
+
+/** The sound of the finished video: each video piece's own audio, then the audio-track clips. */
+export function audioSpansOf(
+  main: SequencePlan,
+  tracksAudio: readonly PlannedAudio[]
+): AudioSpan[] {
+  const own = main.clips
+    .filter((p) => p.kind === 'video' && p.volume > 0)
+    .map((p) => ({
+      uri: p.sourceUri,
+      startMs: p.startMs,
+      outputMs: p.outputMs,
+      inMs: p.inMs,
+      speed: p.speed,
+      volume: p.volume,
+      fadeInMs: 0,
+      fadeOutMs: 0,
+    }));
+  const music = tracksAudio.map((a) => ({
+    uri: a.sourceUri,
+    startMs: a.startMs,
+    outputMs: a.outMs - a.inMs,
+    inMs: a.inMs,
+    speed: 1,
+    volume: a.volume,
+    fadeInMs: a.fadeInMs,
+    fadeOutMs: a.fadeOutMs,
+  }));
+  return [...own, ...music].filter((s) => s.outputMs > 0);
+}
+
+/** Gain of `span` at finished-video time `tMs`: its volume with linear fades, 0 outside it. */
+export function spanGainAt(span: AudioSpan, tMs: number): number {
+  const into = tMs - span.startMs;
+  const left = span.startMs + span.outputMs - tMs;
+  if (into < 0 || left < 0) return 0;
+  let gain = span.volume;
+  if (span.fadeInMs > 0 && into < span.fadeInMs) gain *= into / span.fadeInMs;
+  if (span.fadeOutMs > 0 && left < span.fadeOutMs) gain *= left / span.fadeOutMs;
+  return gain;
+}
+
 export interface WebScene {
   width: number;
   height: number;
+  /** 'cover': the main sequence fills the frame, cropping (export presets); default fits inside. */
+  fit?: 'contain' | 'cover';
   durationMs: number;
   main: SequencePlan;
+  audio: AudioSpan[];
   pips: PipLayer[];
   texts: TextLayer[];
   stickers: StickerLayer[];
@@ -130,6 +192,7 @@ const SLIDE_IN_MS = 600;
 export interface EditorSceneOptions {
   width?: number;
   height?: number;
+  fit?: 'contain' | 'cover';
   /** Swaps a clip's source for the file the preview should decode (a proxy); default: as is. */
   mapUri?: (sourceUri: string) => string;
 }
@@ -149,12 +212,14 @@ export function buildEditorScene(
         clips: t.clips.map((c) => ({ ...c, sourceUri: mapUri(c.sourceUri) })),
       }))
     : tracks;
-  const main = planSequence(mapped);
+  const { audio, ...main } = planExport(mapped);
   return {
     width: opts.width ?? 1920,
     height: opts.height ?? 1080,
+    fit: opts.fit,
     durationMs: main.durationMs,
     main,
+    audio: audioSpansOf(main, audio),
     pips: [],
     texts: [],
     stickers: [],
@@ -241,7 +306,7 @@ export function buildSpikeScene(tracks: readonly Track[], opts: SpikeSceneOption
       ],
     },
   ];
-  return { width, height, durationMs, main, pips, texts, stickers };
+  return { width, height, durationMs, main, audio: audioSpansOf(main, []), pips, texts, stickers };
 }
 
 /** Every draw op for scene time `timeMs`, bottom to top. Pure: same input, same output. */

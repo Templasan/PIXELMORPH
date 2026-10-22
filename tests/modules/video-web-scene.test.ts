@@ -2,6 +2,7 @@ import { createClip, type Clip, type Track } from '../../src/modules/video-edito
 import {
   buildEditorScene,
   buildSpikeScene,
+  spanGainAt,
   drawListAt,
   sampleKeyframes,
   type DrawOp,
@@ -136,5 +137,47 @@ describe('buildEditorScene', () => {
     const ops = drawListAt(s, 2_100);
     expect(video(ops, 'main')?.uri).toBe('file:///b.proxy.mp4');
     expect(video(ops, 'out')?.uri).toBe('file:///a.proxy.mp4');
+  });
+});
+
+describe('scene audio', () => {
+  it('each video piece brings its own sound at its place, muted clips and gaps none', () => {
+    const muted = clip({ id: 'm', startMs: 6_000, volume: 0 });
+    const s = buildEditorScene([track([a, b, muted])]);
+    expect(s.audio.map((x) => [x.uri, x.startMs, x.outputMs, x.inMs, x.speed])).toEqual([
+      ['file:///a.mp4', 0, 2_000, 0, 1],
+      ['file:///b.mp4', 3_000, 2_000, 0, 1],
+    ]);
+  });
+
+  it('a 2x clip plays its sound twice as fast over half the time', () => {
+    const fast = clip({ id: 'f', startMs: 0, speed: 2 });
+    const [span] = buildEditorScene([track([fast])]).audio;
+    expect([span.outputMs, span.speed]).toEqual([1_000, 2]);
+  });
+
+  it('audio-track clips follow with their volume and fades', () => {
+    const music: Track = {
+      ...track([
+        clip({
+          id: 'mu',
+          startMs: 0,
+          sourceUri: 'file:///m.mp3',
+          volume: 50,
+          fadeInMs: 500,
+          fadeOutMs: 500,
+        }),
+      ]),
+      id: 'a1',
+      kind: 'audio',
+    };
+    const span = buildEditorScene([track([a]), music]).audio.find(
+      (x) => x.uri === 'file:///m.mp3'
+    )!;
+    expect([span.volume, span.fadeInMs, span.fadeOutMs]).toEqual([0.5, 500, 500]);
+    expect(spanGainAt(span, 250)).toBeCloseTo(0.25);
+    expect(spanGainAt(span, 1_000)).toBeCloseTo(0.5);
+    expect(spanGainAt(span, 1_750)).toBeCloseTo(0.25);
+    expect(spanGainAt(span, 2_500)).toBe(0);
   });
 });
