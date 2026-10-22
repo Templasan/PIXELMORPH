@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -43,6 +44,18 @@ function fromBase64(b64: string): Uint8Array {
 }
 
 const MODES: FileAccessMode[] = ['auto', 'xhr', 'bridge'];
+
+const NEEDS_WEBVIEW_PREFIX = 'O motor de vídeo precisa';
+const WEBVIEW_PACKAGE = 'com.google.android.webview';
+
+/** Opens Android System WebView in the Play Store app, or on the web when there is no Play Store. */
+async function openWebViewUpdate() {
+  try {
+    await Linking.openURL(`market://details?id=${WEBVIEW_PACKAGE}`);
+  } catch {
+    await Linking.openURL(`https://play.google.com/store/apps/details?id=${WEBVIEW_PACKAGE}`);
+  }
+}
 
 export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -189,6 +202,11 @@ export default function VideoEngineSpikeScreen({ navigation, route }: Props) {
         />
       ) : null}
       <Text style={styles.status}>{status}</Text>
+      {status.startsWith(NEEDS_WEBVIEW_PREFIX) ? (
+        <View style={styles.row}>
+          <Button label="Atualizar o WebView na Play Store" onPress={openWebViewUpdate} />
+        </View>
+      ) : null}
       <View style={styles.row}>
         <Button label="Play" onPress={() => send('play')} />
         <Button label="Pause" onPress={() => send('pause')} />
