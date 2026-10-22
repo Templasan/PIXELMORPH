@@ -5,6 +5,7 @@ import {
   ensureImageTrack,
   findClip,
   rippleShiftAfter,
+  setClipSpeed,
   splitClipAtMs,
   trimClipIn,
   trimClipOut,
@@ -163,6 +164,14 @@ export function createVideoEditorStore(
     },
     liveOnSelected(fn: (start: Track[], trackId: string, clip: Clip) => Track[]) {
       withSelected(({ track, clip }) => live((start) => fn(start, track.id, clip)));
+    },
+
+    /** Speed change that pushes/pulls the following clips (see setClipSpeed). */
+    setSpeed(speed: number, mode: 'commit' | 'live') {
+      const apply = (t: Track[], trackId: string, clip: Clip) =>
+        setClipSpeed(t, trackId, clip.id, speed);
+      if (mode === 'commit') this.commitOnSelected(apply);
+      else this.liveOnSelected(apply);
     },
 
     split(atMs: number) {
