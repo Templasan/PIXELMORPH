@@ -1,7 +1,8 @@
-import type { Track } from './Track';
+import { clipDurationMs, type Track } from './Track';
 import { frameAt, planSequence, type SequencePlan } from './framePlan';
 import { planExport, type PlannedAudio } from './exportPlan';
 import { transitionTransforms } from './transitions';
+import { captionAt, type ClipText } from './textCaption';
 
 /**
  * SPIKE: a serialisable scene + ONE pure function (`drawListAt`) that says what to draw at an
@@ -125,6 +126,8 @@ export interface WebScene {
   durationMs: number;
   main: SequencePlan;
   audio: AudioSpan[];
+  /** Text clips, bottom track first (later ones draw on top). */
+  captions: { text: ClipText; startMs: number; durationMs: number }[];
   pips: PipLayer[];
   texts: TextLayer[];
   stickers: StickerLayer[];
@@ -154,6 +157,22 @@ export type DrawOp =
       translateX: number;
       scale: number;
       rotationDeg: number;
+    }
+  | {
+      /** RF-008: a text over the video, centred on (cx, cy). */
+      kind: 'caption';
+      text: string;
+      cx: number;
+      cy: number;
+      fontPx: number;
+      fontFamily: string;
+      color: string;
+      strokeColor: string;
+      /** Outline width in px (0 = none). */
+      strokePx: number;
+      shadow: boolean;
+      scale: number;
+      opacity: number;
     }
   | {
       /** A flat colour over the whole frame (colour correction: white lightens, black darkens). */
@@ -237,6 +256,11 @@ export function buildEditorScene(
     durationMs: main.durationMs,
     main,
     audio: audioSpansOf(main, audio),
+    captions: tracks
+      .filter((t) => t.kind === 'text' && t.visible)
+      .flatMap((t) => t.clips)
+      .filter((c) => c.text)
+      .map((c) => ({ text: c.text!, startMs: c.startMs, durationMs: clipDurationMs(c) })),
     pips: [],
     texts: [],
     stickers: [],
@@ -323,7 +347,17 @@ export function buildSpikeScene(tracks: readonly Track[], opts: SpikeSceneOption
       ],
     },
   ];
-  return { width, height, durationMs, main, audio: audioSpansOf(main, []), pips, texts, stickers };
+  return {
+    width,
+    height,
+    durationMs,
+    main,
+    audio: audioSpansOf(main, []),
+    captions: [],
+    pips,
+    texts,
+    stickers,
+  };
 }
 
 /** Every draw op for scene time `timeMs`, bottom to top. Pure: same input, same output. */
@@ -393,6 +427,20 @@ export function drawListAt(scene: WebScene, timeMs: number): DrawOp[] {
       translateX: 0,
       scale: 1,
       rotationDeg: 0,
+    });
+  }
+
+  for (const c of scene.captions) {
+    const st = captionAt(c.text, c.startMs, c.durationMs, timeMs, width, height);
+    if (!st) continue;
+    ops.push({
+      kind: 'caption',
+      ...st,
+      fontFamily: c.text.fontFamily,
+      color: c.text.color,
+      strokeColor: c.text.strokeColor,
+      strokePx: c.text.strokeWidth * st.fontPx,
+      shadow: c.text.shadow,
     });
   }
 
