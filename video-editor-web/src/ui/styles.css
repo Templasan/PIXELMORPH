@@ -110,7 +110,8 @@ button:disabled {
   position: relative;
   display: grid;
   place-items: center;
-  background: #000;
+  /* Lighter than the frame's black, so the video's edges show in any format. */
+  background: var(--faixa);
   overflow: hidden;
 }
 
@@ -274,9 +275,9 @@ button:disabled {
 .transition-mark {
   position: absolute;
   top: -7px;
-  width: 18px;
-  height: 16px;
-  margin-left: -9px;
+  width: 28px;
+  height: 22px;
+  margin-left: -14px;
   background: var(--barra);
   border: 1px solid var(--linha);
   border-radius: 4px;
@@ -316,8 +317,11 @@ button:disabled {
 
 .track-header button {
   color: var(--icone);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1;
+  /* A finger-sized target around a small glyph. */
+  min-width: 36px;
+  min-height: 24px;
 }
 
 .playhead {
@@ -335,15 +339,15 @@ button:disabled {
 .zoom-hint {
   position: absolute;
   right: 6px;
-  top: 4px;
+  top: 30px;
   z-index: 6;
   display: flex;
-  gap: 2px;
+  gap: 4px;
 }
 
 .zoom-hint button {
-  width: 26px;
-  height: 18px;
+  width: 36px;
+  height: 28px;
   font-size: 13px;
   line-height: 1;
   background: var(--barra);

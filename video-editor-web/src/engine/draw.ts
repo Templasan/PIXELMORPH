@@ -21,7 +21,7 @@ export function drawFrame(
       ctx.fillStyle = op.color;
       ctx.fillRect(0, 0, width, height);
     } else if (op.kind === 'caption') {
-      drawCaption(ctx, op);
+      drawCaption(ctx, op, width, height);
     } else {
       const frame = frameOf(op);
       if (frame) drawMedia(ctx, op, frame);
@@ -38,31 +38,67 @@ function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap) {
   const quarter = Math.abs(op.rotationDeg) % 180 === 90;
   const iw = quarter ? sh : sw;
   const ih = quarter ? sw : sh;
-  const k = (op.fit === 'cover' ? Math.max : Math.min)(op.rect.w / iw, op.rect.h / ih);
+  // A PiP window is as wide as asked and as tall as the picture is, from its top-left corner.
+  const rect = op.window ? { ...op.rect, h: op.rect.w * (ih / iw) } : op.rect;
+  const k = (op.fit === 'cover' && !op.window ? Math.max : Math.min)(rect.w / iw, rect.h / ih);
   const [w, h] = quarter ? [ih * k, iw * k] : [iw * k, ih * k];
   // The box clips its content: a "cover" layer or a slide never spills outside it.
   ctx.beginPath();
-  ctx.rect(op.rect.x, op.rect.y, op.rect.w, op.rect.h);
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
   ctx.clip();
   ctx.globalAlpha = op.opacity;
   if (op.brightness !== 1) ctx.filter = `brightness(${op.brightness})`;
-  ctx.translate(op.rect.x + op.rect.w / 2 + op.translateX, op.rect.y + op.rect.h / 2);
+  ctx.translate(rect.x + rect.w / 2 + op.translateX, rect.y + rect.h / 2);
   ctx.scale(op.scale, op.scale);
   ctx.rotate((op.rotationDeg * Math.PI) / 180);
   if (sample) sample.draw(ctx, -w / 2, -h / 2, w, h);
   else ctx.drawImage(frame as ImageBitmap, -w / 2, -h / 2, w, h);
 }
 
-function drawCaption(ctx: Ctx2D, op: Extract<CompositionOp, { kind: 'caption' }>) {
+/** Splits `text` into lines no wider than `maxWidth` (words kept whole unless one is wider). */
+function wrapLines(ctx: Ctx2D, text: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        out.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+function drawCaption(
+  ctx: Ctx2D,
+  op: Extract<CompositionOp, { kind: 'caption' }>,
+  frameWidth: number,
+  frameHeight: number
+) {
   ctx.globalAlpha = op.opacity;
   ctx.font = `bold ${op.fontPx}px ${op.fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  ctx.translate(op.cx, op.cy);
-  ctx.scale(op.scale, op.scale);
-  const lines = op.text.split('\n');
+  // Wrapped at 90% of the frame so a long text stays inside it (same in preview and export).
+  const lines = wrapLines(ctx, op.text, (frameWidth * 0.9) / Math.max(0.01, op.scale));
   const lineH = op.fontPx * 1.2;
+  // A block of several lines is pulled back inside the frame instead of running off an edge.
+  const half = (lines.length * lineH * op.scale) / 2;
+  const margin = frameHeight * 0.02;
+  // The resting place is kept inside; a slide animation still enters from outside.
+  const rest = op.cy - op.offsetY;
+  const cy =
+    (half * 2 + margin * 2 >= frameHeight
+      ? frameHeight / 2
+      : Math.min(Math.max(rest, half + margin), frameHeight - half - margin)) + op.offsetY;
+  ctx.translate(op.cx, cy);
+  ctx.scale(op.scale, op.scale);
   lines.forEach((line, i) => {
     const y = (i - (lines.length - 1) / 2) * lineH;
     if (op.shadow) {

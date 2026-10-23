@@ -18,7 +18,7 @@ import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
 import { createHistory } from './history';
 import { createVideoEditorStore } from './videoEditorStore';
-import { freeStart, mainTrack, placeAtPlayhead } from './placement';
+import { mainTrack, placeAtPlayhead } from './placement';
 
 /** Short edge of the preview canvas (the export renders the same composition at its own size). */
 const PREVIEW_SHORT_EDGE = 720;
@@ -185,14 +185,22 @@ export function createEditorSession(host: EditorHost) {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
     if (!found) return;
-    const copy: Clip = {
-      ...found.clip,
-      id: createClipId(),
-      startMs: freeStart(found.track, clipEndMs(found.clip), clipDurationMs(found.clip)),
-      transitionIn: undefined,
-    };
+    // Right after the original; the clips after it on the track make room (the copy is inserted).
+    const end = clipEndMs(found.clip);
+    const length = clipDurationMs(found.clip);
+    const copy: Clip = { ...found.clip, id: createClipId(), startMs: end, transitionIn: undefined };
     editor.commit((t) =>
-      t.map((tr) => (tr.id === found.track.id ? { ...tr, clips: [...tr.clips, copy] } : tr))
+      t.map((tr) =>
+        tr.id === found.track.id
+          ? {
+              ...tr,
+              clips: [
+                ...tr.clips.map((c) => (c.startMs >= end - 1e-6 ? { ...c, startMs: c.startMs + length } : c)),
+                copy,
+              ],
+            }
+          : tr
+      )
     );
     editor.store.set((s) => ({ ...s, selectedClipId: copy.id }));
   }

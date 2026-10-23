@@ -1,8 +1,9 @@
 /**
  * RF-077: hold a specific frame static for a few seconds before playback resumes. Splits
  * the clip at the chosen instant and inserts a zero-motion segment between the two halves,
- * pushing every later clip on the track (and any clip on another track that starts after
- * the freeze point) back by the hold duration — the timeline stays continuous.
+ * pushing every later clip on the SAME track back by the hold duration, like a speed change.
+ * Other tracks stay where they are: moving only the clips that start after the freeze point
+ * left a photo or song that spans it out of step with the rest.
  */
 
 import { type Track, clipEndMs, createClipId } from './Track';
@@ -37,25 +38,17 @@ export function insertFreezeFrame(
     holdMs: Math.max(MIN_CLIP_DURATION_MS, holdMs),
   };
 
-  return afterSplit.map((t) => {
-    if (t.id !== trackId) {
-      // Ripple every clip on other tracks that starts at/after the freeze point too, so
-      // parallel tracks (text, audio) stay in sync with the now-longer video track.
-      return {
-        ...t,
-        clips: t.clips.map((c) =>
-          c.startMs >= splitPointMs ? { ...c, startMs: c.startMs + frozenClip.holdMs! } : c
-        ),
-      };
-    }
-    return {
-      ...t,
-      clips: [
-        ...t.clips.map((c) =>
-          c.startMs >= splitPointMs ? { ...c, startMs: c.startMs + frozenClip.holdMs! } : c
-        ),
-        frozenClip,
-      ],
-    };
-  });
+  return afterSplit.map((t) =>
+    t.id !== trackId
+      ? t
+      : {
+          ...t,
+          clips: [
+            ...t.clips.map((c) =>
+              c.startMs >= splitPointMs ? { ...c, startMs: c.startMs + frozenClip.holdMs! } : c
+            ),
+            frozenClip,
+          ],
+        }
+  );
 }

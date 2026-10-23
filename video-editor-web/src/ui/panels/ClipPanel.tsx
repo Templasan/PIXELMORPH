@@ -182,9 +182,10 @@ function PositionTool({
   const pos = clip.pipPosition ?? { x: 0, y: 0 };
   const size = clip.pipSize ?? { width: 1, height: 1 };
   const full = !clip.pipSize;
+  // The window's height follows the picture's shape (see drawMedia); only its width is set.
   const setBox = (x: number, y: number, s: number) =>
     live({
-      pipPosition: { x: Math.max(0, Math.min(1 - s, x)), y: Math.max(0, Math.min(1 - s, y)) },
+      pipPosition: { x: Math.max(0, Math.min(1 - s, x)), y: Math.max(0, Math.min(1, y)) },
       pipSize: { width: s, height: s },
     });
   return (

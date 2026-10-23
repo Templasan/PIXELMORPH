@@ -33,7 +33,9 @@ export function App({ session }: { session: EditorSession }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest('input, textarea')) return;
+      // Text fields keep their own keys; a slider keeps focus after a drag but must not block undo.
+      if ((e.target as HTMLElement).closest('textarea, input:not([type="range"])')) return;
+      if ((e.target as HTMLElement).closest('input[type="range"]') && !(e.ctrlKey || e.metaKey)) return;
       if (e.code === 'Space') {
         e.preventDefault();
         session.toggle();

@@ -37,6 +37,8 @@ export interface MediaOp {
   sourceTimeMs: number;
   rect: Rect;
   fit: 'contain' | 'cover';
+  /** PiP window: `rect.w` is the width, the height follows the picture; placed at rect.x/y. */
+  window: boolean;
   opacity: number;
   translateX: number;
   scale: number;
@@ -51,6 +53,7 @@ export interface CaptionOp {
   text: string;
   cx: number;
   cy: number;
+  offsetY: number;
   fontPx: number;
   fontFamily: string;
   color: string;
@@ -219,6 +222,7 @@ function mediaOp(
     sourceTimeMs: image ? 0 : role === 'out' ? sourceTimeOf(clip, t) : clampIn(clip, t),
     rect: rectOf(clip, c.width, c.height),
     fit: clip.fill ? 'cover' : 'contain',
+    window: !!clip.pipSize,
     opacity: transform.opacity,
     translateX: transform.translateX,
     scale: transform.scale,
