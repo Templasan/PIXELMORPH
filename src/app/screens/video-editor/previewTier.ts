@@ -113,3 +113,33 @@ export function createDropMonitor(windowMs = DROP_WINDOW_MS) {
     },
   };
 }
+
+/**
+ * '720': the editor's default proxy (every editor needs it). '540': only the web engine's Baixa
+ * tier asks for it; '1080': only Alta, for sources above 1080p (a 4K original decodes at 29 fps
+ * with 1.8 s seeks on the Poco, and the Alta canvas is 1920×1080 anyway). Their entries sit in
+ * proxyStore under `<source uri>#540` / `#1080`.
+ */
+export type ProxyVariant = '720' | '540' | '1080';
+/** The proxyStore key of a source's proxy. */
+export const proxyKey = (sourceUri: string, variant: ProxyVariant = '720') =>
+  variant === '720' ? sourceUri : `${sourceUri}#${variant}`;
+
+/** Proxy state the preview needs (mirrors previewProxy's ProxyEntry). */
+export interface ProxyState {
+  status: string;
+  uri?: string;
+}
+
+/** Which file the preview decodes for `uri` at `tier` (export never uses this). */
+export function previewUriFor(tier: Tier, state: Record<string, ProxyState>, uri: string): string {
+  const ready = (key: string) => (state[key]?.status === 'ready' ? state[key].uri : undefined);
+  const p720 = ready(proxyKey(uri));
+  if (tier === 'alta') {
+    // Up to 1080p ('none': no 1080p proxy needed) the original is fine; above it, the 720p proxy
+    // stands in until the 1080p one exists (or if it failed), instead of decoding the 4K original.
+    if (state[proxyKey(uri, '1080')]?.status === 'none') return uri;
+    return ready(proxyKey(uri, '1080')) ?? p720 ?? uri;
+  }
+  return tier === 'baixa' ? (ready(proxyKey(uri, '540')) ?? p720 ?? uri) : (p720 ?? uri);
+}
