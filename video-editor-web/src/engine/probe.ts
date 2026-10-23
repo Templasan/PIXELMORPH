@@ -10,7 +10,12 @@ export interface ProbedMedia {
 }
 
 /** What a media file is (length, size, sound), read from the file itself. */
-export async function probeMedia(pool: MediaPool, uri: string): Promise<ProbedMedia> {
+export function probeMedia(pool: MediaPool, uri: string): Promise<ProbedMedia> {
+  // The file is not on the timeline yet: keep the player's clean-up from closing it meanwhile.
+  return pool.withPinned(uri, () => probe(pool, uri));
+}
+
+async function probe(pool: MediaPool, uri: string): Promise<ProbedMedia> {
   const input = await pool.input(uri);
   const video = await input.getPrimaryVideoTrack();
   const audio = await input.getPrimaryAudioTrack();

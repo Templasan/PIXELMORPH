@@ -41,6 +41,20 @@ export class MediaPool {
   private feeds = new Map<string, Promise<Feed>>();
   private bitmaps = new Map<string, Promise<ImageBitmap | null>>();
   private bitmapReady = new Map<string, ImageBitmap>();
+  /** Files in use outside the timeline (being probed before their clip exists): never pruned. */
+  private pinned = new Map<string, number>();
+
+  /** Runs `fn` with `uri` kept open even though no clip uses it yet. */
+  async withPinned<T>(uri: string, fn: () => Promise<T>): Promise<T> {
+    this.pinned.set(uri, (this.pinned.get(uri) ?? 0) + 1);
+    try {
+      return await fn();
+    } finally {
+      const n = (this.pinned.get(uri) ?? 1) - 1;
+      if (n > 0) this.pinned.set(uri, n);
+      else this.pinned.delete(uri);
+    }
+  }
 
   constructor(
     private readonly reader: FileReader | null = null,
@@ -149,7 +163,7 @@ export class MediaPool {
       void p.then((f) => f.dispose()).catch(() => {});
     }
     for (const [uri, p] of this.inputs) {
-      if (keepUris.has(uri)) continue;
+      if (keepUris.has(uri) || this.pinned.has(uri)) continue;
       this.inputs.delete(uri);
       void p.then((i) => i.dispose()).catch(() => {});
     }
