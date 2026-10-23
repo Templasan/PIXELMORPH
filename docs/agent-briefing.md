@@ -162,6 +162,9 @@ Found on the owner's Poco on 2026-10-22 (not fixed yet):
     step-down already rescues it after a few seconds.
 16. Not verified: an export with the app in the background on the phone (the phone locked
     during the test). On the emulator / in the browser test it kept going at ~1/3 speed.
+    TODO (owner, 2026-10-22): Android throttles the WebView in the background, so a foreground
+    service would not help. Planned: keep the screen on while exporting (`expo-keep-awake`, new
+    dependency, needs the owner's OK) and tell the user to keep the app open.
 
 Owner decisions still pending (documented in foundation-plan.md): video history as diffs,
 lightweight project-list index, small per-project thumbnails, true AR via ARCore (US-23), real

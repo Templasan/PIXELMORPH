@@ -109,6 +109,8 @@ export function VideoExportSheet({
     setSaveState('idle');
     setState({ phase: 'exporting', progress: 0 });
     const startedAt = Date.now();
+    // TODO: Android slows the WebView engine to ~1/3 when the app leaves the screen; keep the
+    // screen on during export and say so (agent-briefing.md §6 item 16).
     // The hardware encoder is single-slot: the preview proxies stop before the export touches it.
     await pauseProxiesForExport();
     try {
