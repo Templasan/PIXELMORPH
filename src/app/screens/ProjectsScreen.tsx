@@ -1,5 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { retryFailedCardThumbs } from './projects/cardThumb';
@@ -22,11 +31,18 @@ import { RawImportSheet } from './projects/RawImportSheet';
 import { ProjectCard } from './projects/ProjectCard';
 import { ReminderBanner } from './projects/ReminderBanner';
 import { ProjectInfoSheet } from './projects/ProjectInfoSheet';
+import { PROJECT_SORT_ORDER, queryProjects, type ProjectSort } from './projects/projectListQuery';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
 const TABS = ['TODOS', 'FOTOS', 'VÍDEOS', 'RASCUNHOS'] as const;
 type Tab = (typeof TABS)[number];
+
+const SORT_LABELS: Record<ProjectSort, string> = {
+  recent: 'Mais recentes',
+  name: 'Nome (A–Z)',
+  oldest: 'Mais antigos',
+};
 
 /** True when a project has never produced a final export — used for the RASCUNHOS tab. */
 function isDraft(project: Project): boolean {
@@ -54,6 +70,9 @@ export default function ProjectsScreen({ navigation }: Props) {
   const [infoProject, setInfoProject] = useState<Project | null>(null);
   const [rawImportOpen, setRawImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<ProjectSort>('recent');
 
   const openInfo = useCallback((project: Project) => {
     setInfoProject(project);
@@ -105,10 +124,7 @@ export default function ProjectsScreen({ navigation }: Props) {
       .catch((error: unknown) => errorLogger.log(error, 'ProjectsScreen.persistMedia'));
     await mediaRepair;
     try {
-      const all = await mod.listProjects.execute({ status: 'active' });
-      // Most recently modified first.
-      all.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-      setProjects(all);
+      setProjects(await mod.listProjects.execute({ status: 'active' }));
     } catch (error) {
       // Unreadable project list: show what we have instead of loading forever.
       errorLogger.log(error, 'ProjectsScreen.loadProjects');
@@ -178,14 +194,33 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   const filtered = useMemo(
     () =>
-      projects.filter((p) => {
-        if (activeTab === 'FOTOS') return p.type === 'photo';
-        if (activeTab === 'VÍDEOS') return p.type === 'video';
-        if (activeTab === 'RASCUNHOS') return isDraft(p);
-        return true;
-      }),
-    [projects, activeTab]
+      queryProjects(
+        projects.filter((p) => {
+          if (activeTab === 'FOTOS') return p.type === 'photo';
+          if (activeTab === 'VÍDEOS') return p.type === 'video';
+          if (activeTab === 'RASCUNHOS') return isDraft(p);
+          return true;
+        }),
+        query,
+        sort
+      ),
+    [projects, activeTab, query, sort]
   );
+
+  const chooseSort = () => {
+    Alert.alert(t('Ordenar por'), undefined, [
+      ...PROJECT_SORT_ORDER.map((option) => ({
+        text: `${option === sort ? '✓ ' : ''}${t(SORT_LABELS[option])}`,
+        onPress: () => setSort(option),
+      })),
+      { text: t('Cancelar'), style: 'cancel' as const },
+    ]);
+  };
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setQuery('');
+  };
 
   const pendingProjects = useMemo(
     () =>
@@ -252,14 +287,37 @@ export default function ProjectsScreen({ navigation }: Props) {
         </View>
       ) : (
         <View style={styles.topBar}>
-          <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-            <Icon name="menu" size={22} />
-          </Pressable>
-          <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
-          {/* TODO: real search + sort. */}
-          <Icon name="search" size={20} />
-          <View style={{ width: 8 }} />
-          <Icon name="sort" size={20} />
+          {searchOpen ? (
+            <>
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder={t('Buscar projetos')}
+                placeholderTextColor={colors.texto2}
+                autoFocus
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              <Pressable onPress={closeSearch} hitSlop={8}>
+                <Icon name="x" size={22} />
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
+                <Icon name="menu" size={22} />
+              </Pressable>
+              <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
+              <Pressable onPress={() => setSearchOpen(true)} hitSlop={8}>
+                <Icon name="search" size={20} />
+              </Pressable>
+              <View style={{ width: 8 }} />
+              <Pressable onPress={chooseSort} hitSlop={8}>
+                <Icon name="sort" size={20} />
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -306,7 +364,9 @@ export default function ProjectsScreen({ navigation }: Props) {
             {!loading && filtered.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>
-                  {t('Nenhum projeto nesta categoria ainda.')}
+                  {query.trim()
+                    ? t('Nenhum projeto encontrado.')
+                    : t('Nenhum projeto nesta categoria ainda.')}
                 </Text>
               </View>
             )}
@@ -390,6 +450,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: '500',
     color: colors.texto,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: fontSize.md,
+    color: colors.texto,
+    paddingVertical: 0,
   },
   contextBar: {
     height: 56,
