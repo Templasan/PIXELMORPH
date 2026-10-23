@@ -734,10 +734,9 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: colors.acento,
   },
+  // The switch's label takes all the row's width, so it gets its own line under the title.
   qualityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 8,
     marginBottom: 4,
   },
   socialGrid: {
