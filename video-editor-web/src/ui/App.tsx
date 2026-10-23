@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../application/session';
 import { selectedClipOf } from '../application/videoEditorStore';
-import { formatTimecode, stepFrameMs } from '../domain/frameMath';
+import { stepFrameMs } from '../domain/frameMath';
 import { useStore } from '../state/useStore';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
@@ -117,6 +117,15 @@ function Preview({ session }: { session: EditorSession }) {
   );
 }
 
+/** m:ss.cc — short enough for a phone's transport bar. */
+export function shortTime(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 10));
+  const cs = total % 100;
+  const s = Math.floor(total / 100) % 60;
+  const m = Math.floor(total / 6000);
+  return `${m}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+}
+
 function Transport({ session }: { session: EditorSession }) {
   const playing = useStore(session.playing);
   const time = useStore(session.time);
@@ -129,25 +138,25 @@ function Transport({ session }: { session: EditorSession }) {
   };
   return (
     <div className="transport">
-      <span className="timecode">{formatTimecode(time)}</span>
+      <span className="timecode">{shortTime(time)}</span>
       <div className="buttons">
         <button className="icon-btn" onClick={() => (session.pause(), session.seek(0))} aria-label="Início">
           <Icon name="skipBack" size={18} />
         </button>
-        <button className="icon-btn" onClick={() => step(-1)} aria-label="Quadro anterior">
+        <button className="icon-btn step" onClick={() => step(-1)} aria-label="Quadro anterior">
           <Icon name="stepBack" size={18} />
         </button>
         <button className="play-btn" onClick={() => session.toggle()} aria-label={playing ? 'Pausar' : 'Reproduzir'}>
           <Icon name={playing ? 'pause' : 'play'} size={20} />
         </button>
-        <button className="icon-btn" onClick={() => step(1)} aria-label="Próximo quadro">
+        <button className="icon-btn step" onClick={() => step(1)} aria-label="Próximo quadro">
           <Icon name="stepFwd" size={18} />
         </button>
         <button className="icon-btn" onClick={() => (session.pause(), session.seek(total))} aria-label="Fim">
           <Icon name="skipFwd" size={18} />
         </button>
       </div>
-      <span className="timecode total">{formatTimecode(total)}</span>
+      <span className="timecode total">{shortTime(total)}</span>
     </div>
   );
 }
