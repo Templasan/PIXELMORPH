@@ -172,6 +172,13 @@ batch apply (US-02, its fake button was removed).
 
 ## 7. Where things stand (2026-10-22, evening) and next steps
 
+**Update 2026-10-23:** `video-engine` was merged into `sprint-2` (fast-forward) after an
+emulator-only check (the owner's Poco was disconnected). Not yet measured on the Poco: the
+1080p Alta proxy (`72344fb`), the streaming GIF encoder (`2fc4845`), HEIC export on a real
+device, the 3-button-bar EXPORTAR position (bug 12). Open work and owner decisions:
+`docs/sprint-2-plan.md` (decisions of 2026-10-23, feasibility TODO). The paragraphs below
+describe the state before this merge.
+
 Branches (all local unless noted; nothing goes into `sprint-2` before the owner sees it):
 - `sprint-2` (pushed): part 1 (speed ripple, shared frame plan, gesture rollback fix) and the
   Saída/Entrada transitions are merged (`7fc43ff`). Sprint 2 audit and decisions:
