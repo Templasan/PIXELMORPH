@@ -4,7 +4,6 @@ import {
   clipEndMs,
   createClip,
   createClipId,
-  createTrackId,
   type Clip,
   type Track,
 } from '../domain/Track';
@@ -19,6 +18,7 @@ import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
 import { createHistory } from './history';
 import { createVideoEditorStore } from './videoEditorStore';
+import { freeStart, mainTrack, placeAtPlayhead } from './placement';
 
 /** Short edge of the preview canvas (the export renders the same composition at its own size). */
 const PREVIEW_SHORT_EDGE = 720;
@@ -41,31 +41,6 @@ export function defaultTracks(): Track[] {
     clips: [],
   });
   return [t('v1', 'V1', 'video'), t('img', 'IMG', 'image'), t('txt', 'TXT', 'text'), t('a1', 'A1', 'audio')];
-}
-
-/** Where a new clip of `kind` goes: the first track of that kind (created if missing). */
-function trackFor(tracks: Track[], kind: Track['kind']): { tracks: Track[]; trackId: string } {
-  const found = tracks.find((t) => t.kind === kind);
-  if (found) return { tracks, trackId: found.id };
-  const track: Track = {
-    id: createTrackId(),
-    name: kind.toUpperCase(),
-    kind,
-    visible: true,
-    locked: false,
-    clips: [],
-  };
-  return { tracks: [...tracks, track], trackId: track.id };
-}
-
-/** First free start at or after `atMs` on the track where `durationMs` fits. */
-function freeStart(track: Track, atMs: number, durationMs: number): number {
-  let start = atMs;
-  for (const c of [...track.clips].sort((a, b) => a.startMs - b.startMs)) {
-    if (start + durationMs <= c.startMs) break;
-    if (start < clipEndMs(c)) start = clipEndMs(c);
-  }
-  return start;
 }
 
 /**
@@ -150,13 +125,12 @@ export function createEditorSession(host: EditorHost) {
       }
       const at = time.get();
       editor.commit((before) => {
-        const { tracks, trackId } = trackFor(before, kind);
-        const track = tracks.find((t) => t.id === trackId)!;
         // Video goes at the end of the main track; pictures and sound where the playhead is.
+        const { tracks, trackId } =
+          kind === 'video' ? mainTrack(before) : placeAtPlayhead(before, kind, at, durationMs);
+        const track = tracks.find((t) => t.id === trackId)!;
         const startMs =
-          kind === 'video'
-            ? track.clips.reduce((m, c) => Math.max(m, clipEndMs(c)), 0)
-            : freeStart(track, at, durationMs);
+          kind === 'video' ? track.clips.reduce((m, c) => Math.max(m, clipEndMs(c)), 0) : at;
         const clip = createClip({
           name: item.name,
           sourceUri: item.uri,
@@ -178,14 +152,13 @@ export function createEditorSession(host: EditorHost) {
     const durationMs = 3000;
     let id = '';
     editor.commit((before) => {
-      const { tracks, trackId } = trackFor(before, 'text');
-      const track = tracks.find((t) => t.id === trackId)!;
+      const { tracks, trackId } = placeAtPlayhead(before, 'text', at, durationMs);
       const clip: Clip = {
         ...createClip({
           name: 'Texto',
           sourceUri: '',
           color: KIND_COLORS.text,
-          startMs: freeStart(track, at, durationMs),
+          startMs: at,
           sourceDurationMs: durationMs,
         }),
         text: { ...DEFAULT_TEXT, content: 'Texto' },

@@ -34,7 +34,7 @@ export function devMediaPlugin(): Plugin {
       server.middlewares.use('/media/', (req, res, next) => {
         const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''));
         const file = path.join(mediaDir, name);
-        if (!file.startsWith(mediaDir) || !fs.existsSync(file)) return next();
+        if (!file.startsWith(mediaDir + path.sep) || !fs.existsSync(file)) return next();
         res.setHeader('Content-Length', fs.statSync(file).size);
         fs.createReadStream(file).pipe(res);
       });
@@ -42,8 +42,14 @@ export function devMediaPlugin(): Plugin {
       server.middlewares.use('/__export', (req, res) => {
         const url = new URL(req.url ?? '', 'http://dev');
         fs.mkdirSync(exportDir, { recursive: true });
-        const name = path.basename(url.searchParams.get('name') ?? 'export.mp4');
-        const file = path.join(exportDir, name);
+        // Sub-folders are allowed (qa/shot.png) but nothing may land outside exports/.
+        const file = path.resolve(exportDir, url.searchParams.get('name') ?? 'export.mp4');
+        if (!file.startsWith(exportDir + path.sep)) {
+          res.statusCode = 400;
+          res.end('bad name');
+          return;
+        }
+        fs.mkdirSync(path.dirname(file), { recursive: true });
         if (url.searchParams.has('start')) {
           fs.writeFileSync(file, '');
           res.end('ok');

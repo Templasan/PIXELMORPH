@@ -21,6 +21,13 @@ const FPS = 30;
 const AUDIO_WINDOW_MS = 10_000;
 const GIF_PALETTE_SAMPLES = 12;
 
+/** A new file per export: an export never overwrites an earlier one. */
+function exportName(ext: string): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `pixelmorph-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+}
+
 export interface ExportRequest {
   comp: Composition;
   bitrate: number;
@@ -44,6 +51,7 @@ export interface ExportOutcome {
  */
 export async function exportComposition(pool: MediaPool, req: ExportRequest): Promise<ExportOutcome> {
   const { comp } = req;
+  if (comp.durationMs <= 0) throw new Error('A linha do tempo está vazia: nada para exportar.');
   const canvas = new OffscreenCanvas(comp.width, comp.height);
   const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: !!req.gif })!;
   const frameAt = async (t: number) => {
@@ -75,7 +83,7 @@ async function mp4(
   const { comp, sink } = req;
   const endMs = comp.durationMs;
   const total = Math.max(1, Math.floor((endMs / 1000) * FPS));
-  await sink.start('pixelmorph-export.mp4');
+  await sink.start(exportName('mp4'));
   let bytes = 0;
   let writes = Promise.resolve();
   const writable = new WritableStream<StreamTargetChunk>({
@@ -171,7 +179,7 @@ async function gif(
     req.onProgress(10 + Math.round(((f + 1) / total) * 85));
   }
   const bytes = writer.finish();
-  await sink.start('pixelmorph-export.gif');
+  await sink.start(exportName('gif'));
   await sink.write(0, bytes);
   const path = await sink.finish();
   req.onProgress(100);
