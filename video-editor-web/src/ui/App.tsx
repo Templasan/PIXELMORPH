@@ -205,6 +205,7 @@ function Toolbar({
         <Tool icon="music" label="Áudio" onClick={() => onMedia('audio')} />
         <Tool icon="type" label="Texto" onClick={() => session.addText()} />
         <Tool icon="crop" label="Formato" onClick={onFormat} />
+        <RippleTool session={session} />
       </nav>
     );
   }
@@ -227,7 +228,23 @@ function Toolbar({
       )}
       <Tool icon="copy" label="Duplicar" onClick={() => session.duplicateSelected()} />
       <Tool icon="trash" label="Excluir" danger onClick={() => session.deleteSelected()} />
+      <RippleTool session={session} />
     </nav>
+  );
+}
+
+/** Vegas-style auto ripple: trims and deletes move the clips after the edit on the same track. */
+function RippleTool({ session }: { session: EditorSession }) {
+  const on = useStore(session.editor.store, (s) => s.rippleMode);
+  return (
+    <button
+      className={`tool${on ? ' on' : ''}`}
+      aria-pressed={on}
+      onClick={() => session.editor.toggleRipple()}
+    >
+      <Icon name="ripple" />
+      Ripple {on ? 'ligado' : 'desligado'}
+    </button>
   );
 }
 

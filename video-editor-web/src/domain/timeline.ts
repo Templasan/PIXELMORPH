@@ -333,3 +333,50 @@ export function topClipAt(tracks: readonly Track[], timeMs: number): Clip | null
   }
   return null;
 }
+
+/**
+ * Ripple trims (Vegas "auto ripple" on the edited track): the clip keeps its start, its length
+ * changes, and every clip after it on the track moves by the same amount (gaps between them
+ * kept). It can grow into the next clip's place, pushing it, unlike a plain trim.
+ */
+export function rippleTrim(
+  tracks: Track[],
+  trackId: string,
+  clipId: string,
+  edge: 'in' | 'out',
+  pointMs: number
+): Track[] {
+  const found = findTrackAndClip(tracks, trackId, clipId);
+  if (!found || found.clip.frozen) return tracks;
+  const { clip } = found;
+  const speed = clip.speed ?? 1;
+  const minLen = MIN_CLIP_DURATION_MS * speed;
+  const next =
+    edge === 'out'
+      ? { ...clip, outPointMs: Math.max(clip.inPointMs + minLen, Math.min(pointMs, clip.sourceDurationMs)) }
+      : { ...clip, inPointMs: Math.max(0, Math.min(pointMs, clip.outPointMs - minLen)) };
+  const oldEnd = clipEndMs(clip);
+  const delta = clipEndMs(next) - oldEnd;
+  return tracks.map((t) =>
+    t.id === trackId
+      ? {
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId
+              ? next
+              : c.startMs >= oldEnd - 1e-6
+                ? { ...c, startMs: Math.max(0, c.startMs + delta) }
+                : c
+          ),
+        }
+      : t
+  );
+}
+
+/** Ripple delete: removes the clip and moves what came after it on its track back by its length. */
+export function rippleDelete(tracks: Track[], trackId: string, clipId: string): Track[] {
+  const found = findTrackAndClip(tracks, trackId, clipId);
+  if (!found) return tracks;
+  const end = clipEndMs(found.clip);
+  return rippleShiftAfter(removeClip(tracks, trackId, clipId), trackId, end, -clipDurationMs(found.clip));
+}
