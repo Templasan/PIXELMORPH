@@ -1,0 +1,671 @@
+import {
+  createClip,
+  clipDurationMs,
+  clipEndMs,
+  type Clip,
+  type Track,
+} from '../src/domain/Track';
+import {
+  ensureImageTrack,
+  topClipAt,
+  trackDurationMs,
+  timelineDurationMs,
+  moveClip,
+  trimClipIn,
+  trimClipOut,
+  splitClipAtMs,
+  appendClip,
+  removeClip,
+  findClip,
+  rippleShiftAfter,
+  buildTimelapseTrack,
+  MIN_CLIP_DURATION_MS,
+} from '../src/domain/timeline';
+import {
+  msToFrame,
+  frameToMs,
+  stepFrameMs,
+  formatTimecode,
+  DEFAULT_FPS,
+} from '../src/domain/frameMath';
+import {
+  clampTransitionDurationMs,
+  setTransition,
+  previousClipOf,
+} from '../src/domain/transitions';
+import { insertFreezeFrame } from '../src/domain/freezeFrame';
+import { clampFadeMs, volumeAtOffset } from '../src/domain/audio';
+
+function makeTrack(id: string, clips: ReturnType<typeof createClip>[]): Track {
+  return { id, name: id, kind: 'video', visible: true, locked: false, clips };
+}
+
+describe('Track / clipDurationMs / clipEndMs', () => {
+  it('a normal clip duration is outPoint - inPoint', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a.mp4',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      inPointMs: 1000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs(clip)).toBe(3000);
+    expect(clipEndMs(clip)).toBe(3000);
+  });
+
+  it('a frozen clip duration comes from holdMs, not in/out points', () => {
+    const clip = {
+      ...createClip({
+        name: 'F',
+        sourceUri: 'a.mp4',
+        color: '#fff',
+        startMs: 5000,
+        sourceDurationMs: 10000,
+        inPointMs: 2000,
+        outPointMs: 2000,
+      }),
+      frozen: true,
+      holdMs: 1500,
+    };
+    expect(clipDurationMs(clip)).toBe(1500);
+    expect(clipEndMs(clip)).toBe(6500);
+  });
+});
+
+describe('trackDurationMs / timelineDurationMs', () => {
+  it('is the furthest clip end on the track', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 5000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 5000,
+      sourceDurationMs: 3000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    expect(trackDurationMs(track)).toBe(8000);
+  });
+
+  it('timelineDurationMs is the max across all tracks', () => {
+    const short = makeTrack('t1', [
+      createClip({ name: 'A', sourceUri: 'a', color: '#fff', startMs: 0, sourceDurationMs: 2000 }),
+    ]);
+    const long = makeTrack('t2', [
+      createClip({ name: 'B', sourceUri: 'b', color: '#fff', startMs: 0, sourceDurationMs: 9000 }),
+    ]);
+    expect(timelineDurationMs([short, long])).toBe(9000);
+  });
+});
+
+describe('moveClip', () => {
+  it('moves freely into empty space', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = moveClip([track], 't1', a.id, 5000);
+    expect(result[0].clips[0].startMs).toBe(5000);
+  });
+
+  it('never goes negative', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 1000,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = moveClip([track], 't1', a.id, -500);
+    expect(result[0].clips[0].startMs).toBe(0);
+  });
+
+  it('snaps against a neighbor instead of overlapping it', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 2000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 5000,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    // Drag A to overlap B's start (5000) — should snap to just before B (3000) since that's closer.
+    const result = moveClip([track], 't1', a.id, 4200);
+    const clipA = result[0].clips.find((c) => c.id === a.id)!;
+    expect(clipEndMs(clipA)).toBeLessThanOrEqual(5000);
+  });
+
+  it('reorders clips by dragging one past another', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 1000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 1000,
+      sourceDurationMs: 1000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    // Drag A well past B's start (closer to landing after B than snapping back before it).
+    const result = moveClip([track], 't1', a.id, 1500);
+    const clipA = result[0].clips.find((c) => c.id === a.id)!;
+    const clipB = result[0].clips.find((c) => c.id === b.id)!;
+    expect(clipA.startMs).toBeGreaterThanOrEqual(clipEndMs(clipB) - 1);
+  });
+});
+
+describe('trimClipIn / trimClipOut', () => {
+  it('trimming the in-point keeps the out-point fixed and shortens duration', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      inPointMs: 0,
+      outPointMs: 5000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = trimClipIn([track], 't1', a.id, 2000);
+    const clip = result[0].clips[0];
+    expect(clip.inPointMs).toBe(2000);
+    expect(clip.outPointMs).toBe(5000);
+    expect(clipDurationMs(clip)).toBe(3000);
+  });
+
+  it('trimming the in-point never shrinks below MIN_CLIP_DURATION_MS', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      inPointMs: 0,
+      outPointMs: 1000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = trimClipIn([track], 't1', a.id, 999);
+    const clip = result[0].clips[0];
+    expect(clipDurationMs(clip)).toBeGreaterThanOrEqual(MIN_CLIP_DURATION_MS);
+  });
+
+  it('trimming the out-point cannot exceed the source duration', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 5000,
+      inPointMs: 0,
+      outPointMs: 3000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = trimClipOut([track], 't1', a.id, 99999);
+    expect(result[0].clips[0].outPointMs).toBe(5000);
+  });
+
+  it('trimming the out-point cannot push past the next clip', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      inPointMs: 0,
+      outPointMs: 2000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 3000,
+      sourceDurationMs: 5000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    const result = trimClipOut([track], 't1', a.id, 9000);
+    const clip = result[0].clips.find((c) => c.id === a.id)!;
+    expect(clipEndMs(clip)).toBeLessThanOrEqual(3000);
+  });
+});
+
+describe('splitClipAtMs', () => {
+  it('splits into two clips sharing the same source with correct in/out ranges', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      inPointMs: 1000,
+      outPointMs: 5000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = splitClipAtMs([track], 't1', a.id, 2000); // 2000ms into the track = source ms 3000
+    expect(result[0].clips).toHaveLength(2);
+    const [first, second] = [...result[0].clips].sort((x, y) => x.startMs - y.startMs);
+    expect(first.outPointMs).toBe(3000);
+    expect(second.inPointMs).toBe(3000);
+    expect(second.startMs).toBe(2000);
+    expect(clipEndMs(first)).toBe(second.startMs);
+  });
+
+  it('refuses to split too close to either edge', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      outPointMs: 300,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = splitClipAtMs([track], 't1', a.id, 50);
+    expect(result[0].clips).toHaveLength(1);
+  });
+});
+
+describe('appendClip / removeClip / findClip', () => {
+  it('appends immediately after the current track end (no gap)', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 3000,
+    });
+    const track = makeTrack('t1', [a]);
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 999,
+      sourceDurationMs: 2000,
+    });
+    const result = appendClip([track], 't1', b);
+    const appended = result[0].clips.find((c) => c.id === b.id)!;
+    expect(appended.startMs).toBe(3000);
+  });
+
+  it('removeClip drops the clip; findClip locates it across tracks', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 3000,
+    });
+    const track = makeTrack('t1', [a]);
+    expect(findClip([track], a.id)?.clip.id).toBe(a.id);
+    const result = removeClip([track], 't1', a.id);
+    expect(result[0].clips).toHaveLength(0);
+    expect(findClip(result, a.id)).toBeNull();
+  });
+});
+
+describe('rippleShiftAfter', () => {
+  it('shifts every clip at/after the cut point by the delta', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 2000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 2000,
+      sourceDurationMs: 3000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    const result = rippleShiftAfter([track], 't1', 2000, -500);
+    expect(result[0].clips.find((c) => c.id === a.id)?.startMs).toBe(0);
+    expect(result[0].clips.find((c) => c.id === b.id)?.startMs).toBe(1500);
+  });
+
+  it('never shifts a clip before the cut point', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = rippleShiftAfter([track], 't1', 5000, -500);
+    expect(result[0].clips[0].startMs).toBe(0);
+  });
+
+  it('clamps at zero rather than going negative', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 100,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = rippleShiftAfter([track], 't1', 0, -500);
+    expect(result[0].clips[0].startMs).toBe(0);
+  });
+});
+
+describe('frameMath', () => {
+  it('msToFrame / frameToMs round-trip at the default fps', () => {
+    expect(msToFrame(1000, DEFAULT_FPS)).toBe(30);
+    expect(frameToMs(30, DEFAULT_FPS)).toBe(1000);
+  });
+
+  it('stepFrameMs advances by exactly one frame and clamps to [0, maxMs]', () => {
+    const oneFrameMs = 1000 / DEFAULT_FPS;
+    expect(stepFrameMs(0, 1, 5000)).toBeCloseTo(oneFrameMs);
+    expect(stepFrameMs(0, -1, 5000)).toBe(0);
+    expect(stepFrameMs(4990, 1, 5000)).toBe(5000);
+  });
+
+  it('formatTimecode renders HH:MM:SS:FF', () => {
+    expect(formatTimecode(0)).toBe('00:00:00:00');
+    expect(formatTimecode(65_500, 30)).toBe('00:01:05:15');
+  });
+});
+
+describe('transitions', () => {
+  it('clamps a transition to half of the shorter neighboring clip', () => {
+    const prev = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 1000,
+    }); // 1000ms
+    const clip = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 1000,
+      sourceDurationMs: 400,
+    }); // 400ms
+    expect(clampTransitionDurationMs(1000, prev, clip)).toBe(200);
+  });
+
+  it('setTransition attaches to the target clip only', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 1000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 1000,
+      sourceDurationMs: 1000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    const result = setTransition([track], 't1', b.id, { type: 'fade', durationMs: 300 });
+    expect(result[0].clips.find((c) => c.id === b.id)?.transitionIn?.type).toBe('fade');
+    expect(result[0].clips.find((c) => c.id === a.id)?.transitionIn).toBeUndefined();
+  });
+
+  it('previousClipOf finds the clip immediately before by startMs', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 1000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 1000,
+      sourceDurationMs: 1000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    expect(previousClipOf(track, b)?.id).toBe(a.id);
+    expect(previousClipOf(track, a)).toBeNull();
+  });
+});
+
+describe('insertFreezeFrame', () => {
+  it('splits the clip and inserts a held segment of the requested duration', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      outPointMs: 5000,
+    });
+    const track = makeTrack('t1', [a]);
+    const result = insertFreezeFrame([track], 't1', a.id, 2000, 1500);
+    expect(result[0].clips).toHaveLength(3);
+    const frozen = result[0].clips.find((c) => c.frozen);
+    expect(frozen).toBeDefined();
+    expect(clipDurationMs(frozen!)).toBe(1500);
+    expect(frozen!.startMs).toBe(2000);
+  });
+
+  it('ripples later clips on the same track forward by the hold duration', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      outPointMs: 5000,
+    });
+    const b = createClip({
+      name: 'B',
+      sourceUri: 'b',
+      color: '#fff',
+      startMs: 5000,
+      sourceDurationMs: 2000,
+    });
+    const track = makeTrack('t1', [a, b]);
+    const result = insertFreezeFrame([track], 't1', a.id, 2000, 1000);
+    const clipB = result[0].clips.find((c) => c.id === b.id)!;
+    expect(clipB.startMs).toBe(6000);
+  });
+
+  it('ripples clips on other tracks that start after the freeze point', () => {
+    const a = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 10000,
+      outPointMs: 5000,
+    });
+    const text = createClip({
+      name: 'T',
+      sourceUri: 't',
+      color: '#fff',
+      startMs: 3000,
+      sourceDurationMs: 1000,
+    });
+    const videoTrack = makeTrack('t1', [a]);
+    const textTrack = makeTrack('t2', [text]);
+    const result = insertFreezeFrame([videoTrack, textTrack], 't1', a.id, 2000, 800);
+    const clipText = result[1].clips.find((c) => c.id === text.id)!;
+    expect(clipText.startMs).toBe(3800);
+  });
+});
+
+describe('clipDurationMs with speed (RF-049)', () => {
+  it('defaults to 1x when speed is unset', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs(clip)).toBe(4000);
+  });
+
+  it('halves the on-track duration at 2x speed', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, speed: 2 })).toBe(2000);
+  });
+
+  it('doubles the on-track duration at 0.5x slow-mo', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, speed: 0.5 })).toBe(8000);
+  });
+
+  it('ignores speed for a frozen (freeze-frame) clip', () => {
+    const clip = createClip({
+      name: 'A',
+      sourceUri: 'a',
+      color: '#fff',
+      startMs: 0,
+      sourceDurationMs: 4000,
+      outPointMs: 4000,
+    });
+    expect(clipDurationMs({ ...clip, frozen: true, holdMs: 1000, speed: 4 })).toBe(1000);
+  });
+});
+
+describe('buildTimelapseTrack (RF-023)', () => {
+  it('sequences each photo back-to-back with no gaps', () => {
+    const track = buildTimelapseTrack(
+      [
+        { uri: 'a.jpg', name: 'A' },
+        { uri: 'b.jpg', name: 'B' },
+        { uri: 'c.jpg', name: 'C' },
+      ],
+      200,
+      '#fff'
+    );
+    expect(track.kind).toBe('image');
+    expect(track.clips).toHaveLength(3);
+    expect(track.clips.map((c) => c.startMs)).toEqual([0, 200, 400]);
+    expect(track.clips.every((c) => c.outPointMs - c.inPointMs === 200)).toBe(true);
+  });
+
+  it('falls back to a numbered name when the photo has none', () => {
+    const track = buildTimelapseTrack([{ uri: 'a.jpg', name: '' }], 200, '#fff');
+    expect(track.clips[0].name).toBe('Foto 1');
+  });
+});
+
+describe('clampFadeMs / volumeAtOffset (RF-036)', () => {
+  const clip = createClip({
+    name: 'Trilha',
+    sourceUri: 'a',
+    color: '#fff',
+    startMs: 0,
+    sourceDurationMs: 10000,
+    outPointMs: 10000,
+  });
+
+  it('clamps a fade to the clip duration', () => {
+    expect(clampFadeMs(20000, clip)).toBe(10000);
+    expect(clampFadeMs(-5, clip)).toBe(0);
+    expect(clampFadeMs(2000, clip)).toBe(2000);
+  });
+
+  it('ramps volume up during fade-in and down during fade-out', () => {
+    const faded = { ...clip, fadeInMs: 1000, fadeOutMs: 1000 };
+    expect(volumeAtOffset(faded, 0)).toBe(0);
+    expect(volumeAtOffset(faded, 500)).toBeCloseTo(0.5);
+    expect(volumeAtOffset(faded, 5000)).toBe(1);
+    expect(volumeAtOffset(faded, 9500)).toBeCloseTo(0.5);
+    expect(volumeAtOffset(faded, 10000)).toBe(0);
+  });
+
+  it('scales by the clip volume', () => {
+    const quiet = { ...clip, volume: 50 };
+    expect(volumeAtOffset(quiet, 5000)).toBeCloseTo(0.5);
+  });
+});
+
+describe('image track and layering (US-14 / RF-005)', () => {
+  const clipAt = (startMs: number, length: number) =>
+    createClip({ name: 'c', sourceUri: 'u', color: '#000', startMs, sourceDurationMs: length });
+  const track = (id: string, kind: Track['kind'], clips: Clip[], visible = true): Track => ({
+    id,
+    name: id,
+    kind,
+    visible,
+    locked: false,
+    clips,
+  });
+
+  it('adds an empty image track after the last video track when none exists', () => {
+    const result = ensureImageTrack([
+      track('v1', 'video', []),
+      track('txt', 'text', []),
+      track('a1', 'audio', []),
+    ]);
+    expect(result.map((t) => t.kind)).toEqual(['video', 'image', 'text', 'audio']);
+  });
+
+  it('leaves a timeline that already has an image track untouched', () => {
+    const tracks = [track('v1', 'video', []), track('img', 'image', [])];
+    expect(ensureImageTrack(tracks)).toBe(tracks);
+  });
+
+  it('shows the image over the video where both have a clip', () => {
+    const video = clipAt(0, 5_000);
+    const image = clipAt(1_000, 2_000);
+    const tracks = [track('v1', 'video', [video]), track('img', 'image', [image])];
+    expect(topClipAt(tracks, 500)?.id).toBe(video.id);
+    expect(topClipAt(tracks, 1_500)?.id).toBe(image.id);
+    expect(topClipAt(tracks, 3_500)?.id).toBe(video.id);
+    expect(topClipAt(tracks, 9_000)).toBeNull();
+  });
+
+  it('ignores a hidden image track', () => {
+    const video = clipAt(0, 5_000);
+    const tracks = [
+      track('v1', 'video', [video]),
+      track('img', 'image', [clipAt(0, 5_000)], false),
+    ];
+    expect(topClipAt(tracks, 1_000)?.id).toBe(video.id);
+  });
+});

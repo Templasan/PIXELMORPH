@@ -7,6 +7,8 @@ module.exports = {
   setupFiles: ['<rootDir>/jest.setup.cjs'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/tests/**/*.test.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
+  // The standalone web editor has its own test runner (vitest).
+  testPathIgnorePatterns: ['/node_modules/', '/video-editor-web/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@core/(.*)$': '<rootDir>/src/core/$1',
