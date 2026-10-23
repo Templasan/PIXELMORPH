@@ -17,7 +17,7 @@ import type { AudioSpan } from './webScene';
  *    clip on the same track ends where this one starts. The outgoing clip keeps playing during it
  *    (it reads past its out point while the source has frames, then holds its last frame).
  *  - Sound: every visible video clip's own audio plus every audio-track clip, all mixed.
- *  - The video lasts until the end of the last visible clip on any track.
+ *  - The video lasts until its last picture (video, photo or text) ends; sound past it is cut.
  */
 
 export interface Rect {
@@ -80,8 +80,6 @@ interface CaptionClip {
 export interface Composition {
   width: number;
   height: number;
-  /** 'cover': the bottom layer fills the frame, cropping (export presets); default fits inside. */
-  fit: 'contain' | 'cover';
   durationMs: number;
   layers: MediaLayer[];
   captions: CaptionClip[];
@@ -91,7 +89,6 @@ export interface Composition {
 export interface CompositionOptions {
   width?: number;
   height?: number;
-  fit?: 'contain' | 'cover';
   /** The file to decode for a clip's source (a preview proxy); default: the source itself. */
   mapUri?: (sourceUri: string) => string;
 }
@@ -99,13 +96,21 @@ export interface CompositionOptions {
 /** Last frame a video clip may show: just before its out point (that instant is the next clip's). */
 const FRAME_EPSILON_MS = 1;
 
+/**
+ * The video ends with its last picture (video, photo or text): a song longer than the video is
+ * cut there. A timeline with only sound lasts as long as the sound.
+ */
 export function compositionDurationMs(tracks: readonly Track[]): number {
-  let end = 0;
+  let picture = 0;
+  let sound = 0;
   for (const t of tracks) {
     if (!t.visible) continue;
-    for (const c of t.clips) end = Math.max(end, clipEndMs(c));
+    for (const c of t.clips) {
+      if (t.kind === 'audio') sound = Math.max(sound, clipEndMs(c));
+      else picture = Math.max(picture, clipEndMs(c));
+    }
   }
-  return end;
+  return picture > 0 ? picture : sound;
 }
 
 export function buildComposition(
@@ -136,7 +141,6 @@ export function buildComposition(
   return {
     width: opts.width ?? 1920,
     height: opts.height ?? 1080,
-    fit: opts.fit ?? 'contain',
     durationMs: compositionDurationMs(tracks),
     layers,
     captions,
@@ -203,8 +207,7 @@ function mediaOp(
   clip: Clip,
   t: number,
   role: 'in' | 'out',
-  transform: { opacity: number; translateX: number; scale: number },
-  bottom: boolean
+  transform: { opacity: number; translateX: number; scale: number }
 ): MediaOp {
   const cc = clip.colorCorrection ?? 0;
   const image = layer.image;
@@ -215,7 +218,7 @@ function mediaOp(
     uri: clip.sourceUri,
     sourceTimeMs: image ? 0 : role === 'out' ? sourceTimeOf(clip, t) : clampIn(clip, t),
     rect: rectOf(clip, c.width, c.height),
-    fit: bottom && c.fit === 'cover' && !clip.pipSize ? 'cover' : 'contain',
+    fit: clip.fill ? 'cover' : 'contain',
     opacity: transform.opacity,
     translateX: transform.translateX,
     scale: transform.scale,
@@ -237,25 +240,24 @@ const NO_TRANSFORM = { opacity: 1, translateX: 0, scale: 1 };
 export function opsAt(c: Composition, t: number): CompositionOp[] {
   const ops: CompositionOp[] = [{ kind: 'clear', color: '#000000' }];
   if (t < 0 || t >= c.durationMs) return ops;
-  c.layers.forEach((layer, index) => {
+  for (const layer of c.layers) {
     const i = clipAt(layer.clips, t);
-    if (i < 0) return;
+    if (i < 0) continue;
     const clip = layer.clips[i];
     const prev = layer.clips[i - 1];
     const spec = clip.transitionIn;
-    const bottom = index === 0;
     if (spec && prev && Math.abs(clipEndMs(prev) - clip.startMs) < 1) {
       const d = clampTransitionMs(spec.durationMs, clipDurationMs(prev), clipDurationMs(clip));
       if (d > 0 && t < clip.startMs + d) {
         const mode = effectiveMode(spec.type, spec.mode);
         const tf = transitionTransforms(spec.type, mode, (t - clip.startMs) / d, c.width);
-        ops.push(mediaOp(c, layer, clip, t, 'in', tf.incoming, bottom));
-        ops.push(mediaOp(c, layer, prev, t, 'out', tf.outgoing, bottom));
-        return;
+        ops.push(mediaOp(c, layer, clip, t, 'in', tf.incoming));
+        ops.push(mediaOp(c, layer, prev, t, 'out', tf.outgoing));
+        continue;
       }
     }
-    ops.push(mediaOp(c, layer, clip, t, 'in', NO_TRANSFORM, bottom));
-  });
+    ops.push(mediaOp(c, layer, clip, t, 'in', NO_TRANSFORM));
+  }
   for (const cap of c.captions) {
     const st = captionAt(cap.text, cap.startMs, cap.durationMs, t, c.width, c.height);
     if (!st) continue;

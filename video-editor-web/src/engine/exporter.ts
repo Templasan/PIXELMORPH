@@ -1,0 +1,185 @@
+import {
+  AudioBufferSource,
+  canEncodeAudio,
+  CanvasSource,
+  Mp4OutputFormat,
+  Output,
+  StreamTarget,
+  type StreamTargetChunk,
+  type VideoSample,
+} from 'mediabunny';
+import { opsAt, type Composition, type MediaOp } from '../domain/composition';
+import { GifPalette, GifWriter, gifDelayCs } from '../domain/gifEncoder';
+import { GIF_MAX_DURATION_MS } from '../domain/gifPlan';
+import type { ExportSink } from '../ports/host';
+import { mixWindow } from './audio';
+import { drawFrame } from './draw';
+import type { MediaPool } from './media';
+
+const FPS = 30;
+/** Sound goes in windows this long, just ahead of the frames, so the muxer can interleave. */
+const AUDIO_WINDOW_MS = 10_000;
+const GIF_PALETTE_SAMPLES = 12;
+
+export interface ExportRequest {
+  comp: Composition;
+  bitrate: number;
+  gif?: { fps: number; maxColors: number };
+  sink: ExportSink;
+  onProgress(percent: number): void;
+  isCancelled(): boolean;
+}
+
+export interface ExportOutcome {
+  path: string;
+  bytes: number;
+  durationMs: number;
+  frameCount: number;
+  truncated: boolean;
+}
+
+/**
+ * Frame-by-frame export of a composition with the SAME `opsAt` + `drawFrame` as the preview, on
+ * its own canvas and decoder slots (prefix 'x:'), so it never disturbs the preview's.
+ */
+export async function exportComposition(pool: MediaPool, req: ExportRequest): Promise<ExportOutcome> {
+  const { comp } = req;
+  const canvas = new OffscreenCanvas(comp.width, comp.height);
+  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: !!req.gif })!;
+  const frameAt = async (t: number) => {
+    const ops = opsAt(comp, t);
+    const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
+    await Promise.all(
+      ops.map(async (op) => {
+        if (op.kind === 'image') frames.set(op, await pool.picture(op.uri, comp.width));
+        if (op.kind !== 'video') return;
+        const feed = await pool.feed(`x:${op.key}`, op.uri);
+        frames.set(op, await feed.at(op.sourceTimeMs / 1000));
+      })
+    );
+    drawFrame(ctx, comp.width, comp.height, ops, (op) => frames.get(op) ?? null);
+  };
+  try {
+    return req.gif ? await gif(req, frameAt, ctx) : await mp4(pool, req, canvas, frameAt);
+  } finally {
+    pool.prune(new Set(), new Set()); // export decoders and files; the preview reopens what it needs
+  }
+}
+
+async function mp4(
+  pool: MediaPool,
+  req: ExportRequest,
+  canvas: OffscreenCanvas,
+  frameAt: (t: number) => Promise<void>
+): Promise<ExportOutcome> {
+  const { comp, sink } = req;
+  const endMs = comp.durationMs;
+  const total = Math.max(1, Math.floor((endMs / 1000) * FPS));
+  await sink.start('pixelmorph-export.mp4');
+  let bytes = 0;
+  let writes = Promise.resolve();
+  const writable = new WritableStream<StreamTargetChunk>({
+    write: (chunk) => {
+      bytes = Math.max(bytes, chunk.position + chunk.data.byteLength);
+      const data = chunk.data.slice();
+      writes = writes.then(() => sink.write(chunk.position, data));
+    },
+  });
+  const output = new Output({
+    format: new Mp4OutputFormat(),
+    target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
+  });
+  const hw = await VideoEncoder.isConfigSupported({
+    codec: 'avc1.640028',
+    width: comp.width,
+    height: comp.height,
+    bitrate: req.bitrate,
+    hardwareAcceleration: 'prefer-hardware',
+  }).then(
+    (r) => !!r.supported,
+    () => false
+  );
+  const video = new CanvasSource(canvas, {
+    codec: 'avc',
+    bitrate: req.bitrate,
+    keyFrameInterval: 1,
+    hardwareAcceleration: hw ? 'prefer-hardware' : 'no-preference',
+  });
+  output.addVideoTrack(video, { frameRate: FPS });
+  const codec = !comp.audio.length
+    ? null
+    : (await canEncodeAudio('aac'))
+      ? 'aac'
+      : (await canEncodeAudio('opus'))
+        ? 'opus'
+        : null;
+  const audio = codec ? new AudioBufferSource({ codec, bitrate: 128_000 }) : null;
+  if (audio) output.addAudioTrack(audio);
+  await output.start();
+  let audioMs = 0;
+  const audioUpTo = async (ms: number) => {
+    while (audio && audioMs < Math.min(ms, endMs)) {
+      const to = Math.min(audioMs + AUDIO_WINDOW_MS, endMs);
+      await audio.add(await mixWindow(comp.audio, (u) => pool.input(u), audioMs, to));
+      audioMs = to;
+    }
+  };
+  for (let f = 0; f < total; f += 1) {
+    if (req.isCancelled()) {
+      await output.cancel();
+      await writes.catch(() => {});
+      throw new Error('CANCELLED');
+    }
+    const t = (f * 1000) / FPS;
+    await audioUpTo(t + 1);
+    await frameAt(t);
+    await video.add(f / FPS, 1 / FPS);
+    if (f % 10 === 0) req.onProgress(Math.round((f / total) * 100));
+  }
+  await audioUpTo(endMs);
+  await output.finalize();
+  await writes;
+  const path = await sink.finish();
+  req.onProgress(100);
+  return { path, bytes, durationMs: endMs, frameCount: total, truncated: false };
+}
+
+async function gif(
+  req: ExportRequest,
+  frameAt: (t: number) => Promise<void>,
+  ctx: OffscreenCanvasRenderingContext2D
+): Promise<ExportOutcome> {
+  const { comp, sink } = req;
+  const { fps, maxColors } = req.gif!;
+  const endMs = Math.min(comp.durationMs, GIF_MAX_DURATION_MS);
+  const total = Math.max(1, Math.floor((endMs / 1000) * fps));
+  const pixelsAt = async (f: number) => {
+    if (req.isCancelled()) throw new Error('CANCELLED');
+    await frameAt((f * 1000) / fps);
+    return ctx.getImageData(0, 0, comp.width, comp.height).data;
+  };
+  const palette = new GifPalette();
+  const samples = Math.min(total, GIF_PALETTE_SAMPLES);
+  for (let s = 0; s < samples; s += 1) {
+    palette.addSample(await pixelsAt(Math.floor((s * total) / samples)));
+    req.onProgress(Math.round(((s + 1) / samples) * 10));
+  }
+  palette.build(maxColors);
+  const writer = new GifWriter(comp.width, comp.height, palette);
+  for (let f = 0; f < total; f += 1) {
+    writer.addFrame(await pixelsAt(f), gifDelayCs(f, fps));
+    req.onProgress(10 + Math.round(((f + 1) / total) * 85));
+  }
+  const bytes = writer.finish();
+  await sink.start('pixelmorph-export.gif');
+  await sink.write(0, bytes);
+  const path = await sink.finish();
+  req.onProgress(100);
+  return {
+    path,
+    bytes: bytes.length,
+    durationMs: endMs,
+    frameCount: total,
+    truncated: comp.durationMs > GIF_MAX_DURATION_MS,
+  };
+}
