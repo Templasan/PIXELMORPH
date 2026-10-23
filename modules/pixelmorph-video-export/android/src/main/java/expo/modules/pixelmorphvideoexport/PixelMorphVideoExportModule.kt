@@ -5,11 +5,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.heifwriter.HeifWriter
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -143,6 +147,35 @@ class PixelMorphVideoExportModule : Module() {
           promise.resolve(null)
         } finally {
           retriever.release()
+        }
+      }.start()
+    }
+
+    // RF-057: Android 9+ with a HEIC or HEVC encoder (HeifWriter uses either).
+    Function("heicSupported") {
+      heicSupported()
+    }
+
+    // Encodes the image file at `inputPath` (PNG/JPEG, plain path) into a HEIC at `outputPath`.
+    AsyncFunction("encodeHeic") { inputPath: String, outputPath: String, quality: Int, promise: Promise ->
+      if (!heicSupported()) {
+        promise.reject("ERR_HEIC", "HEIC_UNSUPPORTED", null)
+        return@AsyncFunction
+      }
+      Thread {
+        var bitmap: Bitmap? = null
+        try {
+          bitmap = BitmapFactory.decodeFile(inputPath)
+            ?: throw IllegalArgumentException("cannot decode $inputPath")
+          File(outputPath).delete()
+          writeHeic(bitmap, outputPath, quality.coerceIn(1, 100))
+          promise.resolve(mapOf("sizeBytes" to File(outputPath).length()))
+        } catch (error: Throwable) {
+          Log.e("PixelMorphExport", "encodeHeic failed", error)
+          File(outputPath).delete()
+          promise.reject("ERR_HEIC", error.message ?: "HEIC encode failed", error)
+        } finally {
+          bitmap?.recycle()
         }
       }.start()
     }
@@ -409,5 +442,31 @@ class PixelMorphVideoExportModule : Module() {
       .setEffects(Effects(audioProcessors, videoEffects))
       .apply { if (isImage) setFrameRate(30) }
       .build()
+  }
+
+  private fun heicSupported(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+    return MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+      info.isEncoder && info.supportedTypes.any {
+        it.equals(MediaFormat.MIMETYPE_IMAGE_ANDROID_HEIC, true) ||
+          it.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, true)
+      }
+    }
+  }
+
+  @androidx.annotation.RequiresApi(Build.VERSION_CODES.P)
+  private fun writeHeic(bitmap: Bitmap, outputPath: String, quality: Int) {
+    val writer = HeifWriter.Builder(outputPath, bitmap.width, bitmap.height, HeifWriter.INPUT_MODE_BITMAP)
+      .setQuality(quality)
+      .setMaxImages(1)
+      .build()
+    try {
+      writer.start()
+      writer.addBitmap(bitmap)
+      // 0 = wait until the file is complete.
+      writer.stop(0)
+    } finally {
+      writer.close()
+    }
   }
 }

@@ -62,6 +62,8 @@ interface NativeModule {
     uri: string
   ): Promise<{ width: number; height: number; rotation: number; durationMs: number } | null>;
   cancel(): void;
+  heicSupported(): boolean;
+  encodeHeic(inputPath: string, outputPath: string, quality: number): Promise<{ sizeBytes: number }>;
   addListener(event: 'onProgress', listener: (e: { progress: number }) => void): { remove(): void };
 }
 
@@ -101,4 +103,19 @@ export function probeVideo(
   uri: string
 ): Promise<{ width: number; height: number; rotation: number; durationMs: number } | null> {
   return native.probeVideo(uri);
+}
+
+/** RF-057: true on Android 9+ with a HEIC/HEVC encoder; HEIC export is offered only then. */
+export function heicSupported(): boolean {
+  return native.heicSupported();
+}
+
+/** Encodes an image file (PNG/JPEG) into a HEIC file; paths may be file:// URIs. */
+export function encodeHeic(
+  inputUri: string,
+  outputUri: string,
+  quality: number
+): Promise<{ sizeBytes: number }> {
+  const path = (uri: string) => decodeURI(uri.replace(/^file:\/\//, ''));
+  return native.encodeHeic(path(inputUri), path(outputUri), Math.round(quality));
 }
