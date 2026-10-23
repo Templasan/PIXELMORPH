@@ -270,12 +270,13 @@ button:disabled {
   font-size: 10px;
 }
 
+/* Sits on the junction above the clips, so it never covers a trim handle. */
 .transition-mark {
   position: absolute;
-  top: 50%;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
+  top: -7px;
+  width: 18px;
+  height: 16px;
+  margin-left: -9px;
   background: var(--barra);
   border: 1px solid var(--linha);
   border-radius: 4px;
@@ -511,4 +512,16 @@ button:disabled {
 .muted {
   color: var(--texto2);
   font-size: 12px;
+}
+
+@media (max-width: 400px) {
+  .transport {
+    padding: 0 8px;
+  }
+  .transport .icon-btn {
+    width: 34px;
+  }
+  .topbar .icon-btn {
+    width: 34px;
+  }
 }
