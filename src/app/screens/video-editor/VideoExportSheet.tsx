@@ -5,6 +5,7 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import { Icon } from '@core/ui';
 import { cancelEngineExport, exportWithEngine } from './engineExport';
 import { previewSession } from './previewSettings';
+import { pauseProxiesForExport, resumeProxies } from './previewProxy';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
@@ -108,6 +109,8 @@ export function VideoExportSheet({
     setSaveState('idle');
     setState({ phase: 'exporting', progress: 0 });
     const startedAt = Date.now();
+    // The hardware encoder is single-slot: the preview proxies stop before the export touches it.
+    await pauseProxiesForExport();
     try {
       if (format === 'gif') {
         if (cancelledRef.current) throw new Error('CANCELLED');
@@ -152,6 +155,7 @@ export function VideoExportSheet({
       });
     } finally {
       exportingRef.current = false;
+      resumeProxies();
     }
   }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight]);
 

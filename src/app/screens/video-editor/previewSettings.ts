@@ -5,13 +5,11 @@ import type { TierEnv, TierSetting } from './previewTier';
 
 /** Persisted app settings of the video editor's preview. */
 export interface PreviewSettings {
-  /** 'web': the WebCodecs engine (no preview audio yet). 'native': expo-video players. */
-  engine: 'web' | 'native';
   quality: TierSetting;
 }
 
 const KEY = 'pixelmorph.videoPreviewSettings';
-const DEFAULTS: PreviewSettings = { engine: 'web', quality: 'auto' };
+const DEFAULTS: PreviewSettings = { quality: 'auto' };
 
 export const previewSettings = createStore<PreviewSettings>(DEFAULTS);
 
@@ -24,7 +22,6 @@ export function loadPreviewSettings(): Promise<void> {
       if (!raw) return;
       const p = JSON.parse(raw) as Partial<PreviewSettings>;
       previewSettings.set({
-        engine: p.engine === 'web' ? 'web' : 'native',
         quality:
           p.quality === 'alta' || p.quality === 'media' || p.quality === 'baixa'
             ? p.quality

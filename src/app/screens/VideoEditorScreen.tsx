@@ -296,8 +296,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
   // Playhead lives in a store, not state: only the components that draw it subscribe.
   const timeStore = useRef(createTimeStore(0)).current;
   const setCurrentTimeMs = timeStore.set;
-  // Last manual seek (ruler drag/tap, frame step): the play clock must not snap back to a stale player position.
-  const lastSeekAtRef = useRef(0);
   const selected = selectedClipId ? findClip(tracks, selectedClipId) : null;
   const [bodyWidth, setBodyWidth] = useState(0);
   // RF-053: the divider between preview and timeline is draggable from 0.15 to 0.75; default
@@ -362,9 +360,10 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     for (const uri of videoSourceUris) requestSourceProxy(uri);
   }, [videoSourceUris]);
   // Nothing plays behind the overlay.
+  // Without the engine nothing advances the clock, so play would only flip the icon.
   useEffect(() => {
-    if (!mediaReady && playing) editor.setPlaying(false);
-  }, [mediaReady, playing, editor]);
+    if ((!mediaReady || engineFallback) && playing) editor.setPlaying(false);
+  }, [mediaReady, engineFallback, playing, editor]);
 
   const totalDurationMs = Math.max(1000, timelineDurationMs(tracks));
   const msPerPx = bodyWidth > 0 ? totalDurationMs / bodyWidth : 0;
@@ -404,10 +403,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         : null,
     [loopReview, selStart, selEnd, totalDurationMs]
   );
-  useEffect(() => {
-    // The web engine owns the clock and reports time into timeStore.
-    // No native player clock to sync with anymore.
-  }, []);
 
   // RF-021: detect if selected clip is 360° video
   // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an
@@ -445,7 +440,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     (x: number) => {
       if (bodyWidth <= 0) return;
       const pct = Math.max(0, Math.min(1, (x - TRACK_HEADER_WIDTH) / bodyWidth));
-      lastSeekAtRef.current = Date.now();
       setCurrentTimeMs(pct * totalDurationMs);
     },
     [bodyWidth, totalDurationMs]
@@ -486,7 +480,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const stepFrame = useCallback(
     (direction: 1 | -1) => {
-      lastSeekAtRef.current = Date.now();
       setCurrentTimeMs((t) => stepFrameMs(t, direction, totalDurationMs, DEFAULT_FPS));
     },
     [totalDurationMs]
