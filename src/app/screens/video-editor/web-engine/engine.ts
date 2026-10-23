@@ -22,8 +22,15 @@ import { Feed } from './feed';
 import { BlockReader } from './blockReader';
 import { createDropMonitor } from '../previewTier';
 import { AudioMixer, mixWindow } from './audio';
-import { encode as encodeGif } from 'modern-gif';
+import {
+  GifPalette,
+  GifWriter,
+  gifDelayCs,
+} from '../../../../modules/video-editor/domain/gifEncoder';
 import { GIF_MAX_DURATION_MS } from '../../../../modules/video-editor/domain/gifPlan';
+
+/** Frames spread over the GIF whose colours build its palette. */
+const GIF_PALETTE_SAMPLES = 12;
 
 /**
  * SPIKE web engine (runs inside a WebView). One canvas, one decoder slot per (layer, source), and
@@ -734,8 +741,10 @@ export class Engine {
   }
 
   /**
-   * Animated GIF: the same drawOps per frame (text, tint, pictures, transitions included), then
-   * quantised and LZW-encoded in the page by modern-gif. Capped at GIF_MAX_DURATION_MS.
+   * Animated GIF: the same drawOps per frame (text, tint, pictures, transitions included). The
+   * palette comes from a few frames spread over the GIF; then each frame is mapped and LZW-encoded
+   * as soon as it is drawn, so memory holds the compressed GIF, not every RGBA frame.
+   * Capped at GIF_MAX_DURATION_MS.
    */
   private async encodeGif(job: ExportJob, prefix: string): Promise<ExportResult> {
     const { scene } = job;
@@ -744,11 +753,9 @@ export class Engine {
     const total = Math.max(1, Math.floor((endMs / 1000) * fps));
     const canvas = new OffscreenCanvas(scene.width, scene.height);
     const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true })!;
-    const frames: { data: Uint8ClampedArray<ArrayBuffer>; delay: number }[] = [];
-    for (let f = 0; f < total; f += 1) {
+    const pixelsAt = async (f: number) => {
       if (job.isCancelled()) throw new Error('CANCELLED');
-      const t = (f * 1000) / fps;
-      const ops = drawListAt(scene, t);
+      const ops = drawListAt(scene, (f * 1000) / fps);
       await this.picturesOf(ops, scene.width);
       const feedMap = await this.feedsOf(ops, prefix);
       const got = new Map<DrawOp, import('mediabunny').VideoSample | null>();
@@ -758,13 +765,23 @@ export class Engine {
         })
       );
       this.drawOps(ops, (op) => got.get(op) ?? null, ctx, scene);
-      const { data } = ctx.getImageData(0, 0, scene.width, scene.height);
-      frames.push({ data: new Uint8ClampedArray(data), delay: 1000 / fps });
-      job.onProgress(Math.round(((f + 1) / total) * 90));
+      return ctx.getImageData(0, 0, scene.width, scene.height).data;
+    };
+
+    const palette = new GifPalette();
+    const samples = Math.min(total, GIF_PALETTE_SAMPLES);
+    for (let s = 0; s < samples; s += 1) {
+      palette.addSample(await pixelsAt(Math.floor((s * total) / samples)));
+      job.onProgress(Math.round(((s + 1) / samples) * 10));
     }
-    const bytes = new Uint8Array(
-      await encodeGif({ width: scene.width, height: scene.height, frames, maxColors })
-    );
+    palette.build(maxColors);
+
+    const writer = new GifWriter(scene.width, scene.height, palette);
+    for (let f = 0; f < total; f += 1) {
+      writer.addFrame(await pixelsAt(f), gifDelayCs(f, fps));
+      job.onProgress(10 + Math.round(((f + 1) / total) * 85));
+    }
+    const bytes = writer.finish();
     job.onProgress(97);
     await this.host.startExport('gif');
     const CHUNK = 4 * 1024 * 1024;
