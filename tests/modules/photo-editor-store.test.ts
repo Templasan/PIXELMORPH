@@ -202,6 +202,8 @@ describe('photo editor store — Elementos (text, shapes, memes, stickers)', () 
     const memes = state().layers.filter((l) => l.name.startsWith('Meme'));
     expect(memes.map((l) => l.text!.y)).toEqual([0.12, 0.88]);
     editor.addSticker('🔥');
-    expect(state().layers.find((l) => l.id === state().selectedLayerId)!.text!.content).toBe('🔥');
+    const sticker = state().layers.find((l) => l.id === state().selectedLayerId)!;
+    expect(sticker.text!.content).toBe('🔥');
+    expect(sticker.text!.strokeWidth).toBe(0);
   });
 });

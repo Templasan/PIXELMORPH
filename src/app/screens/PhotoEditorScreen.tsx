@@ -1143,8 +1143,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
         />
       )}
 
-      {/* Also until the undo log has loaded: an edit made before it replays was lost from undo. */}
-      {(!photoReady || !history.ready) && (
+      {/* Also until the undo log and saved layers have loaded: an edit made before they replay
+          was lost (undo) or overwritten (layers are replaced on hydration). */}
+      {(!photoReady || !history.ready || !layersHydrated) && (
         <PreparingMediaOverlay progress={photoGate.progress} onBack={() => navigation.goBack()} />
       )}
     </SafeAreaView>

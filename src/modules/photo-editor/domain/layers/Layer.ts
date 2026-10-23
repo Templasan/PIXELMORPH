@@ -148,7 +148,8 @@ export function createTextLayer(
       color: options.color ?? '#FFFFFF',
       shadow: options.shadow ?? false,
       strokeColor: options.strokeColor ?? '#000000',
-      strokeWidth: options.strokeWidth ?? 0,
+      // White text needs a dark outline to stay readable on light photos.
+      strokeWidth: options.strokeWidth ?? 2,
       entrada: options.entrada ?? 0,
       saida: options.saida ?? 100,
     },

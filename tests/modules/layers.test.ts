@@ -42,7 +42,9 @@ describe('createTextLayer', () => {
     expect(layer.text?.x).toBe(0.5);
     expect(layer.text?.y).toBe(0.5);
     expect(layer.text?.shadow).toBe(false);
-    expect(layer.text?.strokeWidth).toBe(0);
+    // White text gets a dark outline by default so it reads on light photos.
+    expect(layer.text?.strokeWidth).toBe(2);
+    expect(layer.text?.strokeColor).toBe('#000000');
   });
 
   it('applies the given style options over the defaults', () => {
