@@ -496,7 +496,7 @@ describe('insertFreezeFrame', () => {
     expect(clipB.startMs).toBe(6000);
   });
 
-  it('ripples clips on other tracks that start after the freeze point', () => {
+  it('leaves other tracks where they are (only its own track is pushed)', () => {
     const a = createClip({
       name: 'A',
       sourceUri: 'a',
@@ -516,7 +516,7 @@ describe('insertFreezeFrame', () => {
     const textTrack = makeTrack('t2', [text]);
     const result = insertFreezeFrame([videoTrack, textTrack], 't1', a.id, 2000, 800);
     const clipText = result[1].clips.find((c) => c.id === text.id)!;
-    expect(clipText.startMs).toBe(3800);
+    expect(clipText.startMs).toBe(3000);
   });
 });
 

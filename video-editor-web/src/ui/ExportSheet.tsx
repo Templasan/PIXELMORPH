@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../application/session';
 import { frameSize } from '../domain/format';
 import { formatTimecode } from '../domain/frameMath';
@@ -54,6 +54,11 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   };
 
   const running = state.phase === 'running';
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !running && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [running, onClose]);
   return (
     <div className="sheet-veil" onClick={() => !running && onClose()}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>

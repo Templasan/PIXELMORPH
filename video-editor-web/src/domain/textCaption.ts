@@ -68,6 +68,8 @@ export interface CaptionState {
   /** Centre in frame pixels, animation offset included. */
   cx: number;
   cy: number;
+  /** The vertical part of the animation offset in `cy` (0 when still). */
+  offsetY: number;
   fontPx: number;
   scale: number;
   opacity: number;
@@ -155,7 +157,9 @@ export function captionAt(
     text: t.content.slice(0, count),
     cx: t.x * w + s.dx,
     cy: t.y * h + s.dy,
-    fontPx: t.size * h,
+    offsetY: s.dy,
+    // Of the frame's short side: the same text is not twice as big in a 9:16 video.
+    fontPx: t.size * Math.min(w, h),
     scale: s.scale,
     opacity: s.opacity,
   };
