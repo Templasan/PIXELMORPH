@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SkImage } from '@shopify/react-native-skia';
 import {
   IMAGE_FORMATS,
-  UNSUPPORTED_IMAGE_FORMATS,
   SIZE_PRESETS,
   SOCIAL_PRESETS,
   formatBytes,
@@ -29,6 +28,7 @@ import {
   type ImageExportFormat,
 } from '@modules/export';
 import { saveImageToGallery } from '@modules/device-media';
+import { encodeHeicImage, heicSupported } from './heicExport';
 import { errorLogger } from '@core/reliability';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { Icon, Slider, Switch, Tabs } from '@core/ui';
@@ -55,6 +55,8 @@ const DPI_OPTIONS = ['72', '150', '300', '600'];
 const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '↓', '↘'];
 const GRID_ALIGN = ['flex-start', 'center', 'flex-end'] as const;
 const WATERMARK_COLOR = '#FFFFFF';
+/** RF-057: the platform HEIC encoder exists only on Android 9+. */
+const HEIC_AVAILABLE = heicSupported();
 
 /** Every choice the user makes in the sheet (transient results and errors are not in here). */
 export interface ExportOptions {
@@ -148,6 +150,8 @@ export function ExportSheet({
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [result, setResult] = useState<EncodedImage | null>(null);
+  // HEIC results show the JPEG they were made from (HEIC does not display everywhere).
+  const [previewBase64, setPreviewBase64] = useState<string | null>(null);
   const [previewWidth, setPreviewWidth] = useState(300);
   const previewFontSize = watermarkFontSize(previewWidth, wmSize);
   const previewShadow = watermarkShadow(previewFontSize);
@@ -217,12 +221,22 @@ export function ExportSheet({
           })
         : sized;
 
+      if (format === 'HEIC') {
+        // Target size is not offered for HEIC: each probe would be a native re-encode.
+        const { heic, preview } = await encodeHeicImage(image, quality);
+        setResult(heic);
+        setPreviewBase64(preview.base64);
+        setExportState('done');
+        onExported?.(preview);
+        return;
+      }
       const raw = smartCompression
         ? encodeToTargetSize(image, format, Math.round(targetSizeMB * 1024 * 1024))
         : encodeImage(image, format, quality);
       const encoded = applyDpi(raw, Number(dpi));
 
       setResult(encoded);
+      setPreviewBase64(null);
       setExportState('done');
       onExported?.(encoded);
     } catch (error) {
@@ -285,7 +299,9 @@ export function ExportSheet({
             <View>
               <Image
                 source={{
-                  uri: `data:image/${result.format.toLowerCase()};base64,${result.base64}`,
+                  uri: previewBase64
+                    ? `data:image/jpeg;base64,${previewBase64}`
+                    : `data:image/${result.format.toLowerCase()};base64,${result.base64}`,
                 }}
                 style={styles.doneThumb}
                 resizeMode="cover"
@@ -369,15 +385,22 @@ export function ExportSheet({
                           </Text>
                         </Pressable>
                       ))}
-                      {UNSUPPORTED_IMAGE_FORMATS.map((f) => (
-                        <View key={f} style={[styles.chip, styles.chipDisabled]}>
-                          <Text style={styles.chipTextDisabled}>{f}</Text>
-                        </View>
-                      ))}
+                      {HEIC_AVAILABLE && (
+                        <Pressable
+                          style={[styles.chip, format === 'HEIC' && styles.chipActive]}
+                          onPress={() => setFormat('HEIC')}
+                        >
+                          <Text
+                            style={[styles.chipText, format === 'HEIC' && styles.chipTextActive]}
+                          >
+                            HEIC
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   </View>
 
-                  {format !== 'WebP' && (
+                  {(format === 'JPEG' || format === 'PNG') && (
                     <View>
                       <Text style={styles.sectionLabel}>DPI</Text>
                       <View style={styles.chipRow}>
@@ -399,13 +422,15 @@ export function ExportSheet({
                   <View>
                     <View style={styles.qualityHeader}>
                       <Text style={styles.sectionLabel}>Qualidade</Text>
-                      <Switch
-                        value={smartCompression}
-                        onChange={setSmartCompression}
-                        label="Compressão inteligente"
-                      />
+                      {format !== 'HEIC' && (
+                        <Switch
+                          value={smartCompression}
+                          onChange={setSmartCompression}
+                          label="Compressão inteligente"
+                        />
+                      )}
                     </View>
-                    {smartCompression ? (
+                    {smartCompression && format !== 'HEIC' ? (
                       <Slider
                         label="Tamanho alvo"
                         value={targetSizeMB}
@@ -700,10 +725,6 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: fontSize.xs,
     color: colors.texto2,
-  },
-  chipTextDisabled: {
-    fontSize: fontSize.xs,
-    color: colors.linha,
   },
   chipTextMono: {
     fontFamily: monoFontFamily,

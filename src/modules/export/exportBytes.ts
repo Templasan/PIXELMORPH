@@ -38,6 +38,23 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return out;
 }
 
+export function base64ToBytes(base64: string): Uint8Array {
+  const clean = base64.replace(/[^A-Za-z0-9+/]/g, '');
+  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  let at = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n =
+      (B64.indexOf(clean[i]) << 18) |
+      (B64.indexOf(clean[i + 1]) << 12) |
+      ((i + 2 < clean.length ? B64.indexOf(clean[i + 2]) : 0) << 6) |
+      (i + 3 < clean.length ? B64.indexOf(clean[i + 3]) : 0);
+    out[at++] = (n >> 16) & 0xff;
+    if (i + 2 < clean.length) out[at++] = (n >> 8) & 0xff;
+    if (i + 3 < clean.length) out[at++] = n & 0xff;
+  }
+  return out.subarray(0, at);
+}
+
 function u16(bytes: Uint8Array, at: number): number {
   return (bytes[at] << 8) | bytes[at + 1];
 }

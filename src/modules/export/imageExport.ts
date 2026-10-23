@@ -8,6 +8,7 @@
 import { Skia, BlurStyle, ImageFormat, matchFont, type SkImage } from '@shopify/react-native-skia';
 import {
   type ImageExportFormat,
+  type SkiaImageFormat,
   searchQualityForTargetSize,
   coverFitRect,
   scaleToFit,
@@ -20,7 +21,7 @@ import { bytesToBase64, setJpegDpi, setPngDpi } from './exportBytes';
 export * from './exportMath';
 export * from './exportBytes';
 
-function toSkiaFormat(format: ImageExportFormat): ImageFormat {
+function toSkiaFormat(format: SkiaImageFormat): ImageFormat {
   switch (format) {
     case 'JPEG':
       return ImageFormat.JPEG;
@@ -42,7 +43,7 @@ export interface EncodedImage {
 
 export function encodeImage(
   image: SkImage,
-  format: ImageExportFormat,
+  format: SkiaImageFormat,
   quality: number
 ): EncodedImage {
   const fmt = toSkiaFormat(format);
@@ -60,7 +61,7 @@ export function encodeImage(
 /** RNF-013: "smart" compression against the encoder's real output size, not an estimate. */
 export function encodeToTargetSize(
   image: SkImage,
-  format: ImageExportFormat,
+  format: SkiaImageFormat,
   targetBytes: number,
   minQuality = 20,
   maxQuality = 100
@@ -74,9 +75,9 @@ export function encodeToTargetSize(
   return encodeImage(image, format, quality);
 }
 
-/** Writes the DPI into an encoded JPEG/PNG (WebP has no density field, so it is returned as is). */
+/** Writes the DPI into an encoded JPEG/PNG (WebP and HEIC are returned as is). */
 export function applyDpi(encoded: EncodedImage, dpi: number): EncodedImage {
-  if (encoded.format === 'WebP') return encoded;
+  if (encoded.format !== 'JPEG' && encoded.format !== 'PNG') return encoded;
   const bytes =
     encoded.format === 'PNG' ? setPngDpi(encoded.bytes, dpi) : setJpegDpi(encoded.bytes, dpi);
   return { ...encoded, bytes, base64: bytesToBase64(bytes) };

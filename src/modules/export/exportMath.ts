@@ -4,16 +4,11 @@
  * keeps its CPU mirrors free of any `@shopify/react-native-skia` import).
  */
 
+/** Formats Skia's own encoder produces. */
 export const IMAGE_FORMATS = ['JPEG', 'PNG', 'WebP'] as const;
-export type ImageExportFormat = (typeof IMAGE_FORMATS)[number];
-
-/**
- * RF-057: formats Skia's own encoder can actually produce — no HEIC encoder exists here.
- * TODO(HEIC): needs a native HEIC/HEIF encoder (Android's ImageDecoder reads HEIC, but
- * `Bitmap.compress` has no HEIC format before API 34 and nothing in the Expo SDK wraps it).
- * Out of scope for now; see funcionalidades_faltantes/US-30-exportacao.md.
- */
-export const UNSUPPORTED_IMAGE_FORMATS = ['HEIC'] as const;
+export type SkiaImageFormat = (typeof IMAGE_FORMATS)[number];
+/** RF-057: HEIC comes from the native encoder on Android 9+ only (see heicExport.ts). */
+export type ImageExportFormat = SkiaImageFormat | 'HEIC';
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
