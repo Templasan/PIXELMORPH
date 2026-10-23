@@ -20,4 +20,6 @@ dependencies {
   implementation "androidx.media3:media3-transformer:${androidxMedia3Version}"
   implementation "androidx.media3:media3-effect:${androidxMedia3Version}"
   implementation "androidx.media3:media3-common:${androidxMedia3Version}"
+  // RF-057: HEIC still images on Android 9+ (platform HEVC/HEIC encoder, no codec shipped).
+  implementation "androidx.heifwriter:heifwriter:1.0.0"
 }
