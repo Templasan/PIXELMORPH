@@ -151,5 +151,19 @@ Emulator result: **export correct in all 6 combinations**; the preview still gli
   (`232340f`). Watermark settings reset when the sheet closes; the light grey text is faint on
   light photos.
 
+### Owner decisions (2026-10-23)
+
+- New dependencies approved: `expo-sharing` (share a project's file), a colour picker library
+  (`reanimated-color-picker` or similar, MIT) for free text/shape colours.
+- `expo-keep-awake` NOT approved yet: background video export stays a TODO (briefing §6 #16).
+- Photo export sheet remembers its options while the photo is open; the watermark is white with
+  a dark shadow.
+- HEIC export only on Android 9+ (minSdk stays 26; the option is hidden below API 28).
+- Remove the "Motor web (teste)" link and the engine spike screen.
+- RF-018 separate audio track + mic gain: TODO (camera records video with embedded audio and
+  shows a level meter; no gain, no separate track yet).
+- Login / 2FA / sync: last, after the rest of the sprint.
+- Merge `video-engine` into `sprint-2` and push after the test on the owner's Poco passes.
+
 Stopped agents' worktrees with no commits, not reviewed: `agent-a035d0c451c1ad4a7` (photo
 editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when those parts start.
