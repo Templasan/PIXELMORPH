@@ -65,11 +65,10 @@ export function PreviewNotices() {
   const fallback = useStore(previewSession, (s) => s.fallback);
   const shown = useStore(previewSession, (s) => s.fallbackShown);
   const notice = useStore(previewSession, (s) => s.notice);
-  const engine = useStore(previewSettings, (s) => s.engine);
   const dismiss = () => previewSession.set((s) => ({ ...s, fallbackShown: true }));
   return (
     <>
-      {engine === 'web' && fallback && !shown && (
+      {fallback && !shown && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
             {fallback === 'webview'
@@ -103,7 +102,6 @@ const styles = StyleSheet.create({
   title: { color: colors.texto, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   gap: { marginTop: 16 },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  label: { color: colors.texto2, fontSize: 12, marginRight: 4 },
   chip: {
     backgroundColor: colors.linha,
     borderRadius: 6,
