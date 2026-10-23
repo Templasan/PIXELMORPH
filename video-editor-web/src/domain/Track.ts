@@ -51,6 +51,8 @@ export interface Clip {
   sphericalPitch?: number; // -90 to 90
   sphericalYaw?: number; // -180 to 180
   sphericalRoll?: number; // -180 to 180
+  /** Fill the frame (or its PiP box), cropping, instead of fitting inside it. */
+  fill?: boolean;
   /** RF-008: a clip on a text track is a text over the video. */
   text?: ClipText;
 }

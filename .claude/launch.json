@@ -4,8 +4,21 @@
     {
       "name": "dev-server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": [
+        "start"
+      ],
       "port": 8081
+    },
+    {
+      "name": "video-editor-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "video-editor-web"
+      ],
+      "port": 5174
     }
   ]
 }

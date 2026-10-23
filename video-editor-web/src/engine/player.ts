@@ -10,6 +10,8 @@ export interface PlayerEvents {
   onTime(ms: number): void;
   onPlaying(playing: boolean): void;
   onError(message: string): void;
+  /** Diagnostics: every displayed frame while playing (time, layers drawn, layers late). */
+  onFrame?(info: { t: number; drawn: string[]; late: string[]; held: boolean }): void;
 }
 
 /** Clips starting this soon get their decoder opened and positioned before they show. */
@@ -158,20 +160,27 @@ export class Player {
     this.prepareAround(t);
     const ops = opsAt(this.comp, t);
     const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
-    let missing = false;
+    const late: string[] = [];
     for (const op of ops) {
       if (op.kind !== 'video' && op.kind !== 'image') continue;
       const frame = this.liveFrame(op);
-      if (!frame) missing = true;
+      if (!frame) late.push(op.key);
       frames.set(op, frame);
     }
     // A late layer would flash out of the picture: keep the last complete frame a little longer.
-    if (missing && (this.heldSince === 0 || now - this.heldSince < MAX_HOLD_MS)) {
+    const held = late.length > 0 && (this.heldSince === 0 || now - this.heldSince < MAX_HOLD_MS);
+    if (held) {
       if (this.heldSince === 0) this.heldSince = now;
     } else {
       this.heldSince = 0;
       drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
     }
+    this.events.onFrame?.({
+      t,
+      drawn: [...frames.keys()].filter((op) => frames.get(op)).map((op) => op.key),
+      late,
+      held,
+    });
     this.setTime(t);
     if (now - this.lastPrune > PRUNE_EVERY_MS) {
       this.lastPrune = now;
@@ -258,10 +267,10 @@ export class Player {
     this.events.onError(String((e as Error)?.message ?? e));
   }
 
+  /** Stops this player; the media pool belongs to the session and stays open. */
   dispose() {
     this.playing = false;
     cancelAnimationFrame(this.raf);
     this.audio.dispose();
-    this.pool.dispose();
   }
 }

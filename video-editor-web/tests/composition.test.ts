@@ -46,14 +46,21 @@ describe('composition', () => {
     expect(ops[1].rect).toEqual({ x: 500, y: 250, w: 250, h: 125 });
   });
 
-  it('is end-exclusive and ends with the last clip on any track', () => {
+  it('is end-exclusive and ends with the last picture, cutting longer sound', () => {
     const a = clip('a', 0, 1000);
-    const m = clip('m', 0, 3000, { sourceUri: 'm.m4a' });
-    const c = buildComposition([track('v1', 'video', [a]), track('a1', 'audio', [m])]);
-    expect(c.durationMs).toBe(3000);
-    expect(media(opsAt(c, 999))).toHaveLength(1);
-    expect(media(opsAt(c, 1000))).toHaveLength(0);
-    expect(opsAt(c, 3000)).toEqual([{ kind: 'clear', color: '#000000' }]);
+    const p = clip('p', 500, 2000, { sourceUri: 'p.png' });
+    const m = clip('m', 0, 9000, { sourceUri: 'm.m4a' });
+    const c = buildComposition([
+      track('v1', 'video', [a]),
+      track('img', 'image', [p]),
+      track('a1', 'audio', [m]),
+    ]);
+    expect(c.durationMs).toBe(2500);
+    expect(media(opsAt(c, 999))).toHaveLength(2);
+    expect(media(opsAt(c, 1000))).toHaveLength(1);
+    expect(opsAt(c, 2500)).toEqual([{ kind: 'clear', color: '#000000' }]);
+    const soundOnly = buildComposition([track('a1', 'audio', [m])]);
+    expect(soundOnly.durationMs).toBe(9000);
   });
 
   it('never shows a frame past the out point inside the clip', () => {
