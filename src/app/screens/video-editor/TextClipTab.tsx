@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Slider, Switch } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
-import { useStore } from '@core/state';
 import type { Clip, VideoEditorStore } from '@modules/video-editor';
 import {
   MAX_TEXT_SIZE,
@@ -13,7 +12,6 @@ import {
   type ClipText,
   type TextAnimation,
 } from '@modules/video-editor/domain/textCaption';
-import { previewSession, previewSettings } from './previewSettings';
 import { captionName } from './textEdit';
 
 const TEXT_COLORS = [
@@ -30,23 +28,14 @@ type AnimKey = 'animIn' | 'animOut';
 
 /** The text tab of a clip on the TXT track. Remount it per clip (key=clip id). */
 export function TextClipTab({ editor, clip }: { editor: VideoEditorStore; clip: Clip }) {
-  const engine = useStore(previewSettings, (s) => s.engine);
-  const fallback = useStore(previewSession, (s) => s.fallback);
   const text = clip.text;
   const [draft, setDraft] = useState(text?.content ?? '');
   useEffect(() => setDraft(text?.content ?? ''), [text?.content]);
   // Typing is a gesture (live per keystroke, one undo entry); leaving the tab closes it.
   useEffect(() => () => editor.endGesture(), [editor]);
 
-  // The text is drawn by the web engine only; the native preview and export ignore it.
+  // This tab only shows when the web engine is drawing the preview.
   if (!text) return null;
-  if (engine !== 'web' || fallback) {
-    return (
-      <Text style={styles.note}>
-        O texto aparece no motor de vídeo novo (toque no selo de qualidade da prévia para ativar).
-      </Text>
-    );
-  }
 
   const mapText = (fn: (t: ClipText) => ClipText) => (c: Clip) =>
     c.text ? { ...c, text: fn(c.text) } : c;
