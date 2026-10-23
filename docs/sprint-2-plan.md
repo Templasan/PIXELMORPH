@@ -165,5 +165,28 @@ Emulator result: **export correct in all 6 combinations**; the preview still gli
 - Login / 2FA / sync: last, after the rest of the sprint.
 - Merge `video-engine` into `sprint-2` and push after the test on the owner's Poco passes.
 
+### TODO: feasibility research, lighter preview copies (owner, 2026-10-23)
+
+Measure on the Poco before changing defaults (fps, seek time, `dumpsys meminfo`, file size,
+proxy creation time), one variable at a time, current proxy side by side:
+
+Video proxies (`previewProxy.ts` + the native exporter):
+1. Cap proxies at 30 fps: they keep the source rate today, so a 4K60 source makes a 60 fps
+   proxy and the decoder does twice the work for a 30 fps preview.
+2. Tone-map HDR (10-bit) sources to 8-bit SDR in the proxy, if the Poco records HDR.
+3. Lower the bitrate: 720p at ~3 Mbps instead of 5 (540p and 1080p in proportion).
+4. Decode-friendly encoding, like desktop editing proxies (ProRes/DNxHR are not decodable by
+   Android hardware): all-intra or very short GOP + H.264 Baseline (no B-frames). Expected:
+   near-instant seeks/scrubbing, fewer reference frames; cost: 3-5x larger files.
+5. Light denoise before encoding (smaller file at the same look; little decode effect).
+Expectation to verify: these mostly cut decode work, seek time and storage; RAM depends on
+resolution and how many decoded frames are queued (see the memory items: smaller decoder
+queues, release frames right after drawing, canvas at the on-screen size).
+
+Photo light copies (`photoProxy.ts`, `.proxy2048.jpg`):
+6. Same question for photos: JPEG quality / WebP of the light copy, and whether a smaller long
+   edge (e.g. 1600) is enough on screen; measure editor load time, memory and slider
+   responsiveness. Export always uses the full-resolution original.
+
 Stopped agents' worktrees with no commits, not reviewed: `agent-a035d0c451c1ad4a7` (photo
 editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when those parts start.
