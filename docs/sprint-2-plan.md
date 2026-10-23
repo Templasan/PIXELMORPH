@@ -159,7 +159,7 @@ Emulator result: **export correct in all 6 combinations**; the preview still gli
 - Photo export sheet remembers its options while the photo is open; the watermark is white with
   a dark shadow.
 - HEIC export only on Android 9+ (minSdk stays 26; the option is hidden below API 28).
-- Remove the "Motor web (teste)" link and the engine spike screen.
+- Removed in fd7fa5d: the "Motor web (teste)" link and the engine spike screen.
 - RF-018 separate audio track + mic gain: TODO (camera records video with embedded audio and
   shows a level meter; no gain, no separate track yet).
 - Login / 2FA / sync: last, after the rest of the sprint.
