@@ -23,37 +23,16 @@ const QUALITIES: { value: TierSetting; label: string }[] = [
   { value: 'baixa', label: 'Baixa' },
 ];
 
-/** Opened by tapping the quality badge: preview engine switch and "Qualidade da prévia". */
+/** Opened by tapping the quality badge: "Qualidade da prévia". */
 export function PreviewQualityMenu({ onClose }: { onClose: () => void }) {
   const settings = useStore(previewSettings);
   const inUse = useStore(tierInUse);
   const fallback = useStore(previewSession, (s) => s.fallback);
-  const web = settings.engine === 'web';
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={() => {}}>
           <Text style={styles.title}>Prévia</Text>
-          <View style={styles.row}>
-            <Text style={styles.label}>Motor</Text>
-            <Pressable
-              style={[styles.chip, !web && styles.chipOn]}
-              onPress={() => updatePreviewSettings({ engine: 'native' })}
-            >
-              <Text style={styles.chipText}>Padrão</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.chip, web && styles.chipOn]}
-              onPress={() => updatePreviewSettings({ engine: 'web' })}
-            >
-              <Text style={styles.chipText}>Motor web</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.hint}>
-            {web
-              ? 'Áudio ativo na prévia e no motor web.'
-              : 'Prévia com áudio. O motor web (em teste) permite várias camadas.'}
-          </Text>
           {fallback && (
             <Text style={styles.warn}>Motor web indisponível neste aparelho nesta sessão.</Text>
           )}
@@ -70,7 +49,7 @@ export function PreviewQualityMenu({ onClose }: { onClose: () => void }) {
             ))}
           </View>
           <Text style={styles.hint}>
-            {web && inUse
+            {inUse
               ? `Em uso: ${TIER_SPECS[inUse].label} (${TIER_SPECS[inUse].canvas.width}×${TIER_SPECS[inUse].canvas.height}). `
               : ''}
             Só muda a prévia; a exportação usa sempre os originais.
