@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { Icon } from '@core/ui';
 import { cancelEngineExport, exportWithEngine } from './engineExport';
+import { previewSession } from './previewSettings';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
@@ -71,7 +72,6 @@ export function VideoExportSheet({
   const exportingRef = useRef(false);
 
   const plan = planExport(tracks);
-  // The web engine is now the only engine; the old native path is gone.
 
   // Leaving the sheet mid-export stops the encoder instead of leaving it running unseen.
   useEffect(
@@ -86,6 +86,16 @@ export function VideoExportSheet({
 
   const startExport = useCallback(async () => {
     if (exportingRef.current) return;
+    // The engine is the only exporter: when it could not start on this device nobody would
+    // answer the request and the sheet would wait forever.
+    if (previewSession.get().fallback) {
+      setState({
+        phase: 'error',
+        message:
+          'A exportação de vídeo precisa do Android System WebView atualizado. Atualize-o na Play Store e abra o projeto de novo.',
+      });
+      return;
+    }
     if (plan.clips.length === 0 || plan.durationMs <= 0) {
       setState({
         phase: 'error',

@@ -73,8 +73,8 @@ export function PreviewNotices() {
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
             {fallback === 'webview'
-              ? 'O motor de vídeo precisa do Android System WebView atualizado. Usando a prévia padrão.'
-              : 'O motor de vídeo não iniciou neste aparelho. Usando a prévia padrão.'}
+              ? 'O motor de vídeo precisa do Android System WebView atualizado. Sem ele não há prévia nem exportação de vídeo.'
+              : 'O motor de vídeo não iniciou neste aparelho. Feche e abra o projeto de novo; sem ele não há prévia nem exportação.'}
           </Text>
           <View style={styles.row}>
             {fallback === 'webview' && (
