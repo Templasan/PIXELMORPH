@@ -507,7 +507,11 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   // US-08: bring back the layers (paint strokes, text, shapes) saved the last time.
   useEffect(() => {
-    if (!projectId) return;
+    // Nothing saved to wait for; the editor lock also waits for this flag.
+    if (!projectId) {
+      setLayersHydrated(true);
+      return;
+    }
     let cancelled = false;
     loadLayers(projectId)
       .then((saved) => {
