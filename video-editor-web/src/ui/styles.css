@@ -383,6 +383,11 @@ button:disabled {
   color: var(--icone);
 }
 
+.tool.on,
+.tool.on svg {
+  color: var(--acento);
+}
+
 .tool.danger,
 .tool.danger svg {
   color: var(--perigo);

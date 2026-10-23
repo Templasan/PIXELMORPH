@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { clipDurationMs, clipEndMs, type Clip, type Track } from '../domain/Track';
-import { moveClip, trimClipIn, trimClipOut } from '../domain/timeline';
+import { moveClip, rippleTrim, trimClipIn, trimClipOut } from '../domain/timeline';
 import { formatTimecode } from '../domain/frameMath';
 import type { EditorSession } from '../application/session';
 import { useStore } from '../state/useStore';
@@ -172,16 +172,25 @@ export function Timeline({
       editor.live((before) => moveClip(before, d.trackId, d.clip.id, desired));
       return;
     }
-    // trim
+    // trim (with Ripple on, the clip keeps its start and the clips after it follow)
     const speed = d.clip.speed ?? 1;
+    const ripple = editor.store.get().rippleMode;
     if (d.side === 'in') {
       const at = snap(d.clip.startMs + dms, d.clip.id);
       const inPoint = d.clip.inPointMs + (at - d.clip.startMs) * speed;
-      editor.live((before) => trimClipIn(before, d.trackId, d.clip.id, inPoint));
+      editor.live((before) =>
+        ripple
+          ? rippleTrim(before, d.trackId, d.clip.id, 'in', inPoint)
+          : trimClipIn(before, d.trackId, d.clip.id, inPoint)
+      );
     } else {
       const at = snap(clipEndMs(d.clip) + dms, d.clip.id);
       const outPoint = d.clip.outPointMs + (at - clipEndMs(d.clip)) * speed;
-      editor.live((before) => trimClipOut(before, d.trackId, d.clip.id, outPoint));
+      editor.live((before) =>
+        ripple
+          ? rippleTrim(before, d.trackId, d.clip.id, 'out', outPoint)
+          : trimClipOut(before, d.trackId, d.clip.id, outPoint)
+      );
     }
   };
 

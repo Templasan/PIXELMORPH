@@ -7,7 +7,7 @@ import {
   type Clip,
   type Track,
 } from '../domain/Track';
-import { findClip, removeClip } from '../domain/timeline';
+import { findClip, removeClip, rippleDelete } from '../domain/timeline';
 import { DEFAULT_TEXT } from '../domain/textCaption';
 import { MediaPool } from '../engine/media';
 import { Player } from '../engine/player';
@@ -173,7 +173,10 @@ export function createEditorSession(host: EditorHost) {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
     if (!found) return;
-    editor.commit((t) => removeClip(t, found.track.id, found.clip.id));
+    const ripple = editor.store.get().rippleMode;
+    editor.commit((t) =>
+      ripple ? rippleDelete(t, found.track.id, found.clip.id) : removeClip(t, found.track.id, found.clip.id)
+    );
     editor.clearSelection();
   }
 

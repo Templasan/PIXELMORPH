@@ -4,6 +4,8 @@ import {
   MIN_CLIP_DURATION_MS,
   moveClip,
   removeClip,
+  rippleDelete,
+  rippleTrim,
   setClipSpeed,
   splitClipAtMs,
   trimClipIn,
@@ -56,12 +58,15 @@ describe('timeline edits on random timelines', () => {
         const track = pick(tracks);
         if (!track.clips.length) continue;
         const c = pick(track.clips);
-        const op = pick(['move', 'in', 'out', 'split', 'speed', 'remove'] as const);
+        const op = pick(['move', 'in', 'out', 'split', 'speed', 'remove', 'rin', 'rout', 'rdel'] as const);
         if (op === 'move') tracks = moveClip(tracks, track.id, c.id, c.startMs + (rnd() - 0.5) * 4000);
         if (op === 'in') tracks = trimClipIn(tracks, track.id, c.id, c.inPointMs + (rnd() - 0.5) * 3000);
         if (op === 'out') tracks = trimClipOut(tracks, track.id, c.id, c.outPointMs + (rnd() - 0.5) * 3000);
         if (op === 'speed') tracks = setClipSpeed(tracks, track.id, c.id, pick([0.25, 0.5, 1, 2, 4]));
         if (op === 'remove' && track.clips.length > 1) tracks = removeClip(tracks, track.id, c.id);
+        if (op === 'rin') tracks = rippleTrim(tracks, track.id, c.id, 'in', c.inPointMs + (rnd() - 0.5) * 3000);
+        if (op === 'rout') tracks = rippleTrim(tracks, track.id, c.id, 'out', c.outPointMs + (rnd() - 0.5) * 3000);
+        if (op === 'rdel' && track.clips.length > 1) tracks = rippleDelete(tracks, track.id, c.id);
         if (op === 'split') {
           const at = c.startMs + rnd() * clipDurationMs(c);
           const before = sourceAt(tracks, at + 50);
@@ -74,5 +79,34 @@ describe('timeline edits on random timelines', () => {
         try { checkInvariants(tracks); } catch (e) { throw new Error(`after ${op}: ${(e as Error).message}`); }
       }
     }
+  });
+});
+
+describe('ripple edits', () => {
+  const clip = (name: string, startMs: number, len: number) => ({
+    ...createClip({ name, sourceUri: `${name}.mp4`, color: '', startMs, sourceDurationMs: 10_000 }),
+    outPointMs: len,
+  });
+  const t = (): Track[] => [
+    { id: 'v', name: 'v', kind: 'video', visible: true, locked: false, clips: [clip('a', 0, 2000), clip('b', 2000, 2000), clip('c', 5000, 1000)] },
+  ];
+  const starts = (tracks: Track[]) => tracks[0].clips.map((c) => [c.name, c.startMs, clipEndMs(c)]);
+
+  it('a longer end pushes the next clips, keeping the gap between them', () => {
+    const tracks = t();
+    const [a] = tracks[0].clips;
+    expect(starts(rippleTrim(tracks, 'v', a.id, 'out', 3000))).toEqual([['a', 0, 3000], ['b', 3000, 5000], ['c', 6000, 7000]]);
+  });
+
+  it('a trimmed start keeps the clip in place and pulls the rest', () => {
+    const tracks = t();
+    const b = tracks[0].clips[1];
+    expect(starts(rippleTrim(tracks, 'v', b.id, 'in', 500))).toEqual([['a', 0, 2000], ['b', 2000, 3500], ['c', 4500, 5500]]);
+  });
+
+  it('delete closes the hole', () => {
+    const tracks = t();
+    const [a] = tracks[0].clips;
+    expect(starts(rippleDelete(tracks, 'v', a.id))).toEqual([['b', 0, 2000], ['c', 3000, 4000]]);
   });
 });
