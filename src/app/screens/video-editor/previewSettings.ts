@@ -11,7 +11,7 @@ export interface PreviewSettings {
 }
 
 const KEY = 'pixelmorph.videoPreviewSettings';
-const DEFAULTS: PreviewSettings = { engine: 'native', quality: 'auto' };
+const DEFAULTS: PreviewSettings = { engine: 'web', quality: 'auto' };
 
 export const previewSettings = createStore<PreviewSettings>(DEFAULTS);
 

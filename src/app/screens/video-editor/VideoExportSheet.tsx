@@ -1,21 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import {
-  cancelVideoExport,
-  exportVideo,
-  extractFrame,
-  type ExportClip,
-} from '../../../../modules/pixelmorph-video-export/src';
 import { Icon } from '@core/ui';
-import { blackFrameUri } from './blackFrame';
-import { exportGif } from './gifExporter';
-import { pauseProxiesForExport, resumeProxies } from './previewProxy';
 import { cancelEngineExport, exportWithEngine } from './engineExport';
-import { previewSession, previewSettings } from './previewSettings';
-import { useStore } from '@core/state';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import { formatBytes } from '@core/reliability/storageUsage';
@@ -27,24 +15,9 @@ import {
   VIDEO_PRESETS,
   originalPreset,
   planExport,
-  type PlannedClip,
   type Track,
   type VideoPreset,
 } from '@modules/video-editor';
-
-/** The frame of the clip that leaves, saved as a JPEG, for the transition into `piece`. */
-async function transitionFrame(
-  piece: PlannedClip,
-  width: number
-): Promise<Pick<ExportClip, 'transitionFrameUri' | 'transitionFrameRotation'>> {
-  if (!piece.transitionIn || !piece.transitionFrom) return {};
-  const from = piece.transitionFrom;
-  // A picture already is the frame; only videos need one pulled out.
-  const frame = from.image
-    ? { uri: from.sourceUri }
-    : await extractFrame(from.sourceUri, from.timeMs, width);
-  return { transitionFrameUri: frame.uri, transitionFrameRotation: from.rotation };
-}
 
 interface VideoExportSheetProps {
   tracks: Track[];
@@ -74,9 +47,9 @@ function formatDuration(ms: number): string {
 
 /**
  * US-16/US-30: real video export — stitches the timeline (video and image tracks: trim, speed,
- * rotation, freeze frames, time-lapse photos, transitions) into one H.264/AAC mp4 with Android's
- * Media3 Transformer, at a chosen social preset, then saves it to the device gallery. GIF is
- * produced separately; see funcionalidades_faltantes/US-30.
+ * rotation, freeze frames, time-lapse photos, transitions) into one H.264/AAC mp4 (or GIF) using
+ * the web engine (WebCodecs). The same `drawListAt` that drives the preview writes the file, so
+ * preview and export cannot drift. See funcionalidades_faltantes/US-30.
  */
 export function VideoExportSheet({
   tracks,
@@ -98,17 +71,13 @@ export function VideoExportSheet({
   const exportingRef = useRef(false);
 
   const plan = planExport(tracks);
-  // In web mode the same engine that draws the preview writes the mp4 (one drawing code path).
-  const engineSetting = useStore(previewSettings, (s) => s.engine);
-  const engineFallback = useStore(previewSession, (s) => s.fallback);
-  const webEngine = engineSetting === 'web' && !engineFallback;
+  // The web engine is now the only engine; the old native path is gone.
 
   // Leaving the sheet mid-export stops the encoder instead of leaving it running unseen.
   useEffect(
     () => () => {
       if (exportingRef.current) {
         cancelledRef.current = true;
-        cancelVideoExport();
         cancelEngineExport();
       }
     },
@@ -129,10 +98,8 @@ export function VideoExportSheet({
     setSaveState('idle');
     setState({ phase: 'exporting', progress: 0 });
     const startedAt = Date.now();
-    // The encoder is single-slot: the preview proxies stop before the export touches it.
-    await pauseProxiesForExport();
     try {
-      if (format === 'gif' && webEngine) {
+      if (format === 'gif') {
         if (cancelledRef.current) throw new Error('CANCELLED');
         // Same frames as the preview (text, colour, pictures, transitions), at the GIF's size.
         const size = gifSize(sourceWidth ?? 0, sourceHeight ?? 0, gifWidth);
@@ -150,119 +117,10 @@ export function VideoExportSheet({
         });
         return;
       }
-      if (format === 'gif') {
-        const gif = await exportGif(
-          plan,
-          {
-            fps: gifFps,
-            maxColors: gifColors,
-            maxWidth: gifWidth,
-            sourceWidth: sourceWidth ?? 0,
-            sourceHeight: sourceHeight ?? 0,
-          },
-          (progress) => setState({ phase: 'exporting', progress }),
-          () => cancelledRef.current
-        );
-        setState({
-          phase: 'done',
-          uri: gif.uri,
-          sizeBytes: gif.sizeBytes,
-          summary: `${gif.width}×${gif.height} · ${gif.frameCount} quadros · GIF`,
-          tookMs: Date.now() - startedAt,
-          note: gif.truncated ? 'O GIF foi cortado em 15 s.' : undefined,
-        });
-        return;
-      }
-      if (webEngine) {
-        if (cancelledRef.current) throw new Error('CANCELLED');
-        const result = await exportWithEngine(
-          { width: preset.width, height: preset.height, bitrate: preset.bitrate },
-          (progress) => setState({ phase: 'exporting', progress })
-        );
-        setState({
-          phase: 'done',
-          uri: result.uri,
-          sizeBytes: result.sizeBytes,
-          summary: `${preset.width}×${preset.height} · ${formatDuration(result.durationMs || plan.durationMs)} · MP4`,
-          tookMs: Date.now() - startedAt,
-        });
-        return;
-      }
-      const clips: ExportClip[] = [];
-      for (const piece of plan.clips) {
-        if (piece.kind === 'gap') {
-          // Empty time is a black picture held for the gap's length.
-          clips.push({
-            uri: await blackFrameUri(),
-            kind: 'image',
-            holdMs: Math.round(piece.holdMs),
-            rotation: 0,
-            transitionIn: '',
-            transitionInMs: 0,
-            transitionMode: 'out',
-            startMs: Math.round(piece.startMs),
-          });
-        } else if (piece.kind === 'image') {
-          // A photo of the image track: the file itself is held for its (speed-adjusted) length.
-          clips.push({
-            uri: piece.sourceUri,
-            kind: 'image',
-            holdMs: Math.round(piece.holdMs),
-            rotation: piece.rotation,
-            transitionIn: piece.transitionIn,
-            transitionInMs: Math.round(piece.transitionInMs),
-            transitionMode: piece.transitionMode,
-            ...(await transitionFrame(piece, preset.width)),
-            startMs: Math.round(piece.startMs),
-          });
-        } else if (piece.kind === 'still') {
-          // A freeze frame has no file of its own: pull the frame out as an image to hold.
-          const still = await extractFrame(piece.sourceUri, piece.stillTimeMs);
-          clips.push({
-            uri: still.uri,
-            kind: 'image',
-            holdMs: Math.round(piece.holdMs),
-            rotation: piece.rotation,
-            transitionIn: piece.transitionIn,
-            transitionInMs: Math.round(piece.transitionInMs),
-            transitionMode: piece.transitionMode,
-            ...(await transitionFrame(piece, preset.width)),
-            startMs: Math.round(piece.startMs),
-          });
-        } else {
-          clips.push({
-            uri: piece.sourceUri,
-            kind: 'video',
-            inMs: piece.inMs,
-            outMs: piece.outMs,
-            speed: piece.speed,
-            volume: piece.volume,
-            rotation: piece.rotation,
-            transitionIn: piece.transitionIn,
-            transitionInMs: Math.round(piece.transitionInMs),
-            transitionMode: piece.transitionMode,
-            ...(await transitionFrame(piece, preset.width)),
-            startMs: Math.round(piece.startMs),
-          });
-        }
-      }
-
-      // CANCELAR tapped while the proxies paused or the transition frames were extracted: the
-      // native export has not started, so cancelVideoExport() had nothing to stop.
+      // MP4 through the web engine (originals at preset size, same drawOps as preview).
       if (cancelledRef.current) throw new Error('CANCELLED');
-      const outputPath = `${FileSystem.cacheDirectory}pixelmorph_export_${Date.now()}.mp4`.replace(
-        'file://',
-        ''
-      );
-      const result = await exportVideo(
-        {
-          clips,
-          audio: plan.audio.map(({ sourceUri, ...a }) => ({ uri: sourceUri, ...a })),
-          width: preset.width,
-          height: preset.height,
-          bitrate: preset.bitrate,
-          outputPath,
-        },
+      const result = await exportWithEngine(
+        { width: preset.width, height: preset.height, bitrate: preset.bitrate },
         (progress) => setState({ phase: 'exporting', progress })
       );
       setState({
@@ -284,9 +142,8 @@ export function VideoExportSheet({
       });
     } finally {
       exportingRef.current = false;
-      resumeProxies();
     }
-  }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight, webEngine]);
+  }, [plan, preset, format, gifFps, gifColors, gifWidth, sourceWidth, sourceHeight]);
 
   const saveToGallery = useCallback(async () => {
     if (state.phase !== 'done') return;
@@ -433,7 +290,6 @@ export function VideoExportSheet({
                 style={styles.secondary}
                 onPress={() => {
                   cancelledRef.current = true;
-                  cancelVideoExport();
                   cancelEngineExport();
                 }}
               >

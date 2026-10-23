@@ -22,17 +22,12 @@ import { useAppModules } from '../hooks';
 import { errorLogger } from '@core/reliability';
 import { LiveTimecode } from './video-editor/LiveTimecode';
 import { Playhead } from './video-editor/Playhead';
-import { LiveClipVideo, PreviewDerived } from './video-editor/PreviewDerived';
 import { requestSourceProxy, useSourcesReady } from './video-editor/previewProxy';
 import { PreparingMediaOverlay } from './shared/PreparingMediaOverlay';
 import { createTimeStore } from './video-editor/timeStore';
 import { EnginePreview, tierInUse } from './video-editor/EnginePreview';
 import { PreviewNotices, PreviewQualityMenu } from './video-editor/PreviewQualityMenu';
-import {
-  loadPreviewSettings,
-  previewSession,
-  previewSettings,
-} from './video-editor/previewSettings';
+import { loadPreviewSettings, previewSession } from './video-editor/previewSettings';
 import { TIER_SPECS } from './video-editor/previewTier';
 import { ClipPanel } from './video-editor/ClipPanel';
 import { TextGestureLayer } from './video-editor/TextGestureLayer';
@@ -43,7 +38,6 @@ import { VideoExportSheet } from './video-editor/VideoExportSheet';
 import {
   type Track,
   type Clip,
-  type Frame,
   createClip,
   clipDurationMs,
   findClip,
@@ -53,7 +47,6 @@ import {
   formatTimecode,
   buildTimelapseTrack,
   MIN_CLIP_DURATION_MS,
-  advancePlayhead,
   loopBounds,
   createVideoEditorStore,
   clipEndMs,
@@ -61,9 +54,6 @@ import {
   moveClip,
   trimClipIn,
   trimClipOut,
-  transitionTransforms,
-  type LayerTransform,
-  type TransitionType,
 } from '@modules/video-editor';
 import { detectSphericalFromUri, type SphericalInfo } from '@modules/video-editor/domain/spherical';
 import { AddClipSheet, type AddClipResult } from './video-editor/AddClipSheet';
@@ -92,28 +82,6 @@ const TOOLBAR_ITEMS = [
 // needs a segmentation + inpainting model run per frame; see funcionalidades_faltantes/US-15.
 
 /** US-14: seeds a real starting timeline from the open project's own asset (real durationMs). */
-/** RF-078: style that turns the preview frame by the clip's rotation, refitting it to the panel. */
-function rotatedFrameStyle(rotation: number | undefined, panel: { width: number; height: number }) {
-  if (!rotation) return null;
-  if (rotation === 180) return { transform: [{ rotate: '180deg' }] };
-  // A quarter turn swaps the frame's box (height becomes width) so 'contain' still fits it.
-  return {
-    left: (panel.width - panel.height) / 2,
-    top: (panel.height - panel.width) / 2,
-    right: undefined,
-    bottom: undefined,
-    width: panel.height,
-    height: panel.width,
-    transform: [{ rotate: `${rotation}deg` }],
-  };
-}
-
-/** Layer style for one side of a transition (see transitionTransforms). */
-const layerStyle = (t: LayerTransform) => ({
-  opacity: t.opacity,
-  transform: [{ translateX: t.translateX }, { scale: t.scale }],
-});
-
 function buildInitialTracks(project: Project | null): Track[] {
   // A video project made only of photos (stop-motion) opens as an image sequence, not with a
   // JPEG on the video track (the player showed black and the exporter rejected the file).
@@ -320,17 +288,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
-  // Persisted switch (default: native). The web engine falls back to native for the session
-  // when the System WebView cannot run it.
-  const engineSetting = useStore(previewSettings, (st) => st.engine);
-  const engineFallback = useStore(previewSession, (st) => st.fallback);
-  const webMode = engineSetting === 'web' && !engineFallback;
   const tierNow = useStore(tierInUse);
+  const engineFallback = useStore(previewSession, (s) => s.fallback);
   useEffect(() => {
     void loadPreviewSettings();
   }, []);
-  const playerTimeRef = useRef<(() => number | null) | null>(null);
-  const currentClipRef = useRef<Frame | null>(null);
   // Playhead lives in a store, not state: only the components that draw it subscribe.
   const timeStore = useRef(createTimeStore(0)).current;
   const setCurrentTimeMs = timeStore.set;
@@ -443,39 +405,9 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
     [loopReview, selStart, selEnd, totalDurationMs]
   );
   useEffect(() => {
-    // In web mode the engine owns the clock and reports time into timeStore.
-    if (!playing || webMode) return;
-    // Real elapsed time, not a fixed 100 ms: timers run late, and a clock slower than the
-    // video player drifts until ClipVideo has to seek (a black frame).
-    let last = Date.now();
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const dt = now - last;
-      last = now;
-      {
-        const t = timeStore.get();
-        // The video player is the clock when it is running: counter and picture can't part.
-        let base = t;
-        let step = dt;
-        const piece = currentClipRef.current?.piece;
-        const src = playerTimeRef.current?.();
-        // Right after a manual seek the player still reports the old position: don't follow it.
-        const seeking = now - lastSeekAtRef.current < 600;
-        if (seeking) step = 0;
-        else if (piece?.kind === 'video' && src != null) {
-          const fromPlayer = piece.startMs + (src - piece.inMs) / piece.speed;
-          if (Math.abs(fromPlayer - t) < 1500) {
-            base = fromPlayer;
-            step = 0;
-          }
-        }
-        const result = advancePlayhead(base, step, totalDurationMs, loopRange);
-        if (result.ended) editor.setPlaying(false);
-        timeStore.set(result.timeMs);
-      }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [playing, totalDurationMs, loopRange, webMode]);
+    // The web engine owns the clock and reports time into timeStore.
+    // No native player clock to sync with anymore.
+  }, []);
 
   // RF-021: detect if selected clip is 360° video
   // Derived from the clip's URI, not stored: `selected` is a fresh object every render, so an
@@ -691,7 +623,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {/* Not mounted until ready: the 4K original is never decoded while it is locked. */}
             {/* One engine at a time: in full screen the preview moves into the modal. */}
-            {mediaReady && webMode && !fullscreenPreview && (
+            {mediaReady && !engineFallback && !fullscreenPreview && (
               <EnginePreview
                 tracks={tracks}
                 timeStore={timeStore}
@@ -703,7 +635,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
             )}
             {/* Under the badges and transport (they stay tappable); drags move the selected text. */}
             {mediaReady &&
-              webMode &&
+              !engineFallback &&
               !fullscreenPreview &&
               previewSize.width > 0 &&
               selected?.track.kind === 'text' && (
@@ -713,79 +645,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
                   height={previewSize.height}
                 />
               )}
-            {mediaReady && !webMode && (
-              <PreviewDerived
-                store={timeStore}
-                tracks={tracks}
-                playing={playing}
-                clipRef={currentClipRef}
-              >
-                {({ frame, currentClip, transitionBlend, previewFrameUri, fromFrameUri }) => {
-                  // Same layout as the export: the incoming clip plays live underneath and the
-                  // outgoing clip's frozen frame sits on top (transitionTransforms is shared).
-                  const tf = transitionBlend
-                    ? transitionTransforms(
-                        transitionBlend.type as TransitionType,
-                        transitionBlend.mode,
-                        transitionBlend.progress,
-                        previewSize.width
-                      )
-                    : null;
-                  return (
-                    <>
-                      <View style={[StyleSheet.absoluteFill, tf && layerStyle(tf.incoming)]}>
-                        <Image
-                          source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-                          style={[
-                            styles.previewImage,
-                            rotatedFrameStyle(frame?.piece.rotation, previewSize),
-                          ]}
-                        />
-                        {frame?.piece.kind === 'video' && (
-                          <LiveClipVideo
-                            store={timeStore}
-                            piece={frame.piece}
-                            key={frame.piece.sourceUri}
-                            timeRef={playerTimeRef}
-                            playing={playing}
-                            rate={frame.piece.speed}
-                            volume={frame.piece.volume}
-                            style={rotatedFrameStyle(frame.piece.rotation, previewSize)}
-                          />
-                        )}
-                      </View>
-                      {transitionBlend && tf && (
-                        <View
-                          pointerEvents="none"
-                          style={[StyleSheet.absoluteFill, layerStyle(tf.outgoing)]}
-                        >
-                          <Image
-                            source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                            style={[
-                              styles.previewImage,
-                              rotatedFrameStyle(transitionBlend.fromRotation, previewSize),
-                            ]}
-                          />
-                        </View>
-                      )}
-                      {currentClip?.colorCorrection ? (
-                        <View
-                          pointerEvents="none"
-                          style={[
-                            StyleSheet.absoluteFill,
-                            {
-                              backgroundColor:
-                                currentClip.colorCorrection > 0 ? colors.branco : colors.preto,
-                              opacity: Math.min(0.5, Math.abs(currentClip.colorCorrection) / 200),
-                            },
-                          ]}
-                        />
-                      ) : null}
-                    </>
-                  );
-                }}
-              </PreviewDerived>
-            )}
             {mediaReady && pipClip && pipClip.pipPosition && pipClip.pipSize && (
               <Image
                 source={{ uri: pipClip.sourceUri }}
@@ -806,7 +665,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               <Text style={styles.qualityBadgeText}>
                 {project?.assets[0]?.metadata.width ?? 3840}×
                 {project?.assets[0]?.metadata.height ?? 2160} · {DEFAULT_FPS} fps
-                {webMode && tierNow ? ` · ${TIER_SPECS[tierNow].label}` : ''}
+                {!engineFallback && tierNow ? ` · ${TIER_SPECS[tierNow].label}` : ''}
               </Text>
             </Pressable>
             <Pressable style={styles.maximizeButton} onPress={() => setFullscreenPreview(true)}>
@@ -1020,7 +879,7 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         statusBarTranslucent
       >
         <SafeAreaView style={styles.fullscreenPreview} edges={['top', 'bottom']}>
-          {fullscreenPreview && webMode && (
+          {fullscreenPreview && !engineFallback && (
             <EnginePreview
               tracks={tracks}
               timeStore={timeStore}
@@ -1028,24 +887,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
               loopRange={loopRange}
               onEnded={() => editor.setPlaying(false)}
             />
-          )}
-          {fullscreenPreview && !webMode && (
-            <PreviewDerived store={timeStore} tracks={tracks} playing={playing} clipRef={null}>
-              {({ transitionBlend, previewFrameUri, fromFrameUri }) => (
-                <>
-                  {transitionBlend && (
-                    <Image
-                      source={{ uri: fromFrameUri ?? transitionBlend.fromUri }}
-                      style={styles.previewImage}
-                    />
-                  )}
-                  <Image
-                    source={previewFrameUri ? { uri: previewFrameUri } : undefined}
-                    style={styles.previewImage}
-                  />
-                </>
-              )}
-            </PreviewDerived>
           )}
           <View style={[styles.fullscreenTopBar, { top: insets.top + 12 }]}>
             <View style={[styles.qualityBadge, styles.qualityBadgeInline]}>
