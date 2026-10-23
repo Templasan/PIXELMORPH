@@ -230,6 +230,9 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [maskPainterOpen, setMaskPainterOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
+  // Window x of the canvas, so the compare divider follows the finger (absoluteX) not its handle.
+  const canvasCenterRef = useRef<View>(null);
+  const canvasLeftRef = useRef(0);
   // Saving waits until the saved layers (if any) have been read, or the defaults would win.
   const [layersHydrated, setLayersHydrated] = useState(false);
 
@@ -744,20 +747,28 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
   const onCanvasLayout = useCallback((e: LayoutChangeEvent) => {
     setCanvasWidth(e.nativeEvent.layout.width);
+    canvasCenterRef.current?.measureInWindow((x) => {
+      canvasLeftRef.current = x;
+    });
   }, []);
 
-  const updateSplitFromX = useCallback(
-    (x: number) => {
+  // absoluteX is the finger's window x; the canvas's window x turns it into a canvas position.
+  const updateSplitFromAbsoluteX = useCallback(
+    (absoluteX: number) => {
       if (canvasWidth <= 0) return;
-      const pct = (x / canvasWidth) * 100;
+      const pct = ((absoluteX - canvasLeftRef.current) / canvasWidth) * 100;
       setCompareSplit(Math.max(2, Math.min(98, pct)));
     },
     [canvasWidth]
   );
 
-  const compareDrag = Gesture.Pan().onUpdate((e) => {
-    scheduleOnRN(updateSplitFromX, e.x);
-  });
+  const compareDrag = Gesture.Pan()
+    .onStart((e) => {
+      scheduleOnRN(updateSplitFromAbsoluteX, e.absoluteX);
+    })
+    .onUpdate((e) => {
+      scheduleOnRN(updateSplitFromAbsoluteX, e.absoluteX);
+    });
 
   // RF-033: real digital painting — points are captured as they come in (works the same
   // for a finger or a stylus, since gesture-handler reports both as pointer events) and
@@ -845,7 +856,7 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
 
       <GestureDetector gesture={shortcutGestures}>
         <View style={styles.canvasArea}>
-          <View style={styles.canvasCenter} onLayout={onCanvasLayout}>
+          <View ref={canvasCenterRef} style={styles.canvasCenter} onLayout={onCanvasLayout}>
             <View style={styles.photo}>
               {skiaImage && adjustmentsEffect ? (
                 <EditorCanvas
