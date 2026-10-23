@@ -1,4 +1,5 @@
 import {
+  base64ToBytes,
   bytesToBase64,
   crc32,
   readJpegDpi,
@@ -119,5 +120,14 @@ describe('setPngDpi', () => {
 
   it('rejects data that is not a PNG', () => {
     expect(() => setPngDpi(ascii('not a png at all'), 300)).toThrow();
+  });
+});
+
+describe('base64ToBytes', () => {
+  it('reverses bytesToBase64 for every padding length', () => {
+    for (const n of [0, 1, 2, 3, 4, 5, 255]) {
+      const bytes = Uint8Array.from({ length: n }, (_, i) => (i * 97 + 13) & 0xff);
+      expect([...base64ToBytes(bytesToBase64(bytes))]).toEqual([...bytes]);
+    }
   });
 });

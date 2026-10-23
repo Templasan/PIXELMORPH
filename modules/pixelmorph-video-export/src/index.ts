@@ -63,7 +63,11 @@ interface NativeModule {
   ): Promise<{ width: number; height: number; rotation: number; durationMs: number } | null>;
   cancel(): void;
   heicSupported(): boolean;
-  encodeHeic(inputPath: string, outputPath: string, quality: number): Promise<{ sizeBytes: number }>;
+  encodeHeic(
+    inputPath: string,
+    outputPath: string,
+    quality: number
+  ): Promise<{ sizeBytes: number }>;
   addListener(event: 'onProgress', listener: (e: { progress: number }) => void): { remove(): void };
 }
 

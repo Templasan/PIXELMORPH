@@ -123,7 +123,7 @@ export async function pickVideoFromGallery(): Promise<PickedMedia | null> {
  */
 export async function saveImageToGallery(
   base64: string,
-  format: 'JPEG' | 'PNG' | 'WebP'
+  format: 'JPEG' | 'PNG' | 'WebP' | 'HEIC'
 ): Promise<string> {
   const permission = await MediaLibrary.requestPermissionsAsync();
   if (!permission.granted) {
@@ -147,7 +147,7 @@ export async function saveImageToGallery(
  */
 export async function writeImageToCache(
   base64: string,
-  format: 'JPEG' | 'PNG' | 'WebP'
+  format: 'JPEG' | 'PNG' | 'WebP' | 'HEIC'
 ): Promise<string> {
   const extension = format === 'JPEG' ? 'jpg' : format.toLowerCase();
   const uri = `${FileSystem.cacheDirectory}pixelmorph_collage_${uniqueStamp()}.${extension}`;
