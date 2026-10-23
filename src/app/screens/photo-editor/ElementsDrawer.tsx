@@ -187,21 +187,6 @@ export function ElementsDrawer({
               </Text>
             </Pressable>
           </View>
-          <Text style={styles.sectionLabel}>Animação (vídeo)</Text>
-          <Slider
-            label="Entrada"
-            value={textDraft.entrada}
-            min={0}
-            max={100}
-            onChange={(v) => onChangeTextDraft({ entrada: v })}
-          />
-          <Slider
-            label="Saída"
-            value={textDraft.saida}
-            min={0}
-            max={100}
-            onChange={(v) => onChangeTextDraft({ saida: v })}
-          />
           <Pressable
             style={[styles.submitButton, !textDraft.content.trim() && styles.submitButtonDisabled]}
             onPress={onSubmitText}
@@ -477,11 +462,6 @@ const styles = StyleSheet.create({
   },
   colorSwatchActive: {
     borderColor: colors.texto,
-  },
-  sectionLabel: {
-    fontSize: fontSize.xs,
-    color: colors.texto2,
-    marginBottom: 6,
   },
   layoutRow: {
     flexDirection: 'row',
