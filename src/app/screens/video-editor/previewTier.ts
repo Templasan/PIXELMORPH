@@ -5,8 +5,8 @@
 /** The web side's status when the System WebView has no WebCodecs (also the fallback trigger). */
 export const NEEDS_WEBVIEW = 'O motor de vídeo precisa do Android System WebView atualizado';
 
-/** Sources above this long edge are decoded from a proxy even in Automática/Alta. */
-export const AUTO_PROXY_LIMIT = 1080;
+/** Automática starts at Média when a source's long edge is above this (1080p = 1920×1080). */
+export const AUTO_PROXY_LIMIT = 1920;
 
 export type Tier = 'alta' | 'media' | 'baixa';
 export type TierSetting = 'auto' | Tier;
