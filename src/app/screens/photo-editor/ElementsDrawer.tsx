@@ -39,6 +39,8 @@ export const TEXT_FONTS = [
   { label: 'Negrito extra', family: 'sans-serif-black' },
 ];
 const TEXT_COLORS = [colors.texto, colors.acento, colors.perigo, colors.ok, colors.alerta];
+// Outline needs a dark option; texto (#E4E4E4) is too light to outline white text.
+const OUTLINE_COLORS = ['#000000', '#FFFFFF', colors.acento, colors.perigo];
 
 // RF-046: stickers are just emoji glyphs — the system font already renders them, so they
 // reuse the exact same real text-layer pipeline as any other overlaid text.
@@ -187,6 +189,21 @@ export function ElementsDrawer({
               </Text>
             </Pressable>
           </View>
+          {textDraft.strokeWidth > 0 && (
+            <View style={styles.colorRow}>
+              {OUTLINE_COLORS.map((c) => (
+                <Pressable
+                  key={c}
+                  style={[
+                    styles.colorSwatch,
+                    { backgroundColor: c },
+                    textDraft.strokeColor === c && styles.colorSwatchActive,
+                  ]}
+                  onPress={() => onChangeTextDraft({ strokeColor: c })}
+                />
+              ))}
+            </View>
+          )}
           <Pressable
             style={[styles.submitButton, !textDraft.content.trim() && styles.submitButtonDisabled]}
             onPress={onSubmitText}

@@ -186,6 +186,14 @@ describe('photo editor store — Elementos (text, shapes, memes, stickers)', () 
     expect(state().textDraft).toMatchObject({ content: 'Primeiro', color: '#111111' });
   });
 
+  it('a text outline colour from the form reaches the new text layer', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: 'Oi', strokeWidth: 3, strokeColor: '#FFFFFF' });
+    editor.submitText();
+    const text = state().layers.find((l) => l.id === state().selectedLayerId)!.text!;
+    expect(text).toMatchObject({ strokeWidth: 3, strokeColor: '#FFFFFF' });
+  });
+
   it('shape form edits apply live to the selected shape', () => {
     const { editor, state } = setup();
     editor.setShapeDraft({ kind: 'arrow' });
