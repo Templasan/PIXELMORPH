@@ -5,13 +5,14 @@
  * tested; this file is the thin Skia-touching adapter around it.
  */
 
-import { Skia, ImageFormat, matchFont, type SkImage } from '@shopify/react-native-skia';
+import { Skia, BlurStyle, ImageFormat, matchFont, type SkImage } from '@shopify/react-native-skia';
 import {
   type ImageExportFormat,
   searchQualityForTargetSize,
   coverFitRect,
   scaleToFit,
   watermarkFontSize,
+  watermarkShadow,
   layoutWatermark,
 } from './exportMath';
 import { bytesToBase64, setJpegDpi, setPngDpi } from './exportBytes';
@@ -114,8 +115,15 @@ export function drawWatermark(image: SkImage, options: WatermarkOptions): SkImag
   const paint = Skia.Paint();
   paint.setColor(Skia.Color(options.color));
   paint.setAlphaf(options.opacity);
+  // Black, blurred, offset copy under the text, so the white reads on light backgrounds too.
+  const { offset, blur, alpha } = watermarkShadow(fontSize);
+  const shadow = Skia.Paint();
+  shadow.setColor(Skia.Color('black'));
+  shadow.setAlphaf(alpha * options.opacity);
+  shadow.setMaskFilter(Skia.MaskFilter.MakeBlur(BlurStyle.Normal, blur, false));
   canvas.save();
   canvas.rotate(options.rotation, place.pivotX, place.pivotY);
+  canvas.drawText(options.text, place.x + offset, place.baselineY + offset, shadow, font);
   canvas.drawText(options.text, place.x, place.baselineY, paint, font);
   canvas.restore();
   surface.flush();

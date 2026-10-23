@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -24,6 +24,7 @@ import {
   resizeImageCover,
   resizeImageToFit,
   watermarkFontSize,
+  watermarkShadow,
   type EncodedImage,
   type ImageExportFormat,
 } from '@modules/export';
@@ -34,6 +35,9 @@ import { Icon, Slider, Switch, Tabs } from '@core/ui';
 
 interface ExportSheetProps {
   onClose: () => void;
+  /** The user's last choices; kept by the screen so they survive closing the sheet. */
+  options: ExportOptions;
+  onOptionsChange: (options: ExportOptions) => void;
   /** Which pipeline this sheet is exporting from — video has no real encoder in this build. */
   mediaKind?: 'photo' | 'video';
   /** RF-057: the current edit as a Skia image at full resolution, e.g. an offscreen re-render; may resolve null. */
@@ -50,6 +54,40 @@ type ExportState = 'idle' | 'exporting' | 'done' | 'error';
 const DPI_OPTIONS = ['72', '150', '300', '600'];
 const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '↓', '↘'];
 const GRID_ALIGN = ['flex-start', 'center', 'flex-end'] as const;
+const WATERMARK_COLOR = '#FFFFFF';
+
+/** Every choice the user makes in the sheet (transient results and errors are not in here). */
+export interface ExportOptions {
+  tab: ExportTab;
+  format: ImageExportFormat;
+  quality: number;
+  sizeChip: string;
+  socialPreset: string | null;
+  smartCompression: boolean;
+  targetSizeMB: number;
+  dpi: string;
+  wmText: string;
+  wmPosition: number;
+  opacity: number;
+  wmSize: number;
+  wmRotation: number;
+}
+
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+  tab: 'RÁPIDO',
+  format: 'JPEG',
+  quality: 85,
+  sizeChip: 'Original',
+  socialPreset: null,
+  smartCompression: false,
+  targetSizeMB: 2,
+  dpi: '300',
+  wmText: '',
+  wmPosition: 8,
+  opacity: 60,
+  wmSize: 20,
+  wmRotation: 0,
+};
 
 /**
  * Modal export sheet — covers ~88% of the height over the current editor. Rendered as an
@@ -63,28 +101,56 @@ const GRID_ALIGN = ['flex-start', 'center', 'flex-end'] as const;
  */
 export function ExportSheet({
   onClose,
+  options,
+  onOptionsChange,
   mediaKind = 'photo',
   getSourceImage,
   onExported,
 }: ExportSheetProps) {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<ExportTab>('RÁPIDO');
-  const [format, setFormat] = useState<ImageExportFormat>('JPEG');
-  const [quality, setQuality] = useState(85);
-  const [sizeChip, setSizeChip] = useState('Original');
-  const [socialPreset, setSocialPreset] = useState<string | null>(null);
-  const [smartCompression, setSmartCompression] = useState(false);
-  const [targetSizeMB, setTargetSizeMB] = useState(2);
-  const [dpi, setDpi] = useState('300');
-  const [wmText, setWmText] = useState('');
-  const [wmPosition, setWmPosition] = useState(8);
+  // Works on its own copy and hands every change back, so the screen keeps the latest choices.
+  const [opts, setOpts] = useState<ExportOptions>(options);
+  useEffect(() => {
+    onOptionsChange(opts);
+  }, [opts, onOptionsChange]);
+  const {
+    tab,
+    format,
+    quality,
+    sizeChip,
+    socialPreset,
+    smartCompression,
+    targetSizeMB,
+    dpi,
+    wmText,
+    wmPosition,
+    opacity,
+    wmSize,
+    wmRotation,
+  } = opts;
+  const setOpt =
+    <K extends keyof ExportOptions>(key: K) =>
+    (value: ExportOptions[K]) =>
+      setOpts((prev) => ({ ...prev, [key]: value }));
+  const setTab = setOpt('tab');
+  const setFormat = setOpt('format');
+  const setQuality = setOpt('quality');
+  const setSizeChip = setOpt('sizeChip');
+  const setSocialPreset = setOpt('socialPreset');
+  const setSmartCompression = setOpt('smartCompression');
+  const setTargetSizeMB = setOpt('targetSizeMB');
+  const setDpi = setOpt('dpi');
+  const setWmText = setOpt('wmText');
+  const setWmPosition = setOpt('wmPosition');
+  const setOpacity = setOpt('opacity');
+  const setWmSize = setOpt('wmSize');
+  const setWmRotation = setOpt('wmRotation');
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [result, setResult] = useState<EncodedImage | null>(null);
-  const [opacity, setOpacity] = useState(60);
-  const [wmSize, setWmSize] = useState(20);
-  const [wmRotation, setWmRotation] = useState(0);
   const [previewWidth, setPreviewWidth] = useState(300);
+  const previewFontSize = watermarkFontSize(previewWidth, wmSize);
+  const previewShadow = watermarkShadow(previewFontSize);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
@@ -143,7 +209,7 @@ export function ExportSheet({
       const image = wmText.trim()
         ? drawWatermark(sized, {
             text: wmText.trim(),
-            color: colors.texto,
+            color: WATERMARK_COLOR,
             opacity: opacity / 100,
             position: wmPosition,
             size: wmSize,
@@ -446,7 +512,13 @@ export function ExportSheet({
                         {
                           opacity: opacity / 100,
                           transform: [{ rotate: `${wmRotation}deg` }],
-                          fontSize: watermarkFontSize(previewWidth, wmSize),
+                          fontSize: previewFontSize,
+                          textShadowColor: `rgba(0, 0, 0, ${previewShadow.alpha})`,
+                          textShadowOffset: {
+                            width: previewShadow.offset,
+                            height: previewShadow.offset,
+                          },
+                          textShadowRadius: previewShadow.blur,
                         },
                       ]}
                     >
@@ -693,7 +765,7 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   watermarkText: {
-    color: colors.texto,
+    color: WATERMARK_COLOR,
   },
   wmInput: {
     height: 40,

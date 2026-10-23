@@ -18,7 +18,11 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Switch } from '@core/ui';
-import { ExportSheet } from './photo-editor/ExportSheet';
+import {
+  DEFAULT_EXPORT_OPTIONS,
+  ExportSheet,
+  type ExportOptions,
+} from './photo-editor/ExportSheet';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { usePersistedHistory } from '@core/history';
 import { useStore } from '@core/state';
@@ -227,6 +231,11 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
     height?: number;
   } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  // The export sheet's choices survive closing it; a ref, so moving a slider does not re-render the editor.
+  const exportOptionsRef = useRef<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
+  const onExportOptionsChange = useCallback((next: ExportOptions) => {
+    exportOptionsRef.current = next;
+  }, []);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [maskPainterOpen, setMaskPainterOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
@@ -1132,6 +1141,8 @@ export default function PhotoEditorScreen({ navigation, route }: Props) {
       {exportOpen && (
         <ExportSheet
           onClose={() => setExportOpen(false)}
+          options={exportOptionsRef.current}
+          onOptionsChange={onExportOptionsChange}
           mediaKind="photo"
           getSourceImage={renderFullResolution}
           onExported={async (result) => {
