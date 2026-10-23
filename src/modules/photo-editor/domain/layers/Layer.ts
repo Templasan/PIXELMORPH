@@ -233,6 +233,7 @@ export interface TextDraft {
   fontFamily: string;
   color: string;
   shadow: boolean;
+  strokeColor: string;
   strokeWidth: number;
   entrada: number;
   saida: number;
