@@ -1,0 +1,267 @@
+import type { VideoSample } from 'mediabunny';
+import { mediaAround, opsAt, type Composition, type MediaOp } from '../domain/composition';
+import { AudioMixer } from './audio';
+import { drawFrame } from './draw';
+import type { Feed } from './feed';
+import type { MediaPool } from './media';
+
+export interface PlayerEvents {
+  /** The playhead, on every change: seeks immediately, every displayed frame while playing. */
+  onTime(ms: number): void;
+  onPlaying(playing: boolean): void;
+  onError(message: string): void;
+}
+
+/** Clips starting this soon get their decoder opened and positioned before they show. */
+const PREPARE_AHEAD_MS = 1500;
+/** A layer whose frame is late keeps the previous picture on screen for at most this long. */
+const MAX_HOLD_MS = 400;
+/** Decoders of clips that left the window are closed this often while playing. */
+const PRUNE_EVERY_MS = 1000;
+
+/**
+ * The preview. It is the ONLY owner of the playhead: the editor asks it to play, pause and seek,
+ * and shows whatever time it reports. While playing, the sound's clock leads (the picture follows
+ * it); paused, the time is exactly the last requested one.
+ */
+export class Player {
+  private comp: Composition;
+  private t = 0;
+  private playing = false;
+  private raf = 0;
+  private wall = { at: 0, t: 0 };
+  private audio: AudioMixer;
+  private ctx: CanvasRenderingContext2D;
+  private stillWanted: number | null = null;
+  private stillRun: Promise<void> | null = null;
+  private primed = new Set<string>();
+  private heldSince = 0;
+  private lastPrune = 0;
+  loop: { startMs: number; endMs: number } | null = null;
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly pool: MediaPool,
+    private readonly events: PlayerEvents,
+    comp: Composition
+  ) {
+    this.comp = comp;
+    this.ctx = canvas.getContext('2d', { alpha: false })!;
+    this.audio = new AudioMixer((uri) => pool.input(uri));
+    this.resize();
+    this.drawStill(0);
+  }
+
+  get time() {
+    return this.t;
+  }
+
+  get isPlaying() {
+    return this.playing;
+  }
+
+  get composition() {
+    return this.comp;
+  }
+
+  private resize() {
+    if (this.canvas.width !== this.comp.width) this.canvas.width = this.comp.width;
+    if (this.canvas.height !== this.comp.height) this.canvas.height = this.comp.height;
+  }
+
+  /** A new timeline: keeps the playhead (clamped) and shows the new frame. */
+  setComposition(comp: Composition) {
+    this.comp = comp;
+    this.resize();
+    this.primed.clear();
+    const t = Math.min(this.t, comp.durationMs);
+    if (t !== this.t) this.setTime(t);
+    if (this.playing) {
+      this.anchorAt(this.t);
+    } else {
+      this.drawStill(this.t);
+    }
+  }
+
+  private setTime(ms: number) {
+    this.t = ms;
+    this.events.onTime(ms);
+  }
+
+  private endMs() {
+    return this.loop
+      ? Math.min(this.loop.endMs, this.comp.durationMs)
+      : this.comp.durationMs;
+  }
+
+  // ---- transport -------------------------------------------------------------------------------
+
+  async play() {
+    if (this.playing || this.comp.durationMs <= 0) return;
+    if (this.t >= this.endMs() - 1) this.setTime(this.loop?.startMs ?? 0);
+    this.playing = true;
+    this.events.onPlaying(true);
+    // Start on an exact, complete frame (and decoders warmed at it) instead of a black one.
+    await this.drawStill(this.t);
+    if (!this.playing) return;
+    this.anchorAt(this.t);
+    this.raf = requestAnimationFrame(this.tick);
+  }
+
+  pause() {
+    if (!this.playing) return;
+    this.playing = false;
+    cancelAnimationFrame(this.raf);
+    this.audio.stop();
+    this.events.onPlaying(false);
+    this.events.onTime(this.t);
+    this.drawStill(this.t);
+  }
+
+  toggle() {
+    if (this.playing) this.pause();
+    else void this.play();
+  }
+
+  /** Moves the playhead now; the picture follows as soon as it is decoded (latest request wins). */
+  seek(ms: number) {
+    const t = Math.max(0, Math.min(this.comp.durationMs, ms));
+    this.setTime(t);
+    this.primed.clear();
+    if (this.playing) this.anchorAt(t);
+    else void this.drawStill(t);
+  }
+
+  private anchorAt(t: number) {
+    this.wall = { at: performance.now(), t };
+    this.heldSince = 0;
+    void this.audio.start(this.comp.audio, t, this.endMs());
+  }
+
+  // ---- live playback ---------------------------------------------------------------------------
+
+  private tick = (now: number) => {
+    if (!this.playing) return;
+    let t = this.audio.timeMs() ?? this.wall.t + (now - this.wall.at);
+    const end = this.endMs();
+    if (t >= end) {
+      if (this.loop) {
+        t = this.loop.startMs;
+        this.setTime(t);
+        this.anchorAt(t);
+      } else {
+        this.setTime(end);
+        this.pause();
+        return;
+      }
+    }
+    this.prepareAround(t);
+    const ops = opsAt(this.comp, t);
+    const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
+    let missing = false;
+    for (const op of ops) {
+      if (op.kind !== 'video' && op.kind !== 'image') continue;
+      const frame = this.liveFrame(op);
+      if (!frame) missing = true;
+      frames.set(op, frame);
+    }
+    // A late layer would flash out of the picture: keep the last complete frame a little longer.
+    if (missing && (this.heldSince === 0 || now - this.heldSince < MAX_HOLD_MS)) {
+      if (this.heldSince === 0) this.heldSince = now;
+    } else {
+      this.heldSince = 0;
+      drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+    }
+    this.setTime(t);
+    if (now - this.lastPrune > PRUNE_EVERY_MS) {
+      this.lastPrune = now;
+      this.prune(t);
+    }
+    this.raf = requestAnimationFrame(this.tick);
+  };
+
+  private liveFrame(op: MediaOp): VideoSample | ImageBitmap | null {
+    if (op.kind === 'image') return this.pool.pictureNow(op.uri, this.comp.width);
+    const feed = this.pool.liveFeed(op.key, op.uri);
+    if (!feed) {
+      void this.pool.feedReady(op.key, op.uri).catch((e) => this.fail(e));
+      return null;
+    }
+    return feed.tick(op.sourceTimeMs / 1000);
+  }
+
+  /** Opens and positions the decoders of clips about to show, once per clip and playhead jump. */
+  private prepareAround(t: number) {
+    for (const op of mediaAround(this.comp, t, PREPARE_AHEAD_MS)) {
+      if (this.primed.has(op.key)) continue;
+      this.primed.add(op.key);
+      if (op.kind === 'image') {
+        void this.pool.picture(op.uri, this.comp.width);
+        continue;
+      }
+      void this.pool
+        .feedReady(op.key, op.uri)
+        .then((feed) => (feed.primed ? undefined : feed.restart(op.sourceTimeMs / 1000)))
+        .catch((e) => this.fail(e));
+    }
+  }
+
+  private prune(t: number) {
+    const keep = new Set(mediaAround(this.comp, t, PREPARE_AHEAD_MS).map((o) => `${o.key}|${o.uri}`));
+    const uris = new Set<string>([
+      ...this.comp.layers.flatMap((l) => l.clips.map((c) => c.sourceUri)),
+      ...this.comp.audio.map((a) => a.uri),
+    ]);
+    this.pool.prune(keep, uris);
+    for (const key of [...this.primed]) {
+      if (![...keep].some((k) => k.startsWith(`${key}|`))) this.primed.delete(key);
+    }
+  }
+
+  // ---- exact frames (paused, seeks) ------------------------------------------------------------
+
+  /** Draws exactly the frame at `t` with every layer decoded (coalesced: the newest wins). */
+  private drawStill(t: number): Promise<void> {
+    this.stillWanted = t;
+    this.stillRun ??= this.runStills();
+    return this.stillRun;
+  }
+
+  private async runStills() {
+    try {
+      while (this.stillWanted !== null) {
+        const t = this.stillWanted;
+        this.stillWanted = null;
+        if (!this.playing) this.prune(t);
+        const ops = opsAt(this.comp, t);
+        const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
+        await Promise.all(
+          ops.map(async (op) => {
+            if (op.kind === 'image') frames.set(op, await this.pool.picture(op.uri, this.comp.width));
+            if (op.kind !== 'video') return;
+            const feed: Feed = await this.pool.feedReady(op.key, op.uri);
+            frames.set(op, await feed.seek(op.sourceTimeMs / 1000));
+          })
+        );
+        // A newer request arrived while decoding: draw that one instead of a stale frame.
+        if (this.stillWanted !== null) continue;
+        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+      }
+    } catch (e) {
+      this.fail(e);
+    } finally {
+      this.stillRun = null;
+    }
+  }
+
+  private fail(e: unknown) {
+    this.events.onError(String((e as Error)?.message ?? e));
+  }
+
+  dispose() {
+    this.playing = false;
+    cancelAnimationFrame(this.raf);
+    this.audio.dispose();
+    this.pool.dispose();
+  }
+}
