@@ -281,9 +281,6 @@ export default function ProjectsScreen({ navigation }: Props) {
             <Icon name="x" size={22} />
           </Pressable>
           <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
-          {/* TODO: implement share / upload actions for the selection. */}
-          <Icon name="share" size={20} />
-          <Icon name="upload" size={20} />
         </View>
       ) : (
         <View style={styles.topBar}>
