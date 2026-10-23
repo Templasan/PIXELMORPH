@@ -165,6 +165,11 @@ Emulator result: **export correct in all 6 combinations**; the preview still gli
 - Login / 2FA / sync: last, after the rest of the sprint.
 - Merge `video-engine` into `sprint-2` and push after the test on the owner's Poco passes.
 
+### TODO: photo editor (owner test, 2026-10-23)
+
+Still has performance problems and problems with some imported formats. Owner asked to leave
+it for later; details to collect when it is picked up (which formats, which actions are slow).
+
 ### TODO: feasibility research, lighter preview copies (owner, 2026-10-23)
 
 Measure on the Poco before changing defaults (fps, seek time, `dumpsys meminfo`, file size,
