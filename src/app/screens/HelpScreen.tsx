@@ -9,31 +9,27 @@ import { colors, fontSize, monoFontFamily } from '@core/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Help'>;
 
-// TODO: replace with a real, searchable FAQ backend.
 const FAQS = [
   {
     q: 'Como recupero um projeto corrompido?',
     a: 'Abra Armazenamento e toque em Verificar integridade dos projetos. O app restaura a partir do backup automático mais recente.',
   },
-  { q: 'Por que meu vídeo 4K trava na linha do tempo?', a: '' },
-  { q: 'As edições com IA saem do meu aparelho?', a: '' },
-  { q: 'Posso usar meus presets em outro dispositivo?', a: '' },
-  { q: 'Como exporto mantendo as camadas?', a: '' },
-  { q: 'O que é a assinatura digital nas edições publicadas?', a: '' },
+  {
+    q: 'Por que meu vídeo 4K trava na linha do tempo?',
+    a: 'Para vídeos acima de 1280 px, a prévia usa uma cópia de 720p. Toque no selo de qualidade da prévia para escolher outra opção. A exportação usa o vídeo original.',
+  },
+  {
+    q: 'As edições com IA saem do meu aparelho?',
+    a: 'Ainda não há edição por IA funcionando: o painel IA do editor de fotos não altera a imagem.',
+  },
 ];
 
+// Gestures recognised by shortcutGestures in PhotoEditorScreen.tsx.
 const SHORTCUTS = [
   { gesture: 'dois dedos, um toque', action: 'Desfazer' },
-  { gesture: 'dois dedos, dois toques', action: 'Refazer' },
-  { gesture: 'manter pressionado', action: 'Ver imagem original' },
-  { gesture: 'deslizar para cima', action: 'Trocar de ferramenta' },
-  { gesture: 'toque duplo', action: 'Aplicar último preset' },
-];
-
-const SUPPORT = [
-  { label: 'Reportar um problema', sub: 'Envia os registros locais junto, se você permitir' },
-  { label: 'Sugerir uma melhoria', sub: '' },
-  { label: 'Falar com o suporte', sub: 'Seg a sex, 9h às 18h' },
+  { gesture: 'três dedos, um toque', action: 'Refazer' },
+  { gesture: 'dois dedos, dois toques', action: 'Abrir exportação' },
+  { gesture: 'três dedos, dois toques', action: 'Próxima ferramenta' },
 ];
 
 function SectionHeader({ label }: { label: string }) {
@@ -42,8 +38,13 @@ function SectionHeader({ label }: { label: string }) {
 
 export default function HelpScreen({ navigation }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [expanded, setExpanded] = useState<number | null>(0);
+  const [expanded, setExpanded] = useState<string | null>(FAQS[0].q);
   const [search, setSearch] = useState('');
+  const needle = search.trim().toLowerCase();
+  const faqs = FAQS.filter(
+    (item) =>
+      !needle || item.q.toLowerCase().includes(needle) || item.a.toLowerCase().includes(needle)
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -58,7 +59,6 @@ export default function HelpScreen({ navigation }: Props) {
         <View style={styles.searchSection}>
           <View style={styles.searchBox}>
             <Icon name="search" size={16} color={colors.texto2} />
-            {/* TODO: real full-text search across FAQs/support content. */}
             <TextInput
               value={search}
               onChangeText={setSearch}
@@ -86,22 +86,23 @@ export default function HelpScreen({ navigation }: Props) {
 
         <SectionHeader label="PERGUNTAS FREQUENTES" />
         <View style={styles.bordered}>
-          {FAQS.map((item, i) => (
+          {faqs.map((item) => (
             <View key={item.q} style={styles.faqItem}>
               <Pressable
                 style={styles.faqHeader}
-                onPress={() => setExpanded(expanded === i ? null : i)}
+                onPress={() => setExpanded(expanded === item.q ? null : item.q)}
               >
                 <Text style={styles.faqQuestion}>{item.q}</Text>
                 <Icon
-                  name={expanded === i ? 'chevronUp' : 'chevronDown'}
+                  name={expanded === item.q ? 'chevronUp' : 'chevronDown'}
                   size={16}
                   color={colors.texto2}
                 />
               </Pressable>
-              {expanded === i && item.a ? <Text style={styles.faqAnswer}>{item.a}</Text> : null}
+              {expanded === item.q ? <Text style={styles.faqAnswer}>{item.a}</Text> : null}
             </View>
           ))}
+          {faqs.length === 0 && <Text style={styles.faqEmpty}>Nenhuma pergunta encontrada.</Text>}
         </View>
 
         <SectionHeader label="ATALHOS RÁPIDOS" />
@@ -111,23 +112,6 @@ export default function HelpScreen({ navigation }: Props) {
               <Text style={styles.shortcutGesture}>{s.gesture}</Text>
               <Text style={styles.shortcutAction}>{s.action}</Text>
             </View>
-          ))}
-        </View>
-
-        <SectionHeader label="SUPORTE" />
-        <View style={styles.bordered}>
-          {SUPPORT.map((item) => (
-            // TODO: wire up real report/suggest/contact-support flows.
-            <Pressable
-              key={item.label}
-              style={[styles.supportRow, item.sub && styles.supportRowTall]}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.supportLabel}>{item.label}</Text>
-                {item.sub ? <Text style={styles.supportSub}>{item.sub}</Text> : null}
-              </View>
-              <Icon name="chevronRight" size={16} color={colors.linha} />
-            </Pressable>
           ))}
         </View>
 
@@ -272,24 +256,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.texto,
   },
-  supportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 56,
+  faqEmpty: {
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.linha,
-  },
-  supportRowTall: {
-    paddingVertical: 10,
-  },
-  supportLabel: {
-    fontSize: fontSize.md,
-    color: colors.texto,
-  },
-  supportSub: {
-    fontSize: fontSize.xs,
+    paddingVertical: 14,
+    fontSize: fontSize.sm,
     color: colors.texto2,
-    marginTop: 2,
   },
 });
