@@ -3,7 +3,7 @@
 Branch `spike-webview` (based on `transitions-in-out`). Time-boxed proof of concept: ONE drawing
 function (`drawListAt`) drives both the live preview and the frame-by-frame mp4 export, decoded
 and encoded with WebCodecs (Mediabunny) in an Expo DOM component. The old editor is untouched
-except for one top-bar entry ("Motor web (teste)").
+except for one top-bar entry ("Motor web (teste)"), removed in fd7fa5d.
 
 ## What was built
 
@@ -13,10 +13,10 @@ except for one top-bar entry ("Motor web (teste)").
 | Jest tests (gap = black, PiP opacity, text and sticker keyframes, transition at a junction, determinism) | `tests/modules/video-web-scene.test.ts` |
 | Engine (canvas, one draw path, playback loop, seek, export, metrics) | `src/app/screens/video-editor/web-engine/engine.ts` |
 | Decoder slot (current + 2 decoded ahead, restart on jumps) | `.../web-engine/feed.ts` |
-| DOM component (`'use dom'`), props in / function props out | `.../web-engine/WebEngine.tsx` |
-| RN host screen (file reads, export file writing, AppState, metrics file) | `src/app/screens/VideoEngineSpikeScreen.tsx` |
-| Route + entry button | `RootNavigator.tsx`, `VideoEditorScreen.tsx` (one `Pressable`) |
-| Sticker (assets/icon.png inlined as a data URI; bundled assets have no file in release) | `.../web-engine/stickerData.ts` |
+| DOM component (`'use dom'`), props in / function props out | removed in fd7fa5d (`web-engine/WebEngine.tsx`) |
+| RN host screen (file reads, export file writing, AppState, metrics file) | removed in fd7fa5d (`VideoEngineSpikeScreen.tsx`) |
+| Route + entry button | removed in fd7fa5d |
+| Sticker (assets/icon.png inlined as a data URI; bundled assets have no file in release) | removed in fd7fa5d (`web-engine/stickerData.ts`) |
 
 Test scenario in `buildSpikeScene`: the project's main sequence from `planSequence` (gaps black, the
 4 transitions with their out/in modes through `transitionTransforms`), two PiP video layers (first
@@ -123,7 +123,7 @@ environment problems were a large share).
 1. Release build from a short path (e.g. `C:\pw`):
    `cd android && ./gradlew.bat assembleRelease -PreactNativeArchitectures=arm64-v8a`;
    `adb -s <phone> install -r`.
-2. Open a video project with 1080p clips, tap "Motor web (teste)" in the editor top bar.
+2. Removed in fd7fa5d: the "Motor web (teste)" entry and this procedure no longer apply.
 3. Wait for "pronto". Buttons: Play (up to 30 s from the playhead; reports on end/pause), Pause,
    "Seek x20", "Exportar" (first 20 s, 30 fps, ~10 Mbps). "arquivo: auto/xhr/bridge" picks the file
    access method (reloads the engine).
