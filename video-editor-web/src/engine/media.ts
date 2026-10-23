@@ -169,6 +169,10 @@ export class MediaPool {
     }
   }
 
+  stats() {
+    return { feeds: this.feeds.size, inputs: this.inputs.size, pictures: this.bitmapReady.size };
+  }
+
   dispose() {
     this.prune(new Set(), new Set());
     for (const bm of this.bitmapReady.values()) bm.close();
