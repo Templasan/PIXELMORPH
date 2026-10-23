@@ -120,6 +120,15 @@ export function watermarkFontSize(imageWidth: number, sizeSlider: number): numbe
   return (imageWidth * sizeSlider) / 400;
 }
 
+/**
+ * Dark shadow under the watermark text, shared by the tab preview and the exported image.
+ * `offset` is the down-right shift, `blur` the blur radius (both scale with the font size) and
+ * `alpha` the black's opacity before the watermark opacity is applied.
+ */
+export function watermarkShadow(fontSize: number): { offset: number; blur: number; alpha: number } {
+  return { offset: fontSize * 0.02, blur: fontSize * 0.04, alpha: 0.6 };
+}
+
 export interface WatermarkPlacement {
   fontSize: number;
   /** Left edge of the text, in image pixels. */
