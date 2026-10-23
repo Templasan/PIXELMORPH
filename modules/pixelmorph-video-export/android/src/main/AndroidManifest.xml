@@ -1,2 +1,4 @@
-<manifest>
+<manifest xmlns:tools="http://schemas.android.com/tools">
+  <!-- heifwriter declares minSdk 28; it is only called after heicSupported() checks API 28. -->
+  <uses-sdk tools:overrideLibrary="androidx.heifwriter" />
 </manifest>
