@@ -603,9 +603,6 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
         <Pressable onPress={handleRedo} disabled={!history.canRedo} hitSlop={6}>
           <Icon name="redo" size={18} color={history.canRedo ? colors.icone : colors.linha} />
         </Pressable>
-        <Pressable onPress={() => navigation.navigate('VideoEngineSpike', { tracks })} hitSlop={6}>
-          <Text style={{ color: colors.icone, fontSize: 10 }}>Motor web (teste)</Text>
-        </Pressable>
         <Pressable style={styles.exportButton} onPress={() => setExportOpen(true)}>
           <Text style={styles.exportButtonText}>EXPORTAR</Text>
         </Pressable>
