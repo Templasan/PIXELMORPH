@@ -2,6 +2,7 @@ import {
   autoTier,
   createDropMonitor,
   isSustainedDrop,
+  previewUriFor,
   resolveTier,
   stepDownTier,
 } from '../../src/app/screens/video-editor/previewTier';
@@ -70,5 +71,32 @@ describe('drop monitor', () => {
     let hit = false;
     for (let t = 0; t < 6000; t += 33) hit = m.sample(t, t % 660 === 0 ? 1 : 0) || hit;
     expect(hit).toBe(false);
+  });
+});
+
+describe('previewUriFor', () => {
+  const src = 'file:///docs/media/p/clip.mp4';
+  const ready = (uri: string) => ({ status: 'ready', uri });
+
+  it('Alta plays originals up to 1080p and the 1080p proxy above it', () => {
+    expect(previewUriFor('alta', { [`${src}#1080`]: { status: 'none' } }, src)).toBe(src);
+    expect(
+      previewUriFor('alta', { [src]: ready('p720'), [`${src}#1080`]: ready('p1080') }, src)
+    ).toBe('p1080');
+  });
+
+  it('Alta uses the 720p proxy while the 1080p one is unknown, running or failed', () => {
+    expect(previewUriFor('alta', { [src]: ready('p720') }, src)).toBe('p720');
+    expect(
+      previewUriFor('alta', { [src]: ready('p720'), [`${src}#1080`]: { status: 'running' } }, src)
+    ).toBe('p720');
+    expect(previewUriFor('alta', { [`${src}#1080`]: { status: 'failed' } }, src)).toBe(src);
+  });
+
+  it('Média and Baixa keep their proxies', () => {
+    const state = { [src]: ready('p720'), [`${src}#540`]: ready('p540') };
+    expect(previewUriFor('media', state, src)).toBe('p720');
+    expect(previewUriFor('baixa', state, src)).toBe('p540');
+    expect(previewUriFor('baixa', { [src]: ready('p720') }, src)).toBe('p720');
   });
 });

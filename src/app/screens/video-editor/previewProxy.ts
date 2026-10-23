@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { createStore, shallowEqual, useStore } from '@core/state';
 import { errorLogger } from '@core/reliability';
+import { proxyKey, type ProxyVariant } from './previewTier';
 import { uprightDimensions } from '@modules/device-media/uprightDimensions';
 import {
   cancelVideoExport,
@@ -10,22 +11,16 @@ import {
 
 /** Sources whose long edge is above this get a proxy; the proxy's long edge is this. */
 export const PROXY_LONG_EDGE = 1280;
+export { proxyKey, type ProxyVariant };
 const PROXY_BITRATE = 5_000_000;
 /** Proxies keyframe every second: long gaps made seeks slow (the engine decodes from the keyframe). */
 const PROXY_KEYFRAME_SECONDS = 1;
 
-/**
- * '720': the editor's default proxy (every editor needs it). '540': only the web engine's Baixa
- * tier asks for it. Its entries sit in proxyStore under `<source uri>#540`.
- */
-export type ProxyVariant = '720' | '540';
 const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number }> = {
   '720': { longEdge: PROXY_LONG_EDGE, bitrate: PROXY_BITRATE },
   '540': { longEdge: 960, bitrate: 3_000_000 },
+  '1080': { longEdge: 1920, bitrate: 10_000_000 },
 };
-/** The proxyStore key of a source's proxy. */
-export const proxyKey = (sourceUri: string, variant: ProxyVariant = '720') =>
-  variant === '540' ? `${sourceUri}#540` : sourceUri;
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
 

@@ -6,8 +6,15 @@ import { buildEditorScene } from '../../../modules/video-editor/domain/webScene'
 import EditorPreview from './web-engine/EditorPreview';
 import { createFileHost, STREAM_ABOVE_BYTES } from './web-engine/fileHost';
 import { patchPreviewSession, previewSession, previewSettings } from './previewSettings';
-import { proxyKey, proxyStore, requestSourceProxy, type ProxyEntry } from './previewProxy';
-import { autoTier, NEEDS_WEBVIEW, resolveTier, TIER_SPECS, type Tier } from './previewTier';
+import { proxyStore, requestSourceProxy } from './previewProxy';
+import {
+  autoTier,
+  NEEDS_WEBVIEW,
+  previewUriFor,
+  resolveTier,
+  TIER_SPECS,
+  type Tier,
+} from './previewTier';
 import type { TimeStore } from './timeStore';
 import {
   engineExport,
@@ -21,14 +28,6 @@ const NO_STATUS_MS = 10_000;
 
 /** The tier actually in use, for the quality menu and badge. */
 export const tierInUse = createStore<Tier | null>(null);
-
-/** Which file the preview decodes for `uri` at `tier` (export never uses this). */
-export function previewUriFor(tier: Tier, state: Record<string, ProxyEntry>, uri: string): string {
-  if (tier === 'alta') return uri;
-  const ready = (key: string) => (state[key]?.status === 'ready' ? state[key].uri : undefined);
-  const p720 = ready(proxyKey(uri));
-  return tier === 'baixa' ? (ready(proxyKey(uri, '540')) ?? p720 ?? uri) : (p720 ?? uri);
-}
 
 interface Props {
   tracks: Track[];
@@ -82,9 +81,12 @@ export function EnginePreview({
     ],
     [tracks]
   );
-  // Baixa needs the 540p proxies (made only now); until they exist it decodes the 720p ones.
+  // Baixa needs the 540p proxies and Alta the 1080p ones (made only now); until they exist the
+  // preview decodes the 720p ones.
   useEffect(() => {
-    if (tier === 'baixa') for (const uri of videoUris) void requestSourceProxy(uri, '540');
+    if (tier === 'alta' || tier === 'baixa') {
+      for (const uri of videoUris) void requestSourceProxy(uri, tier === 'alta' ? '1080' : '540');
+    }
   }, [tier, videoUris]);
   const mapping = useStore(
     proxyStore,
