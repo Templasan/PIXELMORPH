@@ -38,6 +38,9 @@ export class Player {
   private stillRun: Promise<void> | null = null;
   private primed = new Set<string>();
   private heldSince = 0;
+  /** While playing, time never goes back: the wall clock leads until the sound starts, then the
+   * sound's clock (which starts a little later, at its own anchor) takes over without a step back. */
+  private floor = 0;
   private lastPrune = 0;
   loop: { startMs: number; endMs: number } | null = null;
 
@@ -136,6 +139,7 @@ export class Player {
 
   private anchorAt(t: number) {
     this.wall = { at: performance.now(), t };
+    this.floor = t;
     this.heldSince = 0;
     void this.audio.start(this.comp.audio, t, this.endMs());
   }
@@ -144,7 +148,8 @@ export class Player {
 
   private tick = (now: number) => {
     if (!this.playing) return;
-    let t = this.audio.timeMs() ?? this.wall.t + (now - this.wall.at);
+    let t = Math.max(this.floor, this.audio.timeMs() ?? this.wall.t + (now - this.wall.at));
+    this.floor = t;
     const end = this.endMs();
     if (t >= end) {
       if (this.loop) {
