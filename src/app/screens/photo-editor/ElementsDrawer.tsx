@@ -18,6 +18,8 @@ import {
   type TextDraft,
 } from '@modules/photo-editor';
 import { pickImageFromGallery } from '@modules/device-media';
+import { ColorPickerSheet } from './ColorPickerSheet';
+import { sameHex } from './colorHex';
 
 const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'Colagem'] as const;
 type ElementsTab = (typeof TABS)[number];
@@ -68,6 +70,60 @@ interface ElementsDrawerProps {
 }
 
 const COLLAGE_COLORS = ['#FFFFFF', '#000000', colors.acento];
+
+/**
+ * Fixed swatches plus a trailing "Outra cor" swatch. A colour outside the fixed swatches is
+ * shown in that trailing swatch, which then looks selected.
+ */
+function ColorSwatchRow({
+  swatches,
+  selected,
+  onPick,
+}: {
+  swatches: readonly string[];
+  selected: string;
+  onPick: (hex: string) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const customSelected = swatches.some((c) => sameHex(c, selected)) ? null : selected;
+  return (
+    <View style={styles.colorRow}>
+      {swatches.map((c) => (
+        <Pressable
+          key={c}
+          style={[
+            styles.colorSwatch,
+            { backgroundColor: c },
+            selected === c && styles.colorSwatchActive,
+          ]}
+          onPress={() => onPick(c)}
+        />
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Outra cor"
+        style={[
+          styles.colorSwatch,
+          customSelected !== null && { backgroundColor: customSelected },
+          customSelected !== null && styles.colorSwatchActive,
+        ]}
+        onPress={() => setPickerOpen(true)}
+      >
+        {customSelected === null && <Icon name="plus" size={14} color={colors.texto2} />}
+      </Pressable>
+      {pickerOpen && (
+        <ColorPickerSheet
+          initialColor={selected}
+          onCancel={() => setPickerOpen(false)}
+          onConfirm={(hex) => {
+            setPickerOpen(false);
+            onPick(hex);
+          }}
+        />
+      )}
+    </View>
+  );
+}
 
 /**
  * Elementos drawer — Texto (RF-008), Formas (RF-044), Meme/Adesivos (RF-046) all draw for
@@ -153,19 +209,11 @@ export function ElementsDrawer({
               </Pressable>
             ))}
           </View>
-          <View style={styles.colorRow}>
-            {TEXT_COLORS.map((c) => (
-              <Pressable
-                key={c}
-                style={[
-                  styles.colorSwatch,
-                  { backgroundColor: c },
-                  textDraft.color === c && styles.colorSwatchActive,
-                ]}
-                onPress={() => onChangeTextDraft({ color: c })}
-              />
-            ))}
-          </View>
+          <ColorSwatchRow
+            swatches={TEXT_COLORS}
+            selected={textDraft.color}
+            onPick={(color) => onChangeTextDraft({ color })}
+          />
           <View style={styles.toggleRow}>
             <Pressable
               style={[styles.toggleChip, textDraft.shadow && styles.toggleChipActive]}
@@ -190,19 +238,11 @@ export function ElementsDrawer({
             </Pressable>
           </View>
           {textDraft.strokeWidth > 0 && (
-            <View style={styles.colorRow}>
-              {OUTLINE_COLORS.map((c) => (
-                <Pressable
-                  key={c}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: c },
-                    textDraft.strokeColor === c && styles.colorSwatchActive,
-                  ]}
-                  onPress={() => onChangeTextDraft({ strokeColor: c })}
-                />
-              ))}
-            </View>
+            <ColorSwatchRow
+              swatches={OUTLINE_COLORS}
+              selected={textDraft.strokeColor}
+              onPick={(strokeColor) => onChangeTextDraft({ strokeColor })}
+            />
           )}
           <Pressable
             style={[styles.submitButton, !textDraft.content.trim() && styles.submitButtonDisabled]}
@@ -235,19 +275,11 @@ export function ElementsDrawer({
               </Pressable>
             ))}
           </View>
-          <View style={styles.colorRow}>
-            {TEXT_COLORS.map((c) => (
-              <Pressable
-                key={c}
-                style={[
-                  styles.colorSwatch,
-                  { backgroundColor: c },
-                  shapeDraft.color === c && styles.colorSwatchActive,
-                ]}
-                onPress={() => onChangeShapeDraft({ color: c })}
-              />
-            ))}
-          </View>
+          <ColorSwatchRow
+            swatches={TEXT_COLORS}
+            selected={shapeDraft.color}
+            onPick={(color) => onChangeShapeDraft({ color })}
+          />
           <Slider
             label="Espessura"
             value={shapeDraft.strokeWidth}
