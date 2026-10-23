@@ -15,6 +15,7 @@ import {
   primaryAsset,
   priorityLabel,
 } from './projectFormat';
+import { shareProject } from './shareProject';
 
 const PRIORITY_OPTIONS: readonly ProjectPriority[] = ['low', 'medium', 'high'];
 
@@ -182,6 +183,9 @@ export function ProjectInfoSheet({
                 )}
               </View>
             </View>
+            <Pressable style={styles.dueDateButton} onPress={() => shareProject(project)}>
+              <Text style={styles.dueDateButtonText}>{t('Compartilhar')}</Text>
+            </Pressable>
             <Pressable style={styles.dueDateButton} onPress={() => onConfirmDelete(project)}>
               <Text style={[styles.dueDateButtonText, { color: colors.acento }]}>
                 {t('Apagar projeto')}

@@ -32,6 +32,7 @@ import { ProjectCard } from './projects/ProjectCard';
 import { ReminderBanner } from './projects/ReminderBanner';
 import { ProjectInfoSheet } from './projects/ProjectInfoSheet';
 import { PROJECT_SORT_ORDER, queryProjects, type ProjectSort } from './projects/projectListQuery';
+import { shareProject } from './projects/shareProject';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
@@ -310,6 +311,10 @@ export default function ProjectsScreen({ navigation }: Props) {
     [selected, multiSelect, onPressProject, onLongPressProject, openInfo]
   );
 
+  // Sharing takes one file, so the icon is live only when exactly one project is selected.
+  const selectedProject =
+    selected.length === 1 ? projects.find((p) => p.id === selected[0]) : undefined;
+
   return (
     <SafeAreaView style={styles.container}>
       {multiSelect ? (
@@ -318,6 +323,14 @@ export default function ProjectsScreen({ navigation }: Props) {
             <Icon name="x" size={22} />
           </Pressable>
           <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
+          <Pressable
+            onPress={() => selectedProject && shareProject(selectedProject)}
+            disabled={!selectedProject}
+            hitSlop={8}
+            accessibilityLabel={t('Compartilhar')}
+          >
+            <Icon name="share" size={20} color={selectedProject ? colors.texto : colors.linha} />
+          </Pressable>
           <Pressable
             onPress={() => confirmDeleteSelected(selected)}
             disabled={selected.length === 0}

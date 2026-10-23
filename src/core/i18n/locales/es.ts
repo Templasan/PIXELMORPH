@@ -39,7 +39,13 @@ const es: Record<string, string> = {
   'Use o formato DD/MM/AAAA.': 'Usa el formato DD/MM/AAAA.',
   'Apagar projeto': 'Eliminar proyecto',
   'Apagar projetos': 'Borrar proyectos',
-  'Apagar {n} projetos? Esta ação não pode ser desfeita.': '¿Borrar {n} proyectos? Esta acción no se puede deshacer.',
+  Compartilhar: 'Compartir',
+  'Compartilhamento indisponível': 'Compartir no disponible',
+  'Este aparelho não permite compartilhar arquivos.':
+    'Este dispositivo no permite compartir archivos.',
+  'Não foi possível compartilhar': 'No se pudo compartir',
+  'Apagar {n} projetos? Esta ação não pode ser desfeita.':
+    '¿Borrar {n} proyectos? Esta acción no se puede deshacer.',
   'Apagar "{name}"? Esta ação não pode ser desfeita.':
     '¿Eliminar "{name}"? Esta acción no se puede deshacer.',
   Cancelar: 'Cancelar',
