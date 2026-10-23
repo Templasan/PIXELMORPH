@@ -5,15 +5,19 @@
  * tested; this file is the thin Skia-touching adapter around it.
  */
 
-import { Skia, ImageFormat, type SkImage } from '@shopify/react-native-skia';
+import { Skia, ImageFormat, matchFont, type SkImage } from '@shopify/react-native-skia';
 import {
   type ImageExportFormat,
   searchQualityForTargetSize,
   coverFitRect,
   scaleToFit,
+  watermarkFontSize,
+  layoutWatermark,
 } from './exportMath';
+import { bytesToBase64, setJpegDpi, setPngDpi } from './exportBytes';
 
 export * from './exportMath';
+export * from './exportBytes';
 
 function toSkiaFormat(format: ImageExportFormat): ImageFormat {
   switch (format) {
@@ -67,6 +71,55 @@ export function encodeToTargetSize(
     maxQuality
   );
   return encodeImage(image, format, quality);
+}
+
+/** Writes the DPI into an encoded JPEG/PNG (WebP has no density field, so it is returned as is). */
+export function applyDpi(encoded: EncodedImage, dpi: number): EncodedImage {
+  if (encoded.format === 'WebP') return encoded;
+  const bytes =
+    encoded.format === 'PNG' ? setPngDpi(encoded.bytes, dpi) : setJpegDpi(encoded.bytes, dpi);
+  return { ...encoded, bytes, base64: bytesToBase64(bytes) };
+}
+
+export interface WatermarkOptions {
+  text: string;
+  color: string;
+  /** 0..1 */
+  opacity: number;
+  /** 3x3 grid cell, 0 (top-left) to 8 (bottom-right). */
+  position: number;
+  /** The tab's size slider, 5..80. */
+  size: number;
+  rotation: number;
+}
+
+/** Composites the watermark text onto the image with the same placement as the tab preview. */
+export function drawWatermark(image: SkImage, options: WatermarkOptions): SkImage {
+  const width = image.width();
+  const height = image.height();
+  const surface = Skia.Surface.Make(width, height);
+  if (!surface) return image;
+
+  const canvas = surface.getCanvas();
+  canvas.drawImage(image, 0, 0);
+  const fontSize = watermarkFontSize(width, options.size);
+  const font = matchFont({ fontFamily: 'sans-serif', fontSize, fontWeight: 'normal' });
+  const place = layoutWatermark(
+    width,
+    height,
+    font.measureText(options.text).width,
+    fontSize,
+    options.position
+  );
+  const paint = Skia.Paint();
+  paint.setColor(Skia.Color(options.color));
+  paint.setAlphaf(options.opacity);
+  canvas.save();
+  canvas.rotate(options.rotation, place.pivotX, place.pivotY);
+  canvas.drawText(options.text, place.x, place.baselineY, paint, font);
+  canvas.restore();
+  surface.flush();
+  return surface.makeImageSnapshot();
 }
 
 /** RF-017: "Tamanho" chips — scales the whole image down to fit, no cropping. */

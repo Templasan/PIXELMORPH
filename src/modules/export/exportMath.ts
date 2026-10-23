@@ -108,3 +108,52 @@ export function coverFitRect(
     height,
   };
 }
+
+/** Watermark margin from the image edge, as a fraction of the image width. */
+export const WATERMARK_MARGIN_RATIO = 0.03;
+
+/**
+ * The tab's size slider (5..80) is a fraction of the image width, so the preview box and the
+ * exported image show the same proportion of text.
+ */
+export function watermarkFontSize(imageWidth: number, sizeSlider: number): number {
+  return (imageWidth * sizeSlider) / 400;
+}
+
+export interface WatermarkPlacement {
+  fontSize: number;
+  /** Left edge of the text, in image pixels. */
+  x: number;
+  /** Baseline of the text, in image pixels. */
+  baselineY: number;
+  /** Centre of the text box, the point the watermark rotates around. */
+  pivotX: number;
+  pivotY: number;
+}
+
+/**
+ * `position` is the 3x3 grid of the tab, row by row: 0 top-left ... 4 centre ... 8 bottom-right.
+ */
+export function layoutWatermark(
+  imageWidth: number,
+  imageHeight: number,
+  textWidth: number,
+  fontSize: number,
+  position: number
+): WatermarkPlacement {
+  const cell = Math.min(8, Math.max(0, Math.round(position)));
+  const col = cell % 3;
+  const row = Math.floor(cell / 3);
+  const margin = imageWidth * WATERMARK_MARGIN_RATIO;
+  const x =
+    col === 0 ? margin : col === 1 ? (imageWidth - textWidth) / 2 : imageWidth - margin - textWidth;
+  const top =
+    row === 0 ? margin : row === 1 ? (imageHeight - fontSize) / 2 : imageHeight - margin - fontSize;
+  return {
+    fontSize,
+    x,
+    baselineY: top + fontSize * 0.8,
+    pivotX: x + textWidth / 2,
+    pivotY: top + fontSize / 2,
+  };
+}
