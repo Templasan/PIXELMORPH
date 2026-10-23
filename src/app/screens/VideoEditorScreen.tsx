@@ -623,6 +623,11 @@ export default function VideoEditorScreen({ navigation, route }: Props) {
           <View style={styles.previewPanel} onLayout={(e) => setPreviewSize(e.nativeEvent.layout)}>
             {/* Not mounted until ready: the 4K original is never decoded while it is locked. */}
             {/* One engine at a time: in full screen the preview moves into the modal. */}
+            {mediaReady && engineFallback && (
+              <Text style={styles.previewUnavailable}>
+                Prévia indisponível: o motor de vídeo não roda neste aparelho.
+              </Text>
+            )}
             {mediaReady && !engineFallback && !fullscreenPreview && (
               <EnginePreview
                 tracks={tracks}
@@ -1009,6 +1014,15 @@ const styles = StyleSheet.create({
     padding: 6,
     borderWidth: 1,
     borderColor: colors.linha,
+  },
+  previewUnavailable: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: '45%',
+    textAlign: 'center',
+    color: colors.texto2,
+    fontSize: fontSize.sm,
   },
   fullscreenPreview: {
     flex: 1,
