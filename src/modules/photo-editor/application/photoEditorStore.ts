@@ -83,7 +83,7 @@ export function initialPhotoEditorState(): PhotoEditorState {
       fontFamily: 'sans-serif',
       color: '#FFFFFF',
       shadow: false,
-      strokeWidth: 0,
+      strokeWidth: 2,
       entrada: 0,
       saida: 100,
     },
@@ -279,7 +279,8 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       addLayers(added);
     },
     /** RF-046: a sticker is an emoji placed as a larger, unstroked text layer. */
-    addSticker: (emoji: string) => addLayers([createTextLayer('Adesivo', emoji, { fontSize: 48 })]),
+    addSticker: (emoji: string) =>
+      addLayers([createTextLayer('Adesivo', emoji, { fontSize: 48, strokeWidth: 0 })]),
 
     // ---- painting ----
     setBrush: (patch: Partial<Brush>) => set({ brush: { ...get().brush, ...patch } }),
