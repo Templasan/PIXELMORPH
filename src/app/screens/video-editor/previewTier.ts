@@ -5,9 +5,6 @@
 /** The web side's status when the System WebView has no WebCodecs (also the fallback trigger). */
 export const NEEDS_WEBVIEW = 'O motor de vídeo precisa do Android System WebView atualizado';
 
-/** Automática starts at Média when a source's long edge is above this (1080p = 1920×1080). */
-export const AUTO_PROXY_LIMIT = 1920;
-
 export type Tier = 'alta' | 'media' | 'baixa';
 export type TierSetting = 'auto' | Tier;
 
@@ -49,16 +46,13 @@ export interface TierEnv {
 }
 
 /**
- * The automatic tier. An 8 GB phone with 1080p hardware decode would pick Alta, but decoding a 4K
- * original (80 Mbps, 8 s GOP) still gives ~29 fps with 41 late frames per 10 s and seeks up to
- * 1.8 s — the automatic step-down rescues it after a few seconds, so sources above 1080p start at
- * Média (720p proxy) and never pay the 4K decode cost in the first place.
+ * The automatic tier from the device. Sources above 1080p no longer drop it to Média: Alta decodes
+ * their 1080p proxy (see previewUriFor), not the 4K original.
  */
-export function autoTier(env: TierEnv, maxSourceLongEdge = 0): Tier {
+export function autoTier(env: TierEnv): Tier {
   const gb = env.deviceMemoryGb;
   let tier: Tier = gb === undefined ? 'media' : gb <= 3 ? 'baixa' : gb <= 6 ? 'media' : 'alta';
   if (tier === 'alta' && !env.hardware1080) tier = 'media';
-  if (tier !== 'baixa' && maxSourceLongEdge > AUTO_PROXY_LIMIT) tier = 'media';
   return tier;
 }
 

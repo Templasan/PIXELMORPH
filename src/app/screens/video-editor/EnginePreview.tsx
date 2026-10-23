@@ -36,8 +36,6 @@ interface Props {
   loopRange: { startMs: number; endMs: number } | null;
   /** Stop the transport: the engine reached the end, or the app went to the background. */
   onEnded: () => void;
-  /** Maximum long edge (width or height) of any video source in the project, for auto-tier logic. */
-  maxSourceLongEdge?: number;
 }
 
 /**
@@ -50,7 +48,6 @@ export function EnginePreview({
   playing,
   loopRange,
   onEnded,
-  maxSourceLongEdge,
 }: Props) {
   const settings = useStore(previewSettings);
   const session = useStore(previewSession);
@@ -65,7 +62,7 @@ export function EnginePreview({
 
   const tier = resolveTier(
     settings.quality,
-    session.env ? autoTier(session.env, maxSourceLongEdge ?? 0) : 'media',
+    session.env ? autoTier(session.env) : 'media',
     session.steppedDown
   );
   useEffect(() => {
