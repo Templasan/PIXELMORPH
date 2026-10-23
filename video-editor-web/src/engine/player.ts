@@ -5,13 +5,32 @@ import { drawFrame } from './draw';
 import type { Feed } from './feed';
 import type { MediaPool } from './media';
 
+/** Diagnostics of one displayed frame (see Player.tick). Costs are main-thread ms. */
+export interface FrameInfo {
+  t: number;
+  drawn: string[];
+  late: string[];
+  held: boolean;
+  /** Since the previous displayed frame (wall clock). */
+  intervalMs: number;
+  /** Working out the frame (opsAt) and preparing upcoming clips. */
+  planMs: number;
+  /** Taking decoded frames from the decoders (never waits). */
+  decodeMs: number;
+  drawMs: number;
+  /** Open decoder slots, open files, decoded pictures. */
+  feeds: number;
+  inputs: number;
+  pictures: number;
+}
+
 export interface PlayerEvents {
   /** The playhead, on every change: seeks immediately, every displayed frame while playing. */
   onTime(ms: number): void;
   onPlaying(playing: boolean): void;
   onError(message: string): void;
   /** Diagnostics: every displayed frame while playing (time, layers drawn, layers late). */
-  onFrame?(info: { t: number; drawn: string[]; late: string[]; held: boolean }): void;
+  onFrame?(info: FrameInfo): void;
 }
 
 /** Clips starting this soon get their decoder opened and positioned before they show. */
@@ -42,6 +61,7 @@ export class Player {
    * sound's clock (which starts a little later, at its own anchor) takes over without a step back. */
   private floor = 0;
   private lastPrune = 0;
+  private lastFrameAt = 0;
   loop: { startMs: number; endMs: number } | null = null;
 
   constructor(
@@ -128,6 +148,12 @@ export class Player {
     else void this.play();
   }
 
+  /** Seek that resolves when the exact frame is on screen (diagnostics, tests). */
+  seekAndWait(ms: number): Promise<void> {
+    this.seek(ms);
+    return this.stillRun ?? Promise.resolve();
+  }
+
   /** Moves the playhead now; the picture follows as soon as it is decoded (latest request wins). */
   seek(ms: number) {
     const t = Math.max(0, Math.min(this.comp.durationMs, ms));
@@ -138,6 +164,7 @@ export class Player {
   }
 
   private anchorAt(t: number) {
+    this.lastFrameAt = 0;
     this.wall = { at: performance.now(), t };
     this.floor = t;
     this.heldSince = 0;
@@ -162,8 +189,10 @@ export class Player {
         return;
       }
     }
+    const c0 = performance.now();
     this.prepareAround(t);
     const ops = opsAt(this.comp, t);
+    const c1 = performance.now();
     const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
     const late: string[] = [];
     for (const op of ops) {
@@ -173,6 +202,7 @@ export class Player {
       frames.set(op, frame);
     }
     // A late layer would flash out of the picture: keep the last complete frame a little longer.
+    const c2 = performance.now();
     const held = late.length > 0 && (this.heldSince === 0 || now - this.heldSince < MAX_HOLD_MS);
     if (held) {
       if (this.heldSince === 0) this.heldSince = now;
@@ -180,12 +210,21 @@ export class Player {
       this.heldSince = 0;
       drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
     }
-    this.events.onFrame?.({
-      t,
-      drawn: [...frames.keys()].filter((op) => frames.get(op)).map((op) => op.key),
-      late,
-      held,
-    });
+    const c3 = performance.now();
+    if (this.events.onFrame) {
+      this.events.onFrame({
+        t,
+        drawn: [...frames.keys()].filter((op) => frames.get(op)).map((op) => op.key),
+        late,
+        held,
+        intervalMs: this.lastFrameAt ? now - this.lastFrameAt : 0,
+        planMs: c1 - c0,
+        decodeMs: c2 - c1,
+        drawMs: c3 - c2,
+        ...this.pool.stats(),
+      });
+    }
+    this.lastFrameAt = now;
     this.setTime(t);
     if (now - this.lastPrune > PRUNE_EVERY_MS) {
       this.lastPrune = now;

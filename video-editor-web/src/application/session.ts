@@ -10,7 +10,7 @@ import {
 import { findClip, removeClip, rippleDelete } from '../domain/timeline';
 import { DEFAULT_TEXT } from '../domain/textCaption';
 import { MediaPool } from '../engine/media';
-import { Player } from '../engine/player';
+import { Player, type FrameInfo } from '../engine/player';
 import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat } from '../ports/host';
 import { frameSize } from '../domain/format';
@@ -59,7 +59,7 @@ export function createEditorSession(host: EditorHost) {
   const format = createStore<ProjectFormat>('16:9');
   let player: Player | null = null;
   /** Diagnostics: set to [] to record every played frame (see tools/check in the dev console). */
-  let trace: { t: number; drawn: string[]; late: string[]; held: boolean }[] | null = null;
+  let trace: FrameInfo[] | null = null;
 
   const compose = (tracks: Track[]) =>
     buildComposition(tracks, frameSize(format.get(), PREVIEW_SHORT_EDGE));
@@ -255,6 +255,7 @@ export function createEditorSession(host: EditorHost) {
     pause: () => player?.pause(),
     toggle: () => player?.toggle(),
     seek: (ms: number) => player?.seek(ms),
+    seekAndWait: (ms: number) => player?.seekAndWait(ms) ?? Promise.resolve(),
     addMedia,
     addText,
     deleteSelected,
