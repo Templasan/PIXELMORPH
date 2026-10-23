@@ -28,7 +28,8 @@ describe('preview tiers', () => {
     // Baixa always stays Baixa for 4K.
     expect(autoTier({ deviceMemoryGb: 3, hardware1080: true }, 2160)).toBe('baixa');
     // 1080p sources are unchanged.
-    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 1080)).toBe('alta');
+    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 1920)).toBe('alta');
+    expect(autoTier({ deviceMemoryGb: 8, hardware1080: true }, 2560)).toBe('media');
     expect(autoTier({ deviceMemoryGb: 4, hardware1080: true }, 720)).toBe('media');
   });
 
