@@ -117,6 +117,43 @@ export default function ProjectsScreen({ navigation }: Props) {
     [projectsModule, t]
   );
 
+  // Deletes one at a time and keeps going, so one failure does not leave the rest selected.
+  const confirmDeleteSelected = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      Alert.alert(
+        t('Apagar projetos'),
+        t('Apagar {n} projetos? Esta ação não pode ser desfeita.', { n: ids.length }),
+        [
+          { text: t('Cancelar'), style: 'cancel' },
+          {
+            text: t('Apagar'),
+            style: 'destructive',
+            onPress: async () => {
+              const deleted: string[] = [];
+              for (const id of ids) {
+                try {
+                  await projectsModule.deleteProject.execute(id);
+                  deleted.push(id);
+                } catch (error) {
+                  errorLogger.log(error, 'ProjectsScreen.deleteSelected');
+                }
+              }
+              setProjects((prev) => prev.filter((p) => !deleted.includes(p.id)));
+              setSelected((prev) => prev.filter((id) => !deleted.includes(id)));
+              if (deleted.length < ids.length) {
+                Alert.alert(t('Não foi possível apagar'), t('Tente novamente.'));
+              } else {
+                setMultiSelect(false);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [projectsModule, t]
+  );
+
   const loadProjects = useCallback(async () => {
     const mod = projectsModule;
     mediaRepair ??= mod
@@ -281,6 +318,14 @@ export default function ProjectsScreen({ navigation }: Props) {
             <Icon name="x" size={22} />
           </Pressable>
           <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
+          <Pressable
+            onPress={() => confirmDeleteSelected(selected)}
+            disabled={selected.length === 0}
+            hitSlop={8}
+            accessibilityLabel={t('Apagar projetos')}
+          >
+            <Icon name="trash" size={20} color={selected.length ? colors.perigo : colors.linha} />
+          </Pressable>
         </View>
       ) : (
         <View style={styles.topBar}>

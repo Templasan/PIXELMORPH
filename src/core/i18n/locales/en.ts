@@ -38,6 +38,8 @@ const en: Record<string, string> = {
   'Data inválida': 'Invalid date',
   'Use o formato DD/MM/AAAA.': 'Use the DD/MM/YYYY format.',
   'Apagar projeto': 'Delete project',
+  'Apagar projetos': 'Delete projects',
+  'Apagar {n} projetos? Esta ação não pode ser desfeita.': 'Delete {n} projects? This cannot be undone.',
   'Apagar "{name}"? Esta ação não pode ser desfeita.': 'Delete "{name}"? This cannot be undone.',
   Cancelar: 'Cancel',
   Apagar: 'Delete',
