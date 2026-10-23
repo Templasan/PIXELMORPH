@@ -24,7 +24,7 @@ src/
     ports/                  interfaces for real external dependencies only
     infrastructure/         adapters: native export, Skia, FileSystem, AsyncStorage, expo-camera
     index.ts                public API — the only import path for other code
-modules/pixelmorph-video-export/   Expo native module (Android, Media3) used for video export
+modules/pixelmorph-video-export/   Expo native module (Android, Media3) for the 720p preview proxies
 ```
 
 ## Dependency rules

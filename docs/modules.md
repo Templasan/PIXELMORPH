@@ -42,7 +42,7 @@ Never imports `src/modules` or `src/app` (enforced by lint).
 ### `video-editor` — timeline editing (US-14..17, US-30, US-33)
 - `domain/`: tracks and clips, timeline ops (move/trim/split/ripple), transitions, speed ramp, freeze frame, audio fades, export and GIF plans, frame math, orientation, loop range, 360° detection.
 - `application/videoEditorStore.ts`: the editor's state and every edit (one undo entry per action or gesture).
-- Export goes straight to the native module `modules/pixelmorph-video-export` (Android, Media3).
+- Preview and export (mp4, GIF) run in the WebCodecs engine (`src/app/screens/video-editor/web-engine/`); the native module `modules/pixelmorph-video-export` (Media3) only transcodes the 720p preview proxies.
 
 ### `photo-editor` — photo editing (US-04..13)
 - `domain/`: adjustments math, effects, geometry (homography, EXIF, snap guides), layer model, collage and panorama math, RAW naming, stereo detection, presets/masks/watermark models.

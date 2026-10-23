@@ -180,23 +180,24 @@ Branches (all local unless noted; nothing goes into `sprint-2` before the owner 
   drift. Has: 3+ video layers, sound (Web Audio clock drives the picture), photos/time-lapse/
   stop-motion, colour correction, transitions, text over video (RF-008: 5 fonts, colours, shadow,
   outline, 8 in/out animations, drag/pinch), preview quality tiers (Alta/Média/Baixa, automatic
-  + manual), fallback to the old preview when the System WebView is too old. Behind a setting:
-  default engine is still `native`; the user switches by tapping the preview's quality badge.
+  + manual). Since `33c988a` it is the ONLY preview and exporter (the old expo-video preview and
+  the Media3 export path are gone); when the System WebView is too old the editor says preview
+  and export are unavailable and the export sheet refuses.
   Full story, numbers and decisions: `docs/video-engine-migration.md` and `docs/spike-webview.md`
   on that branch.
 - Poco numbers (`be5e79a`): Média/Baixa 30.7 fps, seek 0.11–0.29 s, ~700–750 MB; export of a
   1 min 4K+1080p project with sound and text in 44 s (peak ~810 MB).
 
 Next steps, in order:
-1. Fix bugs 12–15 (12, 13, 14 are small UI; 15 is the tier rule in `previewTier.ts`, pure +
-   tested).
-2. Make `web` the default engine, then remove the old preview path (expo-video players,
-   frozen-frame transition layers in VideoEditorScreen/PreviewDerived) — ask the owner first
-   whether the native Media3 exporter stays as a fallback or goes.
-3. Owner reviews `video-engine` (includes `audit-fixes`) → merge into `sprint-2`, push.
+1. Done: bugs 13–15 (`6932443`, tier threshold fixed in `feb9807`), engine-only editor
+   (`33c988a`, cleanup `e32e997`/`aae0ef3`). Bug 12 (EXPORTAR behind the 3-button bar) still needs
+   checking on a 3-button-navigation device: the sheet already had the bottom inset.
+   Open, needs the phone: GIF export keeps every frame in memory before encoding (`engine.ts`).
+2. Owner reviews `video-engine` (includes `audit-fixes`) → merge into `sprint-2`, push.
 4. Rest of Sprint 2, one part at a time, asking decisions first (`docs/sprint-2-plan.md`):
    photo editor US-10/US-12 + P0 #6/#7, projects/help/i18n, photo export US-30 + HEIC,
    login/2FA/sync (owner creates the Supabase account), gap media-drop, zoom Entrada.
+   (Steps renumbered: 2 = owner review + merge, 3 = rest of Sprint 2.)
 
 ## 8. Rules for any agent, especially low-budget models (Haiku etc.)
 
