@@ -138,5 +138,18 @@ Emulator result: **export correct in all 6 combinations**; the preview still gli
    - bring `backlog/SPRINT_2_STATUS.md` in line with this audit.
 4. Later: phone measurements (Android 9, RNF-011, startup, memory) when the owner allows.
 
+### Done on `video-engine` (2026-10-22, night; emulator-checked, owner review pending)
+
+- Photo editor: compare divider follows the finger (P0 #7, `c6347e3`); editor waits for saved
+  layers and new text has a dark outline (P0 #6, `7b9f6fb`, `0f5733e`); fake text animation
+  sliders removed (`fdd1750`); outline colour control (`2b3ad85`). No free colour picker (no
+  component in the app; would need a new dependency).
+- Projects: search + sort (`513e8a3`); dead share/upload icons removed (`f8687bc`; real file
+  share needs `expo-sharing`, owner decision); selection deletes projects (`12e30f6`).
+- Help: real gestures and answers, dead support rows removed (`135a6a0`).
+- Photo export: real watermark and DPI (JPEG JFIF, PNG pHYs), PSD/TIFF/ICC/colour space removed
+  (`232340f`). Watermark settings reset when the sheet closes; the light grey text is faint on
+  light photos.
+
 Stopped agents' worktrees with no commits, not reviewed: `agent-a035d0c451c1ad4a7` (photo
 editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when those parts start.
