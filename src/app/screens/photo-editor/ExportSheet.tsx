@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,10 +17,13 @@ import {
   SIZE_PRESETS,
   SOCIAL_PRESETS,
   formatBytes,
+  applyDpi,
+  drawWatermark,
   encodeImage,
   encodeToTargetSize,
   resizeImageCover,
   resizeImageToFit,
+  watermarkFontSize,
   type EncodedImage,
   type ImageExportFormat,
 } from '@modules/export';
@@ -38,15 +42,14 @@ interface ExportSheetProps {
   onExported?: (result: EncodedImage) => void;
 }
 
-type ExportTab = 'RÁPIDO' | 'PROFISSIONAL' | "MARCA D'ÁGUA";
-const EXPORT_TABS: readonly ExportTab[] = ['RÁPIDO', 'PROFISSIONAL', "MARCA D'ÁGUA"];
+type ExportTab = 'RÁPIDO' | "MARCA D'ÁGUA";
+const EXPORT_TABS: readonly ExportTab[] = ['RÁPIDO', "MARCA D'ÁGUA"];
 
 type ExportState = 'idle' | 'exporting' | 'done' | 'error';
 
-const PRO_OPTIONS = ['Manter camadas', 'Incluir máscaras', 'Incorporar perfil ICC'];
 const DPI_OPTIONS = ['72', '150', '300', '600'];
-const COLOR_SPACES = ['sRGB', 'Adobe RGB', 'DCI-P3'];
 const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '↓', '↘'];
+const GRID_ALIGN = ['flex-start', 'center', 'flex-end'] as const;
 
 /**
  * Modal export sheet — covers ~88% of the height over the current editor. Rendered as an
@@ -54,9 +57,9 @@ const WATERMARK_POSITIONS = ['↖', '↑', '↗', '←', '·', '→', '↙', '�
  *
  * RF-057: photo export is genuinely real — it encodes the editor's actual Skia canvas
  * snapshot to JPEG/PNG/WebP bytes via Skia's own encoder. RNF-013's "smart compression" is
- * a real binary search against the encoder's own output size. Video export, PSD/TIFF, GIF
- * and HEIC all need an encoder this build doesn't have (FFmpeg-class / native image codecs),
- * and are flagged as such rather than faked.
+ * a real binary search against the encoder's own output size. Watermark text and DPI are
+ * written into the file. Video export, PSD/TIFF, GIF and HEIC need an encoder this build
+ * doesn't have (FFmpeg-class / native image codecs), and are not offered.
  */
 export function ExportSheet({
   onClose,
@@ -73,12 +76,7 @@ export function ExportSheet({
   const [smartCompression, setSmartCompression] = useState(false);
   const [targetSizeMB, setTargetSizeMB] = useState(2);
   const [dpi, setDpi] = useState('300');
-  const [colorSpace, setColorSpace] = useState('Adobe RGB');
-  const [proOptions, setProOptions] = useState<Record<string, boolean>>({
-    'Manter camadas': true,
-    'Incluir máscaras': true,
-    'Incorporar perfil ICC': false,
-  });
+  const [wmText, setWmText] = useState('');
   const [wmPosition, setWmPosition] = useState(8);
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -86,6 +84,7 @@ export function ExportSheet({
   const [opacity, setOpacity] = useState(60);
   const [wmSize, setWmSize] = useState(20);
   const [wmRotation, setWmRotation] = useState(0);
+  const [previewWidth, setPreviewWidth] = useState(300);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
@@ -120,7 +119,9 @@ export function ExportSheet({
     setSaveState('idle');
     // Rendering the full-resolution edit can take a moment, so the spinner is already up.
     // A failed render lands in the same "could not capture" error as a null one.
-    const source = await Promise.resolve().then(getSourceImage).catch(() => null);
+    const source = await Promise.resolve()
+      .then(getSourceImage)
+      .catch(() => null);
     if (!source) {
       setExportState('error');
       setErrorMessage('Não foi possível capturar a imagem atual do editor.');
@@ -129,7 +130,7 @@ export function ExportSheet({
     // Let "Processando..." paint before the (synchronous) encode work runs.
     await new Promise((r) => setTimeout(r, 30));
     try {
-      const image = socialPreset
+      const sized = socialPreset
         ? resizeImageCover(
             source,
             SOCIAL_PRESETS.find((p) => p.name === socialPreset)!.width,
@@ -139,10 +140,21 @@ export function ExportSheet({
             source,
             (SIZE_PRESETS.find((p) => p.name === sizeChip) ?? SIZE_PRESETS[0]).maxLongEdge
           );
+      const image = wmText.trim()
+        ? drawWatermark(sized, {
+            text: wmText.trim(),
+            color: colors.texto,
+            opacity: opacity / 100,
+            position: wmPosition,
+            size: wmSize,
+            rotation: wmRotation,
+          })
+        : sized;
 
-      const encoded = smartCompression
+      const raw = smartCompression
         ? encodeToTargetSize(image, format, Math.round(targetSizeMB * 1024 * 1024))
         : encodeImage(image, format, quality);
+      const encoded = applyDpi(raw, Number(dpi));
 
       setResult(encoded);
       setExportState('done');
@@ -161,6 +173,12 @@ export function ExportSheet({
     targetSizeMB,
     format,
     quality,
+    dpi,
+    wmText,
+    wmPosition,
+    wmSize,
+    wmRotation,
+    opacity,
     onExported,
   ]);
 
@@ -293,6 +311,25 @@ export function ExportSheet({
                     </View>
                   </View>
 
+                  {format !== 'WebP' && (
+                    <View>
+                      <Text style={styles.sectionLabel}>DPI</Text>
+                      <View style={styles.chipRow}>
+                        {DPI_OPTIONS.map((d) => (
+                          <Pressable
+                            key={d}
+                            style={[styles.chip, dpi === d && styles.chipActive]}
+                            onPress={() => setDpi(d)}
+                          >
+                            <Text style={[styles.chipTextMono, dpi === d && styles.chipTextActive]}>
+                              {d}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
                   <View>
                     <View style={styles.qualityHeader}>
                       <Text style={styles.sectionLabel}>Qualidade</Text>
@@ -376,90 +413,44 @@ export function ExportSheet({
                 </View>
               )}
 
-              {tab === 'PROFISSIONAL' && (
-                <View style={{ gap: 16 }}>
-                  <View style={styles.warningBox}>
-                    <Icon name="triangle" size={14} color={colors.alerta} />
-                    <Text style={styles.warningText}>
-                      Exportação PSD/TIFF exige um codificador dedicado, não incluído neste build —
-                      os controles abaixo ficam registrados, mas o botão Exportar usa o formato
-                      escolhido na aba Rápido.
-                    </Text>
-                  </View>
-                  <View style={styles.proFormatGrid}>
-                    {[
-                      ['PSD', 'Adobe Photoshop'],
-                      ['TIFF', 'Sem perdas'],
-                    ].map(([fmt, desc]) => (
-                      <View key={fmt} style={[styles.proFormatCard, styles.chipDisabled]}>
-                        <Text style={styles.proFormatNameDisabled}>{fmt}</Text>
-                        <Text style={styles.proFormatDesc}>{desc}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <View style={{ gap: 10 }}>
-                    {PRO_OPTIONS.map((opt) => (
-                      <Pressable
-                        key={opt}
-                        style={styles.checkboxRow}
-                        onPress={() => setProOptions((prev) => ({ ...prev, [opt]: !prev[opt] }))}
-                      >
-                        <View style={[styles.checkbox, proOptions[opt] && styles.checkboxChecked]}>
-                          {proOptions[opt] && <Icon name="check" size={10} color={colors.acento} />}
-                        </View>
-                        <Text style={styles.checkboxLabel}>{opt}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                  <View>
-                    <Text style={styles.sectionLabel}>DPI</Text>
-                    <View style={styles.chipRow}>
-                      {DPI_OPTIONS.map((d) => (
-                        <Pressable
-                          key={d}
-                          style={[styles.chip, dpi === d && styles.chipActive]}
-                          onPress={() => setDpi(d)}
-                        >
-                          <Text style={[styles.chipTextMono, dpi === d && styles.chipTextActive]}>
-                            {d}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                  <View>
-                    <Text style={styles.sectionLabel}>Espaço de cor</Text>
-                    {COLOR_SPACES.map((cs) => (
-                      <Pressable key={cs} style={styles.radioRow} onPress={() => setColorSpace(cs)}>
-                        <View style={[styles.radio, colorSpace === cs && styles.radioActive]} />
-                        <Text style={styles.checkboxLabel}>{cs}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              )}
-
               {tab === "MARCA D'ÁGUA" && (
                 <View style={{ gap: 14 }}>
-                  <View style={styles.warningBox}>
-                    <Icon name="triangle" size={14} color={colors.alerta} />
-                    <Text style={styles.warningText}>
-                      Pré-visualização apenas — a marca d'água ainda não é composta no arquivo
-                      exportado nesta versão.
+                  <View>
+                    <Text style={styles.sectionLabel}>Texto</Text>
+                    <TextInput
+                      style={styles.wmInput}
+                      value={wmText}
+                      onChangeText={setWmText}
+                      placeholder="Seu nome ou @perfil"
+                      placeholderTextColor={colors.texto2}
+                      maxLength={60}
+                      autoCorrect={false}
+                    />
+                    <Text style={styles.wmHint}>
+                      Deixe em branco para exportar sem marca d'água.
                     </Text>
                   </View>
-                  <View style={styles.watermarkPreviewWrap}>
+                  <View
+                    style={[
+                      styles.watermarkPreviewWrap,
+                      {
+                        justifyContent: GRID_ALIGN[Math.floor(wmPosition / 3)],
+                        alignItems: GRID_ALIGN[wmPosition % 3],
+                      },
+                    ]}
+                    onLayout={(e) => setPreviewWidth(e.nativeEvent.layout.width)}
+                  >
                     <Text
                       style={[
                         styles.watermarkText,
                         {
                           opacity: opacity / 100,
                           transform: [{ rotate: `${wmRotation}deg` }],
-                          fontSize: 10 + wmSize * 0.3,
+                          fontSize: watermarkFontSize(previewWidth, wmSize),
                         },
                       ]}
                     >
-                      @joaosilva
+                      {wmText.trim() || 'Seu texto'}
                     </Text>
                   </View>
                   <View style={styles.positionGrid}>
@@ -679,58 +670,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.texto2,
   },
-  proFormatGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  proFormatCard: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: colors.linha,
-    alignItems: 'center',
-    gap: 4,
-  },
-  proFormatNameDisabled: {
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.lg,
-    color: colors.texto2,
-  },
-  proFormatDesc: {
-    fontSize: fontSize.xs,
-    color: colors.texto2,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 16,
-    height: 16,
-    borderWidth: 1,
-    borderColor: colors.linha,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    borderColor: colors.acento,
-  },
-  checkboxLabel: {
-    fontSize: fontSize.md,
-    color: colors.texto,
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(210,160,94,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(210,160,94,0.3)',
-  },
   warningText: {
     flex: 1,
     fontSize: fontSize.xs,
@@ -741,23 +680,6 @@ const styles = StyleSheet.create({
   warningTextBlock: {
     flex: 0,
     textAlign: 'center',
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  radio: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  radioActive: {
-    borderColor: colors.acento,
-    backgroundColor: colors.acento,
   },
   watermarkPreviewWrap: {
     aspectRatio: 16 / 9,
@@ -772,6 +694,19 @@ const styles = StyleSheet.create({
   },
   watermarkText: {
     color: colors.texto,
+  },
+  wmInput: {
+    height: 40,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.linha,
+    fontSize: fontSize.md,
+    color: colors.texto,
+  },
+  wmHint: {
+    marginTop: 6,
+    fontSize: fontSize.xs,
+    color: colors.texto2,
   },
   positionGrid: {
     flexDirection: 'row',
