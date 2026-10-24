@@ -41,7 +41,12 @@ export function defaultTracks(): Track[] {
     locked: false,
     clips: [],
   });
-  return [t('v1', 'V1', 'video'), t('img', 'IMG', 'image'), t('txt', 'TXT', 'text'), t('a1', 'A1', 'audio')];
+  return [
+    t('v1', 'V1', 'video'),
+    t('img', 'IMG', 'image'),
+    t('txt', 'TXT', 'text'),
+    t('a1', 'A1', 'audio'),
+  ];
 }
 
 /**
@@ -49,7 +54,8 @@ export function defaultTracks(): Track[] {
  * the host's services. The UI reads stores and calls these methods; nothing else moves time.
  */
 export function createEditorSession(host: EditorHost) {
-  const { history, state: historyState } = createHistory();
+  const undoLog = createHistory();
+  const { history, state: historyState } = undoLog;
   const editor = createVideoEditorStore(history, { tracks: defaultTracks() });
   const pool = new MediaPool(host.fileReader, host.streamAboveBytes);
   const time = createStore(0);
@@ -72,9 +78,11 @@ export function createEditorSession(host: EditorHost) {
       mapUri: (u) => previewMap[u] ?? u,
     });
   const askPreviewSources = (tracks: Track[]) =>
-    host.wantPreviewSources?.(
-      [...new Set(tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips.map((c) => c.sourceUri)))]
-    );
+    host.wantPreviewSources?.([
+      ...new Set(
+        tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips.map((c) => c.sourceUri))
+      ),
+    ]);
   /** How many video files the preview reads from a light copy (shown as a badge). */
   const previewCopies = createStore(0);
   host.onPreviewSources?.((map) => {
@@ -82,8 +90,17 @@ export function createEditorSession(host: EditorHost) {
     previewCopies.set(Object.keys(map).length);
     player?.setComposition(compose(editor.store.get().tracks));
   });
+  // Nothing is saved until the project has loaded: a save in between wrote an empty timeline.
+  let loaded = false;
   const save = () =>
-    host.saveProject({ name: projectName.get(), tracks: editor.store.get().tracks, format: format.get() });
+    loaded
+      ? host.saveProject({
+          name: projectName.get(),
+          tracks: editor.store.get().tracks,
+          format: format.get(),
+          history: undoLog.snapshot(),
+        })
+      : Promise.resolve();
   format.subscribe(() => {
     player?.setComposition(compose(editor.store.get().tracks));
     void save();
@@ -107,7 +124,9 @@ export function createEditorSession(host: EditorHost) {
       projectName.set(saved.name);
       if (saved.format) format.set(saved.format);
       editor.hydrate(saved.tracks);
+      undoLog.restore(saved.history as Parameters<typeof undoLog.restore>[0]);
     }
+    loaded = true;
     askPreviewSources(editor.store.get().tracks);
   }
 
@@ -196,7 +215,9 @@ export function createEditorSession(host: EditorHost) {
     if (!found) return;
     const ripple = editor.store.get().rippleMode;
     editor.commit((t) =>
-      ripple ? rippleDelete(t, found.track.id, found.clip.id) : removeClip(t, found.track.id, found.clip.id)
+      ripple
+        ? rippleDelete(t, found.track.id, found.clip.id)
+        : removeClip(t, found.track.id, found.clip.id)
     );
     editor.clearSelection();
   }
@@ -216,7 +237,9 @@ export function createEditorSession(host: EditorHost) {
           ? {
               ...tr,
               clips: [
-                ...tr.clips.map((c) => (c.startMs >= end - 1e-6 ? { ...c, startMs: c.startMs + length } : c)),
+                ...tr.clips.map((c) =>
+                  c.startMs >= end - 1e-6 ? { ...c, startMs: c.startMs + length } : c
+                ),
                 copy,
               ],
             }
@@ -235,7 +258,10 @@ export function createEditorSession(host: EditorHost) {
     isCancelled: () => boolean;
   }): Promise<ExportOutcome> {
     player?.pause();
-    const comp = buildComposition(editor.store.get().tracks, frameSize(format.get(), opts.shortEdge));
+    const comp = buildComposition(
+      editor.store.get().tracks,
+      frameSize(format.get(), opts.shortEdge)
+    );
     try {
       return await exportComposition(pool, {
         comp,

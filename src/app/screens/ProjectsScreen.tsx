@@ -123,8 +123,10 @@ export default function ProjectsScreen({ navigation }: Props) {
     (ids: string[]) => {
       if (ids.length === 0) return;
       Alert.alert(
-        t('Apagar projetos'),
-        t('Apagar {n} projetos? Esta ação não pode ser desfeita.', { n: ids.length }),
+        t(ids.length === 1 ? 'Apagar projeto' : 'Apagar projetos'),
+        ids.length === 1
+          ? t('Apagar 1 projeto? Esta ação não pode ser desfeita.')
+          : t('Apagar {n} projetos? Esta ação não pode ser desfeita.', { n: ids.length }),
         [
           { text: t('Cancelar'), style: 'cancel' },
           {

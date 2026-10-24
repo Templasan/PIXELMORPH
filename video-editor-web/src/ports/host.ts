@@ -15,6 +15,8 @@ export interface SavedProject {
   name: string;
   tracks: Track[];
   format?: ProjectFormat;
+  /** Undo/redo steps (application/history.ts SavedHistory). */
+  history?: { done: unknown[]; undone: unknown[] };
 }
 
 /** Where an export's bytes go, written in order (mp4 chunks may rewrite earlier positions). */

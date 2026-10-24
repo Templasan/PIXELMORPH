@@ -6,7 +6,16 @@ interface Entry {
   params: { from: unknown; to: unknown };
 }
 
-/** Undo/redo in memory (the app persists it through its own history later). */
+/** What is saved with the project: the most recent undo/redo steps. */
+export interface SavedHistory {
+  done: Entry[];
+  undone: Entry[];
+}
+
+/** Steps kept when saving (each holds two timelines; a few KB each). */
+const SAVED_STEPS = 50;
+
+/** Undo/redo, saved with the project so it survives closing the editor (see snapshot/restore). */
 export function createHistory(limit = 200) {
   const done: Entry[] = [];
   const undone: Entry[] = [];
@@ -32,5 +41,20 @@ export function createHistory(limit = 200) {
       return e;
     },
   };
-  return { history, state };
+  return {
+    history,
+    state,
+    snapshot(): SavedHistory {
+      return { done: done.slice(-SAVED_STEPS), undone: undone.slice(-SAVED_STEPS) };
+    },
+    restore(saved: SavedHistory | undefined) {
+      done.length = 0;
+      undone.length = 0;
+      if (saved) {
+        done.push(...saved.done);
+        undone.push(...saved.undone);
+      }
+      sync();
+    },
+  };
 }
