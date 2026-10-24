@@ -64,8 +64,24 @@ export function createEditorSession(host: EditorHost) {
   /** Diagnostics: set to [] to record every played frame (see tools/check in the dev console). */
   let trace: FrameInfo[] | null = null;
 
+  // Preview copies (host-made proxies): original → copy; the export never uses them.
+  let previewMap: Record<string, string> = {};
   const compose = (tracks: Track[]) =>
-    buildComposition(tracks, frameSize(format.get(), PREVIEW_SHORT_EDGE));
+    buildComposition(tracks, {
+      ...frameSize(format.get(), PREVIEW_SHORT_EDGE),
+      mapUri: (u) => previewMap[u] ?? u,
+    });
+  const askPreviewSources = (tracks: Track[]) =>
+    host.wantPreviewSources?.(
+      [...new Set(tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips.map((c) => c.sourceUri)))]
+    );
+  /** How many video files the preview reads from a light copy (shown as a badge). */
+  const previewCopies = createStore(0);
+  host.onPreviewSources?.((map) => {
+    previewMap = map;
+    previewCopies.set(Object.keys(map).length);
+    player?.setComposition(compose(editor.store.get().tracks));
+  });
   const save = () =>
     host.saveProject({ name: projectName.get(), tracks: editor.store.get().tracks, format: format.get() });
   format.subscribe(() => {
@@ -79,6 +95,7 @@ export function createEditorSession(host: EditorHost) {
     const { tracks } = editor.store.get();
     if (tracks === lastTracks) return;
     lastTracks = tracks;
+    askPreviewSources(tracks);
     player?.setComposition(compose(tracks));
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS);
@@ -91,6 +108,7 @@ export function createEditorSession(host: EditorHost) {
       if (saved.format) format.set(saved.format);
       editor.hydrate(saved.tracks);
     }
+    askPreviewSources(editor.store.get().tracks);
   }
 
   function attach(canvas: HTMLCanvasElement) {
@@ -235,6 +253,7 @@ export function createEditorSession(host: EditorHost) {
   return {
     host,
     previews,
+    previewCopies,
     format,
     startTrace: () => (trace = []),
     stopTrace: () => {
