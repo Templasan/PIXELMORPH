@@ -90,7 +90,16 @@ export function App({ session }: { session: EditorSession }) {
         <Toolbar
           session={session}
           onFormat={() => setPanel({ kind: 'format' })}
-          onMedia={(media) => setPanel({ kind: 'media', media })}
+          onMedia={(media) =>
+            session.host.pickIsFinal
+              ? void session.host
+                  .pickMedia(media)
+                  .then(async (items) => {
+                    for (const item of items) await session.addMedia(item);
+                  })
+                  .catch((e) => session.error.set(String((e as Error)?.message ?? e)))
+              : setPanel({ kind: 'media', media })
+          }
           onTool={(tool) => setPanel({ kind: 'clip', tool })}
         />
       )}

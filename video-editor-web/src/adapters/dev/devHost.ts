@@ -8,6 +8,7 @@ const PROJECT_KEY = 'pixelmorph.dev.project';
  */
 export function createDevHost(): EditorHost {
   return {
+    pickIsFinal: false,
     async pickMedia(kind) {
       const all = (await (await fetch('/__media/list')).json()) as MediaItem[];
       return all.filter((m) => m.kind === kind);

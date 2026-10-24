@@ -1,5 +1,5 @@
 import { AudioBufferSink, CanvasSink } from 'mediabunny';
-import type { MediaPool } from './media';
+import { fetchBlob, type MediaPool } from './media';
 
 /** Thumbnail height in px (the width follows the video's shape, capped). */
 export const THUMB_H = 40;
@@ -74,8 +74,7 @@ export class MediaPreviews {
     if (p instanceof ImageBitmap) return p;
     if (!p) {
       this.pictures.set(uri, 'pending');
-      fetch(uri)
-        .then((r) => r.blob())
+      fetchBlob(uri)
         .then((b) => createImageBitmap(b, { resizeHeight: THUMB_H * 2, resizeQuality: 'medium' }))
         .then(
           (bm) => this.pictures.set(uri, bm),

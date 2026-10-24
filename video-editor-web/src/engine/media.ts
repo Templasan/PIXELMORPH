@@ -18,7 +18,8 @@ const STREAM_BLOCK = 1024 * 1024;
 /** Decoded pictures kept at once: a stop-motion has dozens, a 48 MP photo is huge. */
 const MAX_BITMAPS = 12;
 
-function fetchBlob(uri: string): Promise<Blob> {
+/** Reads a URL whole; XHR, not fetch: the app's WebView serves file:// only to XHR. */
+export function fetchBlob(uri: string): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open('GET', uri);

@@ -286,7 +286,9 @@ export class Player {
         const t = this.stillWanted;
         this.stillWanted = null;
         if (!this.playing) this.prune(t);
-        const ops = opsAt(this.comp, t);
+        // Parked at the very end (the video is end-exclusive): show its last frame, not black.
+        const d = this.comp.durationMs;
+        const ops = opsAt(this.comp, d > 0 && t >= d ? d - 1 : t);
         const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
         await Promise.all(
           ops.map(async (op) => {

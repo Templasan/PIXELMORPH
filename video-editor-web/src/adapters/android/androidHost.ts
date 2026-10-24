@@ -24,6 +24,7 @@ const STREAM_ABOVE_BYTES = 1024 * 1024 * 1024;
 export function createAndroidHost(): EditorHost {
   return {
     pickMedia: (kind) => call<MediaItem[]>('pickMedia', kind),
+    pickIsFinal: true,
     loadProject: () => call<SavedProject | null>('loadProject'),
     saveProject: (project) => call<void>('saveProject', project),
     exportSink() {
