@@ -32,6 +32,8 @@ export interface ExportSink {
 export interface EditorHost {
   /** Media the user picks to add (the app opens its picker; dev lists media/). */
   pickMedia(kind: MediaItem['kind']): Promise<MediaItem[]>;
+  /** True when pickMedia already IS the user's choice (a system picker): add without a list. */
+  pickIsFinal: boolean;
   loadProject(): Promise<SavedProject | null>;
   saveProject(project: SavedProject): Promise<void>;
   exportSink(): ExportSink;

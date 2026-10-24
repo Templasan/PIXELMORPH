@@ -390,15 +390,16 @@ button:disabled {
 .zoom-hint {
   position: absolute;
   right: 6px;
-  top: 30px;
+  /* In the ruler, so they never cover a clip. */
+  top: 0;
   z-index: 6;
   display: flex;
   gap: 4px;
 }
 
 .zoom-hint button {
-  width: 36px;
-  height: 28px;
+  width: 40px;
+  height: 24px;
   font-size: 13px;
   line-height: 1;
   background: var(--barra);

@@ -52,8 +52,20 @@ track replaced the whole frame. Here everything that moves with time lives in on
   checks no overlap, no frame outside the source, nothing shorter than the minimum, and that a
   split changes nothing on screen.
 
-## Back into the app (later)
+## In the app
 
-The app will host this page in its WebView and implement `EditorHost` on its own services
-(projects, gallery picker, preview proxies, file reader for large files, export to the gallery,
-back button). Until then the app keeps its current editor.
+`npm run build:app` builds one self-contained `index.html` (classic inline script and styles,
+because file:// pages cannot load module scripts) and copies it to
+`android/app/src/main/assets/video-editor/` (git-ignored). The app's `VideoEditor` route is
+`src/app/screens/VideoEditorWebScreen.tsx`: a WebView on that file whose bridge answers the
+editor's `EditorHost` calls (src/adapters/android): the system gallery/audio pickers (files copied
+into the project's media folder), the timeline saved as `media/<project>/timeline.json` (the first
+open replays the old editor's undo log), block reads of large files, and the export saved to the
+photo library. Builds must run in the short worktree (C:e), Windows path limits break CMake in
+the main checkout.
+
+Checked on the emulator (Pixel_7, 2026-10-24): the editor opens inside the app, the video plays in
+the preview (the old editor showed black there), photos added from the system picker land at the
+playhead with their thumbnails, the project comes back after leaving and reopening, a 720p export
+lands in the gallery (H.264 + AAC, exact length). Not yet: the phone, preview proxies (the
+preview decodes the originals), and removing the old RN editor.
