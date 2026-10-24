@@ -225,14 +225,21 @@ button:disabled {
   top: 4px;
   bottom: 4px;
   border-radius: 4px;
-  overflow: hidden;
   font-size: 11px;
-  padding: 3px 6px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: #0f0f0f;
   font-weight: 600;
   border: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+/* The clip's picture and label are clipped to it; the trim handles stick out (bigger targets). */
+.clip-body {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .clip-strip {
@@ -248,8 +255,8 @@ button:disabled {
   height: 100%;
 }
 
-.clip > span,
-.clip > .meta {
+.clip-body > span,
+.clip-body > .meta {
   position: relative;
   z-index: 1;
   text-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
@@ -261,26 +268,50 @@ button:disabled {
   z-index: 2;
 }
 
+/* A 16 px white bar inside a 36 px touch target that sticks out of the clip. */
 .clip .handle {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  top: -4px;
+  bottom: -4px;
+  width: 36px;
   display: grid;
   place-items: center;
   color: #111;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 700;
   touch-action: none;
+  z-index: 3;
+}
+
+.clip .handle::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  z-index: -1;
 }
 
 .clip .handle.left {
-  left: 0;
+  left: -18px;
+  justify-items: end;
+  padding-right: 6px;
+}
+
+.clip .handle.left::before {
+  right: 2px;
   border-radius: 4px 0 0 4px;
 }
 
 .clip .handle.right {
-  right: 0;
+  right: -18px;
+  justify-items: start;
+  padding-left: 6px;
+}
+
+.clip .handle.right::before {
+  left: 2px;
   border-radius: 0 4px 4px 0;
 }
 
@@ -552,5 +583,16 @@ button:disabled {
   }
   .topbar .icon-btn {
     width: 34px;
+  }
+}
+
+/* Phones: a smaller preview leaves the timeline room for fingers. */
+@media (max-width: 500px) {
+  .preview {
+    flex: 0 1 38vh;
+  }
+  /* The timeline takes the room the preview leaves, never less than its tracks need. */
+  .timeline {
+    flex: 1 0 auto;
   }
 }
