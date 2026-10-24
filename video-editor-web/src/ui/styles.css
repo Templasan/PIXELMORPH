@@ -235,6 +235,26 @@ button:disabled {
   border: 1px solid rgba(0, 0, 0, 0.35);
 }
 
+.clip-strip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.clip-strip canvas {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.clip > span,
+.clip > .meta {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
+}
+
 .clip.selected {
   outline: 2px solid #fff;
   outline-offset: -1px;

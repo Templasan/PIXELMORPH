@@ -11,6 +11,7 @@ import { findClip, removeClip, rippleDelete } from '../domain/timeline';
 import { DEFAULT_TEXT } from '../domain/textCaption';
 import { MediaPool } from '../engine/media';
 import { Player, type FrameInfo } from '../engine/player';
+import { MediaPreviews } from '../engine/previews';
 import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat } from '../ports/host';
 import { frameSize } from '../domain/format';
@@ -56,6 +57,8 @@ export function createEditorSession(host: EditorHost) {
   const error = createStore<string | null>(null);
   const busy = createStore<string | null>(null);
   const projectName = createStore('Projeto sem nome');
+  // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
+  const previews = new MediaPreviews(pool, () => playing.get());
   const format = createStore<ProjectFormat>('16:9');
   let player: Player | null = null;
   /** Diagnostics: set to [] to record every played frame (see tools/check in the dev console). */
@@ -231,6 +234,7 @@ export function createEditorSession(host: EditorHost) {
 
   return {
     host,
+    previews,
     format,
     startTrace: () => (trace = []),
     stopTrace: () => {
