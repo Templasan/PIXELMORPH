@@ -5,6 +5,7 @@ import { formatTimecode } from '../domain/frameMath';
 import type { EditorSession } from '../application/session';
 import { useStore } from '../state/useStore';
 import { Icon } from './Icon';
+import { ClipStrip } from './ClipStrip';
 
 const RULER_H = 24;
 const ROW_H: Record<Track['kind'], number> = { video: 48, image: 40, text: 36, audio: 36 };
@@ -52,6 +53,7 @@ export function Timeline({
   const selectedId = useStore(editor.store, (s) => s.selectedClipId);
   const [pps, setPps] = useState(80); // pixels per second
   const [width, setWidth] = useState(360);
+  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
@@ -67,6 +69,7 @@ export function Timeline({
 
   useLayoutEffect(() => {
     const el = rootRef.current!;
+    setRootEl(el);
     const ro = new ResizeObserver(() => setWidth(el.clientWidth));
     ro.observe(el);
     setWidth(el.clientWidth);
@@ -277,6 +280,15 @@ export function Timeline({
                       className={`clip${selected ? ' selected' : ''}`}
                       style={{ left, width: w, background: clip.color }}
                     >
+                      <ClipStrip
+                        clip={clip}
+                        kind={track.kind}
+                        width={w}
+                        height={ROW_H[track.kind] - 8}
+                        pps={pps}
+                        previews={session.previews}
+                        root={rootEl}
+                      />
                       {selected && !track.locked && (
                         <div data-handle="in" className="handle left">‹</div>
                       )}
