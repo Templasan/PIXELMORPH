@@ -42,4 +42,11 @@ export interface EditorHost {
   streamAboveBytes: number;
   /** Leave the editor (the app goes back to its projects). */
   close(): void;
+  /**
+   * Lighter copies for the PREVIEW (the export always reads the originals): the editor says which
+   * video files it shows; the host answers, now and whenever more are ready, with
+   * original → copy. Hosts without copies leave these out.
+   */
+  wantPreviewSources?(uris: string[]): void;
+  onPreviewSources?(listener: (map: Record<string, string>) => void): void;
 }

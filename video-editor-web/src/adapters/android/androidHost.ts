@@ -1,5 +1,5 @@
 import type { EditorHost, MediaItem, SavedProject } from '../../ports/host';
-import { call } from './bridge';
+import { call, onEvent } from './bridge';
 
 function toBase64(bytes: Uint8Array): string {
   let s = '';
@@ -50,6 +50,12 @@ export function createAndroidHost(): EditorHost {
     streamAboveBytes: STREAM_ABOVE_BYTES,
     close() {
       void call('close');
+    },
+    wantPreviewSources(uris) {
+      void call('wantPreviewSources', uris).catch(() => {});
+    },
+    onPreviewSources(listener) {
+      onEvent('previewSources', (e) => listener(e.map as Record<string, string>));
     },
   };
 }

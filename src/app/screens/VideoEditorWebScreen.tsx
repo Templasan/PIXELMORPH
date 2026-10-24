@@ -15,6 +15,7 @@ import { copyToAppStorage, pickAudioFromDevice, pickFromGallery } from '@modules
 import { useAppModules } from '../hooks';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
+import { proxyStore, requestSourceProxy } from './video-editor/previewProxy';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -44,6 +45,26 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   historyRef.current = history;
 
   useEffect(() => () => files.close(), [files]);
+
+  // Preview copies: the editor names its video files; finished 720p proxies are pushed to it
+  // (now and whenever another one is ready). The export keeps reading the originals.
+  const wanted = useRef<string[]>([]);
+  const lastMap = useRef('');
+  const pushProxies = useCallback(() => {
+    const state = proxyStore.get();
+    const map: Record<string, string> = {};
+    for (const uri of wanted.current) {
+      const entry = state[uri];
+      if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
+    }
+    const json = JSON.stringify(map);
+    if (json === lastMap.current) return;
+    lastMap.current = json;
+    webRef.current?.injectJavaScript(
+      `window.__pmEvent && window.__pmEvent({type:'previewSources',map:${json}});true;`
+    );
+  }, []);
+  useEffect(() => proxyStore.subscribe(pushProxies), [pushProxies]);
 
   const timelineFile = projectId
     ? `${FileSystem.documentDirectory}${MEDIA_DIR_NAME}/${projectId}/timeline.json`
@@ -116,8 +137,14 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
       async close() {
         navigation.goBack();
       },
+
+      async wantPreviewSources(uris: string[]) {
+        wanted.current = uris;
+        for (const uri of uris) void requestSourceProxy(uri);
+        pushProxies();
+      },
     }),
-    [files, navigation, projectId, projects, timelineFile]
+    [files, navigation, projectId, projects, timelineFile, pushProxies]
   );
 
   const onMessage = useCallback(

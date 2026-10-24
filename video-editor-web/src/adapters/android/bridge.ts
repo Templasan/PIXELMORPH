@@ -5,6 +5,7 @@
 interface RNWindow extends Window {
   ReactNativeWebView?: { postMessage(message: string): void };
   __pmReply?: (reply: { id: number; result?: unknown; error?: string }) => void;
+  __pmEvent?: (event: { type: string; [key: string]: unknown }) => void;
 }
 
 const w = window as RNWindow;
@@ -20,6 +21,16 @@ w.__pmReply = (reply) => {
 };
 
 export const inApp = () => !!w.ReactNativeWebView;
+
+const listeners = new Map<string, Set<(event: Record<string, unknown>) => void>>();
+/** Events the app pushes without being asked (window.__pmEvent({type, ...})). */
+w.__pmEvent = (event) => listeners.get(event.type)?.forEach((l) => l(event));
+
+export function onEvent(type: string, listener: (event: Record<string, unknown>) => void) {
+  let set = listeners.get(type);
+  if (!set) listeners.set(type, (set = new Set()));
+  set.add(listener);
+}
 
 export function call<T>(method: string, ...args: unknown[]): Promise<T> {
   const id = nextId++;

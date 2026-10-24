@@ -112,6 +112,7 @@ function Preview({ session }: { session: EditorSession }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const error = useStore(session.error);
   const busy = useStore(session.busy);
+  const copies = useStore(session.previewCopies);
   useEffect(() => {
     session.attach(canvasRef.current!);
     return () => session.detach();
@@ -119,6 +120,7 @@ function Preview({ session }: { session: EditorSession }) {
   return (
     <div className="preview" onClick={() => session.toggle()}>
       <canvas ref={canvasRef} />
+      {copies > 0 && <div className="badge">Prévia leve</div>}
       {(error || busy) && (
         <div className="toast" onClick={(e) => (e.stopPropagation(), session.error.set(null))}>
           {busy ?? error}
