@@ -176,7 +176,7 @@ batch apply (US-02, its fake button was removed).
 in `video-editor-web/` (read its README first: layered composition, single clock, tests, dev
 console helpers, research and performance docs in its `docs/`). The app's `VideoEditor` route now
 opens it in a WebView (`src/app/screens/VideoEditorWebScreen.tsx`); build the page with
-`npm run build:app` in `video-editor-web`, then build the APK in `C:e` (copy
+`npm run build:app` in `video-editor-web`, then build the APK in `C:/ve` (copy
 `android/app/src/main/assets/video-editor/index.html` there). Checked on the emulator; NOT yet on
 the Poco. The old RN editor (`VideoEditorScreen.tsx` and its parts) is unused but still in the tree.
 
