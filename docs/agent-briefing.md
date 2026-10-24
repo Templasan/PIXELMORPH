@@ -172,6 +172,14 @@ batch apply (US-02, its fake button was removed).
 
 ## 7. Where things stand (2026-10-22, evening) and next steps
 
+**Update 2026-10-24 (branch `video-web`):** the video editor was rewritten as a standalone web app
+in `video-editor-web/` (read its README first: layered composition, single clock, tests, dev
+console helpers, research and performance docs in its `docs/`). The app's `VideoEditor` route now
+opens it in a WebView (`src/app/screens/VideoEditorWebScreen.tsx`); build the page with
+`npm run build:app` in `video-editor-web`, then build the APK in `C:e` (copy
+`android/app/src/main/assets/video-editor/index.html` there). Checked on the emulator; NOT yet on
+the Poco. The old RN editor (`VideoEditorScreen.tsx` and its parts) is unused but still in the tree.
+
 **Update 2026-10-23:** `video-engine` was merged into `sprint-2` (fast-forward) after an
 emulator-only check (the owner's Poco was disconnected). Not yet measured on the Poco: the
 1080p Alta proxy (`72344fb`), the streaming GIF encoder (`2fc4845`), HEIC export on a real
