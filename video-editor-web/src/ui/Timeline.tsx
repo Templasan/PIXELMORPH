@@ -332,7 +332,7 @@ export function Timeline({
                       data-clip={clip.id}
                       data-track={track.id}
                       className={`clip${selected ? ' selected' : ''}`}
-                      style={{ left, width: w, background: clip.color }}
+                      style={{ left, width: w, background: session.colorOf(track.kind) }}
                     >
                       <div className="clip-body">
                         <ClipStrip

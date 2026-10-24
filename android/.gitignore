@@ -17,3 +17,6 @@ app/src/main/java/inline/
 
 # Bundle artifacts
 *.jsbundle
+
+# Built from video-editor-web (npm run build:app there)
+app/src/main/assets/video-editor/
