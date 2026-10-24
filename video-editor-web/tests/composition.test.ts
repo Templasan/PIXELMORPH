@@ -75,7 +75,7 @@ describe('composition', () => {
     const b = clip('b', 2000, 2000, { transitionIn: { type: 'fade', durationMs: 500 } });
     const c = buildComposition([track('v1', 'video', [a, b])]);
     const mid = media(opsAt(c, 2250));
-    expect(mid.map((o) => [o.clipId, o.key.endsWith(':out')])).toEqual([
+    expect(mid.map((o) => [o.clipId, o.role === 'out'])).toEqual([
       [b.id, false],
       [a.id, true],
     ]);
@@ -155,7 +155,7 @@ describe('composition', () => {
           const layer = layerOf.get(op.clipId)!;
           expect(layer).toBeGreaterThanOrEqual(lastLayer); // bottom to top
           lastLayer = layer;
-          if (op.key.endsWith(':in')) {
+          if (op.role === 'in') {
             expect(t).toBeGreaterThanOrEqual(cl.startMs);
             expect(t).toBeLessThan(clipEndMs(cl));
             expect(op.sourceTimeMs).toBeGreaterThanOrEqual(cl.inPointMs);
