@@ -11,7 +11,12 @@ import { errorLogger } from '@core/reliability';
 import { MEDIA_DIR_NAME } from '@core/reliability/storageUsage';
 import { colors } from '@core/theme';
 import type { Track } from '@modules/video-editor';
-import { copyToAppStorage, pickAudioFromDevice, pickFromGallery } from '@modules/device-media';
+import {
+  copyToAppStorage,
+  pickAudioFromDevice,
+  pickFromGallery,
+  probeVideoDurationMs,
+} from '@modules/device-media';
 import { useAppModules } from '../hooks';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
@@ -98,7 +103,21 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
           const info = await FileSystem.getInfoAsync(timelineFile);
           if (info.exists) return JSON.parse(await FileSystem.readAsStringAsync(timelineFile));
         }
-        const project = projectId ? await projects.getProject.execute(projectId) : null;
+        let project = projectId ? await projects.getProject.execute(projectId) : null;
+        // Some projects never stored their video's length; the timeline then made it 10 s.
+        const asset = project?.assets[0];
+        if (project && asset?.type === 'video' && !asset.metadata.durationMs) {
+          const durationMs = await probeVideoDurationMs(asset.workingUri || asset.originalUri);
+          if (durationMs) {
+            project = {
+              ...project,
+              assets: [
+                { ...asset, metadata: { ...asset.metadata, durationMs } },
+                ...project.assets.slice(1),
+              ],
+            };
+          }
+        }
         while (!historyRef.current.ready) await new Promise((r) => setTimeout(r, 50));
         const seeded = buildInitialTracks(project);
         const state = historyRef.current.reconstructState({ tracks: seeded } as unknown as Record<

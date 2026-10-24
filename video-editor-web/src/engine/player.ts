@@ -62,6 +62,37 @@ export class Player {
   private floor = 0;
   private lastPrune = 0;
   private lastFrameAt = 0;
+  /** What the canvas shows now (see signature); '' forces the next live frame to draw. */
+  private lastSig = '';
+  private frameIds = new WeakMap<object, number>();
+  private nextFrameId = 1;
+
+  /** Everything that decides the picture: each layer's decoded frame and placement, each text. */
+  private signature(
+    ops: ReturnType<typeof opsAt>,
+    frames: Map<MediaOp, VideoSample | ImageBitmap | null>
+  ): string {
+    const parts: string[] = [];
+    for (const op of ops) {
+      if (op.kind === 'clear') continue;
+      if (op.kind === 'caption') {
+        parts.push(
+          `c${op.text}|${op.cx.toFixed(1)}|${op.cy.toFixed(1)}|${op.opacity.toFixed(3)}|${op.scale.toFixed(3)}`
+        );
+        continue;
+      }
+      const f = frames.get(op);
+      let id = 0;
+      if (f) {
+        id = this.frameIds.get(f) ?? 0;
+        if (!id) this.frameIds.set(f, (id = this.nextFrameId++));
+      }
+      parts.push(
+        `${op.key}|${id}|${op.opacity.toFixed(3)}|${op.translateX.toFixed(1)}|${op.scale.toFixed(3)}|${op.rect.x},${op.rect.y},${op.rect.w},${op.rect.h}|${op.brightness}|${op.rotationDeg}|${op.fit}`
+      );
+    }
+    return parts.join(';');
+  }
   loop: { startMs: number; endMs: number } | null = null;
 
   constructor(
@@ -97,6 +128,7 @@ export class Player {
   /** A new timeline: keeps the playhead (clamped) and shows the new frame. */
   setComposition(comp: Composition) {
     this.comp = comp;
+    this.lastSig = '';
     this.resize();
     this.primed.clear();
     const t = Math.min(this.t, comp.durationMs);
@@ -114,9 +146,7 @@ export class Player {
   }
 
   private endMs() {
-    return this.loop
-      ? Math.min(this.loop.endMs, this.comp.durationMs)
-      : this.comp.durationMs;
+    return this.loop ? Math.min(this.loop.endMs, this.comp.durationMs) : this.comp.durationMs;
   }
 
   // ---- transport -------------------------------------------------------------------------------
@@ -165,6 +195,7 @@ export class Player {
 
   private anchorAt(t: number) {
     this.lastFrameAt = 0;
+    this.lastSig = '';
     this.wall = { at: performance.now(), t };
     this.floor = t;
     this.heldSince = 0;
@@ -208,7 +239,12 @@ export class Player {
       if (this.heldSince === 0) this.heldSince = now;
     } else {
       this.heldSince = 0;
-      drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+      // A 30 fps video on a 120 Hz screen: redraw only when something on screen changed.
+      const sig = this.signature(ops, frames);
+      if (sig !== this.lastSig) {
+        this.lastSig = sig;
+        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+      }
     }
     const c3 = performance.now();
     if (this.events.onFrame) {
@@ -260,7 +296,9 @@ export class Player {
   }
 
   private prune(t: number) {
-    const keep = new Set(mediaAround(this.comp, t, PREPARE_AHEAD_MS).map((o) => `${o.key}|${o.uri}`));
+    const keep = new Set(
+      mediaAround(this.comp, t, PREPARE_AHEAD_MS).map((o) => `${o.key}|${o.uri}`)
+    );
     const uris = new Set<string>([
       ...this.comp.layers.flatMap((l) => l.clips.map((c) => c.sourceUri)),
       ...this.comp.audio.map((a) => a.uri),
@@ -292,7 +330,8 @@ export class Player {
         const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
         await Promise.all(
           ops.map(async (op) => {
-            if (op.kind === 'image') frames.set(op, await this.pool.picture(op.uri, this.comp.width));
+            if (op.kind === 'image')
+              frames.set(op, await this.pool.picture(op.uri, this.comp.width));
             if (op.kind !== 'video') return;
             const feed: Feed = await this.pool.feedReady(op.key, op.uri);
             frames.set(op, await feed.seek(op.sourceTimeMs / 1000));
