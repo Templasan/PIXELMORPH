@@ -165,7 +165,7 @@ export function VideoExportSheet({
     if (state.phase !== 'done') return;
     setSaveState('saving');
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync();
+      const permission = await MediaLibrary.requestPermissionsAsync(true); // write only: saving needs no read access
       if (!permission.granted) throw new Error('PERMISSION_DENIED');
       await MediaLibrary.createAssetAsync(state.uri);
       setSaveState('saved');

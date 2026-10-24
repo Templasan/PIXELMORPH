@@ -124,7 +124,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
       },
       async exportFinish() {
         const uri = await files.finishExport();
-        const permission = await MediaLibrary.requestPermissionsAsync();
+        const permission = await MediaLibrary.requestPermissionsAsync(true); // write only: saving needs no read access
         if (!permission.granted) return 'Pronto, mas sem permissão para salvar na galeria.';
         await MediaLibrary.createAssetAsync(uri);
         return 'Salvo na galeria.';
