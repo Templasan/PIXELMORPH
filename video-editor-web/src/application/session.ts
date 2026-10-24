@@ -126,6 +126,14 @@ export function createEditorSession(host: EditorHost) {
       editor.hydrate(saved.tracks);
       undoLog.restore(saved.history as Parameters<typeof undoLog.restore>[0]);
     }
+    // A new project takes the shape of its first video (a phone video is usually 9:16).
+    if (!saved?.format) {
+      const first = editor.store.get().tracks.find((t) => t.kind === 'video')?.clips[0];
+      if (first) {
+        const p = await probeMedia(pool, first.sourceUri).catch(() => null);
+        if (p && p.width && p.height) format.set(p.height > p.width ? '9:16' : p.width === p.height ? '1:1' : '16:9');
+      }
+    }
     loaded = true;
     askPreviewSources(editor.store.get().tracks);
   }
