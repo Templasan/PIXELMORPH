@@ -8,7 +8,11 @@ import { Icon } from './Icon';
 import { ClipStrip } from './ClipStrip';
 
 const RULER_H = 24;
-const ROW_H: Record<Track['kind'], number> = { video: 48, image: 40, text: 36, audio: 36 };
+const ROW_H: Record<Track['kind'], number> = { video: 56, image: 48, text: 40, audio: 44 };
+/** Dragging a clip or an edge this close to a side scrolls the timeline (px from the edge). */
+const EDGE_PX = 36;
+/** Auto-scroll speed at the very edge, in timeline ms per second of holding. */
+const EDGE_SPEED_MS = 2500;
 const MIN_PPS = 10;
 const MAX_PPS = 600;
 /** A drag shorter than this is a tap. */
@@ -34,7 +38,7 @@ function tickStepMs(pps: number): number {
 type Drag =
   | { kind: 'scrub'; x0: number; t0: number; moved: boolean }
   | { kind: 'move'; x0: number; t0: number; trackId: string; clip: Clip; moved: boolean; selected: boolean }
-  | { kind: 'trim'; x0: number; trackId: string; clip: Clip; side: 'in' | 'out' }
+  | { kind: 'trim'; x0: number; t0: number; trackId: string; clip: Clip; side: 'in' | 'out' }
   | { kind: 'pinch'; d0: number; pps0: number };
 
 /**
@@ -111,7 +115,11 @@ export function Timeline({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      // not a live pointer (synthetic event): the drag still works without capture
+    }
     pointers.current.set(e.pointerId, e.clientX);
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
@@ -127,7 +135,14 @@ export function Timeline({
       const track = tracks.find((t) => t.id === trackId)!;
       const clip = track.clips.find((c) => c.id === target.dataset.clip)!;
       if (handle && !track.locked) {
-        drag.current = { kind: 'trim', x0: e.clientX, trackId, clip, side: handle.dataset.handle as 'in' | 'out' };
+        drag.current = {
+          kind: 'trim',
+          x0: e.clientX,
+          t0: session.time.get(),
+          trackId,
+          clip,
+          side: handle.dataset.handle as 'in' | 'out',
+        };
         return;
       }
       drag.current = {
@@ -154,6 +169,7 @@ export function Timeline({
       setPps(Math.max(MIN_PPS, Math.min(MAX_PPS, d.pps0 * ((Math.abs(a - b) || 1) / d.d0))));
       return;
     }
+    lastX.current = e.clientX;
     const dx = e.clientX - d.x0;
     const dms = (dx / ppsRef.current) * 1000;
     if (d.kind === 'scrub' || (d.kind === 'move' && !d.selected)) {
@@ -167,6 +183,17 @@ export function Timeline({
     if (d.kind === 'move') {
       if (Math.abs(dx) > TAP_SLOP_PX) d.moved = true;
       if (!d.moved) return;
+    }
+    applyEdit(e.clientX);
+    startEdgeScroll();
+  };
+
+  /** Applies a move/trim drag for the finger at `clientX`, counting how far the view scrolled. */
+  const applyEdit = (clientX: number) => {
+    const d = drag.current;
+    if (!d || (d.kind !== 'move' && d.kind !== 'trim')) return;
+    const dms = ((clientX - d.x0) / ppsRef.current) * 1000 + (session.time.get() - d.t0);
+    if (d.kind === 'move') {
       const start = snap(d.clip.startMs + dms, d.clip.id);
       const end = snap(d.clip.startMs + clipDurationMs(d.clip) + dms, d.clip.id);
       // Whichever edge snapped decides; otherwise follow the finger.
@@ -195,6 +222,33 @@ export function Timeline({
           : trimClipOut(before, d.trackId, d.clip.id, outPoint)
       );
     }
+  };
+
+  // Holding a dragged clip or edge near a side scrolls the timeline under it.
+  const lastX = useRef(0);
+  const edgeRaf = useRef(0);
+  const startEdgeScroll = () => {
+    if (edgeRaf.current) return;
+    let prev = performance.now();
+    const step = (now: number) => {
+      const d = drag.current;
+      const rect = rootRef.current?.getBoundingClientRect();
+      if (!d || (d.kind !== 'move' && d.kind !== 'trim') || !rect) {
+        edgeRaf.current = 0;
+        return;
+      }
+      const left = lastX.current - rect.left;
+      const right = rect.right - lastX.current;
+      const push = left < EDGE_PX ? -(1 - left / EDGE_PX) : right < EDGE_PX ? 1 - right / EDGE_PX : 0;
+      if (push !== 0) {
+        const t = session.time.get() + push * EDGE_SPEED_MS * ((now - prev) / 1000);
+        session.seek(Math.max(0, Math.min(durationMs + 10_000, t)));
+        applyEdit(lastX.current);
+      }
+      prev = now;
+      edgeRaf.current = requestAnimationFrame(step);
+    };
+    edgeRaf.current = requestAnimationFrame(step);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -240,7 +294,7 @@ export function Timeline({
     <div
       ref={rootRef}
       className="timeline"
-      style={{ height }}
+      style={{ minHeight: height }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -280,22 +334,22 @@ export function Timeline({
                       className={`clip${selected ? ' selected' : ''}`}
                       style={{ left, width: w, background: clip.color }}
                     >
-                      <ClipStrip
-                        clip={clip}
-                        kind={track.kind}
-                        width={w}
-                        height={ROW_H[track.kind] - 8}
-                        pps={pps}
-                        previews={session.previews}
-                        root={rootEl}
-                      />
+                      <div className="clip-body">
+                        <ClipStrip
+                          clip={clip}
+                          kind={track.kind}
+                          width={w}
+                          height={ROW_H[track.kind] - 8}
+                          pps={pps}
+                          previews={session.previews}
+                          root={rootEl}
+                        />
+                        <span>{clip.text ? clip.text.content : clip.name}</span>
+                        {(clip.speed ?? 1) !== 1 && <span className="meta"> {clip.speed}x</span>}
+                      </div>
                       {selected && !track.locked && (
                         <div data-handle="in" className="handle left">‹</div>
                       )}
-                      <span style={{ marginLeft: selected ? 16 : 0 }}>
-                        {clip.text ? clip.text.content : clip.name}
-                      </span>
-                      {(clip.speed ?? 1) !== 1 && <span className="meta"> {clip.speed}x</span>}
                       {selected && !track.locked && (
                         <div data-handle="out" className="handle right">›</div>
                       )}
