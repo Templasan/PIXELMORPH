@@ -29,9 +29,15 @@ export interface Rect {
 
 export interface MediaOp {
   kind: 'video' | 'image';
-  /** Stable per clip and role: one decoder slot each, so clips never share or swap frames. */
+  /**
+   * Stable per clip: one decoder slot each, so clips never share or swap frames. The outgoing
+   * side of a transition is the same clip carrying on, so it keeps its slot (no decoder opens at
+   * the junction).
+   */
   key: string;
   clipId: string;
+  /** 'out': the previous clip still showing during a transition into the next one. */
+  role: 'in' | 'out';
   uri: string;
   /** Video only: the source instant to show. */
   sourceTimeMs: number;
@@ -216,8 +222,9 @@ function mediaOp(
   const image = layer.image;
   return {
     kind: image ? 'image' : 'video',
-    key: `${layer.trackId}:${clip.id}:${role}`,
+    key: `${layer.trackId}:${clip.id}`,
     clipId: clip.id,
+    role,
     uri: clip.sourceUri,
     sourceTimeMs: image ? 0 : role === 'out' ? sourceTimeOf(clip, t) : clampIn(clip, t),
     rect: rectOf(clip, c.width, c.height),
