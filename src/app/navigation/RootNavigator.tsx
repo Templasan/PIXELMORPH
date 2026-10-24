@@ -47,7 +47,9 @@ const loaders = {
   Camera: () => import('../screens/CameraScreen'),
   PhotoEditor: () => import('../screens/PhotoEditorScreen'),
   RawConverter: () => import('../screens/RawConverterScreen'),
-  VideoEditor: () => import('../screens/VideoEditorScreen'),
+  // The web editor (video-editor-web/) in a WebView; the old RN editor stays in the tree until
+  // the web one is validated on the phone.
+  VideoEditor: () => import('../screens/VideoEditorWebScreen'),
 };
 
 function lazyScreen<K extends keyof RootStackParamList>(
