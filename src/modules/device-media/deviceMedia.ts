@@ -125,7 +125,7 @@ export async function saveImageToGallery(
   base64: string,
   format: 'JPEG' | 'PNG' | 'WebP' | 'HEIC'
 ): Promise<string> {
-  const permission = await MediaLibrary.requestPermissionsAsync();
+  const permission = await MediaLibrary.requestPermissionsAsync(true); // write only: saving needs no read access
   if (!permission.granted) {
     throw new Error('PERMISSION_DENIED');
   }
