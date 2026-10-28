@@ -3,6 +3,7 @@ import type { AdjustmentsHistory } from './photoEditorStore';
 import type { HistoryOp, SavedHistory } from '../ports/host';
 
 const MAX_STEPS = 200;
+let counter = 0;
 
 /**
  * The editor's undo log, in the same operation format the app's core/history used, so the old
@@ -15,7 +16,9 @@ export function createHistory(saved?: SavedHistory | null) {
   });
   const log: AdjustmentsHistory = {
     push(type, from, to) {
-      const done = [...state.get().done, { type, params: { from, to } }].slice(-MAX_STEPS);
+      counter += 1;
+      const op = { id: `op_${Date.now()}_${counter}`, type, params: { from, to }, timestamp: Date.now() };
+      const done = [...state.get().done, op].slice(-MAX_STEPS);
       state.set({ done, undone: [] });
     },
     undo() {
