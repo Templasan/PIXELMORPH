@@ -9,6 +9,7 @@ import { EffectsPanel } from './panels/EffectsPanel';
 import { ElementsPanel } from './panels/ElementsPanel';
 import { GeometryPanel } from './panels/GeometryPanel';
 import { LayersPanel } from './panels/LayersPanel';
+import { PresetsPanel } from './panels/PresetsPanel';
 
 const TOOLS = [
   { id: 'ajustes', icon: 'sliders', label: 'Ajustes' },
@@ -16,6 +17,7 @@ const TOOLS = [
   { id: 'camadas', icon: 'layers', label: 'Camadas' },
   { id: 'efeitos', icon: 'zap', label: 'Efeitos' },
   { id: 'elementos', icon: 'type', label: 'Elementos' },
+  { id: 'presets', icon: 'copy', label: 'Presets' },
 ] as const;
 
 function formatBytes(n: number): string {
@@ -54,6 +56,7 @@ export function App({ session }: { session: PhotoSession }) {
   else if (tool === 'camadas') panel = <LayersPanel session={session} />;
   else if (tool === 'efeitos') panel = <EffectsPanel session={session} lightEdit={lightEdit} onLightEdit={setLightEdit} />;
   else if (tool === 'elementos') panel = <ElementsPanel session={session} />;
+  else if (tool === 'presets') panel = <PresetsPanel session={session} />;
 
   const p = info.photo;
   return (

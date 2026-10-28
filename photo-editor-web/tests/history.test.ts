@@ -23,3 +23,15 @@ describe('history', () => {
     expect(state.get().done.map((o) => o.type)).toEqual(['saturacao']);
   });
 });
+
+describe('presets in the log', () => {
+  it('replays a preset as all its fields at once', () => {
+    const { log, state } = createHistory();
+    log.push('preset', { saturacao: 0, retroGrain: 0 }, { saturacao: 30, retroGrain: 50 });
+    expect(replay({ saturacao: 0, retroGrain: 0, exposicao: 0 }, state.get().done)).toEqual({
+      saturacao: 30,
+      retroGrain: 50,
+      exposicao: 0,
+    });
+  });
+});

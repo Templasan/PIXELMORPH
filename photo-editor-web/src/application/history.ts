@@ -1,5 +1,5 @@
 import { createStore } from '../state/createStore';
-import type { AdjustmentsHistory } from './photoEditorStore';
+import { PRESET_OP, type AdjustmentsHistory } from './photoEditorStore';
 import type { HistoryOp, SavedHistory } from '../ports/host';
 
 const MAX_STEPS = 200;
@@ -45,6 +45,9 @@ export function createHistory(saved?: SavedHistory | null) {
 /** The adjustments a log ends at: each field's last value, on top of `base`. */
 export function replay<T extends Record<string, unknown>>(base: T, done: readonly HistoryOp[]): T {
   const out: Record<string, unknown> = { ...base };
-  for (const op of done) if (op.type in base) out[op.type] = op.params.to;
+  for (const op of done) {
+    if (op.type === PRESET_OP) Object.assign(out, op.params.to);
+    else if (op.type in base) out[op.type] = op.params.to;
+  }
   return out as T;
 }

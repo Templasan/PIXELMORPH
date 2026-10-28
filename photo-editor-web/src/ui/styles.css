@@ -518,3 +518,11 @@ button:disabled {
   border-radius: 4px;
   font-size: 28px;
 }
+
+.field.row {
+  display: flex;
+  gap: 8px;
+}
+.field.row input {
+  flex: 1;
+}
