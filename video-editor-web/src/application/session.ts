@@ -313,6 +313,8 @@ export function createEditorSession(host: EditorHost) {
     toggle: () => player?.toggle(),
     seek: (ms: number) => player?.seek(ms),
     seekAndWait: (ms: number) => player?.seekAndWait(ms) ?? Promise.resolve(),
+    /** Diagnostics: what a media file is, as the editor reads it. */
+    probe: (uri: string) => probeMedia(pool, uri),
     addMedia,
     addText,
     deleteSelected,
