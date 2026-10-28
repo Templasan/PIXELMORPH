@@ -3,13 +3,19 @@ import { sceneSizeOf, type SceneSize } from '../domain/sceneSize';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { drawScene } from '../engine/scene';
 import { loadPicture } from '../engine/picture';
-import type { EditorHost, PictureRef, SavedPhoto } from '../ports/host';
+import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../ports/host';
 import { createStore } from '../state/createStore';
 import { createHistory, replay } from './history';
 import { createPhotoEditorStore } from './photoEditorStore';
 
 /** The screen works on a copy this long at most; the export always reads the original. */
 const PREVIEW_LONG_EDGE = 2048;
+
+/** Geometry belongs to one photo; presets carry everything else. */
+const GEOMETRY = /^(rotation90|fineRotation|flipH|flipV|mirrorOpacity|persp[XY]\d)$/;
+function lookOf(a: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(a).filter(([k]) => !GEOMETRY.test(k) && k in DEFAULT_ADJUSTMENTS));
+}
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp';
 
@@ -235,8 +241,11 @@ export function createPhotoSession(host: EditorHost) {
         if (saved.layers) editor.hydrateLayers(saved.layers);
         const picture = await loadPicture(saved.previewUri ?? saved.photo.uri, PREVIEW_LONG_EDGE);
         light = picture.bitmap;
-        // Without a light copy the original was decoded: its size is known now.
-        const photo = saved.previewUri || saved.photo.width ? saved.photo : { ...saved.photo, width: picture.width, height: picture.height };
+        // Without a light copy the original was decoded: what it really is beats the project's
+        // metadata (a project's file can change after its metadata was written).
+        const photo = saved.previewUri
+          ? saved.photo
+          : { ...saved.photo, width: picture.width, height: picture.height, sizeBytes: picture.bytes };
         preview = new PhotoGl();
         preview.setSource(light, light.width, light.height);
         setInfo({
@@ -335,6 +344,20 @@ export function createPhotoSession(host: EditorHost) {
         gl.dispose();
         setInfo({ busy: null });
       }
+    },
+
+    /** Saved presets (shared by every photo); loaded on demand. */
+    presets: createStore<PresetRef[] | null>(null),
+    async loadPresets() {
+      this.presets.set(await host.listPresets());
+    },
+    /** Saves the current look (not the geometry: a preset must not turn or warp another photo). */
+    async savePreset(name: string) {
+      await host.savePreset(name.trim(), lookOf(editor.store.get().adjustments));
+      await this.loadPresets();
+    },
+    applyPreset(preset: PresetRef) {
+      editor.applyPreset(lookOf(preset.adjustments));
     },
 
     close: () => host.close(),

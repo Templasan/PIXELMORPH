@@ -11,6 +11,7 @@ import { errorLogger } from '@core/reliability';
 import { colors } from '@core/theme';
 import { encodeImage } from '@modules/export';
 import {
+  createPhotoEditorModule,
   loadEditorImages,
   loadLayers,
   rawFormatLabel,
@@ -138,6 +139,14 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           name: picked.fileName ?? 'Foto',
           uri: NEEDS_JPEG_COPY.test(picked.mimeType ?? uri) ? await readableCopyOf(uri) : uri,
         };
+      },
+
+      async listPresets() {
+        const presets = await createPhotoEditorModule().listPresets.execute();
+        return presets.map(({ id, name, adjustments }) => ({ id, name, adjustments }));
+      },
+      async savePreset(name: string, adjustments: Record<string, number>) {
+        await createPhotoEditorModule().savePreset.execute(name, adjustments);
       },
 
       async exportStart(fileName: string) {

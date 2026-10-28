@@ -1,4 +1,4 @@
-import type { EditorHost, PictureRef, SavedPhoto } from '../../ports/host';
+import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../../ports/host';
 import { call } from './bridge';
 
 function toBase64(bytes: Uint8Array): string {
@@ -19,6 +19,8 @@ export function createAndroidHost(): EditorHost {
     loadProject: () => call<SavedPhoto | null>('loadProject'),
     saveProject: (project) => call<void>('saveProject', project),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
+    listPresets: () => call<PresetRef[]>('listPresets'),
+    savePreset: (name, adjustments) => call<void>('savePreset', name, adjustments),
     exportSink() {
       return {
         start: (fileName) => call<void>('exportStart', fileName),

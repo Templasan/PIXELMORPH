@@ -15,16 +15,16 @@ export function fetchBlob(uri: string): Promise<Blob> {
 
 /**
  * A picture decoded upright (EXIF orientation applied), its long edge at most `maxLongEdge`;
- * `width`/`height` are the file's own.
+ * `width`/`height`/`bytes` are the file's own.
  */
 export async function loadPicture(
   uri: string,
   maxLongEdge: number
-): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
+): Promise<{ bitmap: ImageBitmap; width: number; height: number; bytes: number }> {
   const blob = await fetchBlob(uri);
   const full = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   const long = Math.max(full.width, full.height);
-  const own = { width: full.width, height: full.height };
+  const own = { width: full.width, height: full.height, bytes: blob.size };
   if (long <= maxLongEdge) return { bitmap: full, ...own };
   const k = maxLongEdge / long;
   const small = await createImageBitmap(full, {

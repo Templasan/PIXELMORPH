@@ -36,6 +36,13 @@ export interface SavedPhoto {
   history?: SavedHistory;
 }
 
+/** Saved adjustments shared by every photo (the app's presets). */
+export interface PresetRef {
+  id: string;
+  name: string;
+  adjustments: Record<string, number>;
+}
+
 /** Where an export's bytes go, written in order. */
 export interface ExportSink {
   start(fileName: string): Promise<void>;
@@ -53,6 +60,8 @@ export interface EditorHost {
   saveProject(project: SavedPhoto): Promise<void>;
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
+  listPresets(): Promise<PresetRef[]>;
+  savePreset(name: string, adjustments: Record<string, number>): Promise<void>;
   exportSink(): ExportSink;
   /** Leave the editor (the app goes back to its projects). */
   close(): void;

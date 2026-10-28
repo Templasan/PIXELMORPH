@@ -45,6 +45,9 @@ export interface PhotoEditorState {
   shapeDraft: ShapeDraft;
 }
 
+/** History op type of a preset: params hold several fields' values. */
+export const PRESET_OP = 'preset';
+
 const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
   circle: 'Círculo',
   rect: 'Retângulo',
@@ -144,7 +147,8 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
   }
 
   function restore(op: ReturnType<AdjustmentsHistory['undo']>, side: 'from' | 'to') {
-    if (op && op.type in DEFAULT_ADJUSTMENTS)
+    if (op?.type === PRESET_OP) setAdjustments(op.params[side] as Record<string, number>);
+    else if (op && op.type in DEFAULT_ADJUSTMENTS)
       setAdjustments({ [op.type]: op.params[side] as number });
   }
 
@@ -170,9 +174,14 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       setAdjustments({ [field]: value });
       if (value !== previousValue) history.push(field, previousValue, value);
     },
-    /** Merges values without history (e.g. applying a preset, as before). */
-    applyAdjustments(patch: Partial<Adjustments>) {
-      setAdjustments(patch as Record<string, number>);
+    /** A preset: many fields in one undo step (the log keeps the fields' values before/after). */
+    applyPreset(patch: Record<string, number>) {
+      const before = get().adjustments;
+      const from: Record<string, number> = {};
+      for (const k of Object.keys(patch)) from[k] = before[k];
+      Object.assign(edited, patch);
+      setAdjustments(patch);
+      history.push(PRESET_OP, from, patch);
     },
     /** Resets fields to neutral and drops their undo entries (after baking them into pixels). */
     resetFields(fields: readonly string[]) {

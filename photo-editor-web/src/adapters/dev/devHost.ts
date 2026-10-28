@@ -1,4 +1,6 @@
-import type { EditorHost, PictureRef, SavedPhoto } from '../../ports/host';
+import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../../ports/host';
+
+const PRESETS_KEY = 'pixelmorph.dev.presets';
 
 interface Listed extends PictureRef {
   kind: string | null;
@@ -42,6 +44,17 @@ export function createDevHost(): EditorHost {
       const all = await pictures();
       const answer = prompt(all.map((p, i) => `${i + 1}. ${p.name}`).join('\n'), '1');
       return answer ? (all[Number(answer) - 1] ?? null) : null;
+    },
+    async listPresets() {
+      try {
+        return JSON.parse(localStorage.getItem(PRESETS_KEY) ?? '[]') as PresetRef[];
+      } catch {
+        return [];
+      }
+    },
+    async savePreset(name, adjustments) {
+      const all = await this.listPresets();
+      localStorage.setItem(PRESETS_KEY, JSON.stringify([...all, { id: `preset_${Date.now()}`, name, adjustments }]));
     },
     exportSink() {
       let name = 'export.jpg';
