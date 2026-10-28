@@ -122,6 +122,7 @@ export function createPhotoSession(host: EditorHost) {
   let screen: HTMLCanvasElement | null = null;
   let frame = 0;
   let lastGlKey = '';
+  let firstDrawn = false;
   function requestDraw() {
     if (!frame) frame = requestAnimationFrame(draw);
   }
@@ -157,6 +158,10 @@ export function createPhotoSession(host: EditorHost) {
       frameGradientColor,
       stroke: { points: st.currentStroke, brush: st.brush },
     });
+    if (!firstDrawn) {
+      firstDrawn = true;
+      performance.mark('pm:first-draw');
+    }
     if (st.compareMode) {
       // ORIGINAL: the photo as it came in (turned like the edit so both halves line up).
       ctx.save();
@@ -232,7 +237,9 @@ export function createPhotoSession(host: EditorHost) {
 
     async load() {
       try {
+        performance.mark('pm:load');
         const saved = await host.loadProject();
+        performance.mark('pm:project');
         if (!saved) throw new Error('Projeto sem foto.');
         history = createHistory(saved.history);
         historyState.set(history.state.get());
@@ -247,6 +254,7 @@ export function createPhotoSession(host: EditorHost) {
         if (saved.layers) editor.hydrateLayers(saved.layers);
         const picture = await loadPicture(saved.previewUri ?? saved.photo.uri, PREVIEW_LONG_EDGE);
         light = picture.bitmap;
+        performance.mark('pm:picture');
         // Without a light copy the original was decoded: what it really is beats the project's
         // metadata (a project's file can change after its metadata was written).
         const photo = saved.previewUri
@@ -254,6 +262,7 @@ export function createPhotoSession(host: EditorHost) {
           : { ...saved.photo, width: picture.width, height: picture.height, sizeBytes: picture.bytes };
         preview = new PhotoGl();
         preview.setSource(light);
+        performance.mark('pm:gl');
         setInfo({
           status: 'ready',
           name: saved.name,
@@ -300,12 +309,16 @@ export function createPhotoSession(host: EditorHost) {
       if (!i.photo) throw new Error('Nada para exportar.');
       setInfo({ busy: 'Exportando…' });
       const gl = new PhotoGl();
+      // Full-size pictures and canvases are freed as soon as the file is out (see PhotoGl.dispose).
+      const bitmaps: ImageBitmap[] = [];
+      let out: HTMLCanvasElement | null = null;
       try {
         const st = editor.store.get();
         const a = st.adjustments;
         const t0 = performance.now();
         const lap = (stage: string) => (exportTimings[stage] = Math.round(performance.now() - t0));
         const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
+        bitmaps.push(full);
         lap('decoded');
         const w = Math.max(1, Math.round(full.width * scale));
         const h = Math.max(1, Math.round(full.height * scale));
@@ -314,6 +327,7 @@ export function createPhotoSession(host: EditorHost) {
         for (const ref of [i.doubleExposure, i.overlay]) {
           if (!ref) continue;
           const pic = (await loadPicture(ref.uri, gl.maxSize)).bitmap;
+          bitmaps.push(pic);
           const de = ref === i.doubleExposure;
           blends.push({
             image: pic,
@@ -321,7 +335,7 @@ export function createPhotoSession(host: EditorHost) {
             opacity: (de ? a.doubleExposureOpacity : a.overlayIntensity) / 100,
           });
         }
-        gl.setSource(full);
+        gl.setSource(full, false);
         lap('uploaded');
         gl.setOutput(w, h);
         gl.render({
@@ -330,12 +344,13 @@ export function createPhotoSession(host: EditorHost) {
           units: size.photo,
           blends,
         });
+        gl.sync();
         lap('gpu');
         const k = w / size.photo.w;
-        const out = document.createElement('canvas');
-        out.width = Math.round(size.scene.w * k);
-        out.height = Math.round(size.scene.h * k);
-        const ctx = out.getContext('2d')!;
+        const canvas = (out = document.createElement('canvas'));
+        canvas.width = Math.round(size.scene.w * k);
+        canvas.height = Math.round(size.scene.h * k);
+        const ctx = canvas.getContext('2d')!;
         ctx.setTransform(k, 0, 0, k, 0, 0);
         drawScene(ctx, {
           photo: gl.canvas,
@@ -345,9 +360,10 @@ export function createPhotoSession(host: EditorHost) {
           frameColor: i.frameColor,
           frameGradientColor: i.frameGradientColor,
         });
+        ctx.getImageData(0, 0, 1, 1); // waits for the drawing, so 'drawn' and 'encoded' split right
         lap('drawn');
         const type = `image/${format}`;
-        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, quality));
+        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
         if (!blob) throw new Error('O navegador não gerou o arquivo.');
         lap('encoded');
         const sink = host.exportSink();
@@ -357,6 +373,50 @@ export function createPhotoSession(host: EditorHost) {
         lap('saved');
         return where;
       } finally {
+        for (const b of bitmaps) b.close();
+        if (out) out.width = out.height = 0;
+        gl.dispose();
+        setInfo({ busy: null });
+      }
+    },
+
+    /**
+     * "Aplicar e recomeçar": `fields` (e.g. the Ajustes drawer's) are drawn into the full photo,
+     * which becomes the project's photo, and reset to neutral with their undo steps, so the next
+     * pass starts on top of the result. Everything else keeps applying live.
+     */
+    async bake(fields: readonly string[]) {
+      const i = info.get();
+      if (!i.photo || i.busy) return;
+      setInfo({ busy: 'Aplicando…' });
+      const gl = new PhotoGl();
+      let bitmap: ImageBitmap | null = null;
+      try {
+        const now = editor.store.get().adjustments;
+        const only = { ...DEFAULT_ADJUSTMENTS } as Adjustments;
+        for (const f of fields) only[f] = now[f];
+        // shortcut: a photo larger than the GPU's texture limit is baked at that limit; tile it if a phone ever hits this.
+        const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
+        bitmap = full;
+        const size = sceneSizeOf(full.width, full.height, 0);
+        gl.setSource(full, false);
+        gl.setOutput(full.width, full.height);
+        gl.render({ adjustments: only, adjustmentsVisible: true, units: size.photo, blends: [] });
+        const blob = await new Promise<Blob | null>((r) => gl.canvas.toBlob(r, 'image/jpeg', 0.92));
+        if (!blob) throw new Error('O navegador não gerou o arquivo.');
+        const sink = host.photoSink();
+        await sink.start(`baked_${Date.now()}.jpg`);
+        await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
+        const baked = await sink.finish();
+        const picture = await loadPicture(baked.previewUri ?? baked.photo.uri, PREVIEW_LONG_EDGE);
+        light?.close();
+        light = picture.bitmap;
+        preview?.setSource(light);
+        lastGlKey = '';
+        editor.resetFields(fields);
+        setInfo({ photo: baked.photo });
+      } finally {
+        bitmap?.close();
         gl.dispose();
         setInfo({ busy: null });
       }

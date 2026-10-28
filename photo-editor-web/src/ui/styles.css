@@ -526,3 +526,10 @@ button:disabled {
 .field.row input {
   flex: 1;
 }
+
+.panel-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}

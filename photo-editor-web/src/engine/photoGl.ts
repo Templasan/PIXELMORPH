@@ -89,7 +89,7 @@ export class PhotoGl {
   private source: WebGLTexture | null = null;
   private out = { w: 0, h: 0 };
   private targets: { tex: WebGLTexture; fbo: WebGLFramebuffer }[] = [];
-  private blendTextures = new WeakMap<object, WebGLTexture>();
+  private blendTextures = new Map<object, WebGLTexture>();
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -112,10 +112,18 @@ export class PhotoGl {
     return this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) as number;
   }
 
-  /** The photo the passes read; mipmapped, so a smaller output samples it cleanly. */
-  setSource(image: TexImageSource) {
+  /**
+   * The photo the passes read. Mipmapped for the preview, so a smaller output samples it cleanly;
+   * the export draws at full size and skips them (a third more memory and upload time).
+   */
+  setSource(image: TexImageSource, mipmaps = true) {
     if (this.source) this.gl.deleteTexture(this.source);
-    this.source = this.texture(image, true);
+    this.source = this.texture(image, mipmaps);
+  }
+
+  /** Waits until the GPU has finished the passes (reading one pixel forces it). */
+  sync() {
+    this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, new Uint8Array(4));
   }
 
   /**
@@ -199,8 +207,23 @@ export class PhotoGl {
     }, [current], true);
   }
 
+  /**
+   * Frees the GPU memory now: the browser only collects a lost context when it likes, and an
+   * export's 50 MP textures stayed held (+340 MB on the Poco) until then.
+   */
   dispose() {
-    this.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    const gl = this.gl;
+    if (this.source) gl.deleteTexture(this.source);
+    for (const tex of this.blendTextures.values()) gl.deleteTexture(tex);
+    for (const t of this.targets) {
+      gl.deleteTexture(t.tex);
+      gl.deleteFramebuffer(t.fbo);
+    }
+    this.source = null;
+    this.blendTextures.clear();
+    this.targets = [];
+    this.canvas.width = this.canvas.height = 0;
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 
   private blendTexture(image: BlendImage['image']): WebGLTexture {

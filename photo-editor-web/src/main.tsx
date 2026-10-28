@@ -7,6 +7,7 @@ import { inApp } from './adapters/android/bridge';
 import { App } from './ui/App';
 import './ui/styles.css';
 
+performance.mark('pm:script');
 // Inside the Android app the host is the app (bridge); in a desktop browser, the dev host.
 const session = createPhotoSession(inApp() ? createAndroidHost() : createDevHost());
 void session.load().then(() => {

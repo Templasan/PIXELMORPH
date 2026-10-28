@@ -80,6 +80,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const webRef = useRef<WebView>(null);
   const files = useMemo(createFileHost, []);
   const historyRepo = useMemo(() => new LocalHistoryRepository(), []);
+  // The asset a bake replaces the photo of (set when the project loads).
+  const assetRef = useRef<{ id: string; format: string } | null>(null);
 
   useEffect(() => () => files.close(), [files]);
 
@@ -91,6 +93,10 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         if (!project || !asset) return null;
         const uri = asset.workingUri || asset.originalUri;
         const mime = asset.metadata.mimeType;
+        assetRef.current = {
+          id: asset.id,
+          format: rawFormatLabel(mime) ?? (mime.split('/')[1] ?? '').toUpperCase(),
+        };
         // The screen opens a small upright copy (made once); the export reads the original.
         const light = await lightCopyOf(uri);
         const [snapshot, layers, images] = await Promise.all([
@@ -103,7 +109,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           photo: {
             name: project.name,
             uri: NEEDS_JPEG_COPY.test(mime) ? await readableCopyOf(uri) : uri,
-            format: rawFormatLabel(mime) ?? (mime.split('/')[1] ?? '').toUpperCase(),
+            format: assetRef.current.format,
             sizeBytes: asset.metadata.fileSizeBytes,
             width: light.width,
             height: light.height,
@@ -152,6 +158,37 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
       },
       async savePreset(name: string, adjustments: Record<string, number>) {
         await createPhotoEditorModule().savePreset.execute(name, adjustments);
+      },
+
+      // A bake: the page writes the new photo into the cache, then it becomes the asset's working
+      // file (updateMediaAsset moves it into the project's folder). The original stays.
+      async bakeStart() {
+        await files.startExport('jpg');
+      },
+      async bakeWrite(position: number, b64: string) {
+        await files.writeExportChunk(position, b64);
+      },
+      async bakeFinish() {
+        const cached = await files.finishExport();
+        const asset = assetRef.current;
+        if (!projectId || !asset) throw new Error('Sem projeto para aplicar.');
+        const project = await projects.updateMediaAsset.execute(projectId, asset.id, {
+          workingUri: cached,
+        });
+        const uri = project.assets.find((a) => a.id === asset.id)?.workingUri ?? cached;
+        const light = await lightCopyOf(uri);
+        const info = await FileSystem.getInfoAsync(uri);
+        return {
+          photo: {
+            name: project.name,
+            uri,
+            format: 'JPEG',
+            sizeBytes: info.exists ? info.size : undefined,
+            width: light.width,
+            height: light.height,
+          },
+          previewUri: light.uri,
+        };
       },
 
       async exportStart(fileName: string) {

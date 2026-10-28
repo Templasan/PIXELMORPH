@@ -31,13 +31,16 @@ export function devMediaPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(items));
       });
-      server.middlewares.use('/media/', (req, res, next) => {
-        const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''));
-        const file = path.join(mediaDir, name);
-        if (!file.startsWith(mediaDir + path.sep) || !fs.existsSync(file)) return next();
-        res.setHeader('Content-Length', fs.statSync(file).size);
-        fs.createReadStream(file).pipe(res);
-      });
+      // media/ is the gallery; exports/ is read back too (a baked photo becomes the project's).
+      for (const [prefix, dir] of [['/media/', mediaDir], ['/exports/', exportDir]] as const) {
+        server.middlewares.use(prefix, (req, res, next) => {
+          const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''));
+          const file = path.join(dir, name);
+          if (!file.startsWith(dir + path.sep) || !fs.existsSync(file)) return next();
+          res.setHeader('Content-Length', fs.statSync(file).size);
+          fs.createReadStream(file).pipe(res);
+        });
+      }
       // Export chunks arrive in order: ?start (truncate) then appended bodies, ?finish returns the path.
       server.middlewares.use('/__export', (req, res) => {
         const url = new URL(req.url ?? '', 'http://dev');
