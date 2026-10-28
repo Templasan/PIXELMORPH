@@ -18,7 +18,7 @@ const FRAMEWORKS = {
 
 module.exports = {
   // The standalone web editor is linted and type-checked by its own project.
-  ignorePatterns: ['video-editor-web/'],
+  ignorePatterns: ['video-editor-web/', 'photo-editor-web/'],
   root: true,
   extends: ['universe/native'],
   rules: {

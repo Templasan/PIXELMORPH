@@ -45,10 +45,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 // (see RootNavigator) so the first tap barely waits.
 const loaders = {
   Camera: () => import('../screens/CameraScreen'),
-  PhotoEditor: () => import('../screens/PhotoEditorScreen'),
+  // The web editors (photo-editor-web/, video-editor-web/) in a WebView; the old RN editors stay
+  // in the tree until the web ones are validated on the phone.
+  PhotoEditor: () => import('../screens/PhotoEditorWebScreen'),
   RawConverter: () => import('../screens/RawConverterScreen'),
-  // The web editor (video-editor-web/) in a WebView; the old RN editor stays in the tree until
-  // the web one is validated on the phone.
   VideoEditor: () => import('../screens/VideoEditorWebScreen'),
 };
 
