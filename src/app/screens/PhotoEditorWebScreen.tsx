@@ -23,6 +23,7 @@ import { copyToAppStorage, pickFromGallery } from '@modules/device-media';
 import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
+import { orientedLightCopyOf } from './photo-editor/orientedLightCopy';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -38,6 +39,7 @@ interface PictureRef {
 interface SavedPhoto {
   name: string;
   photo: PictureRef & { format?: string; sizeBytes?: number; width?: number; height?: number };
+  previewUri?: string;
   layers?: EditorLayer[];
   doubleExposure?: PictureRef | null;
   overlay?: PictureRef | null;
@@ -89,6 +91,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         if (!project || !asset) return null;
         const uri = asset.workingUri || asset.originalUri;
         const mime = asset.metadata.mimeType;
+        // The screen opens a small upright copy (made once); the export reads the original.
+        const light = await orientedLightCopyOf(uri);
         const [snapshot, layers, images] = await Promise.all([
           historyRepo.load(project.id).catch(() => null),
           loadLayers(project.id),
@@ -101,9 +105,10 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
             uri: NEEDS_JPEG_COPY.test(mime) ? await readableCopyOf(uri) : uri,
             format: rawFormatLabel(mime) ?? (mime.split('/')[1] ?? '').toUpperCase(),
             sizeBytes: asset.metadata.fileSizeBytes,
-            width: asset.metadata.width,
-            height: asset.metadata.height,
+            width: light.width,
+            height: light.height,
           },
+          previewUri: light.uri,
           layers: layers ?? undefined,
           doubleExposure: images?.doubleExposure ?? null,
           overlay: images?.overlay ?? null,

@@ -87,7 +87,7 @@ export class PhotoGl {
   private blend: Program;
   private warp: Program;
   private source: WebGLTexture | null = null;
-  private sourceSize = { w: 0, h: 0 };
+  private out = { w: 0, h: 0 };
   private targets: { tex: WebGLTexture; fbo: WebGLFramebuffer }[] = [];
   private blendTextures = new WeakMap<object, WebGLTexture>();
 
@@ -112,11 +112,20 @@ export class PhotoGl {
     return this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) as number;
   }
 
-  setSource(image: TexImageSource, w: number, h: number) {
+  /** The photo the passes read; mipmapped, so a smaller output samples it cleanly. */
+  setSource(image: TexImageSource) {
+    if (this.source) this.gl.deleteTexture(this.source);
+    this.source = this.texture(image, true);
+  }
+
+  /**
+   * The size the passes draw at. The preview asks for what the screen shows (a fraction of the
+   * light copy: every pass costs per output pixel), the export for the full picture.
+   */
+  setOutput(w: number, h: number) {
+    if (w === this.out.w && h === this.out.h) return;
     const gl = this.gl;
-    if (this.source) gl.deleteTexture(this.source);
-    this.source = this.texture(image);
-    this.sourceSize = { w, h };
+    this.out = { w, h };
     this.canvas.width = w;
     this.canvas.height = h;
     for (const t of this.targets) {
@@ -126,11 +135,11 @@ export class PhotoGl {
     this.targets = [this.target(w, h), this.target(w, h)];
   }
 
-  /** Draws the photo's passes into `canvas` (same size as the source). */
+  /** Draws the photo's passes into `canvas` (at the output size). */
   render(input: PhotoPassInput) {
     const gl = this.gl;
     if (!this.source) return;
-    const { w, h } = this.sourceSize;
+    const { w, h } = this.out;
     const units: [number, number] = [input.units.w, input.units.h];
     const a = input.adjustments;
     gl.viewport(0, 0, w, h);
@@ -197,19 +206,23 @@ export class PhotoGl {
   private blendTexture(image: BlendImage['image']): WebGLTexture {
     let tex = this.blendTextures.get(image);
     if (!tex) {
-      tex = this.texture(image);
+      tex = this.texture(image, true);
       this.blendTextures.set(image, tex);
     }
     return tex;
   }
 
-  private texture(image: TexImageSource): WebGLTexture {
+  private texture(image: TexImageSource, mipmaps: boolean): WebGLTexture {
     const gl = this.gl;
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
     this.params();
+    if (mipmaps) {
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    }
     return tex;
   }
 

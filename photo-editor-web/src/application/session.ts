@@ -89,6 +89,8 @@ export function createPhotoSession(host: EditorHost) {
   const blendPictures = new Map<string, Promise<ImageBitmap | null>>();
   const blendReady = new Map<string, ImageBitmap>();
   let loaded = false;
+  /** ms from the export's start to the end of each stage (diagnostics, read by measuring scripts). */
+  const exportTimings: Record<string, number> = {};
 
   const sizeOf = (a: Adjustments) => {
     return light ? sceneSizeOf(light.width, light.height, a.rotation90) : null;
@@ -131,8 +133,12 @@ export function createPhotoSession(host: EditorHost) {
     const size = sizeOf(a)!;
     const adjustmentsVisible = st.layers.find((l) => l.id === 'ajustes')?.visible ?? true;
     const blends = blendsOf(a);
+    const k = screen.width / size.scene.w;
+    // The passes draw what the screen shows of the photo, never more than the light copy has.
+    const fit = Math.min(1, (size.photo.w * k) / light.width);
+    preview.setOutput(Math.max(1, Math.round(light.width * fit)), Math.max(1, Math.round(light.height * fit)));
     // The GPU passes run again only when something they draw changed.
-    const glKey = JSON.stringify([a, adjustmentsVisible, blends.map((b) => [b.blend, b.opacity, b.image.width])]);
+    const glKey = JSON.stringify([a, adjustmentsVisible, blends.map((b) => [b.blend, b.opacity, b.image.width]), fit]);
     if (glKey !== lastGlKey) {
       preview.render({ adjustments: a, adjustmentsVisible, units: size.photo, blends });
       lastGlKey = glKey;
@@ -140,7 +146,6 @@ export function createPhotoSession(host: EditorHost) {
       histogramTimer = setTimeout(measureHistogram, 150);
     }
     const ctx = screen.getContext('2d')!;
-    const k = screen.width / size.scene.w;
     ctx.setTransform(k, 0, 0, k, 0, 0);
     const { frameColor, frameGradientColor } = info.get();
     drawScene(ctx, {
@@ -223,6 +228,7 @@ export function createPhotoSession(host: EditorHost) {
     info,
     history: historyState,
     histogram,
+    exportTimings,
 
     async load() {
       try {
@@ -247,7 +253,7 @@ export function createPhotoSession(host: EditorHost) {
           ? saved.photo
           : { ...saved.photo, width: picture.width, height: picture.height, sizeBytes: picture.bytes };
         preview = new PhotoGl();
-        preview.setSource(light, light.width, light.height);
+        preview.setSource(light);
         setInfo({
           status: 'ready',
           name: saved.name,
@@ -297,7 +303,10 @@ export function createPhotoSession(host: EditorHost) {
       try {
         const st = editor.store.get();
         const a = st.adjustments;
+        const t0 = performance.now();
+        const lap = (stage: string) => (exportTimings[stage] = Math.round(performance.now() - t0));
         const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
+        lap('decoded');
         const w = Math.max(1, Math.round(full.width * scale));
         const h = Math.max(1, Math.round(full.height * scale));
         const size = sceneSizeOf(w, h, a.rotation90);
@@ -312,13 +321,16 @@ export function createPhotoSession(host: EditorHost) {
             opacity: (de ? a.doubleExposureOpacity : a.overlayIntensity) / 100,
           });
         }
-        gl.setSource(full, w, h);
+        gl.setSource(full);
+        lap('uploaded');
+        gl.setOutput(w, h);
         gl.render({
           adjustments: a,
           adjustmentsVisible: st.layers.find((l) => l.id === 'ajustes')?.visible ?? true,
           units: size.photo,
           blends,
         });
+        lap('gpu');
         const k = w / size.photo.w;
         const out = document.createElement('canvas');
         out.width = Math.round(size.scene.w * k);
@@ -333,13 +345,17 @@ export function createPhotoSession(host: EditorHost) {
           frameColor: i.frameColor,
           frameGradientColor: i.frameGradientColor,
         });
+        lap('drawn');
         const type = `image/${format}`;
         const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, quality));
         if (!blob) throw new Error('O navegador não gerou o arquivo.');
+        lap('encoded');
         const sink = host.exportSink();
         await sink.start(`pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`);
         await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
-        return await sink.finish();
+        const where = await sink.finish();
+        lap('saved');
+        return where;
       } finally {
         gl.dispose();
         setInfo({ busy: null });
