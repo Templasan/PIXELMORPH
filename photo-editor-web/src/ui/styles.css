@@ -1,0 +1,407 @@
+:root {
+  --barra: #252525;
+  --painel: #2f2f2f;
+  --canvas: #1a1a1a;
+  --faixa: #1f1f1f;
+  --linha: #3c3c3c;
+  --texto: #e4e4e4;
+  --texto2: #8e8e8e;
+  --acento: #3a8fde;
+  --acento-fraco: rgba(58, 143, 222, 0.3);
+  --perigo: #d25252;
+  --ok: #5fb98f;
+  --alerta: #d2a05e;
+  --icone: #b0b0b0;
+  --mono: ui-monospace, 'Roboto Mono', 'Cascadia Mono', monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--canvas);
+  color: var(--texto);
+  font-family: system-ui, Roboto, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.editor {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+}
+
+/* ---- top bar ---------------------------------------------------------------------------------- */
+
+.topbar {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 4px;
+  background: var(--barra);
+  border-bottom: 1px solid var(--linha);
+}
+
+.topbar .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--icone);
+}
+
+.icon-btn:not(:disabled):active {
+  background: var(--painel);
+}
+
+.primary-btn {
+  height: 34px;
+  padding: 0 14px;
+  background: var(--acento);
+  color: #0b1a29;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+}
+
+/* ---- toolbar and panels ----------------------------------------------------------------------- */
+
+.toolbar {
+  flex: none;
+  display: flex;
+  overflow-x: auto;
+  gap: 2px;
+  padding: 6px 6px calc(6px + var(--safe-bottom));
+  background: var(--barra);
+  border-top: 1px solid var(--linha);
+  scrollbar-width: none;
+}
+
+.tool {
+  flex: none;
+  min-width: 64px;
+  height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--texto2);
+  border-radius: 6px;
+}
+
+.tool svg {
+  color: var(--icone);
+}
+
+.tool.on,
+.tool.on svg {
+  color: var(--acento);
+}
+
+.tool.danger,
+.tool.danger svg {
+  color: var(--perigo);
+}
+
+.tool:not(:disabled):active {
+  background: var(--painel);
+}
+
+.panel {
+  flex: none;
+  max-height: 46vh;
+  overflow-y: auto;
+  background: var(--barra);
+  border-top: 1px solid var(--linha);
+  padding: 10px 14px calc(12px + var(--safe-bottom));
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--texto2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.chip.on {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--texto2);
+  margin-bottom: 4px;
+}
+
+.field input[type='range'] {
+  width: 100%;
+  accent-color: var(--acento);
+}
+
+.field input[type='text'],
+.field textarea {
+  width: 100%;
+  background: var(--canvas);
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  color: var(--texto);
+  padding: 8px;
+  font: inherit;
+}
+
+.sheet-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  background: var(--barra);
+  border-top: 1px solid var(--linha);
+  padding: 14px 16px calc(16px + var(--safe-bottom));
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.progress {
+  height: 6px;
+  background: var(--canvas);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.progress > div {
+  height: 100%;
+  background: var(--acento);
+}
+
+.muted {
+  color: var(--texto2);
+  font-size: 12px;
+}
+
+@media (max-width: 400px) {
+  .topbar .icon-btn {
+    width: 34px;
+  }
+}
+
+/* ---- photo ------------------------------------------------------------------------------------ */
+
+.tech {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto2);
+  background: var(--faixa);
+}
+
+.view-box {
+  flex: 1 1 auto;
+  min-height: 160px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.photo {
+  position: relative;
+  /* The photo's empty corners (after straightening) show as a checkerboard, like transparency. */
+  background: repeating-conic-gradient(#2a2a2a 0 25%, #222 0 50%) 0 0 / 16px 16px;
+}
+
+.photo canvas {
+  display: block;
+}
+
+.photo-input {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.photo-input.painting {
+  cursor: crosshair;
+}
+
+.handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--acento-fraco);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  touch-action: none;
+  cursor: grab;
+}
+
+.guide {
+  position: absolute;
+  background: var(--acento);
+  pointer-events: none;
+}
+.guide.v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.guide.h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.compare {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.compare-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.compare-label {
+  position: absolute;
+  top: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 3px;
+}
+.compare-label.left {
+  left: 6px;
+}
+.compare-label.right {
+  right: 6px;
+}
+
+.icon-btn.on {
+  color: var(--acento);
+}
+
+.toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 90px;
+  z-index: 30;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--linha);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.histogram {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-bottom: 10px;
+  background: var(--canvas);
+  border-radius: 4px;
+}
+
+.curve {
+  display: block;
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  margin: 0 auto 10px;
+  background: var(--canvas);
+  border-radius: 4px;
+  touch-action: none;
+}
+
+.chip.swatch {
+  border-left: 4px solid var(--swatch);
+}
+
+.primary-btn.wide {
+  width: 100%;
+  height: 40px;
+  margin: 6px 0 8px;
+}
