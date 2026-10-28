@@ -3,10 +3,13 @@ import type { EditorLayer } from '../domain/layers';
 
 /** One undo step: an adjustment field and its values before/after (the app's history format). */
 export interface HistoryOp {
+  id: string;
   type: string;
   params: { from: unknown; to: unknown };
+  timestamp: number;
 }
 
+/** Undo log, oldest first (`undone`: the redo stack, next redo last). */
 export interface SavedHistory {
   done: HistoryOp[];
   undone: HistoryOp[];
