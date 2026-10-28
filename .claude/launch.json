@@ -19,6 +19,17 @@
         "video-editor-web"
       ],
       "port": 5174
+    },
+    {
+      "name": "photo-editor-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "photo-editor-web"
+      ],
+      "port": 5175
     }
   ]
 }
