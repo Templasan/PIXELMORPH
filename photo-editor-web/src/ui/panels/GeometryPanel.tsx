@@ -41,6 +41,15 @@ export function GeometryPanel({
             Redefinir
           </button>
         )}
+        {perspective && (
+          <button
+            className="chip"
+            title="Aplica a correção na foto e começa do zero"
+            onClick={() => void session.bake(PERSPECTIVE_FIELDS).then(() => onPerspective(false))}
+          >
+            ✓ Aplicar
+          </button>
+        )}
       </div>
       {perspective && <div className="muted">Arraste os quatro pontos na foto para endireitar linhas distorcidas.</div>}
     </>

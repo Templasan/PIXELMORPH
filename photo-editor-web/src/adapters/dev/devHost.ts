@@ -56,6 +56,21 @@ export function createDevHost(): EditorHost {
       const all = await this.listPresets();
       localStorage.setItem(PRESETS_KEY, JSON.stringify([...all, { id: `preset_${Date.now()}`, name, adjustments }]));
     },
+    photoSink() {
+      const sink = this.exportSink();
+      let name = '';
+      return {
+        start(fileName) {
+          name = `baked/${fileName}`;
+          return sink.start(name);
+        },
+        write: (position, bytes) => sink.write(position, bytes),
+        async finish() {
+          await sink.finish();
+          return { photo: { name, uri: `/exports/${name}` } };
+        },
+      };
+    },
     exportSink() {
       let name = 'export.jpg';
       let writes = Promise.resolve();

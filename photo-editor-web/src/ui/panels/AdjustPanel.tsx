@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import type { PhotoSession } from '../../application/session';
+import { ADJUST_DRAWER_FIELDS } from '../../domain/adjustments';
 import { SELECTIVE_COLOR_NAMES, SELECTIVE_HUES_DEG } from '../../domain/color/colorAdjustments';
 import { useStore } from '../../state/useStore';
 import { Chips, commit, FieldSlider } from '../controls';
@@ -23,7 +24,16 @@ export function AdjustPanel({ session }: { session: PhotoSession }) {
   );
   return (
     <>
-      <Chips options={TABS} value={tab} onPick={setTab} />
+      <div className="panel-row">
+        <Chips options={TABS} value={tab} onPick={setTab} />
+        <button
+          className="chip"
+          title="Aplica os ajustes na foto e começa do zero"
+          onClick={() => void session.bake(ADJUST_DRAWER_FIELDS)}
+        >
+          ✓ Aplicar
+        </button>
+      </div>
       {tab === 'Básico' && (
         <>
           <Histogram session={session} />

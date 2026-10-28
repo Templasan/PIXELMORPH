@@ -43,13 +43,18 @@ export interface PresetRef {
   adjustments: Record<string, number>;
 }
 
-/** Where an export's bytes go, written in order. */
-export interface ExportSink {
+/** Where a file's bytes go, written in order; `finish` says what became of it. */
+export interface Sink<T> {
   start(fileName: string): Promise<void>;
   write(position: number, bytes: Uint8Array): Promise<void>;
-  /** Returns where the file ended up (shown to the user). */
-  finish(): Promise<string>;
+  finish(): Promise<T>;
 }
+
+/** An export: `finish` returns where the file ended up (shown to the user). */
+export type ExportSink = Sink<string>;
+
+/** The project's photo after a bake: the new file and its light copy. */
+export type BakedPhoto = Pick<SavedPhoto, 'photo' | 'previewUri'>;
 
 /**
  * Everything the editor needs from outside (port). The Android app implements it on top of its
@@ -63,6 +68,8 @@ export interface EditorHost {
   listPresets(): Promise<PresetRef[]>;
   savePreset(name: string, adjustments: Record<string, number>): Promise<void>;
   exportSink(): ExportSink;
+  /** A baked version of the photo (adjustments made pixels) becomes the project's photo. */
+  photoSink(): Sink<BakedPhoto>;
   /** Leave the editor (the app goes back to its projects). */
   close(): void;
 }
