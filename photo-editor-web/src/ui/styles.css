@@ -405,3 +405,116 @@ button:disabled {
   height: 40px;
   margin: 6px 0 8px;
 }
+
+/* ---- Camadas, Efeitos and Elementos ----------------------------------------------------------- */
+
+.color-dot {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--linha);
+  overflow: hidden;
+  color: var(--texto2);
+}
+
+.color-dot.on {
+  border: 2px solid var(--texto);
+}
+
+.color-dot.custom input {
+  position: absolute;
+  inset: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.picked img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border: 1px solid var(--linha);
+  border-radius: 3px;
+}
+
+.picked-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--linha);
+}
+
+.layer-row:last-child {
+  border-bottom: 0;
+}
+
+.layer-row.on {
+  background: var(--faixa);
+}
+
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layer-name.dim {
+  opacity: 0.45;
+}
+
+.eye {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--icone);
+}
+
+.eye.off {
+  color: var(--linha);
+}
+
+.stickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 56px);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stickers button {
+  height: 56px;
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  font-size: 28px;
+}

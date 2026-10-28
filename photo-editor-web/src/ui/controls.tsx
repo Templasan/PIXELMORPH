@@ -81,6 +81,65 @@ export function Chips<T extends string | number>({
   );
 }
 
+/** A slider for a value that is not an adjustment (layer opacity, brush): live, no undo entry. */
+export function Range({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  format = (v) => String(Math.round(v)),
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  format?: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="field">
+      <label>
+        <span>{label}</span>
+        <span>{format(value)}</span>
+      </label>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </div>
+  );
+}
+
+/** Fixed colours plus an "Outra cor" input; a colour outside the fixed ones shows in that input. */
+export function Swatches({
+  options,
+  value,
+  onPick,
+}: {
+  options: readonly string[];
+  value: string;
+  onPick: (hex: string) => void;
+}) {
+  const custom = !options.some((c) => c.toLowerCase() === value.toLowerCase());
+  return (
+    <div className="chips">
+      {options.map((c) => (
+        <button
+          key={c}
+          className={`color-dot${c.toLowerCase() === value.toLowerCase() ? ' on' : ''}`}
+          style={{ background: c }}
+          aria-label={c}
+          onClick={() => onPick(c)}
+        />
+      ))}
+      <label className={`color-dot custom${custom ? ' on' : ''}`} style={custom ? { background: value } : undefined} title="Outra cor">
+        {!custom && '+'}
+        <input type="color" value={value} onChange={(e) => onPick(e.target.value)} />
+      </label>
+    </div>
+  );
+}
+
 /** Commits a discrete change of one field (a chip, a toggle) as one undo entry. */
 export function commit(session: PhotoSession, field: string, value: number) {
   const before = session.editor.store.get().adjustments[field];
