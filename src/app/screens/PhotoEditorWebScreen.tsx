@@ -23,7 +23,7 @@ import { copyToAppStorage, pickFromGallery } from '@modules/device-media';
 import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
-import { orientedLightCopyOf } from './photo-editor/orientedLightCopy';
+import { lightCopyOf } from './photo-editor/lightCopy';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -92,7 +92,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         const uri = asset.workingUri || asset.originalUri;
         const mime = asset.metadata.mimeType;
         // The screen opens a small upright copy (made once); the export reads the original.
-        const light = await orientedLightCopyOf(uri);
+        const light = await lightCopyOf(uri);
         const [snapshot, layers, images] = await Promise.all([
           historyRepo.load(project.id).catch(() => null),
           loadLayers(project.id),
