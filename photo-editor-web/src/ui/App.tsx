@@ -5,11 +5,17 @@ import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { PhotoView, type ViewMode } from './PhotoView';
 import { AdjustPanel } from './panels/AdjustPanel';
+import { EffectsPanel } from './panels/EffectsPanel';
+import { ElementsPanel } from './panels/ElementsPanel';
 import { GeometryPanel } from './panels/GeometryPanel';
+import { LayersPanel } from './panels/LayersPanel';
 
 const TOOLS = [
   { id: 'ajustes', icon: 'sliders', label: 'Ajustes' },
   { id: 'geometria', icon: 'crop', label: 'Geometria' },
+  { id: 'camadas', icon: 'layers', label: 'Camadas' },
+  { id: 'efeitos', icon: 'zap', label: 'Efeitos' },
+  { id: 'elementos', icon: 'type', label: 'Elementos' },
 ] as const;
 
 function formatBytes(n: number): string {
@@ -24,6 +30,7 @@ export function App({ session }: { session: PhotoSession }) {
   const compare = useStore(editor.store, (s) => s.compareMode);
   const [exporting, setExporting] = useState(false);
   const [perspective, setPerspective] = useState(false);
+  const [lightEdit, setLightEdit] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,11 +45,15 @@ export function App({ session }: { session: PhotoSession }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [editor]);
 
-  const mode: ViewMode = tool === 'geometria' && perspective ? 'perspective' : 'none';
+  const mode: ViewMode =
+    tool === 'geometria' && perspective ? 'perspective' : tool === 'efeitos' && lightEdit ? 'light' : 'none';
   let panel: ReactNode = null;
   if (tool === 'ajustes') panel = <AdjustPanel session={session} />;
   else if (tool === 'geometria')
     panel = <GeometryPanel session={session} perspective={perspective} onPerspective={setPerspective} />;
+  else if (tool === 'camadas') panel = <LayersPanel session={session} />;
+  else if (tool === 'efeitos') panel = <EffectsPanel session={session} lightEdit={lightEdit} onLightEdit={setLightEdit} />;
+  else if (tool === 'elementos') panel = <ElementsPanel session={session} />;
 
   const p = info.photo;
   return (
@@ -76,7 +87,15 @@ export function App({ session }: { session: PhotoSession }) {
       {panel && <div className="panel">{panel}</div>}
       <nav className="toolbar">
         {TOOLS.map((t) => (
-          <button key={t.id} className={`tool${tool === t.id ? ' on' : ''}`} onClick={() => editor.toggleTool(t.id)}>
+          <button
+            key={t.id}
+            className={`tool${tool === t.id ? ' on' : ''}`}
+            onClick={() => {
+              // The light handle belongs to Efeitos only; leaving the tool ends that mode.
+              setLightEdit(false);
+              editor.toggleTool(t.id);
+            }}
+          >
             <Icon name={t.icon} />
             <span>{t.label}</span>
           </button>
