@@ -27,6 +27,8 @@ export interface SavedPhoto {
   photo: PictureRef & { format?: string; sizeBytes?: number; width?: number; height?: number };
   /** A lighter copy for the screen; without one the editor makes its own. */
   previewUri?: string;
+  /** The host can write HEIC (Android 9+): the export sheet offers it. */
+  canHeic?: boolean;
   adjustments?: Partial<Adjustments>;
   layers?: EditorLayer[];
   doubleExposure?: PictureRef | null;
@@ -45,7 +47,8 @@ export interface PresetRef {
 
 /** Where a file's bytes go, written in order; `finish` says what became of it. */
 export interface Sink<T> {
-  start(fileName: string): Promise<void>;
+  /** `heicQuality`: the bytes are a JPEG the host re-encodes as HEIC at that quality (1..100). */
+  start(fileName: string, options?: { heicQuality?: number }): Promise<void>;
   write(position: number, bytes: Uint8Array): Promise<void>;
   finish(): Promise<T>;
 }

@@ -31,7 +31,8 @@ function lookOf(a: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(a).filter(([k]) => !GEOMETRY.test(k) && k in DEFAULT_ADJUSTMENTS));
 }
 
-export type ExportFormat = 'jpeg' | 'png' | 'webp';
+/** 'heic': the page writes a quality-100 JPEG and the app re-encodes it (Android 9+ only). */
+export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'heic';
 
 /** The export sheet's choices; they live in the session, so they survive closing the sheet. */
 export interface ExportOptions {
@@ -87,6 +88,8 @@ export interface SessionInfo {
   overlay: PictureRef | null;
   /** A long job running (export), shown over the editor. */
   busy: string | null;
+  /** HEIC export is offered (the host can encode it). */
+  canHeic: boolean;
 }
 
 /**
@@ -114,6 +117,7 @@ export function createPhotoSession(host: EditorHost) {
     doubleExposure: null,
     overlay: null,
     busy: null,
+    canHeic: false,
   });
   const exportOptions = createStore<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
   /** Per-channel histogram of the edited photo (64 bins, 0..1), for Ajustes. */
@@ -352,6 +356,7 @@ export function createPhotoSession(host: EditorHost) {
         performance.mark('pm:gl');
         setInfo({
           status: 'ready',
+          canHeic: saved.canHeic ?? false,
           name: saved.name,
           photo,
           size: sizeOf(adjustments),
@@ -475,21 +480,25 @@ export function createPhotoSession(host: EditorHost) {
           drawWatermark(out.getContext('2d')!, out.width, out.height, { ...wm, text: wm.text.trim(), opacity: wm.opacity / 100 });
         }
         const { format } = options;
-        const type = `image/${format}`;
-        const targetOn = options.targetOn && format !== 'png';
+        const heic = format === 'heic';
+        const type = heic ? 'image/jpeg' : `image/${format}`;
+        const targetOn = options.targetOn && (format === 'jpeg' || format === 'webp');
         const targetBytes = Math.round(options.targetMB * 1024 * 1024);
         // The probe is the same encoder as toBlob below, at the same quality, so the sizes agree.
         const quality = targetOn
           ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
           : options.quality;
-        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, quality / 100));
+        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, heic ? 1 : quality / 100));
         if (!blob) throw new Error('O navegador não gerou o arquivo.');
         lap('encoded');
         let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
         if (format === 'jpeg') bytes = setJpegDpi(bytes, options.dpi);
         if (format === 'png') bytes = setPngDpi(bytes, options.dpi);
         const sink = host.exportSink();
-        await sink.start(`pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`);
+        await sink.start(
+          `pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`,
+          heic ? { heicQuality: quality } : undefined
+        );
         await sink.write(0, bytes);
         const where = await sink.finish();
         lap('saved');
