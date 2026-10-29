@@ -1,7 +1,7 @@
 # Agent Briefing — rules and continuity
 
-Handoff for the next agent on branch `sprint-2` (updated 2026-10-22; see §7 for the newest
-work, which lives on branch `video-engine` in worktree `C:\ve`).
+Handoff for the next agent on branch `sprint-2` (updated 2026-10-28; §7 starts with the
+current state: both editors are web apps hosted in a WebView).
 Read [AGENTS.md](../AGENTS.md) first; this file adds what was learned while restoring the
 foundation and is the starting point for continuing Sprint 2. Detailed history and every
 measurement: [foundation-plan.md](foundation-plan.md) §7–§9 (Portuguese).
@@ -171,6 +171,18 @@ lightweight project-list index, small per-project thumbnails, true AR via ARCore
 batch apply (US-02, its fake button was removed).
 
 ## 7. Where things stand (2026-10-22, evening) and next steps
+
+**Update 2026-10-28 (branch `sprint-2`, local, not pushed):** the photo editor followed the video
+editor: `photo-editor-web/` (read its README) is hosted by `src/app/screens/PhotoEditorWebScreen.tsx`.
+`video-web` and `photo-web` are merged into `sprint-2` and the old React Native editors
+(`PhotoEditorScreen`, `VideoEditorScreen` and their drawers) are deleted. Before any APK build run
+`npm run build:editors` (both pages into `android/app/src/main/assets/`, git-ignored), then build in
+the short worktree `C:/ve` (copy the two `index.html` there; Windows path limits break CMake in the
+main checkout). Photo numbers on the Poco (50 MP): slider 120 fps, open ~0.5-1 s, full-size
+export ~3.4-5.5 s, ~450-500 MB app + ~200 MB WebView. Device loops (install, test, iterate) are
+done by Haiku agents with an exact protocol; time screens with screenrecord or in-page
+`performance` marks, never by polling full-screen screencaps (~1 s each).
+The bullets below this update are history (2026-10-22/24).
 
 **Update 2026-10-24 (branch `video-web`):** the video editor was rewritten as a standalone web app
 in `video-editor-web/` (read its README first: layered composition, single clock, tests, dev
