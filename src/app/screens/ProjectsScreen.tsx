@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { cancelProjectReminders, scheduleProjectReminders } from './projects/projectReminders';
 import {
   Alert,
   FlatList,
@@ -85,6 +86,7 @@ export default function ProjectsScreen({ navigation }: Props) {
     async (patch: { dueDate?: Date | null; priority?: ProjectPriority | null }) => {
       if (!infoProject) return;
       const updated = await projectsModule.updateProject.execute(infoProject.id, patch);
+      scheduleProjectReminders(updated).catch(() => undefined);
       setInfoProject(updated);
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     },
@@ -104,6 +106,7 @@ export default function ProjectsScreen({ navigation }: Props) {
             onPress: async () => {
               try {
                 await projectsModule.deleteProject.execute(project.id);
+                cancelProjectReminders(project.id).catch(() => undefined);
                 setProjects((prev) => prev.filter((p) => p.id !== project.id));
                 setInfoProject(null);
               } catch (error) {
@@ -137,6 +140,7 @@ export default function ProjectsScreen({ navigation }: Props) {
               for (const id of ids) {
                 try {
                   await projectsModule.deleteProject.execute(id);
+                  cancelProjectReminders(id).catch(() => undefined);
                   deleted.push(id);
                 } catch (error) {
                   errorLogger.log(error, 'ProjectsScreen.deleteSelected');
