@@ -7,6 +7,27 @@ L > 2 days. Nothing was run on a device for this audit; "unverified" items are m
 
 `backlog/SPRINT_2_STATUS.md` overstates several stories (e.g. US-16 "complete"); fix it as part of this plan.
 
+## Closing status (2026-10-28)
+
+Both editors are web apps hosted in a WebView (`video-editor-web/`, `photo-editor-web/`), merged
+into `sprint-2` (local); the old React Native editors are deleted. Checked: 129 + video-editor-web
+vitest suites, app jest 537 tests, tsc, eslint (0 errors); acceptance walked on the emulator by
+criterion (two passes, 2026-10-28) and the photo editor measured on the Poco (50 MP: slider 120
+fps, open ~0.5-1 s, full-size export ~3.4-5.5 s). Criteria marked "device" need the phone.
+
+| Story | Done | Missing / partial |
+| --- | --- | --- |
+| US-01 Projects | grid with thumbnail/date/type (RF-001); info panel with size, bitrate, real edit history (RF-037); reminders with due date + priority UI (RF-070); 480x800-1440x3120 layouts (RNF-015); cold start ~0.5 s (RNF-007); APK 62 MB (RNF-014) | "Codificação" shows the MIME type, not the codec; reminder notification (needs `expo-notifications`); login/2FA/sync (RNF-001/002, owner: last); the editors' texts are Portuguese only (RNF-016: the app's language setting translates the rest; the old editors were not translated either) |
+| US-10 Composition | collage layouts with spacing, borders, colours, shadow (RF-011); shapes/arrows with colour and width (RF-044); text with fonts, colours, shadow, outline (RF-008); meme and stickers (RF-046) | custom collage layout and moving a photo inside its cell; text in/out animations are a video feature (photo text has none) |
+| US-12 Compare/guides/shortcuts | compare divider (RF-019), magnetic guides to centre and other layers (RF-067), 2/3-finger taps + Ctrl+Z (RF-076) — browser-checked | not walked on the emulator (multi-touch cannot be driven by adb); "distribute evenly" |
+| US-16 Transitions | slide/fade/zoom/wipe per junction with duration and live preview, exported as previewed (RF-032, slide checked: 18.03 s file = timeline) | reorder by dragging a clip past its neighbour (the free timeline only moves into gaps; RF-058); more than two clips not walked |
+| US-17 Speed | constant speed per clip, followers pushed (RF-049, 0.5x checked) | speed ramps at points (domain `speedRamp.ts`, no UI); time-lapse from a photo sequence with seconds per photo (RF-023) |
+| US-30 Export | photo JPEG/PNG/WebP/HEIC (Android 9+), quality, target size, DPI, watermark, social crops (RF-057); video MP4 720p/1080p and GIF with fps/colours (RF-061) | video social presets (RF-017); scene-adaptive compression (RNF-013); 1 min Full HD in ≤ 2 min not measured on the phone (RNF-011, device) |
+| US-33 Audio | background music with volume and fade in/out (RF-036, in the clip panel; not walked) | mic gain and separate audio track (RF-018, owner: TODO); device test of music sync |
+
+Pending owner answers: which test projects to delete on the Poco; pushing `sprint-2`; which
+missing items enter this sprint and which move to Sprint 3.
+
 ## Where each story stands
 
 | Story | Done | Partial | Fake | Missing | Main gaps |
