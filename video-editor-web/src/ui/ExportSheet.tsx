@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../application/session';
 import { frameSize } from '../domain/format';
+import { presetFrame, SOCIAL_PRESETS } from '../domain/exportPreset';
 import { formatTimecode } from '../domain/frameMath';
 import { GIF_COLOR_OPTIONS, GIF_FPS_OPTIONS, GIF_MAX_DURATION_MS } from '../domain/gifPlan';
 import type { ExportOutcome } from '../engine/exporter';
 import { useStore } from '../state/useStore';
+import type { ProjectFormat } from '../ports/host';
 
-const RESOLUTIONS = [
-  { label: '720p', shortEdge: 720, bitrate: 4_000_000 },
-  { label: '1080p', shortEdge: 1080, bitrate: 8_000_000 },
+type Frame = { width: number; height: number; cover: boolean };
+
+/** The mp4 outputs: resolutions in the project's shape, then social presets (their own size). */
+const OUTPUTS: { label: string; bitrate: number; frame: (format: ProjectFormat) => Frame }[] = [
+  { label: '720p', bitrate: 4_000_000, frame: (f) => ({ ...frameSize(f, 720), cover: false }) },
+  { label: '1080p', bitrate: 8_000_000, frame: (f) => ({ ...frameSize(f, 1080), cover: false }) },
+  ...SOCIAL_PRESETS.map((p) => ({ label: p.label, bitrate: p.bitrate, frame: (f: ProjectFormat) => presetFrame(p, f) })),
 ];
 const GIF_SIZES = [240, 360, 480];
 
@@ -21,14 +27,14 @@ type State =
 export function ExportSheet({ session, onClose }: { session: EditorSession; onClose: () => void }) {
   const format = useStore(session.format);
   const [kind, setKind] = useState<'mp4' | 'gif'>('mp4');
-  const [res, setRes] = useState(1);
+  const [out, setOut] = useState(1);
   const [gifSize, setGifSize] = useState(360);
   const [gifFps, setGifFps] = useState<number>(10);
   const [gifColors, setGifColors] = useState<number>(128);
   const [state, setState] = useState<State>({ phase: 'idle' });
   const cancelled = useRef(false);
   const duration = session.durationMs();
-  const size = kind === 'mp4' ? frameSize(format, RESOLUTIONS[res].shortEdge) : frameSize(format, gifSize);
+  const size: Frame = kind === 'mp4' ? OUTPUTS[out].frame(format) : { ...frameSize(format, gifSize), cover: false };
 
   const start = async () => {
     if (duration <= 0) {
@@ -39,14 +45,14 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
     setState({ phase: 'running', pct: 0 });
     const t0 = performance.now();
     try {
-      const out = await session.exportVideo({
-        shortEdge: kind === 'mp4' ? RESOLUTIONS[res].shortEdge : gifSize,
-        bitrate: RESOLUTIONS[res].bitrate,
+      const result = await session.exportVideo({
+        frame: size,
+        bitrate: OUTPUTS[out].bitrate,
         gif: kind === 'gif' ? { fps: gifFps, maxColors: gifColors } : undefined,
         onProgress: (pct) => setState({ phase: 'running', pct }),
         isCancelled: () => cancelled.current,
       });
-      setState({ phase: 'done', out, tookMs: performance.now() - t0 });
+      setState({ phase: 'done', out: result, tookMs: performance.now() - t0 });
     } catch (e) {
       const message = String((e as Error)?.message ?? e);
       setState(message === 'CANCELLED' ? { phase: 'idle' } : { phase: 'error', message });
@@ -72,9 +78,9 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
         </div>
         {kind === 'mp4' ? (
           <div className="chips">
-            {RESOLUTIONS.map((r, i) => (
-              <button key={r.label} className={`chip${res === i ? ' on' : ''}`} disabled={running} onClick={() => setRes(i)}>
-                {r.label}
+            {OUTPUTS.map((o, i) => (
+              <button key={o.label} className={`chip${out === i ? ' on' : ''}`} disabled={running} onClick={() => setOut(i)}>
+                {o.label}
               </button>
             ))}
           </div>
