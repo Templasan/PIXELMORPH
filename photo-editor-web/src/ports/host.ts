@@ -66,6 +66,10 @@ export interface EditorHost {
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
   listPresets(): Promise<PresetRef[]>;
+  /** The other photo projects (batch edit). */
+  listPhotoProjects(): Promise<{ id: string; name: string }[]>;
+  /** Applies `look` to those projects as one undo step each; returns how many. */
+  applyLookTo(ids: string[], look: Record<string, number>): Promise<number>;
   savePreset(name: string, adjustments: Record<string, number>): Promise<void>;
   exportSink(): ExportSink;
   /** A picture made here (collage, panorama) becomes a new photo project, which the host opens. */

@@ -580,6 +580,11 @@ export function createPhotoSession(host: EditorHost) {
       await host.savePreset(name.trim(), lookOf(editor.store.get().adjustments));
       await this.loadPresets();
     },
+    listPhotoProjects: () => host.listPhotoProjects(),
+    /** US-02 batch edit: this photo's look (or a preset's) applied to other photo projects. */
+    applyLookTo(ids: string[], preset: PresetRef | null) {
+      return host.applyLookTo(ids, lookOf(preset ? preset.adjustments : editor.store.get().adjustments));
+    },
     applyPreset(preset: PresetRef) {
       editor.applyPreset(lookOf(preset.adjustments));
     },
