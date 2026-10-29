@@ -216,8 +216,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
       },
 
       // A collage or panorama made in the page becomes its own project, opened in a fresh editor
-      // (push, so it does not inherit this one's state). Media first, project last: a failed
-      // copy leaves no empty project behind.
+      // that replaces this one (pushing kept every earlier editor's WebView alive). Media first,
+      // project last: a failed copy leaves no empty project behind.
       async newProjectStart() {
         await files.startExport('jpg');
       },
@@ -240,7 +240,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
             })
           ),
         ]);
-        navigation.push('PhotoEditor', { projectId: project.id });
+        navigation.replace('PhotoEditor', { projectId: project.id });
         return project.id;
       },
 
