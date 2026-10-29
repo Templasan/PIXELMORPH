@@ -15,6 +15,7 @@ export function CollageSection({ session }: { session: PhotoSession }) {
   const [cells, setCells] = useState<(PictureRef | null)[]>([]);
   const [spacing, setSpacing] = useState(8);
   const [borderWidth, setBorderWidth] = useState(4);
+  const [shadow, setShadow] = useState(0);
   const [borderColor, setBorderColor] = useState(BORDER_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
   const refs = layout.cells.map((_, i) => cells[i] ?? null);
@@ -39,13 +40,14 @@ export function CollageSection({ session }: { session: PhotoSession }) {
       </div>
       <Range label="Espaçamento" value={spacing} min={0} max={40} onChange={setSpacing} />
       <Range label="Borda" value={borderWidth} min={0} max={20} onChange={setBorderWidth} />
+      <Range label="Sombra" value={shadow} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={setShadow} />
       <Swatches options={BORDER_COLORS} value={borderColor} onPick={setBorderColor} />
       <button
         className="primary-btn wide"
         disabled={busy || refs.some((r) => !r)}
         onClick={() =>
           session
-            .createCollage(refs as PictureRef[], layout, { spacing, borderWidth, borderColor })
+            .createCollage(refs as PictureRef[], layout, { spacing, borderWidth, borderColor, shadow: shadow / 100 })
             .catch((e) => setError(`Não foi possível criar a colagem: ${e?.message ?? e}`))
         }
       >

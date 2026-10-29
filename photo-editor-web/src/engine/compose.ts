@@ -4,6 +4,8 @@ import type { panoramaLayout } from '../domain/panorama/panoramaLayout';
 
 export interface CollageOptions {
   spacing: number;
+  /** Drop shadow under each photo, 0..1 (strength; its blur grows with the spacing). */
+  shadow: number;
   borderWidth: number;
   borderColor: string;
 }
@@ -26,6 +28,15 @@ export function drawCollage(
     if (!picture) return;
     const r = cellPixelRect(cell, size, size, o.spacing);
     const fit = coverFitRect(sizes[i].width, sizes[i].height, r.width, r.height);
+    if (o.shadow > 0) {
+      ctx.save();
+      ctx.shadowColor = `rgba(0,0,0,${0.6 * o.shadow})`;
+      ctx.shadowBlur = Math.max(4, o.spacing) * 1.5;
+      ctx.shadowOffsetY = Math.max(2, o.spacing) * 0.4;
+      ctx.fillStyle = o.borderColor;
+      ctx.fillRect(r.x, r.y, r.width, r.height);
+      ctx.restore();
+    }
     ctx.save();
     ctx.beginPath();
     ctx.rect(r.x, r.y, r.width, r.height);
