@@ -24,6 +24,7 @@ import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
+import { encodeHeic, heicSupported } from '../../../modules/pixelmorph-video-export/src';
 import { lightCopyOf } from './photo-editor/lightCopy';
 import { presetStep } from './photo-editor/batchPreset';
 
@@ -42,6 +43,7 @@ interface SavedPhoto {
   name: string;
   photo: PictureRef & { format?: string; sizeBytes?: number; width?: number; height?: number };
   previewUri?: string;
+  canHeic?: boolean;
   layers?: EditorLayer[];
   doubleExposure?: PictureRef | null;
   overlay?: PictureRef | null;
@@ -84,6 +86,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const historyRepo = useMemo(() => new LocalHistoryRepository(), []);
   // The asset a bake replaces the photo of (set when the project loads).
   const assetRef = useRef<{ id: string; format: string } | null>(null);
+  // The running export is a HEIC one (its quality) or not (null).
+  const heicRef = useRef<number | null>(null);
 
   useEffect(() => () => files.close(), [files]);
 
@@ -119,6 +123,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
             height: light.height,
           },
           previewUri: light.uri,
+          canHeic: heicSupported(),
           layers: layers ?? undefined,
           doubleExposure: images?.doubleExposure ?? null,
           overlay: images?.overlay ?? null,
@@ -239,14 +244,28 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         return project.id;
       },
 
-      async exportStart(fileName: string) {
-        await files.startExport(fileName.split('.').pop() ?? 'jpg');
+      // HEIC: the page sends a quality-100 JPEG; the platform encoder makes the HEIC (as before).
+      async exportStart(fileName: string, heicQuality: number | null) {
+        heicRef.current = heicQuality;
+        await files.startExport(
+          heicQuality === null ? (fileName.split('.').pop() ?? 'jpg') : 'jpg'
+        );
       },
       async exportWrite(position: number, b64: string) {
         await files.writeExportChunk(position, b64);
       },
       async exportFinish() {
-        const uri = await files.finishExport();
+        let uri = await files.finishExport();
+        const heicQuality = heicRef.current;
+        if (heicQuality !== null) {
+          const jpeg = uri;
+          uri = jpeg.replace(/\.jpg$/, '.heic');
+          try {
+            await encodeHeic(jpeg, uri, heicQuality);
+          } finally {
+            await FileSystem.deleteAsync(jpeg, { idempotent: true });
+          }
+        }
         const permission = await MediaLibrary.requestPermissionsAsync(true); // write only: saving needs no read access
         if (!permission.granted) return 'Pronto, mas sem permissão para salvar na galeria.';
         await MediaLibrary.createAssetAsync(uri);

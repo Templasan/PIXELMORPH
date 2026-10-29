@@ -25,7 +25,7 @@ export function createAndroidHost(): EditorHost {
     savePreset: (name, adjustments) => call<void>('savePreset', name, adjustments),
     exportSink() {
       return {
-        start: (fileName) => call<void>('exportStart', fileName),
+        start: (fileName, options) => call<void>('exportStart', fileName, options?.heicQuality ?? null),
         async write(position, bytes) {
           for (let i = 0; i < bytes.length; i += CHUNK) {
             await call<void>('exportWrite', position + i, toBase64(bytes.subarray(i, i + CHUNK)));

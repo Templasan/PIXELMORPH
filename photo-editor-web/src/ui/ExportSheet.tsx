@@ -8,6 +8,7 @@ const FORMATS: { id: ExportFormat; label: string }[] = [
   { id: 'jpeg', label: 'JPEG' },
   { id: 'png', label: 'PNG' },
   { id: 'webp', label: 'WebP' },
+  { id: 'heic', label: 'HEIC' },
 ];
 const DPI_OPTIONS = [72, 150, 300, 600];
 /** The 3x3 watermark grid, row by row: 0 top-left ... 8 bottom-right. */
@@ -52,13 +53,13 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
 
         <div className="sub">Formato</div>
         <Chips
-          options={FORMATS.map((f) => f.id)}
+          options={FORMATS.filter((f) => f.id !== 'heic' || info.canHeic).map((f) => f.id)}
           value={o.format}
           label={(id) => FORMATS.find((f) => f.id === id)!.label}
           onPick={(format) => set({ format })}
         />
 
-        {o.format !== 'webp' && (
+        {(o.format === 'jpeg' || o.format === 'png') && (
           <>
             <div className="sub">DPI</div>
             <Chips options={DPI_OPTIONS} value={o.dpi} onPick={(dpi) => set({ dpi })} />
@@ -68,11 +69,13 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
         {o.format !== 'png' && (
           <>
             <div className="sub">Compressão</div>
-            <label className="toggle">
-              <input type="checkbox" checked={o.targetOn} onChange={(e) => set({ targetOn: e.target.checked })} />
-              Compressão inteligente
-            </label>
-            {o.targetOn ? (
+            {o.format !== 'heic' && (
+              <label className="toggle">
+                <input type="checkbox" checked={o.targetOn} onChange={(e) => set({ targetOn: e.target.checked })} />
+                Compressão inteligente
+              </label>
+            )}
+            {o.targetOn && o.format !== 'heic' ? (
               <Range
                 label="Tamanho alvo"
                 value={o.targetMB}
