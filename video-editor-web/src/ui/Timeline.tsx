@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { clipDurationMs, clipEndMs, type Clip, type Track } from '../domain/Track';
-import { moveClip, rippleTrim, trimClipIn, trimClipOut } from '../domain/timeline';
+import { moveClip, rippleMove, rippleTrim, trimClipIn, trimClipOut } from '../domain/timeline';
 import { formatTimecode } from '../domain/frameMath';
 import type { EditorSession } from '../application/session';
 import { useStore } from '../state/useStore';
@@ -199,7 +199,11 @@ export function Timeline({
       // Whichever edge snapped decides; otherwise follow the finger.
       const desired =
         start !== d.clip.startMs + dms ? start : end - clipDurationMs(d.clip);
-      editor.live((before) => moveClip(before, d.trackId, d.clip.id, desired));
+      // Ripple on: dropping over other clips reorders them; off: the clip moves into free space.
+      const reorder = editor.store.get().rippleMode;
+      editor.live((before) =>
+        (reorder ? rippleMove : moveClip)(before, d.trackId, d.clip.id, desired)
+      );
       return;
     }
     // trim (with Ripple on, the clip keeps its start and the clips after it follow)
