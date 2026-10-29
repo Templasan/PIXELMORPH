@@ -38,7 +38,8 @@ const es: Record<string, string> = {
   'Data inválida': 'Fecha no válida',
   'Use o formato DD/MM/AAAA.': 'Usa el formato DD/MM/AAAA.',
   'Apagar projeto': 'Eliminar proyecto',
-  'Apagar 1 projeto? Esta ação não pode ser desfeita.': '¿Borrar 1 proyecto? Esta acción no se puede deshacer.',
+  'Apagar 1 projeto? Esta ação não pode ser desfeita.':
+    '¿Borrar 1 proyecto? Esta acción no se puede deshacer.',
   'Apagar projetos': 'Borrar proyectos',
   Compartilhar: 'Compartir',
   'Compartilhamento indisponível': 'Compartir no disponible',

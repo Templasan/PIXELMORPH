@@ -1,4 +1,8 @@
-import { createClip, clipDurationMs, type Track } from '../../src/modules/video-editor/domain/Track';
+import {
+  createClip,
+  clipDurationMs,
+  type Track,
+} from '../../src/modules/video-editor/domain/Track';
 import { planExport } from '../../src/modules/video-editor/domain/exportPlan';
 import { trimClipOut, trimClipIn } from '../../src/modules/video-editor/domain/timeline';
 import { advancePlayhead, loopBounds } from '../../src/modules/video-editor/domain/loopRange';
