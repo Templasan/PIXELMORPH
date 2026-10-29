@@ -14,12 +14,36 @@ import { useStore } from '../state/useStore';
 /** What the canvas does with a finger right now (set by the open tool). */
 export type ViewMode = 'none' | 'perspective' | 'light';
 
+type Pt = { x: number; y: number };
+const MIN_ZOOM = 100;
+const MAX_ZOOM = 800;
+/** A finger may drift this far (px) and still be a tap. */
+const SLOP = 12;
+/** A tap lasts less than this (ms). */
+const HOLD_MS = 400;
+/** A second tap within this (ms) makes a double tap. */
+const DOUBLE_MS = 350;
+
 /**
- * The picture, fitted to the space it gets. Over it: painting (Camadas with a paint layer),
- * the drag handles of the open tool and the compare divider. Every position is handed to the
- * session in scene units.
+ * The picture, fitted to the space it gets, zoomed and panned. Over it: painting (Camadas with a
+ * paint layer), the drag handles of the open tool and the compare divider. Every position is
+ * handed to the session in scene units.
+ *
+ * Touch on the photo: pinch zooms (centred on the fingers), one or two fingers pan when zoomed
+ * (one finger is left to a tool that uses it), taps are shortcuts (2 = undo, 3 = redo, 2 double =
+ * export, 3 double = next tool), a one-finger double tap toggles 100% / 200%. Ctrl+wheel zooms.
  */
-export function PhotoView({ session, mode }: { session: PhotoSession; mode: ViewMode }) {
+export function PhotoView({
+  session,
+  mode,
+  onExport,
+  onNextTool,
+}: {
+  session: PhotoSession;
+  mode: ViewMode;
+  onExport: () => void;
+  onNextTool: () => void;
+}) {
   const { editor } = session;
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,6 +51,14 @@ export function PhotoView({ session, mode }: { session: PhotoSession; mode: View
   const info = useStore(session.info);
   const st = useStore(editor.store);
   const size = info.size && session.size();
+  const selected = st.layers.find((l) => l.id === st.selectedLayerId);
+  const painting = st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked;
+  // A tool that takes one finger (painting, compare divider, a handle) keeps one-finger drags.
+  const oneFingerTool =
+    painting ||
+    st.compareMode ||
+    mode !== 'none' ||
+    (st.activeTool === 'elementos' && !!selected && !!(selected.text || selected.shape));
 
   useLayoutEffect(() => {
     const el = boxRef.current!;
@@ -37,6 +69,13 @@ export function PhotoView({ session, mode }: { session: PhotoSession; mode: View
 
   // Fit the picture in the box; the canvas has the screen's real pixels.
   const zoom = st.zoom / 100;
+  const [pan, setPan] = useState<Pt>({ x: 0, y: 0 });
+  const panRef = useRef<Pt>(pan);
+  // Pointers on the photo now (client px), where each began, and the gesture's start values.
+  const touches = useRef(new Map<number, { x: number; y: number; sx: number; sy: number }>());
+  const gesture = useRef<{ max: number; moved: boolean; t0: number; at: Pt } | null>(null);
+  const base = useRef<{ z0: number; pan0: Pt; c0: Pt; d0: number } | null>(null);
+  const pendingTap = useRef<{ n: number; t: number; timer: number } | null>(null);
   const fit = size ? Math.min(box.w / size.scene.w, box.h / size.scene.h) * zoom : 0;
   const cssW = size ? Math.max(1, Math.floor(size.scene.w * fit)) : 0;
   const cssH = size ? Math.max(1, Math.floor(size.scene.h * fit)) : 0;
@@ -50,6 +89,125 @@ export function PhotoView({ session, mode }: { session: PhotoSession; mode: View
     return () => session.detach(canvas);
   }, [session, cssW, cssH]);
 
+  // ---- zoom, pan and touch shortcuts (pointer events on the view box; handles stop their own) ----
+  const rel = (x: number, y: number): Pt => {
+    const r = boxRef.current!.getBoundingClientRect();
+    return { x: x - r.left - r.width / 2, y: y - r.top - r.height / 2 };
+  };
+  const pts = () => [...touches.current.values()];
+  const centre = (): Pt => {
+    const ps = pts();
+    return rel(
+      ps.reduce((s, p) => s + p.x, 0) / ps.length,
+      ps.reduce((s, p) => s + p.y, 0) / ps.length
+    );
+  };
+  const spread = () => {
+    const [a, b] = pts();
+    return b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
+  /** Zoom z0 -> z1 keeps the picture point under c0 under c1 (the centre of the box is 0,0). */
+  const zoomPan = (z0: number, p0: Pt, c0: Pt, z1: number, c1: Pt): Pt => ({
+    x: c1.x - ((c0.x - p0.x) / z0) * z1,
+    y: c1.y - ((c0.y - p0.y) / z0) * z1,
+  });
+  // The picture may not leave the box's edges: pan is limited to what the zoom overflows.
+  const clampPan = (z: number, p: Pt): Pt => {
+    if (!size) return p;
+    const f = (Math.min(box.w / size.scene.w, box.h / size.scene.h) * z) / 100;
+    const mx = Math.max(0, (size.scene.w * f - box.w) / 2);
+    const my = Math.max(0, (size.scene.h * f - box.h) / 2);
+    return { x: Math.min(mx, Math.max(-mx, p.x)), y: Math.min(my, Math.max(-my, p.y)) };
+  };
+  const setView = (z: number, p: Pt) => {
+    const zz = Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)));
+    const cp = clampPan(zz, p);
+    editor.setZoom(zz);
+    panRef.current = cp;
+    setPan(cp);
+  };
+  const rebase = () => {
+    base.current = { z0: editor.store.get().zoom, pan0: panRef.current, c0: centre(), d0: spread() };
+  };
+  const shortcut = (n: number) => {
+    if (n === 2) editor.undo();
+    else if (n === 3) editor.redo();
+  };
+  // A single tap waits DOUBLE_MS for a second one, so a double tap does not also undo or redo.
+  const onTap = (n: number, at: Pt) => {
+    const p = pendingTap.current;
+    pendingTap.current = null;
+    if (p) clearTimeout(p.timer);
+    if (p && p.n === n && performance.now() - p.t < DOUBLE_MS) {
+      if (n === 1) {
+        const z = editor.store.get().zoom;
+        const z1 = z === 100 ? 200 : 100;
+        setView(z1, zoomPan(z, panRef.current, at, z1, at));
+      } else if (n === 2) onExport();
+      else if (n === 3) onNextTool();
+      return;
+    }
+    if (p) shortcut(p.n);
+    pendingTap.current = {
+      n,
+      t: performance.now(),
+      timer: window.setTimeout(() => {
+        pendingTap.current = null;
+        shortcut(n);
+      }, DOUBLE_MS),
+    };
+  };
+  const onDown = (e: ReactPointerEvent) => {
+    if ((e.target as Element).closest('.handle') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (touches.current.size === 0)
+      gesture.current = { max: 0, moved: false, t0: performance.now(), at: rel(e.clientX, e.clientY) };
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
+    gesture.current!.max = Math.max(gesture.current!.max, touches.current.size);
+    rebase();
+  };
+  const onMove = (e: ReactPointerEvent) => {
+    const t = touches.current.get(e.pointerId);
+    if (!t) return;
+    t.x = e.clientX;
+    t.y = e.clientY;
+    if (Math.hypot(t.x - t.sx, t.y - t.sy) > SLOP) gesture.current!.moved = true;
+    const b = base.current;
+    const n = touches.current.size;
+    if (!b || (n === 1 && oneFingerTool)) return;
+    const z = n >= 2 && b.d0 > 0 ? (b.z0 * spread()) / b.d0 : b.z0;
+    setView(z, zoomPan(b.z0, b.pan0, b.c0, z, centre()));
+  };
+  const onUp = (e: ReactPointerEvent, cancel = false) => {
+    if (!touches.current.delete(e.pointerId)) return;
+    if (touches.current.size > 0) {
+      rebase();
+      return;
+    }
+    const g = gesture.current!;
+    gesture.current = null;
+    base.current = null;
+    if (!cancel && !g.moved && performance.now() - g.t0 < HOLD_MS) onTap(g.max, g.at);
+  };
+  // Ctrl+wheel zooms at the cursor; a native listener, so the page's own zoom can be stopped.
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  wheelRef.current = (e) => {
+    if (!size) return;
+    const z0 = editor.store.get().zoom;
+    const z1 = z0 * Math.exp(-e.deltaY * 0.002);
+    const c = rel(e.clientX, e.clientY);
+    setView(z1, zoomPan(z0, panRef.current, c, z1, c));
+  };
+  useEffect(() => {
+    const el = boxRef.current!;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      wheelRef.current(e);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   if (info.status === 'error' || !size)
     return (
       <div className="view-box" ref={boxRef}>
@@ -62,19 +220,18 @@ export function PhotoView({ session, mode }: { session: PhotoSession; mode: View
     const r = canvasRef.current!.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * sw, y: ((e.clientY - r.top) / r.height) * sh };
   };
-  const selected = st.layers.find((l) => l.id === st.selectedLayerId);
-  const painting = st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked;
   const a = st.adjustments;
 
+  // A second finger means a pinch or a tap shortcut, not paint.
   const paint = {
     onPointerDown(e: ReactPointerEvent) {
-      if (!painting) return;
+      if (!painting || touches.current.size > 1) return;
       (e.target as Element).setPointerCapture(e.pointerId);
       const p = toScene(e);
       editor.appendStrokePoint(p.x, p.y, e.pointerType === 'pen' ? e.pressure : undefined);
     },
     onPointerMove(e: ReactPointerEvent) {
-      if (!painting || !(e.buttons & 1)) return;
+      if (!painting || !(e.buttons & 1) || touches.current.size > 1) return;
       const p = toScene(e);
       editor.appendStrokePoint(p.x, p.y, e.pointerType === 'pen' ? e.pressure : undefined);
     },
@@ -166,14 +323,25 @@ export function PhotoView({ session, mode }: { session: PhotoSession; mode: View
   }
 
   return (
-    <div className="view-box" ref={boxRef}>
-      <div className="photo" style={{ width: cssW, height: cssH }}>
+    <div
+      className="view-box"
+      ref={boxRef}
+      onPointerDownCapture={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={(e) => onUp(e, true)}
+    >
+      <div
+        className="photo"
+        style={{ width: cssW, height: cssH, transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))` }}
+      >
         <canvas ref={canvasRef} style={{ width: cssW, height: cssH }} />
         <div className={`photo-input${painting ? ' painting' : ''}`} {...paint}>
           {handles}
         </div>
-        {st.compareMode && <CompareDivider session={session} />}
+        {st.compareMode && <CompareDivider session={session} multi={() => touches.current.size > 1} />}
       </div>
+      {st.zoom !== 100 && <div className="zoom-badge">{st.zoom}%</div>}
     </div>
   );
 }
@@ -254,10 +422,10 @@ function Handle({
   );
 }
 
-function CompareDivider({ session }: { session: PhotoSession }) {
+function CompareDivider({ session, multi }: { session: PhotoSession; multi: () => boolean }) {
   const split = useStore(session.editor.store, (s) => s.compareSplit);
   const drag = (e: ReactPointerEvent) => {
-    if (!(e.buttons & 1)) return;
+    if (!(e.buttons & 1) || multi()) return;
     const r = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
     session.editor.setCompareSplit(Math.max(2, Math.min(98, ((e.clientX - r.left) / r.width) * 100)));
   };

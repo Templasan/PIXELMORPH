@@ -61,6 +61,12 @@ export function App({ session }: { session: PhotoSession }) {
   else if (tool === 'presets') panel = <PresetsPanel session={session} />;
   else if (tool === 'panorama') panel = <PanoramaPanel session={session} />;
 
+  // Touch shortcut (3-finger double tap): the next tool, as the toolbar order goes.
+  const nextTool = () => {
+    setLightEdit(false);
+    editor.nextTool(TOOLS.map((t) => t.id));
+  };
+
   const p = info.photo;
   return (
     <div className="editor">
@@ -89,7 +95,12 @@ export function App({ session }: { session: PhotoSession }) {
         </span>
         <span>{p?.sizeBytes ? formatBytes(p.sizeBytes) : ''}</span>
       </div>
-      <PhotoView session={session} mode={mode} />
+      <PhotoView
+        session={session}
+        mode={mode}
+        onExport={() => info.status === 'ready' && setExporting(true)}
+        onNextTool={nextTool}
+      />
       {panel && <div className="panel">{panel}</div>}
       <nav className="toolbar">
         {TOOLS.map((t) => (
