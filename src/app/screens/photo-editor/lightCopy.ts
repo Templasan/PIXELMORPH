@@ -5,6 +5,8 @@ import { encodeImage } from '@modules/export';
 import { PREVIEW_LONG_EDGE } from './resolution';
 import { downscaleToLongEdge, loadFullImage } from './photoProxySkia';
 
+const DECODE_TIMEOUT_MS = 30_000;
+
 export interface LightCopy {
   uri: string;
   /** The original's upright size. */
@@ -24,9 +26,13 @@ export async function lightCopyOf(uri: string): Promise<LightCopy> {
     const size = JSON.parse(await FileSystem.readAsStringAsync(meta)) as Omit<LightCopy, 'uri'>;
     return { uri: copy, ...size };
   }
-  // Skia decodes upright (EXIF applied), like the WebView reads the original.
-  const image = await loadFullImage(uri);
-  if (!image) throw new Error('Não foi possível abrir esta foto.');
+  // Skia decodes upright (EXIF applied), like the WebView reads the original. A file it cannot
+  // read (e.g. some RAW) has been seen to hang Skia.Data.fromURI: give up instead of waiting forever.
+  const image = await Promise.race([
+    loadFullImage(uri),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), DECODE_TIMEOUT_MS)),
+  ]);
+  if (!image) throw new Error('Não foi possível abrir esta foto (formato não suportado).');
   try {
     const width = image.width();
     const height = image.height();
