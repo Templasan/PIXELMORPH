@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { PhotoSession } from '../application/session';
 import { useStore } from '../state/useStore';
@@ -64,28 +65,28 @@ export function App({ session }: { session: PhotoSession }) {
   // Touch shortcut (3-finger double tap): the next tool, as the toolbar order goes.
   const nextTool = () => {
     setLightEdit(false);
-    editor.nextTool(TOOLS.map((t) => t.id));
+    editor.nextTool(TOOLS.map((item) => item.id));
   };
 
   const p = info.photo;
   return (
     <div className="editor">
       <header className="topbar">
-        <button className="icon-btn" onClick={() => session.close()} aria-label="Voltar">
+        <button className="icon-btn" onClick={() => session.close()} aria-label={t('Voltar')}>
           <Icon name="back" />
         </button>
         <div className="title">{info.name}</div>
-        <button className="icon-btn" disabled={history.done.length === 0} onClick={() => editor.undo()} aria-label="Desfazer">
+        <button className="icon-btn" disabled={history.done.length === 0} onClick={() => editor.undo()} aria-label={t('Desfazer')}>
           <Icon name="undo" size={20} />
         </button>
-        <button className="icon-btn" disabled={history.undone.length === 0} onClick={() => editor.redo()} aria-label="Refazer">
+        <button className="icon-btn" disabled={history.undone.length === 0} onClick={() => editor.redo()} aria-label={t('Refazer')}>
           <Icon name="redo" size={20} />
         </button>
-        <button className={`icon-btn${compare ? ' on' : ''}`} onClick={() => editor.toggleCompare()} aria-label="Comparar">
+        <button className={`icon-btn${compare ? ' on' : ''}`} onClick={() => editor.toggleCompare()} aria-label={t('Comparar')}>
           <Icon name="compare" size={20} />
         </button>
         <button className="primary-btn" disabled={info.status !== 'ready'} onClick={() => setExporting(true)}>
-          EXPORTAR
+          {t('EXPORTAR')}
         </button>
       </header>
       <div className="tech">
@@ -103,18 +104,18 @@ export function App({ session }: { session: PhotoSession }) {
       />
       {panel && <div className="panel">{panel}</div>}
       <nav className="toolbar">
-        {TOOLS.map((t) => (
+        {TOOLS.map((item) => (
           <button
-            key={t.id}
-            className={`tool${tool === t.id ? ' on' : ''}`}
+            key={item.id}
+            className={`tool${tool === item.id ? ' on' : ''}`}
             onClick={() => {
               // The light handle belongs to Efeitos only; leaving the tool ends that mode.
               setLightEdit(false);
-              editor.toggleTool(t.id);
+              editor.toggleTool(item.id);
             }}
           >
-            <Icon name={t.icon} />
-            <span>{t.label}</span>
+            <Icon name={item.icon} />
+            <span>{t(item.label)}</span>
           </button>
         ))}
       </nav>

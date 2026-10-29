@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
 import { DEFAULT_ADJUSTMENTS, PERSPECTIVE_FIELDS } from '../../domain/adjustments';
 import { useStore } from '../../state/useStore';
@@ -24,34 +25,34 @@ export function GeometryPanel({
       <Chips options={TURNS} value={a.rotation90} label={(d) => `${d}°`} onPick={(d) => commit(session, 'rotation90', d)} />
       <div className="chips">
         <button className={`chip${a.flipH > 0 ? ' on' : ''}`} onClick={() => commit(session, 'flipH', a.flipH > 0 ? 0 : 1)}>
-          Espelhar H
+          {t('Espelhar H')}
         </button>
         <button className={`chip${a.flipV > 0 ? ' on' : ''}`} onClick={() => commit(session, 'flipV', a.flipV > 0 ? 0 : 1)}>
-          Espelhar V
+          {t('Espelhar V')}
         </button>
       </div>
-      <FieldSlider session={session} field="fineRotation" label="Rotação" min={-45} max={45} step={0.5} format={(v) => `${v}°`} />
-      <FieldSlider session={session} field="mirrorOpacity" label="Opac. espelho" min={0} max={100} />
+      <FieldSlider session={session} field="fineRotation" label={t('Rotação')} min={-45} max={45} step={0.5} format={(v) => `${v}°`} />
+      <FieldSlider session={session} field="mirrorOpacity" label={t('Opac. espelho')} min={0} max={100} />
       <div className="chips">
         <button className={`chip${perspective ? ' on' : ''}`} onClick={() => onPerspective(!perspective)}>
-          {perspective ? 'Editando perspectiva' : 'Corrigir perspectiva'}
+          {perspective ? t('Editando perspectiva') : t('Corrigir perspectiva')}
         </button>
         {perspective && (
           <button className="chip" onClick={reset}>
-            Redefinir
+            {t('Redefinir')}
           </button>
         )}
         {perspective && (
           <button
             className="chip"
-            title="Aplica a correção na foto e começa do zero"
+            title={t('Aplica a correção na foto e começa do zero')}
             onClick={() => void session.bake(PERSPECTIVE_FIELDS).then(() => onPerspective(false))}
           >
-            ✓ Aplicar
+            ✓ {t('Aplicar')}
           </button>
         )}
       </div>
-      {perspective && <div className="muted">Arraste os quatro pontos na foto para endireitar linhas distorcidas.</div>}
+      {perspective && <div className="muted">{t('Arraste os quatro pontos na foto para endireitar linhas distorcidas.')}</div>}
     </>
   );
 }

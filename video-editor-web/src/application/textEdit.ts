@@ -3,6 +3,7 @@
  * can test them directly.
  */
 import { createClip, type Clip } from '../domain/Track';
+import { t } from '../i18n';
 import {
   DEFAULT_TEXT,
   MAX_TEXT_SIZE,
@@ -19,7 +20,7 @@ export const SCENE_ASPECT = 16 / 9;
 export function createTextClip(color: string): Clip {
   return {
     ...createClip({
-      name: 'Texto',
+      name: t('Texto'),
       sourceUri: '',
       color,
       startMs: 0,
@@ -32,7 +33,7 @@ export function createTextClip(color: string): Clip {
 
 /** The clip label on the timeline: the content, one line, at most 20 characters. */
 export function captionName(content: string): string {
-  return content.replace(/\s+/g, ' ').trim().slice(0, 20) || 'Texto';
+  return content.replace(/\s+/g, ' ').trim().slice(0, 20) || t('Texto');
 }
 
 /**

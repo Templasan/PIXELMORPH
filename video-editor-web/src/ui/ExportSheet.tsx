@@ -7,6 +7,7 @@ import { GIF_COLOR_OPTIONS, GIF_FPS_OPTIONS, GIF_MAX_DURATION_MS } from '../doma
 import type { ExportOutcome } from '../engine/exporter';
 import { useStore } from '../state/useStore';
 import type { ProjectFormat } from '../ports/host';
+import { t } from '../i18n';
 
 type Frame = { width: number; height: number; cover: boolean };
 
@@ -38,7 +39,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
 
   const start = async () => {
     if (duration <= 0) {
-      setState({ phase: 'error', message: 'A linha do tempo está vazia.' });
+      setState({ phase: 'error', message: t('A linha do tempo está vazia.') });
       return;
     }
     cancelled.current = false;
@@ -68,7 +69,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   return (
     <div className="sheet-veil" onClick={() => !running && onClose()}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="panel-head">Exportar</div>
+        <div className="panel-head">{t('Exportar')}</div>
         <div className="chips">
           {(['mp4', 'gif'] as const).map((k) => (
             <button key={k} className={`chip${kind === k ? ' on' : ''}`} disabled={running} onClick={() => setKind(k)}>
@@ -103,11 +104,11 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
             <div className="chips">
               {GIF_COLOR_OPTIONS.map((c) => (
                 <button key={c} className={`chip${gifColors === c ? ' on' : ''}`} disabled={running} onClick={() => setGifColors(c)}>
-                  {c} cores
+                  {t('{c} cores', { c })}
                 </button>
               ))}
             </div>
-            {duration > GIF_MAX_DURATION_MS && <p className="muted">O GIF leva só os primeiros 15 s.</p>}
+            {duration > GIF_MAX_DURATION_MS && <p className="muted">{t('O GIF leva só os primeiros 15 s.')}</p>}
           </>
         )}
         <p className="muted">
@@ -119,13 +120,13 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
               <div style={{ width: `${state.pct}%` }} />
             </div>
             <button className="chip" onClick={() => (cancelled.current = true)}>
-              Cancelar
+              {t('Cancelar')}
             </button>
           </>
         )}
         {state.phase === 'done' && (
           <p>
-            Pronto: {(state.out.bytes / 1024 / 1024).toFixed(2)} MB em {(state.tookMs / 1000).toFixed(1)} s
+            {t('Pronto: {mb} MB em {s} s', { mb: (state.out.bytes / 1024 / 1024).toFixed(2), s: (state.tookMs / 1000).toFixed(1) })}
             <br />
             <span className="muted">{state.out.path}</span>
           </p>
@@ -133,7 +134,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
         {state.phase === 'error' && <p style={{ color: 'var(--perigo)' }}>{state.message}</p>}
         {!running && (
           <button className="primary-btn" style={{ width: '100%', marginTop: 8 }} onClick={() => void start()}>
-            EXPORTAR
+            {t('EXPORTAR')}
           </button>
         )}
       </div>

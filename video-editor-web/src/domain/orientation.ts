@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /**
  * US-05 / RF-078: a phone stores a portrait video as sideways frames plus a rotation tag. The
  * player, the project size and the exporter all honour that tag, so the picture is already
@@ -6,6 +7,6 @@
 export function describeFileOrientation(rotationDegrees: number | null): string {
   if (rotationDegrees === null) return '';
   const turn = (((Math.round(rotationDegrees / 90) * 90) % 360) + 360) % 360;
-  if (turn === 0) return 'Orientação do arquivo: normal (nenhuma correção necessária)';
-  return `Orientação do arquivo: gravado girado em ${turn}°, corrigido automaticamente`;
+  if (turn === 0) return t('Orientação do arquivo: normal (nenhuma correção necessária)');
+  return t('Orientação do arquivo: gravado girado em {turn}°, corrigido automaticamente', { turn });
 }

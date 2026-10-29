@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import type { PictureRef } from '../../ports/host';
@@ -34,7 +35,7 @@ export function EffectsPanel({
     <FieldSlider session={session} field={field} label={label} min={min} max={max} />
   );
   const chips = (names: readonly string[], field: string) => (
-    <Chips options={indices(names)} value={a[field]} label={(i) => names[i]} onPick={(i) => commit(session, field, i)} />
+    <Chips options={indices(names)} value={a[field]} label={(i) => t(names[i])} onPick={(i) => commit(session, field, i)} />
   );
   const pickTab = (t: Tab) => {
     setTab(t);
@@ -47,38 +48,38 @@ export function EffectsPanel({
 
       {tab === 'Retrô' && (
         <>
-          <div className="panel-head">Envelhecimento</div>
-          {slider('retroAging', 'Intensidade', 0, 100)}
-          {slider('retroAgingBlend', 'Mesclagem', 0, 100)}
-          <div className="panel-head">Granulado</div>
-          {slider('retroGrain', 'Intensidade', 0, 100)}
-          {slider('retroGrainBlend', 'Mesclagem', 0, 100)}
-          <div className="panel-head">Vinheta</div>
-          {slider('retroVignette', 'Intensidade', 0, 100)}
-          {slider('retroVignetteBlend', 'Mesclagem', 0, 100)}
+          <div className="panel-head">{t('Envelhecimento')}</div>
+          {slider('retroAging', t('Intensidade'), 0, 100)}
+          {slider('retroAgingBlend', t('Mesclagem'), 0, 100)}
+          <div className="panel-head">{t('Granulado')}</div>
+          {slider('retroGrain', t('Intensidade'), 0, 100)}
+          {slider('retroGrainBlend', t('Mesclagem'), 0, 100)}
+          <div className="panel-head">{t('Vinheta')}</div>
+          {slider('retroVignette', t('Intensidade'), 0, 100)}
+          {slider('retroVignetteBlend', t('Mesclagem'), 0, 100)}
         </>
       )}
 
       {tab === 'Overlays' && (
         <>
-          <div className="panel-head">Repositório interno</div>
+          <div className="panel-head">{t('Repositório interno')}</div>
           {chips(OVERLAY_TEXTURE_NAMES, 'overlayType')}
           {a.overlayType > 0 && (
             <>
-              {slider('overlayIntensity', 'Intensidade', 0, 100)}
-              {slider('overlayOpacity', 'Opacidade', 0, 100)}
+              {slider('overlayIntensity', t('Intensidade'), 0, 100)}
+              {slider('overlayOpacity', t('Opacidade'), 0, 100)}
             </>
           )}
-          <div className="panel-head">Galeria do dispositivo</div>
+          <div className="panel-head">{t('Galeria do dispositivo')}</div>
           {info.overlay ? (
             <>
               <Picked picture={info.overlay} onClear={() => session.clearBlend('overlay')} />
               {chips(BLEND_MODE_LABELS, 'overlayBlend')}
-              {slider('overlayIntensity', 'Intensidade da imagem', 0, 100)}
+              {slider('overlayIntensity', t('Intensidade da imagem'), 0, 100)}
             </>
           ) : (
             <button className="chip" onClick={() => void session.pickBlend('overlay')}>
-              Importar overlay da galeria
+              {t('Importar overlay da galeria')}
             </button>
           )}
         </>
@@ -89,13 +90,13 @@ export function EffectsPanel({
           {chips(FRAME_STYLES, 'frameStyle')}
           {a.frameStyle > 0 && (
             <>
-              {slider('frameThickness', 'Espessura', 0, 100)}
-              {a.frameStyle === 2 && slider('frameRadius', 'Raio', 0, 100)}
-              <div className="panel-head">Cor</div>
+              {slider('frameThickness', t('Espessura'), 0, 100)}
+              {a.frameStyle === 2 && slider('frameRadius', t('Raio'), 0, 100)}
+              <div className="panel-head">{t('Cor')}</div>
               <Swatches options={FRAME_COLORS} value={info.frameColor} onPick={(frameColor) => session.setColors({ frameColor })} />
               {a.frameStyle === 4 && (
                 <>
-                  <div className="panel-head">Cor do degradê</div>
+                  <div className="panel-head">{t('Cor do degradê')}</div>
                   <Swatches
                     options={FRAME_COLORS}
                     value={info.frameGradientColor}
@@ -111,13 +112,13 @@ export function EffectsPanel({
       {tab === 'Iluminação' && (
         <>
           {chips(LIGHT_TYPES, 'lightType')}
-          {slider('lightIntensity', 'Intensidade', 0, 100)}
+          {slider('lightIntensity', t('Intensidade'), 0, 100)}
           <div className="chips">
             <button className={`chip${lightEdit ? ' on' : ''}`} onClick={() => onLightEdit(!lightEdit)}>
-              <Icon name="sun" size={14} /> {lightEdit ? 'Posicionando luz' : 'Posicionar luz'}
+              <Icon name="sun" size={14} /> {lightEdit ? t('Posicionando luz') : t('Posicionar luz')}
             </button>
           </div>
-          {lightEdit && <div className="muted">Arraste o ponto na foto para posicionar a luz.</div>}
+          {lightEdit && <div className="muted">{t('Arraste o ponto na foto para posicionar a luz.')}</div>}
         </>
       )}
 
@@ -127,11 +128,11 @@ export function EffectsPanel({
             <>
               <Picked picture={info.doubleExposure} onClear={() => session.clearBlend('doubleExposure')} />
               {chips(BLEND_MODE_LABELS, 'doubleExposureBlend')}
-              {slider('doubleExposureOpacity', 'Opacidade', 0, 100)}
+              {slider('doubleExposureOpacity', t('Opacidade'), 0, 100)}
             </>
           ) : (
             <button className="chip" onClick={() => void session.pickBlend('doubleExposure')}>
-              Escolher imagem da galeria
+              {t('Escolher imagem da galeria')}
             </button>
           )}
         </>
@@ -145,7 +146,7 @@ function Picked({ picture, onClear }: { picture: PictureRef; onClear: () => void
     <div className="picked">
       <img src={picture.uri} alt="" />
       <span className="picked-name">{picture.name}</span>
-      <button className="icon-btn" onClick={onClear} aria-label="Remover imagem">
+      <button className="icon-btn" onClick={onClear} aria-label={t('Remover imagem')}>
         <Icon name="x" size={14} />
       </button>
     </div>

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   AudioBufferSource,
   canEncodeAudio,
@@ -51,7 +52,7 @@ export interface ExportOutcome {
  */
 export async function exportComposition(pool: MediaPool, req: ExportRequest): Promise<ExportOutcome> {
   const { comp } = req;
-  if (comp.durationMs <= 0) throw new Error('A linha do tempo está vazia: nada para exportar.');
+  if (comp.durationMs <= 0) throw new Error(t('A linha do tempo está vazia: nada para exportar.'));
   const canvas = new OffscreenCanvas(comp.width, comp.height);
   const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: !!req.gif })!;
   const frameAt = async (t: number) => {

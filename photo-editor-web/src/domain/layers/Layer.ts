@@ -5,6 +5,7 @@
  * deleting, or reordering one is genuinely reversible (the original pixels are untouched).
  */
 
+import { t } from '../../i18n';
 export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape';
 
 /** RF-033: brush tip — round (soft ends), square (square ends, sharp corners), flat (cut ends). */
@@ -190,7 +191,7 @@ export function duplicateLayer(layer: EditorLayer): EditorLayer {
   return {
     ...layer,
     id: createLayerId(),
-    name: `${layer.name} (cópia)`,
+    name: t('{name} (cópia)', { name: layer.name }),
     strokes: layer.strokes?.map((s) => ({ ...s, id: createStrokeId() })),
   };
 }

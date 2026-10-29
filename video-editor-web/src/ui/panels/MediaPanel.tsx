@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { EditorSession } from '../../application/session';
 import type { MediaItem } from '../../ports/host';
 import { Icon } from '../Icon';
+import { t } from '../../i18n';
 
 const TITLES = { video: 'Adicionar vídeo', image: 'Adicionar foto', audio: 'Adicionar áudio' };
 
@@ -28,13 +29,13 @@ export function MediaPanel({
   return (
     <section className="panel">
       <div className="panel-head">
-        {TITLES[kind]}
-        <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+        {t(TITLES[kind])}
+        <button className="icon-btn" onClick={onClose} aria-label={t('Fechar')}>
           <Icon name="x" size={18} />
         </button>
       </div>
-      {!items && <p className="muted">Carregando…</p>}
-      {items?.length === 0 && <p className="muted">Nenhum arquivo deste tipo.</p>}
+      {!items && <p className="muted">{t('Carregando…')}</p>}
+      {items?.length === 0 && <p className="muted">{t('Nenhum arquivo deste tipo.')}</p>}
       <div className="media-grid">
         {items?.map((m) => (
           <button

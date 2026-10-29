@@ -10,6 +10,7 @@ import type { PhotoSession } from '../application/session';
 import { perspectiveCornersOf, type Adjustments as Adj } from '../domain/adjustments';
 import { snapToGuides, type SnapTargets } from '../domain/geometry/snapGuides';
 import { useStore } from '../state/useStore';
+import { t } from '../i18n';
 
 /** What the canvas does with a finger right now (set by the open tool). */
 export type ViewMode = 'none' | 'perspective' | 'light';
@@ -213,7 +214,7 @@ export function PhotoView({
   if (info.status === 'error' || !size)
     return (
       <div className="view-box" ref={boxRef}>
-        {info.status === 'error' ? <div className="toast">{info.error}</div> : <div className="muted">Abrindo a foto…</div>}
+        {info.status === 'error' ? <div className="toast">{info.error}</div> : <div className="muted">{t('Abrindo a foto…')}</div>}
       </div>
     );
 

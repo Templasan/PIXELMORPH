@@ -1,4 +1,5 @@
 import { createStore, type Store } from '../state/createStore';
+import { t } from '../i18n';
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
 import {
   createPaintLayer,
@@ -57,16 +58,16 @@ const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
 
 export function defaultLayers(): EditorLayer[] {
   return [
-    { id: 'fundo', name: 'Fundo', kind: 'background', visible: true, opacity: 100, locked: true },
+    { id: 'fundo', name: t('Fundo'), kind: 'background', visible: true, opacity: 100, locked: true },
     {
       id: 'ajustes',
-      name: 'Ajustes de cor',
+      name: t('Ajustes de cor'),
       kind: 'adjustments',
       visible: true,
       opacity: 100,
       locked: false,
     },
-    createPaintLayer('Pintura 1'),
+    createPaintLayer(t('Pintura {n}', { n: 1 })),
   ];
 }
 
@@ -244,7 +245,7 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
         );
       } else {
         const n = layers.filter((l) => l.kind === 'text').length + 1;
-        addLayers([createTextLayer(`Texto ${n}`, textDraft.content, textDraft)]);
+        addLayers([createTextLayer(t('Texto {n}', { n }), textDraft.content, textDraft)]);
       }
     },
     /** RF-044: creates a shape layer, or restyles the selected one (keeping its position). */
@@ -263,7 +264,7 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       } else {
         const n = layers.filter((l) => l.kind === 'shape').length + 1;
         addLayers([
-          createShapeLayer(`${SHAPE_NAMES[shapeDraft.kind]} ${n}`, shapeDraft.kind, shapeDraft),
+          createShapeLayer(`${t(SHAPE_NAMES[shapeDraft.kind])} ${n}`, shapeDraft.kind, shapeDraft),
         ]);
       }
     },
@@ -278,12 +279,12 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       };
       const added: EditorLayer[] = [];
       if (top.trim()) {
-        const layer = createTextLayer('Meme (cima)', top, style);
+        const layer = createTextLayer(t('Meme (cima)'), top, style);
         layer.text!.y = 0.12;
         added.push(layer);
       }
       if (bottom.trim()) {
-        const layer = createTextLayer('Meme (baixo)', bottom, style);
+        const layer = createTextLayer(t('Meme (baixo)'), bottom, style);
         layer.text!.y = 0.88;
         added.push(layer);
       }

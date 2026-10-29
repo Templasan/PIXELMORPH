@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
 import {
   BRUSH_SHAPES,
@@ -41,7 +42,7 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
   const paintable = selected?.kind === 'paint' && !selected.locked;
 
   const add = () =>
-    editor.addLayers([createPaintLayer(`Pintura ${layers.filter((l) => l.kind === 'paint').length + 1}`)]);
+    editor.addLayers([createPaintLayer(t('Pintura {n}', { n: layers.filter((l) => l.kind === 'paint').length + 1 }))]);
   const duplicate = () => selected && canDuplicate && editor.addLayers([duplicateLayer(selected)]);
   const merge = () => {
     editor.setLayers(mergeVisiblePaintLayers);
@@ -65,16 +66,16 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
   return (
     <>
       <div className="chips">
-        <button className="icon-btn" onClick={add} aria-label="Nova camada de pintura">
+        <button className="icon-btn" onClick={add} aria-label={t('Nova camada de pintura')}>
           <Icon name="plus" />
         </button>
-        <button className="icon-btn" disabled={!canDuplicate} onClick={duplicate} aria-label="Duplicar camada">
+        <button className="icon-btn" disabled={!canDuplicate} onClick={duplicate} aria-label={t('Duplicar camada')}>
           <Icon name="copy" size={20} />
         </button>
-        <button className="icon-btn" disabled={visiblePaint < 2} onClick={merge} aria-label="Mesclar camadas visíveis">
+        <button className="icon-btn" disabled={visiblePaint < 2} onClick={merge} aria-label={t('Mesclar camadas visíveis')}>
           <Icon name="layers" size={20} />
         </button>
-        <button className="icon-btn" disabled={!canDelete} onClick={remove} aria-label="Excluir camada">
+        <button className="icon-btn" disabled={!canDelete} onClick={remove} aria-label={t('Excluir camada')}>
           <Icon name="trash" size={20} />
         </button>
       </div>
@@ -102,8 +103,8 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
               <div className={`layer-name${l.visible ? '' : ' dim'}`}>
                 <div>{l.name}</div>
                 <div className="muted">
-                  {KIND_LABEL[l.kind]}
-                  {l.kind === 'paint' ? ` · ${strokes} ${strokes === 1 ? 'traço' : 'traços'}` : ''}
+                  {t(KIND_LABEL[l.kind])}
+                  {l.kind === 'paint' ? ` · ${t(strokes === 1 ? '{n} traço' : '{n} traços', { n: strokes })}` : ''}
                 </div>
               </div>
               {l.locked && <Icon name="lock" size={12} />}
@@ -113,7 +114,7 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
       </div>
 
       {selected && (
-        <Range label="Opacidade" value={selected.opacity} min={0} max={100} format={(v) => `${v}%`} onChange={setOpacity} />
+        <Range label={t('Opacidade')} value={selected.opacity} min={0} max={100} format={(v) => `${v}%`} onChange={setOpacity} />
       )}
 
       {paintable && (
@@ -125,8 +126,8 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
             label={(id) => BRUSH_SHAPES.find((s) => s.id === id)?.glyph}
             onPick={(shape) => editor.setBrush({ shape })}
           />
-          <Range label="Tamanho" value={brush.size} min={2} max={40} step={2} format={(v) => `${v}px`} onChange={(size) => editor.setBrush({ size })} />
-          <Range label="Opacidade do pincel" value={brush.opacity} min={10} max={100} step={10} format={(v) => `${v}%`} onChange={(opacity) => editor.setBrush({ opacity })} />
+          <Range label={t('Tamanho')} value={brush.size} min={2} max={40} step={2} format={(v) => `${v}px`} onChange={(size) => editor.setBrush({ size })} />
+          <Range label={t('Opacidade do pincel')} value={brush.opacity} min={10} max={100} step={10} format={(v) => `${v}%`} onChange={(opacity) => editor.setBrush({ opacity })} />
           <div className="muted">Arraste na foto para pintar na camada selecionada.</div>
         </>
       )}

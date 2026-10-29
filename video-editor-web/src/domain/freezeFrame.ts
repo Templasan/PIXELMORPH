@@ -6,6 +6,7 @@
  * left a photo or song that spans it out of step with the rest.
  */
 
+import { t } from '../i18n';
 import { type Track, clipEndMs, createClipId } from './Track';
 import { splitClipAtMs, MIN_CLIP_DURATION_MS } from './timeline';
 
@@ -27,7 +28,7 @@ export function insertFreezeFrame(
 
   const frozenClip = {
     id: createClipId(),
-    name: `${firstHalf.name} (congelado)`,
+    name: t('{name} (congelado)', { name: firstHalf.name }),
     sourceUri: firstHalf.sourceUri,
     color: firstHalf.color,
     startMs: splitPointMs,

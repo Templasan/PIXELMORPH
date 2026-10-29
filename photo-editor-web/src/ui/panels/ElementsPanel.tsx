@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import type { ShapeKind } from '../../domain/layers';
@@ -51,33 +52,33 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
             <input
               type="text"
               value={draft.content}
-              placeholder="Digite o texto"
+              placeholder={t('Digite o texto')}
               onChange={(e) => editor.setTextDraft({ content: e.target.value })}
             />
           </div>
           <Chips
             options={TEXT_FONTS.map((f) => f.family)}
             value={draft.fontFamily}
-            label={(family) => TEXT_FONTS.find((f) => f.family === family)?.label}
+            label={(family) => t(TEXT_FONTS.find((f) => f.family === family)?.label ?? '')}
             onPick={(fontFamily) => editor.setTextDraft({ fontFamily })}
           />
           <Swatches options={TEXT_COLORS} value={draft.color} onPick={(color) => editor.setTextDraft({ color })} />
           <div className="chips">
             <button className={`chip${draft.shadow ? ' on' : ''}`} onClick={() => editor.setTextDraft({ shadow: !draft.shadow })}>
-              Sombra
+              {t('Sombra')}
             </button>
             <button
               className={`chip${draft.strokeWidth > 0 ? ' on' : ''}`}
               onClick={() => editor.setTextDraft({ strokeWidth: draft.strokeWidth > 0 ? 0 : 2 })}
             >
-              Contorno
+              {t('Contorno')}
             </button>
           </div>
           {draft.strokeWidth > 0 && (
             <Swatches options={OUTLINE_COLORS} value={draft.strokeColor} onPick={(strokeColor) => editor.setTextDraft({ strokeColor })} />
           )}
           <button className="primary-btn wide" disabled={!draft.content.trim()} onClick={() => editor.submitText()}>
-            {editingText ? 'APLICAR' : 'ADICIONAR AO CANVAS'}
+            {editingText ? t('APLICAR') : t('ADICIONAR AO CANVAS')}
           </button>
         </>
       )}
@@ -87,13 +88,13 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
           <Chips
             options={SHAPES.map((s) => s.kind)}
             value={shape.kind}
-            label={(kind) => SHAPES.find((s) => s.kind === kind)?.label}
+            label={(kind) => t(SHAPES.find((s) => s.kind === kind)?.label ?? '')}
             onPick={(kind) => editor.setShapeDraft({ kind })}
           />
           <Swatches options={TEXT_COLORS} value={shape.color} onPick={(color) => editor.setShapeDraft({ color })} />
-          <Range label="Espessura" value={shape.strokeWidth} min={1} max={20} onChange={(strokeWidth) => editor.setShapeDraft({ strokeWidth })} />
+          <Range label={t('Espessura')} value={shape.strokeWidth} min={1} max={20} onChange={(strokeWidth) => editor.setShapeDraft({ strokeWidth })} />
           <button className="primary-btn wide" onClick={() => editor.submitShape()}>
-            {editingShape ? 'APLICAR' : 'ADICIONAR AO CANVAS'}
+            {editingShape ? t('APLICAR') : t('ADICIONAR AO CANVAS')}
           </button>
         </>
       )}
@@ -101,7 +102,7 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
       {tab === 'Adesivos' && (
         <div className="stickers">
           {STICKERS.map((emoji) => (
-            <button key={emoji} onClick={() => editor.addSticker(emoji)} aria-label={`Adesivo ${emoji}`}>
+            <button key={emoji} onClick={() => editor.addSticker(emoji)} aria-label={t('Adesivo {emoji}', { emoji })}>
               {emoji}
             </button>
           ))}
@@ -111,10 +112,10 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
       {tab === 'Meme' && (
         <>
           <div className="field">
-            <input type="text" value={memeTop} placeholder="Texto de cima" onChange={(e) => setMemeTop(e.target.value)} />
+            <input type="text" value={memeTop} placeholder={t('Texto de cima')} onChange={(e) => setMemeTop(e.target.value)} />
           </div>
           <div className="field">
-            <input type="text" value={memeBottom} placeholder="Texto de baixo" onChange={(e) => setMemeBottom(e.target.value)} />
+            <input type="text" value={memeBottom} placeholder={t('Texto de baixo')} onChange={(e) => setMemeBottom(e.target.value)} />
           </div>
           <button
             className="primary-btn wide"
@@ -125,7 +126,7 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
               setMemeBottom('');
             }}
           >
-            CRIAR MEME
+            {t('CRIAR MEME')}
           </button>
         </>
       )}

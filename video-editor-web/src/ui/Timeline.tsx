@@ -6,6 +6,7 @@ import type { EditorSession } from '../application/session';
 import { useStore } from '../state/useStore';
 import { Icon } from './Icon';
 import { ClipStrip } from './ClipStrip';
+import { t } from '../i18n';
 
 const RULER_H = 24;
 const ROW_H: Record<Track['kind'], number> = { video: 56, image: 48, text: 40, audio: 44 };
@@ -364,7 +365,7 @@ export function Timeline({
                         style={{ left }}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => onTransition(clip.id)}
-                        aria-label="Transição"
+                        aria-label={t('Transição')}
                       >
                         <Icon name="link" size={12} />
                       </button>
@@ -382,7 +383,7 @@ export function Timeline({
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => editor.toggleVisible(track.id)}
-              aria-label={track.visible ? 'Esconder faixa' : 'Mostrar faixa'}
+              aria-label={track.visible ? t('Esconder faixa') : t('Mostrar faixa')}
             >
               {track.visible ? '●' : '○'}
             </button>
@@ -392,8 +393,8 @@ export function Timeline({
       <div className="playhead" style={{ left: center }} />
       <div className="zoom-hint">
         <span ref={timeRef} hidden />
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setPps((p) => Math.max(MIN_PPS, p / 1.5))} aria-label="Diminuir zoom">−</button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setPps((p) => Math.min(MAX_PPS, p * 1.5))} aria-label="Aumentar zoom">+</button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setPps((p) => Math.max(MIN_PPS, p / 1.5))} aria-label={t('Diminuir zoom')}>−</button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setPps((p) => Math.min(MAX_PPS, p * 1.5))} aria-label={t('Aumentar zoom')}>+</button>
       </div>
     </div>
   );

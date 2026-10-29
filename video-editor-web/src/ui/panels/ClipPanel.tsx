@@ -14,6 +14,7 @@ import {
 import type { Clip, Track } from '../../domain/Track';
 import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
+import { t } from '../../i18n';
 
 export type ClipTool = 'speed' | 'volume' | 'color' | 'position' | 'text';
 
@@ -114,8 +115,8 @@ export function ClipPanel({
   return (
     <section className="panel">
       <div className="panel-head">
-        {TITLES[tool]}
-        <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+        {t(TITLES[tool])}
+        <button className="icon-btn" onClick={onClose} aria-label={t('Fechar')}>
           <Icon name="check" size={18} />
         </button>
       </div>
@@ -125,7 +126,7 @@ export function ClipPanel({
           <Chips options={SPEEDS} value={clip.speed ?? 1} label={(v) => `${v}x`} onPick={(v) => editor.setSpeed(v, 'commit')} />
           <Slider
             session={session}
-            label="Velocidade"
+            label={t('Velocidade')}
             value={clip.speed ?? 1}
             min={0.25}
             max={4}
@@ -133,16 +134,16 @@ export function ClipPanel({
             format={(v) => `${v.toFixed(2)}x`}
             onLive={(v) => editor.setSpeed(v, 'live')}
           />
-          <p className="muted">Os clipes seguintes desta faixa andam junto para não sobrepor.</p>
+          <p className="muted">{t('Os clipes seguintes desta faixa andam junto para não sobrepor.')}</p>
           <SpeedRamp session={session} track={track} clip={clip} />
         </>
       )}
 
       {tool === 'volume' && (
         <>
-          <Slider session={session} label="Volume" value={clip.volume ?? 100} min={0} max={200} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ volume: v })} />
-          <Slider session={session} label="Entrada suave" value={clip.fadeInMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeInMs: v })} />
-          <Slider session={session} label="Saída suave" value={clip.fadeOutMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeOutMs: v })} />
+          <Slider session={session} label={t('Volume')} value={clip.volume ?? 100} min={0} max={200} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ volume: v })} />
+          <Slider session={session} label={t('Entrada suave')} value={clip.fadeInMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeInMs: v })} />
+          <Slider session={session} label={t('Saída suave')} value={clip.fadeOutMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeOutMs: v })} />
         </>
       )}
 
@@ -150,13 +151,13 @@ export function ClipPanel({
         <>
           <Slider
             session={session}
-            label="Brilho"
+            label={t('Brilho')}
             value={clip.colorCorrection ?? 0}
             min={-100}
             max={100}
             onLive={(v) => live({ colorCorrection: v })}
           />
-          <Chips options={['Zerar']} value="" onPick={() => commit({ colorCorrection: 0 })} />
+          <Chips options={['Zerar']} value="" label={(v) => t(v)} onPick={() => commit({ colorCorrection: 0 })} />
         </>
       )}
 
@@ -187,13 +188,13 @@ function SpeedRamp({ session, track, clip }: { session: EditorSession; track: Tr
     <>
       <div className="field">
         <label>
-          <span>Rampa até</span>
+          <span>{t('Rampa até')}</span>
         </label>
       </div>
       <Chips options={SPEEDS} value={target} label={(v) => `${v}x`} onPick={setTarget} />
       <Slider
         session={session}
-        label="Duração da rampa"
+        label={t('Duração da rampa')}
         value={secs}
         min={0.5}
         max={3}
@@ -204,14 +205,14 @@ function SpeedRamp({ session, track, clip }: { session: EditorSession; track: Tr
       <Chips
         options={RAMP_EDGES}
         value={edge}
-        label={(e) => (e === 'start' ? 'No início' : 'No fim')}
+        label={(e) => (e === 'start' ? t('No início') : t('No fim'))}
         onPick={setEdge}
       />
       {!fits && (
-        <p className="muted">Rampa curta demais para esta velocidade: use mais segundos.</p>
+        <p className="muted">{t('Rampa curta demais para esta velocidade: use mais segundos.')}</p>
       )}
       <button className="primary-btn" style={{ width: '100%' }} disabled={!fits} onClick={apply}>
-        Aplicar rampa
+        {t('Aplicar rampa')}
       </button>
     </>
   );
@@ -242,11 +243,13 @@ function PositionTool({
       <Chips
         options={['Encaixar', 'Preencher']}
         value={clip.fill ? 'Preencher' : 'Encaixar'}
+        label={(v) => t(v)}
         onPick={(v) => commit({ fill: v === 'Preencher' })}
       />
       <Chips
         options={['Tela cheia', 'Janela']}
         value={full ? 'Tela cheia' : 'Janela'}
+        label={(v) => t(v)}
         onPick={(v) =>
           v === 'Tela cheia'
             ? commit({ pipPosition: undefined, pipSize: undefined })
@@ -255,9 +258,9 @@ function PositionTool({
       />
       {!full && (
         <>
-          <Slider session={session} label="Tamanho" value={size.width * 100} min={10} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, pos.y, v / 100)} />
-          <Slider session={session} label="Horizontal" value={pos.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(v / 100, pos.y, size.width)} />
-          <Slider session={session} label="Vertical" value={pos.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, v / 100, size.width)} />
+          <Slider session={session} label={t('Tamanho')} value={size.width * 100} min={10} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, pos.y, v / 100)} />
+          <Slider session={session} label={t('Horizontal')} value={pos.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(v / 100, pos.y, size.width)} />
+          <Slider session={session} label={t('Vertical')} value={pos.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, v / 100, size.width)} />
         </>
       )}
     </>
@@ -276,7 +279,7 @@ function TextTool({ session, text }: { session: EditorSession; text: ClipText })
   return (
     <>
       <div className="field">
-        <label>Texto</label>
+        <label>{t('Texto')}</label>
         <textarea
           rows={2}
           value={text.content}
@@ -290,7 +293,7 @@ function TextTool({ session, text }: { session: EditorSession; text: ClipText })
           onBlur={() => editor.endGesture()}
         />
       </div>
-      <Chips options={TEXT_FONTS.map((f) => f.family)} value={text.fontFamily} label={(f) => TEXT_FONTS.find((x) => x.family === f)!.label} onPick={(f) => commit({ fontFamily: f })} />
+      <Chips options={TEXT_FONTS.map((f) => f.family)} value={text.fontFamily} label={(f) => t(TEXT_FONTS.find((x) => x.family === f)!.label)} onPick={(f) => commit({ fontFamily: f })} />
       <Chips
         options={TEXT_COLORS}
         value={text.color}
@@ -300,23 +303,23 @@ function TextTool({ session, text }: { session: EditorSession; text: ClipText })
       <Chips
         options={['Sombra', 'Contorno']}
         value=""
-        label={(o) => `${o}: ${o === 'Sombra' ? (text.shadow ? 'sim' : 'não') : text.strokeWidth > 0 ? 'sim' : 'não'}`}
+        label={(o) => `${t(o)}: ${o === 'Sombra' ? (text.shadow ? t('sim') : t('não')) : text.strokeWidth > 0 ? t('sim') : t('não')}`}
         onPick={(o) =>
           o === 'Sombra'
             ? commit({ shadow: !text.shadow })
             : commit({ strokeWidth: text.strokeWidth > 0 ? 0 : TEXT_OUTLINE_WIDTH })
         }
       />
-      <Slider session={session} label="Tamanho" value={text.size * 100} min={MIN_TEXT_SIZE * 100} max={MAX_TEXT_SIZE * 100} step={0.5} format={(v) => `${v.toFixed(1)}%`} onLive={(v) => live({ size: v / 100 })} />
-      <Slider session={session} label="Horizontal" value={text.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ x: v / 100 })} />
-      <Slider session={session} label="Vertical" value={text.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ y: v / 100 })} />
+      <Slider session={session} label={t('Tamanho')} value={text.size * 100} min={MIN_TEXT_SIZE * 100} max={MAX_TEXT_SIZE * 100} step={0.5} format={(v) => `${v.toFixed(1)}%`} onLive={(v) => live({ size: v / 100 })} />
+      <Slider session={session} label={t('Horizontal')} value={text.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ x: v / 100 })} />
+      <Slider session={session} label={t('Vertical')} value={text.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ y: v / 100 })} />
       <div className="field">
-        <label>Animação de entrada</label>
-        <Chips options={TEXT_ANIMATIONS.map((a) => a.id)} value={text.animIn.type} label={(id) => TEXT_ANIMATIONS.find((a) => a.id === id)!.label} onPick={(type) => commit({ animIn: { ...text.animIn, type } })} />
+        <label>{t('Animação de entrada')}</label>
+        <Chips options={TEXT_ANIMATIONS.map((a) => a.id)} value={text.animIn.type} label={(id) => t(TEXT_ANIMATIONS.find((a) => a.id === id)!.label)} onPick={(type) => commit({ animIn: { ...text.animIn, type } })} />
       </div>
       <div className="field">
-        <label>Animação de saída</label>
-        <Chips options={TEXT_ANIMATIONS.map((a) => a.id)} value={text.animOut.type} label={(id) => TEXT_ANIMATIONS.find((a) => a.id === id)!.label} onPick={(type) => commit({ animOut: { ...text.animOut, type } })} />
+        <label>{t('Animação de saída')}</label>
+        <Chips options={TEXT_ANIMATIONS.map((a) => a.id)} value={text.animOut.type} label={(id) => t(TEXT_ANIMATIONS.find((a) => a.id === id)!.label)} onPick={(type) => commit({ animOut: { ...text.animOut, type } })} />
       </div>
     </>
   );
