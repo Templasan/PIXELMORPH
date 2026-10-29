@@ -48,14 +48,21 @@ full-size JPEG copy (`<name>.full.jpg`, made once with Skia): the WebView cannot
 
 ## Done / not yet
 
-Done: Ajustes (básico, curvas, detalhe, cor seletiva, histograma), Geometria (quarter turns,
-mirror, straighten, 4-point perspective), Camadas (paint, visibility, opacity, merge),
-Efeitos (retrô, overlays, molduras, iluminação, dupla exposição), Elementos (text, shapes,
-stickers, meme), compare, undo/redo, export JPEG/PNG/WebP with size presets, social crops,
-target size, DPI and watermark (export only).
+Done: Ajustes (básico, curvas, detalhe, cor seletiva, histograma, "✓ Aplicar" that bakes them
+into the photo), Geometria (quarter turns, mirror, straighten, 4-point perspective + bake),
+Camadas, Efeitos, Elementos (text, shapes, stickers, meme, collage -> new project), Presets
+(one undo step each) and batch edit (a look added to other projects' history), Panorama (new
+project), compare, undo/redo, pinch zoom/pan and the 2/3-finger shortcuts, export JPEG/PNG/WebP
+and HEIC (Android 9+, platform encoder) with size presets, social crops, target size, DPI and
+watermark.
 
-Not yet (from the old screen): bake ("✓" apply-and-start-over for Ajustes and perspective),
-Presets, batch edit, Panorama and collage (both create a new project: need a host method),
-HEIC export (needs native code), pinch zoom, touch shortcuts
-(2/3-finger taps), gyro parallax for stereoscopic photos. Máscaras, Retoque and IA were
-placeholders in the app (sprint 3) and were not carried over.
+Not carried over: gyro parallax for stereoscopic photos; Máscaras, Retoque and IA, which were
+placeholders in the app (sprint 3).
+
+## Performance (Poco, 50 MP photo, 2026-10-28)
+
+The screen works on a 2048 px light copy made once per photo by the app; the GPU passes draw at
+the size the photo is shown (the canvas never grows past the light copy's detail). Slider: 120 fps
+(8 ms frames). Open: ~0.5-1 s from the tap (the old editor ~0.2 s; the difference is starting
+the WebView). Export at full size ~5.5 s. Outputs larger than 4096 px are copied out of the GPU in
+4096 px pieces: browsers silently shrink a larger WebGL canvas.
