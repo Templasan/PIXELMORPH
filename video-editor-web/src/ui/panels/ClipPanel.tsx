@@ -140,7 +140,7 @@ export function ClipPanel({
 
       {tool === 'volume' && (
         <>
-          <Slider session={session} label="Volume" value={clip.volume ?? 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ volume: v })} />
+          <Slider session={session} label="Volume" value={clip.volume ?? 100} min={0} max={200} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ volume: v })} />
           <Slider session={session} label="Entrada suave" value={clip.fadeInMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeInMs: v })} />
           <Slider session={session} label="Saída suave" value={clip.fadeOutMs ?? 0} min={0} max={3000} step={50} format={(v) => `${(v / 1000).toFixed(1)} s`} onLive={(v) => live({ fadeOutMs: v })} />
         </>
