@@ -9,6 +9,7 @@
     "start:android": "expo start --android",
     "start:ios": "expo start --ios",
     "build:dev:android": "eas build --platform android --profile preview",
+    "build:editors": "npm run build:app --prefix video-editor-web && npm run build:app --prefix photo-editor-web",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\"",
