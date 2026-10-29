@@ -7,6 +7,7 @@ import type { Project, ProjectPriority } from '@modules/projects';
 import { useI18n } from '@core/i18n';
 import { LocalHistoryRepository, type Operation } from '@core/history';
 import {
+  codecLabel,
   dateFormatter,
   formatBitRate,
   formatDateInput,
@@ -16,6 +17,7 @@ import {
   priorityLabel,
 } from './projectFormat';
 import { shareProject } from './shareProject';
+import { probeCodecs } from '../../../../modules/pixelmorph-video-export/src';
 
 const PRIORITY_OPTIONS: readonly ProjectPriority[] = ['low', 'medium', 'high'];
 
@@ -80,6 +82,19 @@ export function ProjectInfoSheet({
   }, [project.id]);
 
   const asset = primaryAsset(project);
+  // RF-037: a video's real codecs, read from the file (the stored MIME only says "video/mp4").
+  const [codecs, setCodecs] = useState<string | null>(null);
+  const mediaUri = asset?.workingUri || asset?.originalUri;
+  useEffect(() => {
+    if (project.type !== 'video' || !mediaUri) return;
+    let cancelled = false;
+    probeCodecs(mediaUri)
+      .then((mimes) => !cancelled && mimes.length > 0 && setCodecs(codecLabel(mimes)))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [project.type, mediaUri]);
   const rows: [string, string][] = [
     [t('Nome'), project.name],
     [t('Tipo'), formatTypeLabel(project)],
@@ -90,7 +105,7 @@ export function ProjectInfoSheet({
         : '—',
     ],
     [t('Tamanho'), formatFileSize(asset?.metadata.fileSizeBytes)],
-    [t('Codificação'), asset?.metadata.mimeType ?? '—'],
+    [t('Codificação'), codecs ?? asset?.metadata.mimeType ?? '—'],
     [t('Taxa de bits'), project.type === 'video' ? formatBitRate(asset) : '—'],
     [t('Modificado em'), dateFormatter.format(project.updatedAt)],
     [t('Criado em'), dateFormatter.format(project.createdAt)],

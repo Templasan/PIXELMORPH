@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.media.MediaCodecList
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
@@ -147,6 +148,24 @@ class PixelMorphVideoExportModule : Module() {
           promise.resolve(null)
         } finally {
           retriever.release()
+        }
+      }.start()
+    }
+
+    // RF-037: the codec of each track (MIME as the platform names it, e.g. video/avc), in order.
+    AsyncFunction("probeCodecs") { uri: String, promise: Promise ->
+      Thread {
+        val extractor = MediaExtractor()
+        try {
+          extractor.setDataSource(context, Uri.parse(uri), null)
+          val mimes = (0 until extractor.trackCount).mapNotNull {
+            extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)
+          }
+          promise.resolve(mimes)
+        } catch (error: Throwable) {
+          promise.resolve(emptyList<String>())
+        } finally {
+          extractor.release()
         }
       }.start()
     }

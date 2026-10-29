@@ -61,6 +61,7 @@ interface NativeModule {
   probeVideo(
     uri: string
   ): Promise<{ width: number; height: number; rotation: number; durationMs: number } | null>;
+  probeCodecs(uri: string): Promise<string[]>;
   cancel(): void;
   heicSupported(): boolean;
   encodeHeic(
@@ -107,6 +108,11 @@ export function probeVideo(
   uri: string
 ): Promise<{ width: number; height: number; rotation: number; durationMs: number } | null> {
   return native.probeVideo(uri);
+}
+
+/** RF-037: the codecs of a media file's tracks as the platform names them (e.g. video/avc); [] if unreadable. */
+export function probeCodecs(uri: string): Promise<string[]> {
+  return native.probeCodecs(uri);
 }
 
 /** RF-057: true on Android 9+ with a HEIC/HEVC encoder; HEIC export is offered only then. */
