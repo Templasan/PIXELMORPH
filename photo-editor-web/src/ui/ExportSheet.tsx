@@ -159,7 +159,8 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
         {error && <div className="muted">{error}</div>}
         {result && (
           <div className="muted">
-            {FORMATS.find((f) => f.id === result.format)!.label} · {result.width}×{result.height} · {formatBytes(result.bytes)}
+            {FORMATS.find((f) => f.id === result.format)!.label} · {result.width}×{result.height}
+            {result.bytes !== null && ` · ${formatBytes(result.bytes)}`}
             {result.quality !== null && ` · qualidade ${result.quality}%`}
             {result.overTarget && ' · acima do alvo (qualidade mínima)'}
             <br />

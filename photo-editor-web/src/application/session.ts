@@ -68,7 +68,8 @@ export interface ExportResult {
   format: ExportFormat;
   width: number;
   height: number;
-  bytes: number;
+  /** The file's size; null for HEIC, which the host encodes after the page is done. */
+  bytes: number | null;
   /** The quality the target size chose; null when the sheet's quality was used. */
   quality: number | null;
   /** The target could not be met even at the lowest quality. */
@@ -509,7 +510,7 @@ export function createPhotoSession(host: EditorHost) {
           format,
           width: out.width,
           height: out.height,
-          bytes: bytes.length,
+          bytes: heic ? null : bytes.length,
           quality: targetOn ? quality : null,
           overTarget: targetOn && bytes.length > targetBytes,
         };
