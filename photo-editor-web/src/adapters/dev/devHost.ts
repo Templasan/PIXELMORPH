@@ -45,6 +45,24 @@ export function createDevHost(): EditorHost {
       const answer = prompt(all.map((p, i) => `${i + 1}. ${p.name}`).join('\n'), '1');
       return answer ? (all[Number(answer) - 1] ?? null) : null;
     },
+    async listPhotoProjects() {
+      const current = key.replace('pixelmorph.dev.photo.', '');
+      return (await pictures()).filter((p) => p.name !== current).map((p) => ({ id: p.name, name: p.name }));
+    },
+    async applyLookTo(ids, look) {
+      // Dev stand-in for the app's history store: the look lands in each photo's saved project.
+      const all = await pictures();
+      for (const id of ids) {
+        const k = `pixelmorph.dev.photo.${id}`;
+        const saved: SavedPhoto = JSON.parse(localStorage.getItem(k) ?? 'null') ?? {
+          name: id,
+          photo: all.find((p) => p.name === id)!,
+        };
+        saved.adjustments = { ...saved.adjustments, ...look };
+        localStorage.setItem(k, JSON.stringify(saved));
+      }
+      return ids.length;
+    },
     async listPresets() {
       try {
         return JSON.parse(localStorage.getItem(PRESETS_KEY) ?? '[]') as PresetRef[];

@@ -25,6 +25,7 @@ import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
 import { lightCopyOf } from './photo-editor/lightCopy';
+import { presetStep } from './photo-editor/batchPreset';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -153,6 +154,21 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           name: picked.fileName ?? 'Foto',
           uri: NEEDS_JPEG_COPY.test(picked.mimeType ?? uri) ? await readableCopyOf(uri) : uri,
         };
+      },
+
+      // US-02 batch edit: the other photo projects, and a look applied to some of them as one
+      // undo step each (their editor shows it on open and can undo it).
+      async listPhotoProjects() {
+        const all = await projects.listProjects.execute({ type: 'photo' });
+        return all.filter((p) => p.id !== projectId).map((p) => ({ id: p.id, name: p.name }));
+      },
+      async applyLookTo(ids: string[], look: Record<string, number>) {
+        for (const id of ids) {
+          const snapshot = await historyRepo.load(id).catch(() => null);
+          const past = snapshot?.past ?? [];
+          await historyRepo.save(id, { past: [...past, presetStep(past, look)], future: [] });
+        }
+        return ids.length;
       },
 
       async listPresets() {

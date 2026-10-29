@@ -20,6 +20,8 @@ export function createAndroidHost(): EditorHost {
     saveProject: (project) => call<void>('saveProject', project),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
     listPresets: () => call<PresetRef[]>('listPresets'),
+    listPhotoProjects: () => call<{ id: string; name: string }[]>('listPhotoProjects'),
+    applyLookTo: (ids, look) => call<number>('applyLookTo', ids, look),
     savePreset: (name, adjustments) => call<void>('savePreset', name, adjustments),
     exportSink() {
       return {
