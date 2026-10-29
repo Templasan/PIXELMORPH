@@ -44,6 +44,8 @@ export interface ExportOutcome {
   durationMs: number;
   frameCount: number;
   truncated: boolean;
+  /** Sources whose sound could not be decoded here and was left out. */
+  silent: string[];
 }
 
 /**
@@ -126,10 +128,11 @@ async function mp4(
   if (audio) output.addAudioTrack(audio);
   await output.start();
   let audioMs = 0;
+  const silent = new Set<string>();
   const audioUpTo = async (ms: number) => {
     while (audio && audioMs < Math.min(ms, endMs)) {
       const to = Math.min(audioMs + AUDIO_WINDOW_MS, endMs);
-      await audio.add(await mixWindow(comp.audio, (u) => pool.input(u), audioMs, to));
+      await audio.add(await mixWindow(comp.audio, (u) => pool.input(u), audioMs, to, (u) => silent.add(u)));
       audioMs = to;
     }
   };
@@ -150,7 +153,7 @@ async function mp4(
   await writes;
   const path = await sink.finish();
   req.onProgress(100);
-  return { path, bytes, durationMs: endMs, frameCount: total, truncated: false };
+  return { path, bytes, durationMs: endMs, frameCount: total, truncated: false, silent: [...silent] };
 }
 
 async function gif(
@@ -190,5 +193,6 @@ async function gif(
     durationMs: endMs,
     frameCount: total,
     truncated: comp.durationMs > GIF_MAX_DURATION_MS,
+    silent: [],
   };
 }

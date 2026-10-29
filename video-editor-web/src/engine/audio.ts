@@ -136,12 +136,17 @@ export class AudioMixer {
   }
 }
 
-/** The mixed sound of [fromMs, toMs) of the finished video, stereo 48 kHz (export). */
+/**
+ * The mixed sound of [fromMs, toMs) of the finished video, stereo 48 kHz (export). A source whose
+ * sound this browser cannot decode (e.g. AMR from an emulator's camera) stays silent and is
+ * reported through `onUnreadable`, like the preview does, instead of failing the whole export.
+ */
 export async function mixWindow(
   spans: readonly AudioSpan[],
   openInput: OpenInput,
   fromMs: number,
-  toMs: number
+  toMs: number,
+  onUnreadable?: (uri: string) => void
 ): Promise<AudioBuffer> {
   const frames = Math.max(1, Math.round(((toMs - fromMs) / 1000) * OUT_RATE));
   const ctx = new OfflineAudioContext(2, frames, OUT_RATE);
@@ -149,7 +154,13 @@ export async function mixWindow(
   await Promise.all(
     spans
       .filter((s) => s.startMs < toMs && s.startMs + s.outputMs > fromMs)
-      .map(async (s) => scheduleSpan(ctx, s, await openInput(s.uri), fromMs, toMs, whenOf, null))
+      .map(async (s) => {
+        try {
+          await scheduleSpan(ctx, s, await openInput(s.uri), fromMs, toMs, whenOf, null);
+        } catch {
+          onUnreadable?.(s.uri);
+        }
+      })
   );
   return ctx.startRendering();
 }

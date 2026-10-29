@@ -108,6 +108,8 @@ const es: Record<string, string> = {
     'Orientación del archivo: normal (no hace falta corrección)',
   'Orientação do arquivo: gravado girado em {turn}°, corrigido automaticamente':
     'Orientación del archivo: grabado girado {turn}°, corregido automáticamente',
+  'O som de {n} arquivo(s) não pôde ser lido neste aparelho e ficou de fora.':
+    'El sonido de {n} archivo(s) no se pudo leer en este dispositivo y quedó fuera.',
 };
 
 export default es;
