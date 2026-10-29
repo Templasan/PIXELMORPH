@@ -12,7 +12,8 @@ import type { AudioSpan } from './webScene';
  *    earlier one. Text tracks are drawn above all media. Audio tracks draw nothing.
  *  - A clip shows from its start (inclusive) to its end (exclusive). Empty time on the bottom
  *    media track is black; on upper tracks it is transparent (the layers below show through).
- *  - A clip covers the frame (fitted inside, keeping its shape) unless it has a PiP box.
+ *  - A clip covers the frame (fitted inside, keeping its shape) unless it has a PiP box. A `cover`
+ *    composition (a social preset of another shape) crops every clip to fill the frame instead.
  *  - A transition into a clip plays during the clip's first `durationMs`, only when the previous
  *    clip on the same track ends where this one starts. The outgoing clip keeps playing during it
  *    (it reads past its out point while the source has frames, then holds its last frame).
@@ -89,6 +90,8 @@ interface CaptionClip {
 export interface Composition {
   width: number;
   height: number;
+  /** Every picture fills the frame (cropped), not only the clips marked `fill`. */
+  cover: boolean;
   durationMs: number;
   layers: MediaLayer[];
   captions: CaptionClip[];
@@ -98,6 +101,7 @@ export interface Composition {
 export interface CompositionOptions {
   width?: number;
   height?: number;
+  cover?: boolean;
   /** The file to decode for a clip's source (a preview proxy); default: the source itself. */
   mapUri?: (sourceUri: string) => string;
 }
@@ -150,6 +154,7 @@ export function buildComposition(
   return {
     width: opts.width ?? 1920,
     height: opts.height ?? 1080,
+    cover: opts.cover ?? false,
     durationMs: compositionDurationMs(tracks),
     layers,
     captions,
@@ -228,7 +233,7 @@ function mediaOp(
     uri: clip.sourceUri,
     sourceTimeMs: image ? 0 : role === 'out' ? sourceTimeOf(clip, t) : clampIn(clip, t),
     rect: rectOf(clip, c.width, c.height),
-    fit: clip.fill ? 'cover' : 'contain',
+    fit: c.cover || clip.fill ? 'cover' : 'contain',
     window: !!clip.pipSize,
     opacity: transform.opacity,
     translateX: transform.translateX,

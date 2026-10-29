@@ -259,17 +259,15 @@ export function createEditorSession(host: EditorHost) {
 
   /** Renders the timeline into a file through the host (mp4, or a GIF when `gif` is set). */
   async function exportVideo(opts: {
-    shortEdge: number;
+    /** The output frame: the project's shape at a short edge, or a social preset's own size. */
+    frame: { width: number; height: number; cover: boolean };
     bitrate: number;
     gif?: { fps: number; maxColors: number };
     onProgress: (pct: number) => void;
     isCancelled: () => boolean;
   }): Promise<ExportOutcome> {
     player?.pause();
-    const comp = buildComposition(
-      editor.store.get().tracks,
-      frameSize(format.get(), opts.shortEdge)
-    );
+    const comp = buildComposition(editor.store.get().tracks, opts.frame);
     try {
       return await exportComposition(pool, {
         comp,
