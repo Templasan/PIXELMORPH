@@ -38,6 +38,9 @@ export function buildInitialTracks(project: Project | null): Track[] {
   // (a JPEG), so the player and frame extraction never saw the actual video.
   const uri = asset?.workingUri || asset?.originalUri || project?.thumbnailUri;
   const sourceDurationMs = asset?.metadata.durationMs || 10000;
+  // RF-018: a camera recording opens with its sound on its own track (A1), at the gain chosen
+  // while recording; the video clip itself is muted so the sound is not heard twice.
+  const gain = asset?.type === 'video' ? asset.metadata.audioGain : undefined;
   const v1: Track = {
     id: 'v1',
     name: 'V1',
@@ -47,13 +50,16 @@ export function buildInitialTracks(project: Project | null): Track[] {
     // No media (project without an asset): an empty track, never a stand-in picture.
     clips: uri
       ? [
-          createClip({
-            name: project?.name ?? 'Clipe principal',
-            sourceUri: uri,
-            color: TRACK_COLORS.video,
-            startMs: 0,
-            sourceDurationMs,
-          }),
+          {
+            ...createClip({
+              name: project?.name ?? 'Clipe principal',
+              sourceUri: uri,
+              color: TRACK_COLORS.video,
+              startMs: 0,
+              sourceDurationMs,
+            }),
+            ...(gain !== undefined && { volume: 0 }),
+          },
         ]
       : [],
   };
@@ -71,7 +77,21 @@ export function buildInitialTracks(project: Project | null): Track[] {
     kind: 'audio',
     visible: true,
     locked: false,
-    clips: [],
+    clips:
+      uri && gain !== undefined
+        ? [
+            {
+              ...createClip({
+                name: 'Áudio da câmera',
+                sourceUri: uri,
+                color: TRACK_COLORS.audio,
+                startMs: 0,
+                sourceDurationMs,
+              }),
+              volume: Math.round(gain * 100),
+            },
+          ]
+        : [],
   };
   return ensureImageTrack([v1, txt, a1]);
 }

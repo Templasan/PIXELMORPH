@@ -5,6 +5,8 @@ export interface MediaMetadata {
   orientation?: number;
   durationMs?: number;
   fileSizeBytes?: number;
+  /** RF-018: mic gain chosen while recording (1 = as captured); the editor applies it to the audio track. */
+  audioGain?: number;
 }
 
 export function createMediaMetadata(
@@ -22,6 +24,7 @@ export function createMediaMetadata(
     orientation: partial?.orientation,
     durationMs: partial?.durationMs,
     fileSizeBytes: partial?.fileSizeBytes,
+    audioGain: partial?.audioGain,
   };
 }
 

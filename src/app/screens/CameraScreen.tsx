@@ -108,6 +108,8 @@ export default function CameraScreen({ navigation }: Props) {
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   const audioRecorder = useAudioRecorder(AUDIO_RECORDER_OPTIONS);
+  // RF-018: gain for the recorded sound, applied to its own audio track in the editor.
+  const [micGain, setMicGain] = useState(1);
   const audioState = useAudioRecorderState(audioRecorder, 100);
 
   useEffect(() => {
@@ -172,6 +174,7 @@ export default function CameraScreen({ navigation }: Props) {
               width,
               height,
               fileSizeBytes: probed.fileSizeBytes,
+              ...(kind === 'video' && { audioGain: micGain }),
             })
           ),
         ]
@@ -180,7 +183,7 @@ export default function CameraScreen({ navigation }: Props) {
         projectId: project.id,
       });
     },
-    [projects, navigation]
+    [projects, navigation, micGain]
   );
 
   const composeStopMotionVideo = useCallback(async () => {
@@ -334,7 +337,7 @@ export default function CameraScreen({ navigation }: Props) {
 
         {/* RF-018: a real mic level meter while framing a video shot. */}
         {mode === 'VÍDEO' && !recording && micPermission?.granted && (
-          <AudioMeter metering={audioState.metering} />
+          <AudioMeter metering={audioState.metering} gain={micGain} onGain={setMicGain} />
         )}
 
         {mode === 'STOP-MOTION' && <StopMotionFrameStrip stopFrames={stopFrames} />}
