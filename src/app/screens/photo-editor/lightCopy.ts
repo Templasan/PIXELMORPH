@@ -26,6 +26,10 @@ export async function lightCopyOf(uri: string): Promise<LightCopy> {
     const size = JSON.parse(await FileSystem.readAsStringAsync(meta)) as Omit<LightCopy, 'uri'>;
     return { uri: copy, ...size };
   }
+  // A missing file makes Skia wait forever: say so at once (old projects can point at the cache).
+  if (!(await FileSystem.getInfoAsync(uri)).exists) {
+    throw new Error('O arquivo desta foto não existe mais no aparelho.');
+  }
   // Skia decodes upright (EXIF applied), like the WebView reads the original. A file it cannot
   // read (e.g. some RAW) has been seen to hang Skia.Data.fromURI: give up instead of waiting forever.
   const image = await Promise.race([
