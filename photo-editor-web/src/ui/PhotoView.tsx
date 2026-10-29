@@ -82,9 +82,11 @@ export function PhotoView({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !cssW) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
+    // Zoomed past the light copy there is no more detail to show: the canvas stops growing there
+    // (an 800% zoom at 3x density would otherwise ask for a 70 MP canvas).
+    const k = Math.min(window.devicePixelRatio || 1, session.pixelsPerUnit() / (cssW / size!.scene.w));
+    canvas.width = Math.round(cssW * k);
+    canvas.height = Math.round(cssH * k);
     session.attach(canvas);
     return () => session.detach(canvas);
   }, [session, cssW, cssH]);

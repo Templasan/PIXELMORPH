@@ -1,5 +1,5 @@
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
-import { sceneSizeOf, type SceneSize } from '../domain/sceneSize';
+import { SCENE_W, sceneSizeOf, type SceneSize } from '../domain/sceneSize';
 import { coverFitRect, scaleToFit, searchQualityForTargetSize, SIZE_PRESETS, SOCIAL_PRESETS } from '../domain/export/exportMath';
 import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
@@ -381,6 +381,8 @@ export function createPhotoSession(host: EditorHost) {
       if (screen === canvas) screen = null;
     },
     redraw: requestDraw,
+    /** Light-copy pixels per scene unit: the most detail the screen can show. */
+    pixelsPerUnit: () => (light ? light.width / SCENE_W : 1),
     /** The picture's shape now (it changes with quarter turns). */
     size: () => sizeOf(editor.store.get().adjustments),
 
