@@ -27,6 +27,7 @@ import { loadFullImage } from './photo-editor/photoProxySkia';
 import { encodeHeic, heicSupported } from '../../../modules/pixelmorph-video-export/src';
 import { lightCopyOf } from './photo-editor/lightCopy';
 import { presetStep } from './photo-editor/batchPreset';
+import { dateFormatter } from './projects/projectFormat';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 
@@ -165,7 +166,10 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
       // undo step each (their editor shows it on open and can undo it).
       async listPhotoProjects() {
         const all = await projects.listProjects.execute({ type: 'photo' });
-        return all.filter((p) => p.id !== projectId).map((p) => ({ id: p.id, name: p.name }));
+        // The date tells apart projects with the same name (two "Colagem", say).
+        return all
+          .filter((p) => p.id !== projectId)
+          .map((p) => ({ id: p.id, name: `${p.name} · ${dateFormatter.format(p.updatedAt)}` }));
       },
       async applyLookTo(ids: string[], look: Record<string, number>) {
         for (const id of ids) {
