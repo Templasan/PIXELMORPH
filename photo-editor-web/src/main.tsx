@@ -10,12 +10,12 @@ import './ui/styles.css';
 performance.mark('pm:script');
 // Inside the Android app the host is the app (bridge); in a desktop browser, the dev host.
 const session = createPhotoSession(inApp() ? createAndroidHost() : createDevHost());
-void session.load().then(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <App session={session} />
-    </StrictMode>
-  );
-});
+// The editor shows at once ("Abrindo a foto…", or the error) instead of a blank page while loading.
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App session={session} />
+  </StrictMode>
+);
+void session.load();
 // Lets tests and the console drive the editor.
 (window as unknown as { pm: typeof session }).pm = session;
