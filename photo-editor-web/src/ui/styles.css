@@ -278,16 +278,33 @@ button:disabled {
   place-items: center;
   overflow: hidden;
   background: var(--canvas);
+  touch-action: none;
 }
 
+/* Centred by its own size, so a zoomed picture overflows both sides; pan is a transform. */
 .photo {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   /* The photo's empty corners (after straightening) show as a checkerboard, like transparency. */
   background: repeating-conic-gradient(#2a2a2a 0 25%, #222 0 50%) 0 0 / 16px 16px;
 }
 
 .photo canvas {
   display: block;
+}
+
+.zoom-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto);
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  pointer-events: none;
 }
 
 .photo-input {
