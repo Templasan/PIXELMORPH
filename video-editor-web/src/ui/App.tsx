@@ -7,6 +7,7 @@ import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { ClipPanel, type ClipTool } from './panels/ClipPanel';
 import { MediaPanel } from './panels/MediaPanel';
+import { TimelapsePanel } from './panels/TimelapsePanel';
 import { TransitionPanel } from './panels/TransitionPanel';
 import { Timeline } from './Timeline';
 import { PROJECT_FORMATS } from '../domain/format';
@@ -16,7 +17,8 @@ type Panel =
   | { kind: 'media'; media: 'video' | 'image' | 'audio' }
   | { kind: 'clip'; tool: ClipTool }
   | { kind: 'transition'; clipId: string }
-  | { kind: 'format' };
+  | { kind: 'format' }
+  | { kind: 'timelapse' };
 
 export function App({ session }: { session: EditorSession }) {
   const { editor } = session;
@@ -86,10 +88,12 @@ export function App({ session }: { session: EditorSession }) {
         <TransitionPanel session={session} clipId={panel.clipId} onClose={() => setPanel({ kind: 'none' })} />
       )}
       {panel.kind === 'format' && <FormatPanel session={session} onClose={() => setPanel({ kind: 'none' })} />}
+      {panel.kind === 'timelapse' && <TimelapsePanel session={session} onClose={() => setPanel({ kind: 'none' })} />}
       {panel.kind === 'none' && (
         <Toolbar
           session={session}
           onFormat={() => setPanel({ kind: 'format' })}
+          onTimelapse={() => setPanel({ kind: 'timelapse' })}
           onMedia={(media) =>
             session.host.pickIsFinal
               ? void session.host
@@ -199,11 +203,13 @@ function FormatPanel({ session, onClose }: { session: EditorSession; onClose: ()
 function Toolbar({
   session,
   onFormat,
+  onTimelapse,
   onMedia,
   onTool,
 }: {
   session: EditorSession;
   onFormat: () => void;
+  onTimelapse: () => void;
   onMedia: (kind: 'video' | 'image' | 'audio') => void;
   onTool: (tool: ClipTool) => void;
 }) {
@@ -218,6 +224,7 @@ function Toolbar({
         <Tool icon="music" label="Áudio" onClick={() => onMedia('audio')} />
         <Tool icon="type" label="Texto" onClick={() => session.addText()} />
         <Tool icon="crop" label="Formato" onClick={onFormat} />
+        <Tool icon="speed" label="Time-lapse" onClick={onTimelapse} />
         <RippleTool session={session} />
       </nav>
     );

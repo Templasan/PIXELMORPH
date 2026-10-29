@@ -32,8 +32,8 @@ export interface ExportSink {
  * projects, gallery, proxies and file system; the browser dev host on a local folder.
  */
 export interface EditorHost {
-  /** Media the user picks to add (the app opens its picker; dev lists media/). */
-  pickMedia(kind: MediaItem['kind']): Promise<MediaItem[]>;
+  /** Media the user picks to add (the app opens its picker; dev lists media/). `multiple`: several at once. */
+  pickMedia(kind: MediaItem['kind'], multiple?: boolean): Promise<MediaItem[]>;
   /** True when pickMedia already IS the user's choice (a system picker): add without a list. */
   pickIsFinal: boolean;
   loadProject(): Promise<SavedProject | null>;
