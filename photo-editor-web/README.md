@@ -14,7 +14,7 @@ npm run build:app  # one self-contained index.html -> android/app/src/main/asset
 ```
 
 Test pictures go in `media/` (not committed). Exports land in `exports/`. In the console `pm` is
-the editing session (`pm.editor`, `pm.exportImage('jpeg', 0.9)`).
+the editing session (`pm.editor`, `pm.exportImage({ ...pm.exportOptions.get(), format: 'jpeg', quality: 90 })`).
 
 ## Why it was moved out
 
@@ -51,10 +51,11 @@ full-size JPEG copy (`<name>.full.jpg`, made once with Skia): the WebView cannot
 Done: Ajustes (básico, curvas, detalhe, cor seletiva, histograma), Geometria (quarter turns,
 mirror, straighten, 4-point perspective), Camadas (paint, visibility, opacity, merge),
 Efeitos (retrô, overlays, molduras, iluminação, dupla exposição), Elementos (text, shapes,
-stickers, meme), compare, undo/redo, export JPEG/PNG/WebP at full or reduced size.
+stickers, meme), compare, undo/redo, export JPEG/PNG/WebP with size presets, social crops,
+target size, DPI and watermark (export only).
 
 Not yet (from the old screen): bake ("✓" apply-and-start-over for Ajustes and perspective),
 Presets, batch edit, Panorama and collage (both create a new project: need a host method),
-export extras (target size, watermark, DPI, social presets, HEIC), pinch zoom, touch shortcuts
+HEIC export (needs native code), pinch zoom, touch shortcuts
 (2/3-finger taps), gyro parallax for stereoscopic photos. Máscaras, Retoque and IA were
 placeholders in the app (sprint 3) and were not carried over.
