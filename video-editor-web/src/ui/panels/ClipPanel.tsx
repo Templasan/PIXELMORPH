@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { EditorSession } from '../../application/session';
 import { selectedClipOf } from '../../application/videoEditorStore';
+import { applySpeedRamp } from '../../domain/speedRamp';
 import { captionName } from '../../application/textEdit';
 import {
   MAX_TEXT_SIZE,
@@ -10,7 +11,7 @@ import {
   TEXT_OUTLINE_WIDTH,
   type ClipText,
 } from '../../domain/textCaption';
-import type { Clip } from '../../domain/Track';
+import type { Clip, Track } from '../../domain/Track';
 import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
 
@@ -24,6 +25,7 @@ const TITLES: Record<ClipTool, string> = {
   text: 'Texto',
 };
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4];
+const RAMP_EDGES = ['start', 'end'] as const;
 const TEXT_COLORS = ['#ffffff', '#000000', '#ffd400', '#ff4d4d', '#3a8fde', '#5fb98f'];
 
 /**
@@ -132,6 +134,7 @@ export function ClipPanel({
             onLive={(v) => editor.setSpeed(v, 'live')}
           />
           <p className="muted">Os clipes seguintes desta faixa andam junto para não sobrepor.</p>
+          <SpeedRamp session={session} track={track} clip={clip} />
         </>
       )}
 
@@ -165,6 +168,52 @@ export function ClipPanel({
         <TextTool session={session} text={clip.text} />
       )}
     </section>
+  );
+}
+
+/** RF-049: ramps the speed to a target over the start or end of the clip, as one undo step. */
+function SpeedRamp({ session, track, clip }: { session: EditorSession; track: Track; clip: Clip }) {
+  const [target, setTarget] = useState(0.25);
+  const [secs, setSecs] = useState(2);
+  const [edge, setEdge] = useState<(typeof RAMP_EDGES)[number]>('end');
+  const tracks = useStore(session.editor.store, (s) => s.tracks);
+  // The domain leaves a ramp out when its pieces would be shorter than the minimum clip.
+  const fits = applySpeedRamp(tracks, track.id, clip.id, target, secs * 1000, edge) !== tracks;
+  const apply = () =>
+    session.editor.commitOnSelected((t, trackId, c) =>
+      applySpeedRamp(t, trackId, c.id, target, secs * 1000, edge)
+    );
+  return (
+    <>
+      <div className="field">
+        <label>
+          <span>Rampa até</span>
+        </label>
+      </div>
+      <Chips options={SPEEDS} value={target} label={(v) => `${v}x`} onPick={setTarget} />
+      <Slider
+        session={session}
+        label="Duração da rampa"
+        value={secs}
+        min={0.5}
+        max={3}
+        step={0.5}
+        format={(v) => `${v.toFixed(1)} s`}
+        onLive={setSecs}
+      />
+      <Chips
+        options={RAMP_EDGES}
+        value={edge}
+        label={(e) => (e === 'start' ? 'No início' : 'No fim')}
+        onPick={setEdge}
+      />
+      {!fits && (
+        <p className="muted">Rampa curta demais para esta velocidade: use mais segundos.</p>
+      )}
+      <button className="primary-btn" style={{ width: '100%' }} disabled={!fits} onClick={apply}>
+        Aplicar rampa
+      </button>
+    </>
   );
 }
 
