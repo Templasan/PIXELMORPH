@@ -67,7 +67,31 @@ function formatDateInput(date: Date | undefined): string {
   return `${dd}/${mm}/${date.getFullYear()}`;
 }
 
+/** RF-037: platform codec names (MediaExtractor MIME) as people know them. */
+const CODEC_NAMES: Record<string, string> = {
+  'video/avc': 'H.264',
+  'video/hevc': 'H.265 (HEVC)',
+  'video/av01': 'AV1',
+  'video/x-vnd.on2.vp9': 'VP9',
+  'video/x-vnd.on2.vp8': 'VP8',
+  'video/mp4v-es': 'MPEG-4',
+  'video/3gpp': 'H.263',
+  'audio/mp4a-latm': 'AAC',
+  'audio/opus': 'Opus',
+  'audio/vorbis': 'Vorbis',
+  'audio/mpeg': 'MP3',
+  'audio/flac': 'FLAC',
+  'audio/3gpp': 'AMR',
+  'audio/raw': 'PCM',
+};
+
+/** "H.264 + AAC" from a file's track codecs; unknown ones keep their MIME. */
+function codecLabel(mimes: readonly string[]): string {
+  return mimes.map((m) => CODEC_NAMES[m] ?? m).join(' + ');
+}
+
 export {
+  codecLabel,
   dateFormatter,
   primaryAsset,
   formatTypeLabel,
