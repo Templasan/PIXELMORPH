@@ -84,6 +84,36 @@ export function moveClip(
   return replaceTrack(tracks, trackId, nextClips);
 }
 
+/**
+ * RF-058 with Ripple on: reorder by dragging. The clip leaves its place (the clips after it close
+ * the gap) and goes where its middle is dropped: into a free stretch that fits it, or before the
+ * first clip whose middle lies after its own, pushing that clip and the rest right by what it
+ * needs. Nothing overlaps and the clips keep their order otherwise.
+ */
+export function rippleMove(
+  tracks: Track[],
+  trackId: string,
+  clipId: string,
+  desiredStartMs: number
+): Track[] {
+  const found = findTrackAndClip(tracks, trackId, clipId);
+  if (!found) return tracks;
+  const moving = found.clip;
+  const duration = clipDurationMs(moving);
+  const closed = rippleDelete(tracks, trackId, clipId);
+  const others = sortedClips(closed.find((t) => t.id === trackId)!);
+  const middle = Math.max(0, desiredStartMs) + duration / 2;
+  const next = others.find((c) => c.startMs + clipDurationMs(c) / 2 > middle);
+  const prevEnd = others
+    .filter((c) => !next || c.startMs < next.startMs)
+    .reduce((end, c) => Math.max(end, clipEndMs(c)), 0);
+  const start = next
+    ? Math.max(prevEnd, Math.min(Math.max(0, desiredStartMs), next.startMs))
+    : Math.max(prevEnd, desiredStartMs);
+  const pushed = next ? rippleShiftAfter(closed, trackId, next.startMs, Math.max(0, start + duration - next.startMs)) : closed;
+  return pushed.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, { ...moving, startMs: start }] } : t));
+}
+
 /** RF-035: drag the clip's in-point, keeping its out-point (and therefore end time) fixed. */
 export function trimClipIn(
   tracks: Track[],
@@ -104,8 +134,9 @@ export function trimClipIn(
   let newStart = clip.startMs + (clampedIn - clip.inPointMs) / speed;
   const lowerBound = prevClip ? clipEndMs(prevClip) : 0;
   newStart = Math.max(lowerBound, newStart);
-  // Re-derive the actual in-point from the clamped start so duration math stays consistent.
-  const actualIn = clip.inPointMs + (newStart - clip.startMs) * speed;
+  // Re-derive the actual in-point from the clamped start so duration math stays consistent
+  // (floored at 0: the round trip through speed can land a hair below it).
+  const actualIn = Math.max(0, clip.inPointMs + (newStart - clip.startMs) * speed);
 
   const nextClips = track.clips.map((c) =>
     c.id === clipId ? { ...c, startMs: newStart, inPointMs: actualIn } : c

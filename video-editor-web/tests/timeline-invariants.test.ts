@@ -5,6 +5,7 @@ import {
   moveClip,
   removeClip,
   rippleDelete,
+  rippleMove,
   rippleTrim,
   setClipSpeed,
   splitClipAtMs,
@@ -58,7 +59,7 @@ describe('timeline edits on random timelines', () => {
         const track = pick(tracks);
         if (!track.clips.length) continue;
         const c = pick(track.clips);
-        const op = pick(['move', 'in', 'out', 'split', 'speed', 'remove', 'rin', 'rout', 'rdel'] as const);
+        const op = pick(['move', 'in', 'out', 'split', 'speed', 'remove', 'rin', 'rout', 'rdel', 'rmove'] as const);
         if (op === 'move') tracks = moveClip(tracks, track.id, c.id, c.startMs + (rnd() - 0.5) * 4000);
         if (op === 'in') tracks = trimClipIn(tracks, track.id, c.id, c.inPointMs + (rnd() - 0.5) * 3000);
         if (op === 'out') tracks = trimClipOut(tracks, track.id, c.id, c.outPointMs + (rnd() - 0.5) * 3000);
@@ -67,6 +68,7 @@ describe('timeline edits on random timelines', () => {
         if (op === 'rin') tracks = rippleTrim(tracks, track.id, c.id, 'in', c.inPointMs + (rnd() - 0.5) * 3000);
         if (op === 'rout') tracks = rippleTrim(tracks, track.id, c.id, 'out', c.outPointMs + (rnd() - 0.5) * 3000);
         if (op === 'rdel' && track.clips.length > 1) tracks = rippleDelete(tracks, track.id, c.id);
+        if (op === 'rmove') tracks = rippleMove(tracks, track.id, c.id, c.startMs + (rnd() - 0.5) * 12000);
         if (op === 'split') {
           const at = c.startMs + rnd() * clipDurationMs(c);
           const before = sourceAt(tracks, at + 50);
@@ -102,6 +104,22 @@ describe('ripple edits', () => {
     const tracks = t();
     const b = tracks[0].clips[1];
     expect(starts(rippleTrim(tracks, 'v', b.id, 'in', 500))).toEqual([['a', 0, 2000], ['b', 2000, 3500], ['c', 4500, 5500]]);
+  });
+
+  it('reorder: dropped over the middle of b, a goes after b and nothing overlaps', () => {
+    const tracks = t();
+    const [a] = tracks[0].clips;
+    const order = (ts: Track[]) =>
+      [...ts[0].clips].sort((x, y) => x.startMs - y.startMs).map((c) => [c.name, c.startMs, clipEndMs(c)]);
+    expect(order(rippleMove(tracks, 'v', a.id, 1500))).toEqual([['b', 0, 2000], ['a', 2000, 4000], ['c', 4000, 5000]]);
+  });
+
+  it('reorder: c dropped at the start goes first and pushes the others', () => {
+    const tracks = t();
+    const c = tracks[0].clips[2];
+    const order = (ts: Track[]) =>
+      [...ts[0].clips].sort((x, y) => x.startMs - y.startMs).map((k) => [k.name, k.startMs, clipEndMs(k)]);
+    expect(order(rippleMove(tracks, 'v', c.id, 0))).toEqual([['c', 0, 1000], ['a', 1000, 3000], ['b', 3000, 5000]]);
   });
 
   it('delete closes the hole', () => {
