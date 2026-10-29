@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useRef, type ReactNode } from 'react';
 import type { PhotoSession } from '../application/session';
 import { DEFAULT_ADJUSTMENTS } from '../domain/adjustments';
@@ -62,7 +63,7 @@ export function FieldSlider({
 export function Chips<T extends string | number>({
   options,
   value,
-  label = (v) => String(v),
+  label = (v) => t(String(v)),
   onPick,
 }: {
   options: readonly T[];
@@ -132,7 +133,7 @@ export function Swatches({
           onClick={() => onPick(c)}
         />
       ))}
-      <label className={`color-dot custom${custom ? ' on' : ''}`} style={custom ? { background: value } : undefined} title="Outra cor">
+      <label className={`color-dot custom${custom ? ' on' : ''}`} style={custom ? { background: value } : undefined} title={t('Outra cor')}>
         {!custom && '+'}
         <input type="color" value={value} onChange={(e) => onPick(e.target.value)} />
       </label>

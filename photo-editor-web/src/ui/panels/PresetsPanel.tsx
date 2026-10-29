@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useEffect, useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import { useStore } from '../../state/useStore';
@@ -14,13 +15,13 @@ export function PresetsPanel({ session }: { session: PhotoSession }) {
     session
       .savePreset(name)
       .then(() => setName(''))
-      .catch((e) => setError(`Não foi possível salvar: ${e?.message ?? e}`));
+      .catch((e) => setError(t('Não foi possível salvar: {msg}', { msg: e?.message ?? e })));
   return (
     <>
       {presets === null ? (
-        <div className="muted">Carregando…</div>
+        <div className="muted">{t('Carregando…')}</div>
       ) : presets.length === 0 ? (
-        <div className="muted">Nenhum preset salvo ainda.</div>
+        <div className="muted">{t('Nenhum preset salvo ainda.')}</div>
       ) : (
         <div className="chips">
           {presets.map((p) => (
@@ -31,9 +32,9 @@ export function PresetsPanel({ session }: { session: PhotoSession }) {
         </div>
       )}
       <div className="field row">
-        <input type="text" placeholder="Nome do preset" value={name} onChange={(e) => setName(e.target.value)} />
+        <input type="text" placeholder={t('Nome do preset')} value={name} onChange={(e) => setName(e.target.value)} />
         <button className="chip" disabled={!name.trim()} onClick={save}>
-          Salvar ajustes atuais
+          {t('Salvar ajustes atuais')}
         </button>
       </div>
       {error && <div className="muted">{error}</div>}
@@ -58,22 +59,22 @@ function BatchSection({ session }: { session: PhotoSession }) {
     session
       .applyLookTo(chosen, presets.find((p) => p.id === source) ?? null)
       .then((n) => {
-        setMessage(`Aplicado em ${n} ${n === 1 ? 'foto' : 'fotos'}.`);
+        setMessage(t(n === 1 ? 'Aplicado em 1 foto.' : 'Aplicado em {n} fotos.', { n }));
         setChosen([]);
       })
-      .catch((e) => setMessage(`Não foi possível aplicar: ${e?.message ?? e}`));
+      .catch((e) => setMessage(t('Não foi possível aplicar: {msg}', { msg: e?.message ?? e })));
   if (!open)
     return (
       <button className="chip" onClick={start}>
-        Edição em lote…
+        {t('Edição em lote…')}
       </button>
     );
   return (
     <div className="field">
-      <div className="sub">Aplicar</div>
+      <div className="sub">{t('Aplicar')}</div>
       <div className="chips">
         <button className={`chip${source === '' ? ' on' : ''}`} onClick={() => setSource('')}>
-          Ajustes desta foto
+          {t('Ajustes desta foto')}
         </button>
         {presets.map((p) => (
           <button key={p.id} className={`chip${source === p.id ? ' on' : ''}`} onClick={() => setSource(p.id)}>
@@ -81,11 +82,11 @@ function BatchSection({ session }: { session: PhotoSession }) {
           </button>
         ))}
       </div>
-      <div className="sub">Em</div>
+      <div className="sub">{t('Em')}</div>
       {projects === null ? (
-        <div className="muted">Carregando…</div>
+        <div className="muted">{t('Carregando…')}</div>
       ) : projects.length === 0 ? (
-        <div className="muted">Não há outras fotos.</div>
+        <div className="muted">{t('Não há outras fotos.')}</div>
       ) : (
         <div className="chips">
           {projects.map((p) => (
@@ -100,7 +101,7 @@ function BatchSection({ session }: { session: PhotoSession }) {
         </div>
       )}
       <button className="primary-btn wide" disabled={chosen.length === 0} onClick={apply}>
-        Aplicar em {chosen.length} {chosen.length === 1 ? 'foto' : 'fotos'}
+        {t(chosen.length === 1 ? 'Aplicar em 1 foto' : 'Aplicar em {n} fotos', { n: chosen.length })}
       </button>
       {message && <div className="muted">{message}</div>}
     </div>

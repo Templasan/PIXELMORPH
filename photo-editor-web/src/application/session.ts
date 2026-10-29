@@ -4,6 +4,7 @@ import { coverFitRect, scaleToFit, searchQualityForTargetSize, SIZE_PRESETS, SOC
 import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
+import { t } from '../i18n';
 import { drawScene } from '../engine/scene';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
@@ -110,7 +111,7 @@ export function createPhotoSession(host: EditorHost) {
   const info = createStore<SessionInfo>({
     status: 'loading',
     error: null,
-    name: 'Novo projeto',
+    name: t('Novo projeto'),
     photo: null,
     size: null,
     frameColor: '#111111',
@@ -296,7 +297,7 @@ export function createPhotoSession(host: EditorHost) {
     draw: (pics: { bitmap: ImageBitmap; width: number; height: number }[]) => HTMLCanvasElement
   ) {
     if (info.get().busy) return;
-    setInfo({ busy: `Criando ${name.toLowerCase()}…` });
+    setInfo({ busy: t('Criando {name}…', { name: t(name).toLowerCase() }) });
     const pics: { bitmap: ImageBitmap; width: number; height: number }[] = [];
     let canvas: HTMLCanvasElement | null = null;
     try {
@@ -307,7 +308,7 @@ export function createPhotoSession(host: EditorHost) {
       canvas = draw(pics);
       const done = canvas;
       const blob = await new Promise<Blob | null>((r) => done.toBlob(r, 'image/jpeg', 0.9));
-      if (!blob) throw new Error('O navegador não gerou o arquivo.');
+      if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
       const sink = host.newProject(name, canvas.width, canvas.height);
       await sink.start(`${name.toLowerCase()}_${Date.now()}.jpg`);
       await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
@@ -332,7 +333,7 @@ export function createPhotoSession(host: EditorHost) {
         performance.mark('pm:load');
         const saved = await host.loadProject();
         performance.mark('pm:project');
-        if (!saved) throw new Error('Projeto sem foto.');
+        if (!saved) throw new Error(t('Projeto sem foto.'));
         history = createHistory(saved.history);
         historyState.set(history.state.get());
         history.state.subscribe(() => {
@@ -404,8 +405,8 @@ export function createPhotoSession(host: EditorHost) {
      */
     async exportImage(options: ExportOptions = exportOptions.get()): Promise<ExportResult> {
       const i = info.get();
-      if (!i.photo) throw new Error('Nada para exportar.');
-      setInfo({ busy: 'Exportando…' });
+      if (!i.photo) throw new Error(t('Nada para exportar.'));
+      setInfo({ busy: t('Exportando…') });
       const gl = new PhotoGl();
       // Full-size pictures and canvases are freed as soon as the file is out (see PhotoGl.dispose).
       const bitmaps: ImageBitmap[] = [];
@@ -492,7 +493,7 @@ export function createPhotoSession(host: EditorHost) {
           ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
           : options.quality;
         const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, heic ? 1 : quality / 100));
-        if (!blob) throw new Error('O navegador não gerou o arquivo.');
+        if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
         lap('encoded');
         let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
         if (format === 'jpeg') bytes = setJpegDpi(bytes, options.dpi);
@@ -530,7 +531,7 @@ export function createPhotoSession(host: EditorHost) {
     async bake(fields: readonly string[]) {
       const i = info.get();
       if (!i.photo || i.busy) return;
-      setInfo({ busy: 'Aplicando…' });
+      setInfo({ busy: t('Aplicando…') });
       const gl = new PhotoGl();
       let bitmap: ImageBitmap | null = null;
       try {
@@ -547,7 +548,7 @@ export function createPhotoSession(host: EditorHost) {
         const pixels = gl.picture();
         const blob = await new Promise<Blob | null>((r) => pixels.toBlob(r, 'image/jpeg', 0.92));
         if (pixels !== gl.canvas) pixels.width = pixels.height = 0;
-        if (!blob) throw new Error('O navegador não gerou o arquivo.');
+        if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
         const sink = host.photoSink();
         await sink.start(`baked_${Date.now()}.jpg`);
         await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
@@ -570,13 +571,13 @@ export function createPhotoSession(host: EditorHost) {
     pickPicture: () => host.pickPicture(),
     /** RF-011: a collage of `refs` (one per cell) becomes a new project. */
     createCollage(refs: PictureRef[], layout: CollageLayout, options: CollageOptions) {
-      return makeProject('Colagem', refs, (pics) =>
+      return makeProject(t('Colagem'), refs, (pics) =>
         drawCollage(pics.map((p) => p.bitmap), pics, layout, COLLAGE_SIZE, options)
       );
     },
     /** US-28: `refs` left to right, overlapping by `overlap` of each width, nudged by `offsetsY`. */
     createPanorama(refs: PictureRef[], overlap: number, offsetsY: number[]) {
-      return makeProject('Panorama', refs, (pics) => {
+      return makeProject(t('Panorama'), refs, (pics) => {
         const height = Math.min(PANORAMA_HEIGHT, ...pics.map((p) => p.height));
         return drawPanorama(pics.map((p) => p.bitmap), panoramaLayout(pics, height, overlap, offsetsY));
       });

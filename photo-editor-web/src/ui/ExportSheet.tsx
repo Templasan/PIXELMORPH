@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useState } from 'react';
 import type { ExportFormat, ExportOptions, ExportResult, PhotoSession } from '../application/session';
 import { SIZE_PRESETS, SOCIAL_PRESETS, formatBytes, watermarkShadow } from '../domain/export/exportMath';
@@ -37,7 +38,7 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
     try {
       setResult(await session.exportImage());
     } catch (e) {
-      setError(`Falhou: ${e instanceof Error ? e.message : String(e)}`);
+      setError(t('Falhou: {msg}', { msg: e instanceof Error ? e.message : String(e) }));
     }
   };
 
@@ -45,13 +46,13 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
     <div className="sheet-veil" onClick={() => !busy && onClose()}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="panel-head">
-          <span>Exportar foto</span>
-          <button className="icon-btn" onClick={onClose} disabled={busy} aria-label="Fechar">
+          <span>{t('Exportar foto')}</span>
+          <button className="icon-btn" onClick={onClose} disabled={busy} aria-label={t('Fechar')}>
             ✕
           </button>
         </div>
 
-        <div className="sub">Formato</div>
+        <div className="sub">{t('Formato')}</div>
         <Chips
           options={FORMATS.filter((f) => f.id !== 'heic' || info.canHeic).map((f) => f.id)}
           value={o.format}
@@ -68,16 +69,16 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
 
         {o.format !== 'png' && (
           <>
-            <div className="sub">Compressão</div>
+            <div className="sub">{t('Compressão')}</div>
             {o.format !== 'heic' && (
               <label className="toggle">
                 <input type="checkbox" checked={o.targetOn} onChange={(e) => set({ targetOn: e.target.checked })} />
-                Compressão inteligente
+                {t('Compressão inteligente')}
               </label>
             )}
             {o.targetOn && o.format !== 'heic' ? (
               <Range
-                label="Tamanho alvo"
+                label={t('Tamanho alvo')}
                 value={o.targetMB}
                 min={0.5}
                 max={10}
@@ -87,7 +88,7 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
               />
             ) : (
               <Range
-                label="Qualidade"
+                label={t('Qualidade')}
                 value={o.quality}
                 min={10}
                 max={100}
@@ -98,14 +99,14 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
           </>
         )}
 
-        <div className="sub">Tamanho</div>
+        <div className="sub">{t('Tamanho')}</div>
         <Chips
           options={SIZE_PRESETS.map((s) => s.name)}
           value={o.social ? null : o.sizePreset}
           onPick={(sizePreset) => set({ sizePreset, social: null })}
         />
 
-        <div className="sub">Redes sociais (recorte)</div>
+        <div className="sub">{t('Redes sociais (recorte)')}</div>
         <Chips
           options={SOCIAL_PRESETS.map((p) => p.name)}
           value={o.social}
@@ -120,13 +121,13 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
           onPick={(name) => set({ social: o.social === name ? null : name })}
         />
 
-        <div className="sub">Marca d'água</div>
+        <div className="sub">{t("Marca d'água")}</div>
         <div className="field">
           <input
             type="text"
             value={wm.text}
             maxLength={60}
-            placeholder="Seu nome ou @perfil"
+            placeholder={t('Seu nome ou @perfil')}
             autoComplete="off"
             onChange={(e) => setWm({ text: e.target.value })}
           />
@@ -143,26 +144,26 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
               textShadow: `${SHADOW.offset}em ${SHADOW.offset}em ${SHADOW.blur}em rgba(0, 0, 0, ${SHADOW.alpha})`,
             }}
           >
-            {wm.text.trim() || 'Seu texto'}
+            {wm.text.trim() || t('Seu texto')}
           </span>
         </div>
         <div className="wm-grid">
           <Chips options={CELLS} value={wm.position} label={(i) => GLYPHS[i]} onPick={(position) => setWm({ position })} />
         </div>
-        <Range label="Opacidade" value={wm.opacity} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={(opacity) => setWm({ opacity })} />
-        <Range label="Tamanho" value={wm.size} min={5} max={80} onChange={(size) => setWm({ size })} />
-        <Range label="Rotação" value={wm.rotation} min={-180} max={180} format={(v) => `${Math.round(v)}°`} onChange={(rotation) => setWm({ rotation })} />
+        <Range label={t('Opacidade')} value={wm.opacity} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={(opacity) => setWm({ opacity })} />
+        <Range label={t('Tamanho')} value={wm.size} min={5} max={80} onChange={(size) => setWm({ size })} />
+        <Range label={t('Rotação')} value={wm.rotation} min={-180} max={180} format={(v) => `${Math.round(v)}°`} onChange={(rotation) => setWm({ rotation })} />
 
         <button className="primary-btn wide" disabled={busy} onClick={run}>
-          {busy ? 'Exportando…' : 'Exportar'}
+          {busy ? t('Exportando…') : t('Exportar')}
         </button>
         {error && <div className="muted">{error}</div>}
         {result && (
           <div className="muted">
             {FORMATS.find((f) => f.id === result.format)!.label} · {result.width}×{result.height}
             {result.bytes !== null && ` · ${formatBytes(result.bytes)}`}
-            {result.quality !== null && ` · qualidade ${result.quality}%`}
-            {result.overTarget && ' · acima do alvo (qualidade mínima)'}
+            {result.quality !== null && ` · ${t('qualidade')} ${result.quality}%`}
+            {result.overTarget && ` · ${t('acima do alvo (qualidade mínima)')}`}
             <br />
             {result.where}
           </div>

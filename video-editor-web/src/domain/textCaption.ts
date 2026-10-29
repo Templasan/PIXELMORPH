@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /**
  * RF-008: text over video. A text clip on a 'text' track carries a ClipText; `captionAt` says how
  * it looks at an instant (position, opacity, scale, letters shown) for the preview AND the export.
@@ -43,7 +44,7 @@ export interface ClipText {
 }
 
 export const DEFAULT_TEXT: ClipText = {
-  content: 'Texto',
+  content: t('Texto'),
   fontFamily: 'sans-serif',
   color: '#ffffff',
   size: 0.08,

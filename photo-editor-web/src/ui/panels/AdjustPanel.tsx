@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useRef, useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import { ADJUST_DRAWER_FIELDS } from '../../domain/adjustments';
@@ -28,25 +29,25 @@ export function AdjustPanel({ session }: { session: PhotoSession }) {
         <Chips options={TABS} value={tab} onPick={setTab} />
         <button
           className="chip"
-          title="Aplica os ajustes na foto e começa do zero"
+          title={t('Aplica os ajustes na foto e começa do zero')}
           onClick={() => void session.bake(ADJUST_DRAWER_FIELDS)}
         >
-          ✓ Aplicar
+          ✓ {t('Aplicar')}
         </button>
       </div>
       {tab === 'Básico' && (
         <>
           <Histogram session={session} />
-          {s('temperatura', 'Temperatura', -100, 100)}
-          {s('tint', 'Matiz de branco', -100, 100)}
-          {s('matiz', 'Matiz', -100, 100)}
-          {s('saturacao', 'Saturação', -100, 100)}
-          {s('luminosidade', 'Luminosidade', -100, 100)}
-          {s('vibracao', 'Vibração', -100, 100)}
+          {s('temperatura', t('Temperatura'), -100, 100)}
+          {s('tint', t('Matiz de branco'), -100, 100)}
+          {s('matiz', t('Matiz'), -100, 100)}
+          {s('saturacao', t('Saturação'), -100, 100)}
+          {s('luminosidade', t('Luminosidade'), -100, 100)}
+          {s('vibracao', t('Vibração'), -100, 100)}
           <FieldSlider
             session={session}
             field="exposicao"
-            label="Exposição"
+            label={t('Exposição')}
             min={-3}
             max={3}
             step={0.05}
@@ -57,10 +58,10 @@ export function AdjustPanel({ session }: { session: PhotoSession }) {
       {tab === 'Curvas' && <Curves session={session} />}
       {tab === 'Detalhe' && (
         <>
-          {s('nitidez', 'Nitidez', 0, 100)}
-          <FieldSlider session={session} field="raio" label="Raio" min={0} max={5} step={0.1} format={(v) => v.toFixed(1)} />
-          {s('reducaoRuido', 'Redução ruído', 0, 100)}
-          {s('luminancia', 'Luminância', 0, 100)}
+          {s('nitidez', t('Nitidez'), 0, 100)}
+          <FieldSlider session={session} field="raio" label={t('Raio')} min={0} max={5} step={0.1} format={(v) => v.toFixed(1)} />
+          {s('reducaoRuido', t('Redução ruído'), 0, 100)}
+          {s('luminancia', t('Luminância'), 0, 100)}
         </>
       )}
       {tab === 'Cor seletiva' && <Selective session={session} />}
@@ -147,17 +148,17 @@ function Selective({ session }: { session: PhotoSession }) {
             style={{ ['--swatch' as string]: `hsl(${SELECTIVE_HUES_DEG[i]} 80% 55%)` }}
             onClick={() => commit(session, 'corIndex', index === i ? -1 : i)}
           >
-            {name}
+            {t(name)}
           </button>
         ))}
       </div>
       {index >= 0 && (
         <>
-          <FieldSlider session={session} field="corTolerancia" label="Tolerância" min={0} max={100} />
-          <FieldSlider session={session} field="corDesaturarResto" label="Dessat. resto" min={0} max={100} />
-          <FieldSlider session={session} field="corMatiz" label="Matiz" min={-100} max={100} />
-          <FieldSlider session={session} field="corSaturacao" label="Saturação" min={-100} max={100} />
-          <FieldSlider session={session} field="corLuminosidade" label="Luminosidade" min={-100} max={100} />
+          <FieldSlider session={session} field="corTolerancia" label={t('Tolerância')} min={0} max={100} />
+          <FieldSlider session={session} field="corDesaturarResto" label={t('Dessat. resto')} min={0} max={100} />
+          <FieldSlider session={session} field="corMatiz" label={t('Matiz')} min={-100} max={100} />
+          <FieldSlider session={session} field="corSaturacao" label={t('Saturação')} min={-100} max={100} />
+          <FieldSlider session={session} field="corLuminosidade" label={t('Luminosidade')} min={-100} max={100} />
         </>
       )}
     </>

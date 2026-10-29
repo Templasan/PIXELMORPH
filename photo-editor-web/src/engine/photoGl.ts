@@ -5,6 +5,7 @@ import { invertMat3, type Mat3 } from '../domain/geometry/homography';
 import { adjustmentUniforms, perspectiveMatrixOf, retroUniformsOf } from '../domain/adjustments';
 import type { Adjustments } from '../domain/adjustments';
 import { skslToGlsl } from './sksl';
+import { t } from '../i18n';
 
 /** A second picture blended over the photo (double exposure, a gallery overlay). */
 export interface BlendImage {
@@ -104,7 +105,7 @@ export class PhotoGl {
   constructor() {
     this.canvas = document.createElement('canvas');
     const gl = this.canvas.getContext('webgl2', { premultipliedAlpha: true, preserveDrawingBuffer: true });
-    if (!gl) throw new Error('WebGL2 indisponível');
+    if (!gl) throw new Error(t('WebGL2 indisponível'));
     this.gl = gl;
     this.adjust = this.compile(skslToGlsl(ADJUSTMENTS_SKSL));
     this.retro = this.compile(skslToGlsl(RETRO_EFFECTS_SKSL));

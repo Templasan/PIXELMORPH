@@ -5,6 +5,7 @@
  * editor screen in this app.
  */
 
+import { t } from '../i18n';
 import {
   type Clip,
   type Track,
@@ -252,7 +253,7 @@ export function buildTimelapseTrack(
   const clips: Clip[] = images.map((img, i) => {
     const clip: Clip = {
       id: createClipId(),
-      name: img.name || `Foto ${i + 1}`,
+      name: img.name || t('Foto {n}', { n: i + 1 }),
       sourceUri: img.uri,
       color,
       startMs,

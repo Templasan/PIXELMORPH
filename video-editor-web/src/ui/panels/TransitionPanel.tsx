@@ -13,6 +13,7 @@ import {
 import type { TransitionSpec } from '../../domain/Track';
 import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
+import { t } from '../../i18n';
 
 /** The transition into `clipId` from the clip just before it on the same track. */
 export function TransitionPanel({
@@ -46,19 +47,19 @@ export function TransitionPanel({
   return (
     <section className="panel">
       <div className="panel-head">
-        Transição
-        <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+        {t('Transição')}
+        <button className="icon-btn" onClick={onClose} aria-label={t('Fechar')}>
           <Icon name="check" size={18} />
         </button>
       </div>
       <div className="chips">
-        {(['none', ...TRANSITION_TYPES] as const).map((t) => (
+        {(['none', ...TRANSITION_TYPES] as const).map((kind) => (
           <button
-            key={t}
-            className={`chip${(spec?.type ?? 'none') === t ? ' on' : ''}`}
-            onClick={() => pick(t)}
+            key={kind}
+            className={`chip${(spec?.type ?? 'none') === kind ? ' on' : ''}`}
+            onClick={() => pick(kind)}
           >
-            {t === 'none' ? 'Nenhuma' : TRANSITION_LABELS[t]}
+            {kind === 'none' ? t('Nenhuma') : t(TRANSITION_LABELS[kind])}
           </button>
         ))}
       </div>
@@ -72,14 +73,14 @@ export function TransitionPanel({
                   className={`chip${effectiveMode(spec.type, spec.mode) === m ? ' on' : ''}`}
                   onClick={() => apply({ ...spec, mode: m })}
                 >
-                  {m === 'out' ? 'Saída (o anterior sai)' : 'Entrada (o novo empurra)'}
+                  {m === 'out' ? t('Saída (o anterior sai)') : t('Entrada (o novo empurra)')}
                 </button>
               ))}
             </div>
           )}
           <div className="field">
             <label>
-              <span>Duração</span>
+              <span>{t('Duração')}</span>
               <span>{(spec.durationMs / 1000).toFixed(2)} s</span>
             </label>
             <input
@@ -93,7 +94,7 @@ export function TransitionPanel({
               onBlur={() => editor.endGesture()}
             />
           </div>
-          <p className="muted">No máximo metade do clipe mais curto dos dois.</p>
+          <p className="muted">{t('No máximo metade do clipe mais curto dos dois.')}</p>
         </>
       )}
     </section>

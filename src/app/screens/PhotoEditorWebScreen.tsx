@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useI18n } from '@core/i18n';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
@@ -82,6 +83,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
   const { projects } = useAppModules();
   const insets = useSafeAreaInsets();
+  const { language } = useI18n();
   const webRef = useRef<WebView>(null);
   const files = useMemo(createFileHost, []);
   const historyRepo = useMemo(() => new LocalHistoryRepository(), []);
@@ -318,7 +320,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   }
 
   // The page draws edge to edge: give it the system bars' sizes before it lays out.
-  const insetsScript = `(function(){var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
+  // The editor's UI language (RNF-016), read once by the page before it draws.
+  const insetsScript = `(function(){window.__pmLanguage='${language}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
 
   return (
     <View style={styles.container}>

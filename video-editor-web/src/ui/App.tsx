@@ -11,6 +11,7 @@ import { TimelapsePanel } from './panels/TimelapsePanel';
 import { TransitionPanel } from './panels/TransitionPanel';
 import { Timeline } from './Timeline';
 import { PROJECT_FORMATS } from '../domain/format';
+import { t } from '../i18n';
 
 type Panel =
   | { kind: 'none' }
@@ -59,18 +60,18 @@ export function App({ session }: { session: EditorSession }) {
   return (
     <div className="editor">
       <header className="topbar">
-        <button className="icon-btn" onClick={() => session.host.close()} aria-label="Voltar">
+        <button className="icon-btn" onClick={() => session.host.close()} aria-label={t('Voltar')}>
           <Icon name="back" />
         </button>
-        <div className="title">{name}</div>
-        <button className="icon-btn" disabled={!history.canUndo} onClick={() => editor.undo()} aria-label="Desfazer">
+        <div className="title">{name === 'Projeto sem nome' ? t(name) : name}</div>
+        <button className="icon-btn" disabled={!history.canUndo} onClick={() => editor.undo()} aria-label={t('Desfazer')}>
           <Icon name="undo" size={20} />
         </button>
-        <button className="icon-btn" disabled={!history.canRedo} onClick={() => editor.redo()} aria-label="Refazer">
+        <button className="icon-btn" disabled={!history.canRedo} onClick={() => editor.redo()} aria-label={t('Refazer')}>
           <Icon name="redo" size={20} />
         </button>
         <button className="primary-btn" onClick={() => setExporting(true)}>
-          EXPORTAR
+          {t('EXPORTAR')}
         </button>
       </header>
 
@@ -124,7 +125,7 @@ function Preview({ session }: { session: EditorSession }) {
   return (
     <div className="preview" onClick={() => session.toggle()}>
       <canvas ref={canvasRef} />
-      {copies > 0 && <div className="badge">Prévia leve</div>}
+      {copies > 0 && <div className="badge">{t('Prévia leve')}</div>}
       {(error || busy) && (
         <div className="toast" onClick={(e) => (e.stopPropagation(), session.error.set(null))}>
           {busy ?? error}
@@ -157,19 +158,19 @@ function Transport({ session }: { session: EditorSession }) {
     <div className="transport">
       <span className="timecode">{shortTime(time)}</span>
       <div className="buttons">
-        <button className="icon-btn" onClick={() => (session.pause(), session.seek(0))} aria-label="Início">
+        <button className="icon-btn" onClick={() => (session.pause(), session.seek(0))} aria-label={t('Início')}>
           <Icon name="skipBack" size={18} />
         </button>
-        <button className="icon-btn step" onClick={() => step(-1)} aria-label="Quadro anterior">
+        <button className="icon-btn step" onClick={() => step(-1)} aria-label={t('Quadro anterior')}>
           <Icon name="stepBack" size={18} />
         </button>
-        <button className="play-btn" onClick={() => session.toggle()} aria-label={playing ? 'Pausar' : 'Reproduzir'}>
+        <button className="play-btn" onClick={() => session.toggle()} aria-label={playing ? t('Pausar') : t('Reproduzir')}>
           <Icon name={playing ? 'pause' : 'play'} size={20} />
         </button>
-        <button className="icon-btn step" onClick={() => step(1)} aria-label="Próximo quadro">
+        <button className="icon-btn step" onClick={() => step(1)} aria-label={t('Próximo quadro')}>
           <Icon name="stepFwd" size={18} />
         </button>
-        <button className="icon-btn" onClick={() => (session.pause(), session.seek(total))} aria-label="Fim">
+        <button className="icon-btn" onClick={() => (session.pause(), session.seek(total))} aria-label={t('Fim')}>
           <Icon name="skipFwd" size={18} />
         </button>
       </div>
@@ -183,8 +184,8 @@ function FormatPanel({ session, onClose }: { session: EditorSession; onClose: ()
   return (
     <section className="panel">
       <div className="panel-head">
-        Formato do vídeo
-        <button className="icon-btn" onClick={onClose} aria-label="Fechar">
+        {t('Formato do vídeo')}
+        <button className="icon-btn" onClick={onClose} aria-label={t('Fechar')}>
           <Icon name="check" size={18} />
         </button>
       </div>
@@ -195,7 +196,7 @@ function FormatPanel({ session, onClose }: { session: EditorSession; onClose: ()
           </button>
         ))}
       </div>
-      <p className="muted">Vídeos de outro formato ficam inteiros com faixas pretas; use Posição → Preencher para cortar.</p>
+      <p className="muted">{t('Vídeos de outro formato ficam inteiros com faixas pretas; use Posição → Preencher para cortar.')}</p>
     </section>
   );
 }
@@ -219,12 +220,12 @@ function Toolbar({
   if (!selection) {
     return (
       <nav className="toolbar">
-        <Tool icon="film" label="Vídeo" onClick={() => onMedia('video')} />
-        <Tool icon="image" label="Foto" onClick={() => onMedia('image')} />
-        <Tool icon="music" label="Áudio" onClick={() => onMedia('audio')} />
-        <Tool icon="type" label="Texto" onClick={() => session.addText()} />
-        <Tool icon="crop" label="Formato" onClick={onFormat} />
-        <Tool icon="speed" label="Time-lapse" onClick={onTimelapse} />
+        <Tool icon="film" label={t('Vídeo')} onClick={() => onMedia('video')} />
+        <Tool icon="image" label={t('Foto')} onClick={() => onMedia('image')} />
+        <Tool icon="music" label={t('Áudio')} onClick={() => onMedia('audio')} />
+        <Tool icon="type" label={t('Texto')} onClick={() => session.addText()} />
+        <Tool icon="crop" label={t('Formato')} onClick={onFormat} />
+        <Tool icon="speed" label={t('Time-lapse')} onClick={onTimelapse} />
         <RippleTool session={session} />
       </nav>
     );
@@ -234,20 +235,20 @@ function Toolbar({
   const media = track.kind === 'video' || track.kind === 'image';
   return (
     <nav className="toolbar">
-      <Tool icon="scissors" label="Dividir" disabled={!inside || track.locked} onClick={() => editor.split(time)} />
-      {track.kind === 'text' && <Tool icon="type" label="Editar" onClick={() => onTool('text')} />}
-      {track.kind === 'video' && <Tool icon="speed" label="Velocidade" onClick={() => onTool('speed')} />}
+      <Tool icon="scissors" label={t('Dividir')} disabled={!inside || track.locked} onClick={() => editor.split(time)} />
+      {track.kind === 'text' && <Tool icon="type" label={t('Editar')} onClick={() => onTool('text')} />}
+      {track.kind === 'video' && <Tool icon="speed" label={t('Velocidade')} onClick={() => onTool('speed')} />}
       {(track.kind === 'video' || track.kind === 'audio') && (
-        <Tool icon="volume" label="Volume" onClick={() => onTool('volume')} />
+        <Tool icon="volume" label={t('Volume')} onClick={() => onTool('volume')} />
       )}
-      {media && <Tool icon="sun" label="Cor" onClick={() => onTool('color')} />}
-      {media && <Tool icon="maximize" label="Posição" onClick={() => onTool('position')} />}
-      {media && <Tool icon="rotate" label="Girar" onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
+      {media && <Tool icon="sun" label={t('Cor')} onClick={() => onTool('color')} />}
+      {media && <Tool icon="maximize" label={t('Posição')} onClick={() => onTool('position')} />}
+      {media && <Tool icon="rotate" label={t('Girar')} onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
       {track.kind === 'video' && (
-        <Tool icon="freeze" label="Congelar" disabled={!inside} onClick={() => editor.freeze(time)} />
+        <Tool icon="freeze" label={t('Congelar')} disabled={!inside} onClick={() => editor.freeze(time)} />
       )}
-      <Tool icon="copy" label="Duplicar" onClick={() => session.duplicateSelected()} />
-      <Tool icon="trash" label="Excluir" danger onClick={() => session.deleteSelected()} />
+      <Tool icon="copy" label={t('Duplicar')} onClick={() => session.duplicateSelected()} />
+      <Tool icon="trash" label={t('Excluir')} danger onClick={() => session.deleteSelected()} />
       <RippleTool session={session} />
     </nav>
   );
@@ -263,7 +264,7 @@ function RippleTool({ session }: { session: EditorSession }) {
       onClick={() => session.editor.toggleRipple()}
     >
       <Icon name="ripple" />
-      Ripple {on ? 'ligado' : 'desligado'}
+      {on ? t('Ripple ligado') : t('Ripple desligado')}
     </button>
   );
 }

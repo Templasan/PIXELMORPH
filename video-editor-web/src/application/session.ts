@@ -10,6 +10,7 @@ import {
 import { findClip, removeClip, rippleDelete } from '../domain/timeline';
 import { DEFAULT_TEXT } from '../domain/textCaption';
 import { MediaPool } from '../engine/media';
+import { t } from '../i18n';
 import { Player, type FrameInfo } from '../engine/player';
 import { MediaPreviews } from '../engine/previews';
 import { probeMedia } from '../engine/probe';
@@ -35,7 +36,7 @@ const KIND_COLORS: Record<Track['kind'], string> = {
 };
 
 export function defaultTracks(): Track[] {
-  const t = (id: string, name: string, kind: Track['kind']): Track => ({
+  const makeTrack = (id: string, name: string, kind: Track['kind']): Track => ({
     id,
     name,
     kind,
@@ -44,10 +45,10 @@ export function defaultTracks(): Track[] {
     clips: [],
   });
   return [
-    t('v1', 'V1', 'video'),
-    t('img', 'IMG', 'image'),
-    t('txt', 'TXT', 'text'),
-    t('a1', 'A1', 'audio'),
+    makeTrack('v1', 'V1', 'video'),
+    makeTrack('img', 'IMG', 'image'),
+    makeTrack('txt', 'TXT', 'text'),
+    makeTrack('a1', 'A1', 'audio'),
   ];
 }
 
@@ -164,7 +165,7 @@ export function createEditorSession(host: EditorHost) {
   const durationMs = () => compositionDurationMs(editor.store.get().tracks);
 
   async function addMedia(item: MediaItem) {
-    busy.set(`Abrindo ${item.name}…`);
+    busy.set(t('Abrindo {name}…', { name: item.name }));
     try {
       const kind: Track['kind'] = item.kind;
       let durationMs = 5000; // a picture's default length
@@ -191,7 +192,7 @@ export function createEditorSession(host: EditorHost) {
         return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t));
       });
     } catch (e) {
-      error.set(`Não foi possível abrir ${item.name}: ${String((e as Error)?.message ?? e)}`);
+      error.set(t('Não foi possível abrir {name}: {msg}', { name: item.name, msg: String((e as Error)?.message ?? e) }));
     } finally {
       busy.set(null);
     }
@@ -222,13 +223,13 @@ export function createEditorSession(host: EditorHost) {
       const { tracks, trackId } = placeAtPlayhead(before, 'text', at, durationMs);
       const clip: Clip = {
         ...createClip({
-          name: 'Texto',
+          name: t('Texto'),
           sourceUri: '',
           color: KIND_COLORS.text,
           startMs: at,
           sourceDurationMs: durationMs,
         }),
-        text: { ...DEFAULT_TEXT, content: 'Texto' },
+        text: { ...DEFAULT_TEXT, content: t('Texto') },
       };
       id = clip.id;
       return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t));

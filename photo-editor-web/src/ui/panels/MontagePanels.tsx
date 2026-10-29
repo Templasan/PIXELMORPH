@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import { COLLAGE_LAYOUTS } from '../../domain/collage/CollageMath';
@@ -28,19 +29,19 @@ export function CollageSection({ session }: { session: PhotoSession }) {
       <Chips
         options={COLLAGE_LAYOUTS.map((l) => l.id)}
         value={layoutId}
-        label={(id) => COLLAGE_LAYOUTS.find((l) => l.id === id)!.label}
+        label={(id) => t(COLLAGE_LAYOUTS.find((l) => l.id === id)!.label)}
         onPick={setLayoutId}
       />
       <div className="chips">
         {refs.map((ref, i) => (
           <button key={i} className={`chip${ref ? ' on' : ''}`} onClick={() => void pick(i)}>
-            {i + 1}. {ref ? ref.name : 'Escolher foto'}
+            {i + 1}. {ref ? ref.name : t('Escolher foto')}
           </button>
         ))}
       </div>
-      <Range label="Espaçamento" value={spacing} min={0} max={40} onChange={setSpacing} />
-      <Range label="Borda" value={borderWidth} min={0} max={20} onChange={setBorderWidth} />
-      <Range label="Sombra" value={shadow} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={setShadow} />
+      <Range label={t('Espaçamento')} value={spacing} min={0} max={40} onChange={setSpacing} />
+      <Range label={t('Borda')} value={borderWidth} min={0} max={20} onChange={setBorderWidth} />
+      <Range label={t('Sombra')} value={shadow} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={setShadow} />
       <Swatches options={BORDER_COLORS} value={borderColor} onPick={setBorderColor} />
       <button
         className="primary-btn wide"
@@ -48,10 +49,10 @@ export function CollageSection({ session }: { session: PhotoSession }) {
         onClick={() =>
           session
             .createCollage(refs as PictureRef[], layout, { spacing, borderWidth, borderColor, shadow: shadow / 100 })
-            .catch((e) => setError(`Não foi possível criar a colagem: ${e?.message ?? e}`))
+            .catch((e) => setError(t('Não foi possível criar a colagem: {msg}', { msg: e?.message ?? e })))
         }
       >
-        Criar colagem
+        {t('Criar colagem')}
       </button>
       {error && <div className="muted">{error}</div>}
     </>
@@ -70,7 +71,7 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
   };
   return (
     <>
-      {items.length === 0 && <div className="muted">Adicione as fotos da esquerda para a direita.</div>}
+      {items.length === 0 && <div className="muted">{t('Adicione as fotos da esquerda para a direita.')}</div>}
       {items.map((item, i) => (
         <div key={i} className="field">
           <div className="panel-row">
@@ -78,12 +79,12 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
               {i + 1}. {item.ref.name}
             </span>
             <button className="chip" onClick={() => setItems((list) => list.filter((_, k) => k !== i))}>
-              Remover
+              {t('Remover')}
             </button>
           </div>
           {i > 0 && (
             <Range
-              label="Alinhar na vertical"
+              label={t('Alinhar na vertical')}
               value={item.offsetY}
               min={-20}
               max={20}
@@ -94,9 +95,9 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
         </div>
       ))}
       <button className="chip" onClick={() => void add()}>
-        + Adicionar foto
+        + {t('Adicionar foto')}
       </button>
-      <Range label="Sobreposição" value={overlap} min={0} max={50} format={(v) => `${Math.round(v)}%`} onChange={setOverlap} />
+      <Range label={t('Sobreposição')} value={overlap} min={0} max={50} format={(v) => `${Math.round(v)}%`} onChange={setOverlap} />
       <button
         className="primary-btn wide"
         disabled={busy || items.length < 2}
@@ -107,10 +108,10 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
               overlap / 100,
               items.map((it) => it.offsetY / 100)
             )
-            .catch((e) => setError(`Não foi possível criar o panorama: ${e?.message ?? e}`))
+            .catch((e) => setError(t('Não foi possível criar o panorama: {msg}', { msg: e?.message ?? e })))
         }
       >
-        Criar panorama
+        {t('Criar panorama')}
       </button>
       {error && <div className="muted">{error}</div>}
     </>
