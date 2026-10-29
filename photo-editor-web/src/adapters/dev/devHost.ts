@@ -56,6 +56,16 @@ export function createDevHost(): EditorHost {
       const all = await this.listPresets();
       localStorage.setItem(PRESETS_KEY, JSON.stringify([...all, { id: `preset_${Date.now()}`, name, adjustments }]));
     },
+    newProject() {
+      const sink = this.exportSink();
+      return {
+        start: (fileName) => sink.start(`new/${fileName}`),
+        write: (position, bytes) => sink.write(position, bytes),
+        async finish() {
+          console.info('new project file:', await sink.finish());
+        },
+      };
+    },
     photoSink() {
       const sink = this.exportSink();
       let name = '';

@@ -3,8 +3,9 @@ import type { PhotoSession } from '../../application/session';
 import type { ShapeKind } from '../../domain/layers';
 import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
+import { CollageSection } from './MontagePanels';
 
-const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme'] as const;
+const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'Colagem'] as const;
 type Tab = (typeof TABS)[number];
 
 // Android system family names (the same list the app's Elementos drawer offers).
@@ -43,6 +44,7 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
     <>
       <Chips options={TABS} value={tab} onPick={setTab} />
 
+      {tab === 'Colagem' && <CollageSection session={session} />}
       {tab === 'Texto' && (
         <>
           <div className="field">
