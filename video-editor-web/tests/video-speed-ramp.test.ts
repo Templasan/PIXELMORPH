@@ -57,3 +57,14 @@ describe('applySpeedRamp', () => {
     expect(applySpeedRamp(base, 'v', a.id, 1, 100, 'end')).toBe(base);
   });
 });
+
+describe('applySpeedRamp reaches its target', () => {
+  it('the outermost step plays at the target speed', () => {
+    const clip = { ...createClip({ name: 'a', sourceUri: 'a.mp4', color: '', startMs: 0, sourceDurationMs: 10_000 }), outPointMs: 10_000 };
+    const tracks: Track[] = [{ id: 'v', name: 'v', kind: 'video', visible: true, locked: false, clips: [clip] }];
+    const atEnd = applySpeedRamp(tracks, 'v', clip.id, 0.25, 3000, 'end')[0].clips;
+    expect([...atEnd].sort((x, y) => x.startMs - y.startMs).at(-1)!.speed).toBeCloseTo(0.25, 6);
+    const atStart = applySpeedRamp(tracks, 'v', clip.id, 0.25, 3000, 'start')[0].clips;
+    expect([...atStart].sort((x, y) => x.startMs - y.startMs)[0].speed).toBeCloseTo(0.25, 6);
+  });
+});
