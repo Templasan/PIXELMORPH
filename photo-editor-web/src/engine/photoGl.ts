@@ -59,14 +59,22 @@ uniform sampler2D image;
 uniform mat3 inv;
 uniform vec2 uUnits;
 uniform vec2 uPx;
+uniform vec3 uTile; // this draw's top-left in the output (px, y down) and its height
 out vec4 fragColor;
 void main() {
-  vec2 fc = vec2(gl_FragCoord.x, uPx.y - gl_FragCoord.y);
+  vec2 fc = vec2(uTile.x + gl_FragCoord.x, uTile.y + uTile.z - gl_FragCoord.y);
   vec3 q = inv * vec3(fc * uUnits / uPx, 1.0);
   vec2 uv = q.xy / q.z / uUnits;
   if (q.z <= 0.0 || uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) fragColor = vec4(0.0);
   else fragColor = texture(image, uv);
 }`;
+
+/**
+ * The canvas a pass can draw into is capped by the browser (a 6144×8192 one came out 4988×6651 on
+ * the Poco, scaled down without a word). Textures are not: the passes run at full size and the
+ * last one is copied out in pieces this big.
+ */
+const TILE = 4096;
 
 interface Program {
   program: WebGLProgram;
@@ -88,6 +96,8 @@ export class PhotoGl {
   private warp: Program;
   private source: WebGLTexture | null = null;
   private out = { w: 0, h: 0 };
+  /** The last render's result before the perspective pass, and that pass's inputs. */
+  private last: { tex: WebGLTexture; inv: Mat3; units: [number, number] } | null = null;
   private targets: { tex: WebGLTexture; fbo: WebGLFramebuffer }[] = [];
   private blendTextures = new Map<object, WebGLTexture>();
 
@@ -121,11 +131,6 @@ export class PhotoGl {
     this.source = this.texture(image, mipmaps);
   }
 
-  /** Waits until the GPU has finished the passes (reading one pixel forces it). */
-  sync() {
-    this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, new Uint8Array(4));
-  }
-
   /**
    * The size the passes draw at. The preview asks for what the screen shows (a fraction of the
    * light copy: every pass costs per output pixel), the export for the full picture.
@@ -134,8 +139,6 @@ export class PhotoGl {
     if (w === this.out.w && h === this.out.h) return;
     const gl = this.gl;
     this.out = { w, h };
-    this.canvas.width = w;
-    this.canvas.height = h;
     for (const t of this.targets) {
       gl.deleteTexture(t.tex);
       gl.deleteFramebuffer(t.fbo);
@@ -143,7 +146,10 @@ export class PhotoGl {
     this.targets = [this.target(w, h), this.target(w, h)];
   }
 
-  /** Draws the photo's passes into `canvas` (at the output size). */
+  /**
+   * Runs the photo's passes. When the output fits one piece it is drawn into `canvas`; a bigger
+   * one is read with `picture()`.
+   */
   render(input: PhotoPassInput) {
     const gl = this.gl;
     if (!this.source) return;
@@ -153,9 +159,9 @@ export class PhotoGl {
     gl.viewport(0, 0, w, h);
     let current = this.source;
     let next = 0;
-    const pass = (p: Program, set: () => void, inputs: WebGLTexture[], toScreen = false) => {
+    const pass = (p: Program, set: () => void, inputs: WebGLTexture[]) => {
       const out = this.targets[next];
-      gl.bindFramebuffer(gl.FRAMEBUFFER, toScreen ? null : out.fbo);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
       gl.useProgram(p.program);
       inputs.forEach((tex, i) => {
         gl.activeTexture(gl.TEXTURE0 + i);
@@ -165,10 +171,8 @@ export class PhotoGl {
       this.set2(p, 'uPx', [w, h]);
       set();
       gl.drawArrays(gl.TRIANGLES, 0, 3);
-      if (!toScreen) {
-        current = out.tex;
-        next = 1 - next;
-      }
+      current = out.tex;
+      next = 1 - next;
     };
 
     if (input.adjustmentsVisible) {
@@ -200,11 +204,47 @@ export class PhotoGl {
     }
     const m = perspectiveMatrixOf(a, units[0], units[1]);
     const inv: Mat3 = m ? invertMat3(m) : [1, 0, 0, 0, 1, 0, 0, 0, 1];
-    pass(this.warp, () => {
-      this.setInt(this.warp, 'image', 0);
-      // Row-major (Skia's layout): WebGL2 transposes it for us.
-      gl.uniformMatrix3fv(this.loc(this.warp, 'inv'), true, inv as unknown as number[]);
-    }, [current], true);
+    this.last = { tex: current, inv, units };
+    if (w <= TILE && h <= TILE) this.present(0, 0, w, h);
+  }
+
+  /** The perspective pass for the output's piece at (x, y), drawn into `canvas`. */
+  private present(x: number, y: number, tw: number, th: number) {
+    const gl = this.gl;
+    if (!this.last) return;
+    if (this.canvas.width !== tw) this.canvas.width = tw;
+    if (this.canvas.height !== th) this.canvas.height = th;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, tw, th);
+    gl.useProgram(this.warp.program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.last.tex);
+    this.setInt(this.warp, 'image', 0);
+    this.set2(this.warp, 'uUnits', this.last.units);
+    this.set2(this.warp, 'uPx', [this.out.w, this.out.h]);
+    gl.uniform3f(this.loc(this.warp, 'uTile'), x, y, th);
+    // Row-major (Skia's layout): WebGL2 transposes it for us.
+    gl.uniformMatrix3fv(this.loc(this.warp, 'inv'), true, this.last.inv as unknown as number[]);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** The last render at its full output size: `canvas` itself, or a 2D canvas put together piece by piece. */
+  picture(): HTMLCanvasElement {
+    const { w, h } = this.out;
+    if (w <= TILE && h <= TILE) return this.canvas;
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext('2d')!;
+    for (let y = 0; y < h; y += TILE) {
+      for (let x = 0; x < w; x += TILE) {
+        const tw = Math.min(TILE, w - x);
+        const th = Math.min(TILE, h - y);
+        this.present(x, y, tw, th);
+        ctx.drawImage(this.canvas, x, y);
+      }
+    }
+    return out;
   }
 
   /**

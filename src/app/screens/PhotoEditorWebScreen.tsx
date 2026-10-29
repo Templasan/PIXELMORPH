@@ -20,6 +20,7 @@ import {
   type EditorLayer,
 } from '@modules/photo-editor';
 import { copyToAppStorage, pickFromGallery } from '@modules/device-media';
+import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
@@ -99,6 +100,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         };
         // The screen opens a small upright copy (made once); the export reads the original.
         const light = await lightCopyOf(uri);
+        // The file's own size: the asset's metadata keeps the first file's after a bake.
+        const file = await FileSystem.getInfoAsync(uri);
         const [snapshot, layers, images] = await Promise.all([
           historyRepo.load(project.id).catch(() => null),
           loadLayers(project.id),
@@ -110,7 +113,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
             name: project.name,
             uri: NEEDS_JPEG_COPY.test(mime) ? await readableCopyOf(uri) : uri,
             format: assetRef.current.format,
-            sizeBytes: asset.metadata.fileSizeBytes,
+            sizeBytes: file.exists ? file.size : asset.metadata.fileSizeBytes,
             width: light.width,
             height: light.height,
           },
@@ -189,6 +192,35 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           },
           previewUri: light.uri,
         };
+      },
+
+      // A collage or panorama made in the page becomes its own project, opened in a fresh editor
+      // (push, so it does not inherit this one's state). Media first, project last: a failed
+      // copy leaves no empty project behind.
+      async newProjectStart() {
+        await files.startExport('jpg');
+      },
+      async newProjectWrite(position: number, b64: string) {
+        await files.writeExportChunk(position, b64);
+      },
+      async newProjectFinish(name: string, width: number, height: number) {
+        const uri = await files.finishExport();
+        const info = await FileSystem.getInfoAsync(uri);
+        const project = await projects.createProjectWithMedia.execute(name, 'photo', [
+          createMediaAsset(
+            `asset_${Date.now()}`,
+            'image',
+            uri,
+            uri,
+            createMediaMetadata('image/jpeg', {
+              width,
+              height,
+              fileSizeBytes: info.exists ? info.size : undefined,
+            })
+          ),
+        ]);
+        navigation.push('PhotoEditor', { projectId: project.id });
+        return project.id;
       },
 
       async exportStart(fileName: string) {

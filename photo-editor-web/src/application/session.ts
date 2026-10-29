@@ -405,14 +405,15 @@ export function createPhotoSession(host: EditorHost) {
           units: size.photo,
           blends,
         });
-        gl.sync();
+        const photo = gl.picture();
+        if (photo !== gl.canvas) canvases.push(photo);
         lap('gpu');
         const k = w / size.photo.w;
         const picture = newCanvas(Math.round(size.scene.w * k), Math.round(size.scene.h * k));
         const ctx = picture.getContext('2d')!;
         ctx.setTransform(k, 0, 0, k, 0, 0);
         drawScene(ctx, {
-          photo: gl.canvas,
+          photo,
           size,
           adjustments: a,
           layers: st.layers,
@@ -491,7 +492,9 @@ export function createPhotoSession(host: EditorHost) {
         gl.setSource(full, false);
         gl.setOutput(full.width, full.height);
         gl.render({ adjustments: only, adjustmentsVisible: true, units: size.photo, blends: [] });
-        const blob = await new Promise<Blob | null>((r) => gl.canvas.toBlob(r, 'image/jpeg', 0.92));
+        const pixels = gl.picture();
+        const blob = await new Promise<Blob | null>((r) => pixels.toBlob(r, 'image/jpeg', 0.92));
+        if (pixels !== gl.canvas) pixels.width = pixels.height = 0;
         if (!blob) throw new Error('O navegador não gerou o arquivo.');
         const sink = host.photoSink();
         await sink.start(`baked_${Date.now()}.jpg`);
