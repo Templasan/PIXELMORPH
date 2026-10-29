@@ -129,6 +129,14 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
             {t('Pronto: {mb} MB em {s} s', { mb: (state.out.bytes / 1024 / 1024).toFixed(2), s: (state.tookMs / 1000).toFixed(1) })}
             <br />
             <span className="muted">{state.out.path}</span>
+            {state.out.silent.length > 0 && (
+              <>
+                <br />
+                <span style={{ color: 'var(--alerta)' }}>
+                  {t('O som de {n} arquivo(s) não pôde ser lido neste aparelho e ficou de fora.', { n: state.out.silent.length })}
+                </span>
+              </>
+            )}
           </p>
         )}
         {state.phase === 'error' && <p style={{ color: 'var(--perigo)' }}>{state.message}</p>}
