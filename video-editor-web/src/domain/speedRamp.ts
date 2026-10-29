@@ -30,10 +30,13 @@ export function applySpeedRamp(
   if (s0 === targetSpeed) return tracks;
   const srcLen = clip.outPointMs - clip.inPointMs;
   if (srcLen <= 0 || rampMs <= 0) return tracks;
+  // Steps of equal source length; the last one plays at the target itself (the ramp ends there).
+  const stepSpeeds = Array.from({ length: steps }, (_, k) => s0 + ((targetSpeed - s0) * (k + 1)) / steps);
+  const meanSpeed = stepSpeeds.reduce((sum, v) => sum + v, 0) / steps;
   const span = Math.max(
     0,
     Math.min(
-      (rampMs * (s0 + targetSpeed)) / 2,
+      rampMs * meanSpeed,
       srcLen - MIN_CLIP_DURATION_MS * s0 // remainder must stay a valid clip
     )
   );
@@ -42,7 +45,7 @@ export function applySpeedRamp(
   const chunk = span / steps;
   const rampSegs = Array.from({ length: steps }, (_, i) => {
     const k = edge === 'end' ? i : steps - 1 - i;
-    return { len: chunk, speed: s0 + ((targetSpeed - s0) * (k + 0.5)) / steps };
+    return { len: chunk, speed: stepSpeeds[k] };
   });
   const rest = { len: srcLen - span, speed: s0 };
   const segs = edge === 'end' ? [rest, ...rampSegs] : [...rampSegs, rest];
