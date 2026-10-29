@@ -15,6 +15,7 @@ import {
   copyToAppStorage,
   pickAudioFromDevice,
   pickFromGallery,
+  pickMultipleImagesFromGallery,
   probeVideoDurationMs,
 } from '@modules/device-media';
 import { useAppModules } from '../hooks';
@@ -77,7 +78,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
 
   const handlers = useMemo<Record<string, (...args: never[]) => Promise<unknown>>>(
     () => ({
-      async pickMedia(kind: 'video' | 'image' | 'audio') {
+      async pickMedia(kind: 'video' | 'image' | 'audio', multiple = false) {
         if (kind === 'audio') {
           const picked = await pickAudioFromDevice();
           if (!picked) return [];
@@ -88,6 +89,19 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
               uri: await copyToAppStorage(picked.uri, picked.fileName, projectId),
             },
           ];
+        }
+        if (kind === 'image' && multiple) {
+          // RF-023 time-lapse: several photos at once, each copied into the project's folder.
+          const all = await pickMultipleImagesFromGallery();
+          const items = [];
+          for (const p of all) {
+            items.push({
+              name: p.fileName ?? 'Foto',
+              kind,
+              uri: await copyToAppStorage(p.uri, p.fileName, projectId),
+            });
+          }
+          return items;
         }
         const picked = await pickFromGallery([kind === 'video' ? 'videos' : 'images']);
         if (!picked) return [];
