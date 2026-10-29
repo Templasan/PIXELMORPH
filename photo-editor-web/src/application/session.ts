@@ -7,10 +7,20 @@ import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { drawScene } from '../engine/scene';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
+import { drawCollage, drawPanorama, type CollageOptions } from '../engine/compose';
+import type { CollageLayout } from '../domain/collage/CollageMath';
+import { panoramaLayout } from '../domain/panorama/panoramaLayout';
 import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../ports/host';
 import { createStore } from '../state/createStore';
 import { createHistory, replay } from './history';
 import { createPhotoEditorStore } from './photoEditorStore';
+
+/** Collage side (square), as the app made it, a bit larger. */
+const COLLAGE_SIZE = 2048;
+/** Panorama height at most (the photos' own if smaller). */
+const PANORAMA_HEIGHT = 2048;
+/** Each picture of a collage or panorama is read at most this long. */
+const MONTAGE_PICTURE_EDGE = 4096;
 
 /** The screen works on a copy this long at most; the export always reads the original. */
 const PREVIEW_LONG_EDGE = 2048;
@@ -274,6 +284,36 @@ export function createPhotoSession(host: EditorHost) {
     requestDraw();
   });
 
+  /** Loads `refs`, draws them with `draw`, and hands the JPEG to the host as a new project. */
+  async function makeProject(
+    name: string,
+    refs: PictureRef[],
+    draw: (pics: { bitmap: ImageBitmap; width: number; height: number }[]) => HTMLCanvasElement
+  ) {
+    if (info.get().busy) return;
+    setInfo({ busy: `Criando ${name.toLowerCase()}…` });
+    const pics: { bitmap: ImageBitmap; width: number; height: number }[] = [];
+    let canvas: HTMLCanvasElement | null = null;
+    try {
+      for (const ref of refs) {
+        const { bitmap } = await loadPicture(ref.uri, MONTAGE_PICTURE_EDGE);
+        pics.push({ bitmap, width: bitmap.width, height: bitmap.height });
+      }
+      canvas = draw(pics);
+      const done = canvas;
+      const blob = await new Promise<Blob | null>((r) => done.toBlob(r, 'image/jpeg', 0.9));
+      if (!blob) throw new Error('O navegador não gerou o arquivo.');
+      const sink = host.newProject(name, canvas.width, canvas.height);
+      await sink.start(`${name.toLowerCase()}_${Date.now()}.jpg`);
+      await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
+      await sink.finish();
+    } finally {
+      for (const p of pics) p.bitmap.close();
+      if (canvas) canvas.width = canvas.height = 0;
+      setInfo({ busy: null });
+    }
+  }
+
   return {
     editor,
     info,
@@ -512,6 +552,22 @@ export function createPhotoSession(host: EditorHost) {
         gl.dispose();
         setInfo({ busy: null });
       }
+    },
+
+    /** One more picture for a collage or panorama (the gallery picker); null when cancelled. */
+    pickPicture: () => host.pickPicture(),
+    /** RF-011: a collage of `refs` (one per cell) becomes a new project. */
+    createCollage(refs: PictureRef[], layout: CollageLayout, options: CollageOptions) {
+      return makeProject('Colagem', refs, (pics) =>
+        drawCollage(pics.map((p) => p.bitmap), pics, layout, COLLAGE_SIZE, options)
+      );
+    },
+    /** US-28: `refs` left to right, overlapping by `overlap` of each width, nudged by `offsetsY`. */
+    createPanorama(refs: PictureRef[], overlap: number, offsetsY: number[]) {
+      return makeProject('Panorama', refs, (pics) => {
+        const height = Math.min(PANORAMA_HEIGHT, ...pics.map((p) => p.height));
+        return drawPanorama(pics.map((p) => p.bitmap), panoramaLayout(pics, height, overlap, offsetsY));
+      });
     },
 
     /** Saved presets (shared by every photo); loaded on demand. */

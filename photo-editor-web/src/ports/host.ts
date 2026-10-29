@@ -68,6 +68,8 @@ export interface EditorHost {
   listPresets(): Promise<PresetRef[]>;
   savePreset(name: string, adjustments: Record<string, number>): Promise<void>;
   exportSink(): ExportSink;
+  /** A picture made here (collage, panorama) becomes a new photo project, which the host opens. */
+  newProject(name: string, width: number, height: number): Sink<void>;
   /** A baked version of the photo (adjustments made pixels) becomes the project's photo. */
   photoSink(): Sink<BakedPhoto>;
   /** Leave the editor (the app goes back to its projects). */

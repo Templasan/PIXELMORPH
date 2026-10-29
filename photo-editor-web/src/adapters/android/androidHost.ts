@@ -32,6 +32,19 @@ export function createAndroidHost(): EditorHost {
         finish: () => call<string>('exportFinish'),
       };
     },
+    newProject(name, width, height) {
+      return {
+        start: () => call<void>('newProjectStart'),
+        async write(position, bytes) {
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            await call<void>('newProjectWrite', position + i, toBase64(bytes.subarray(i, i + CHUNK)));
+          }
+        },
+        finish: async () => {
+          await call<string>('newProjectFinish', name, width, height);
+        },
+      };
+    },
     photoSink() {
       return {
         start: () => call<void>('bakeStart'),

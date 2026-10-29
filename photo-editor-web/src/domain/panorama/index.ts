@@ -1,1 +1,1 @@
-export type { PanoramaImage, PanoramaCompositionOptions } from './Panorama';
+export { panoramaLayout, type PanoramaRect } from './panoramaLayout';
