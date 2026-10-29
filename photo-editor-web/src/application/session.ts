@@ -1,7 +1,11 @@
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
 import { sceneSizeOf, type SceneSize } from '../domain/sceneSize';
+import { coverFitRect, scaleToFit, searchQualityForTargetSize, SIZE_PRESETS, SOCIAL_PRESETS } from '../domain/export/exportMath';
+import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
+import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { drawScene } from '../engine/scene';
+import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
 import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../ports/host';
 import { createStore } from '../state/createStore';
@@ -18,6 +22,47 @@ function lookOf(a: Record<string, number>): Record<string, number> {
 }
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp';
+
+/** The export sheet's choices; they live in the session, so they survive closing the sheet. */
+export interface ExportOptions {
+  format: ExportFormat;
+  /** 10..100, used unless the target size chooses it. */
+  quality: number;
+  /** A SIZE_PRESETS name ('Original' keeps the size); ignored while a social preset is on. */
+  sizePreset: string;
+  /** A SOCIAL_PRESETS name: the picture is cover-cropped to that frame. */
+  social: string | null;
+  /** Smart compression: the highest quality whose file fits `targetMB` (JPEG and WebP only). */
+  targetOn: boolean;
+  targetMB: number;
+  /** Written into JPEG and PNG files. */
+  dpi: number;
+  /** Export only: never drawn on the preview. An empty text means no watermark. */
+  watermark: { text: string; position: number; opacity: number; size: number; rotation: number };
+}
+
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+  format: 'jpeg',
+  quality: 85,
+  sizePreset: 'Original',
+  social: null,
+  targetOn: false,
+  targetMB: 2,
+  dpi: 300,
+  watermark: { text: '', position: 8, opacity: 60, size: 20, rotation: 0 },
+};
+
+export interface ExportResult {
+  where: string;
+  format: ExportFormat;
+  width: number;
+  height: number;
+  bytes: number;
+  /** The quality the target size chose; null when the sheet's quality was used. */
+  quality: number | null;
+  /** The target could not be met even at the lowest quality. */
+  overTarget: boolean;
+}
 
 export interface SessionInfo {
   status: 'loading' | 'ready' | 'error';
@@ -60,6 +105,7 @@ export function createPhotoSession(host: EditorHost) {
     overlay: null,
     busy: null,
   });
+  const exportOptions = createStore<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
   /** Per-channel histogram of the edited photo (64 bins, 0..1), for Ajustes. */
   const histogram = createStore<{ r: number[]; g: number[]; b: number[] } | null>(null);
   let histogramTimer: ReturnType<typeof setTimeout> | undefined;
@@ -233,6 +279,7 @@ export function createPhotoSession(host: EditorHost) {
     info,
     history: historyState,
     histogram,
+    exportOptions,
     exportTimings,
 
     async load() {
@@ -303,15 +350,25 @@ export function createPhotoSession(host: EditorHost) {
       setInfo({ [which]: null });
     },
 
-    /** The finished picture at the original's full size, saved through the host. */
-    async exportImage(format: ExportFormat, quality: number, scale = 1): Promise<string> {
+    /**
+     * The finished picture with the sheet's options (size, social crop, target size, DPI,
+     * watermark), saved through the host. Defaults to the options the sheet keeps.
+     */
+    async exportImage(options: ExportOptions = exportOptions.get()): Promise<ExportResult> {
       const i = info.get();
       if (!i.photo) throw new Error('Nada para exportar.');
       setInfo({ busy: 'Exportando…' });
       const gl = new PhotoGl();
       // Full-size pictures and canvases are freed as soon as the file is out (see PhotoGl.dispose).
       const bitmaps: ImageBitmap[] = [];
-      let out: HTMLCanvasElement | null = null;
+      const canvases: HTMLCanvasElement[] = [];
+      const newCanvas = (width: number, height: number) => {
+        const c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        canvases.push(c);
+        return c;
+      };
       try {
         const st = editor.store.get();
         const a = st.adjustments;
@@ -320,8 +377,12 @@ export function createPhotoSession(host: EditorHost) {
         const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
         bitmaps.push(full);
         lap('decoded');
-        const w = Math.max(1, Math.round(full.width * scale));
-        const h = Math.max(1, Math.round(full.height * scale));
+        // A social frame is cover-cropped from the full render; a size preset renders smaller.
+        const social = SOCIAL_PRESETS.find((p) => p.name === options.social);
+        const longEdge = SIZE_PRESETS.find((p) => p.name === options.sizePreset)?.maxLongEdge ?? null;
+        const fit = social ? { width: full.width, height: full.height } : scaleToFit(full.width, full.height, longEdge);
+        const w = fit.width;
+        const h = fit.height;
         const size = sceneSizeOf(w, h, a.rotation90);
         const blends: BlendImage[] = [];
         for (const ref of [i.doubleExposure, i.overlay]) {
@@ -347,10 +408,8 @@ export function createPhotoSession(host: EditorHost) {
         gl.sync();
         lap('gpu');
         const k = w / size.photo.w;
-        const canvas = (out = document.createElement('canvas'));
-        canvas.width = Math.round(size.scene.w * k);
-        canvas.height = Math.round(size.scene.h * k);
-        const ctx = canvas.getContext('2d')!;
+        const picture = newCanvas(Math.round(size.scene.w * k), Math.round(size.scene.h * k));
+        const ctx = picture.getContext('2d')!;
         ctx.setTransform(k, 0, 0, k, 0, 0);
         drawScene(ctx, {
           photo: gl.canvas,
@@ -362,19 +421,49 @@ export function createPhotoSession(host: EditorHost) {
         });
         ctx.getImageData(0, 0, 1, 1); // waits for the drawing, so 'drawn' and 'encoded' split right
         lap('drawn');
+        let out = picture;
+        if (social) {
+          out = newCanvas(social.width, social.height);
+          const octx = out.getContext('2d')!;
+          octx.imageSmoothingQuality = 'high';
+          const r = coverFitRect(picture.width, picture.height, social.width, social.height);
+          octx.drawImage(picture, r.x, r.y, r.width, r.height);
+        }
+        const wm = options.watermark;
+        if (wm.text.trim()) {
+          drawWatermark(out.getContext('2d')!, out.width, out.height, { ...wm, text: wm.text.trim(), opacity: wm.opacity / 100 });
+        }
+        const { format } = options;
         const type = `image/${format}`;
-        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
+        const targetOn = options.targetOn && format !== 'png';
+        const targetBytes = Math.round(options.targetMB * 1024 * 1024);
+        // The probe is the same encoder as toBlob below, at the same quality, so the sizes agree.
+        const quality = targetOn
+          ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
+          : options.quality;
+        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, quality / 100));
         if (!blob) throw new Error('O navegador não gerou o arquivo.');
         lap('encoded');
+        let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
+        if (format === 'jpeg') bytes = setJpegDpi(bytes, options.dpi);
+        if (format === 'png') bytes = setPngDpi(bytes, options.dpi);
         const sink = host.exportSink();
         await sink.start(`pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`);
-        await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
+        await sink.write(0, bytes);
         const where = await sink.finish();
         lap('saved');
-        return where;
+        return {
+          where,
+          format,
+          width: out.width,
+          height: out.height,
+          bytes: bytes.length,
+          quality: targetOn ? quality : null,
+          overTarget: targetOn && bytes.length > targetBytes,
+        };
       } finally {
         for (const b of bitmaps) b.close();
-        if (out) out.width = out.height = 0;
+        for (const c of canvases) c.width = c.height = 0;
         gl.dispose();
         setInfo({ busy: null });
       }
