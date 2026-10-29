@@ -20,6 +20,8 @@ import { createStore } from '../state/createStore';
 import { createHistory } from './history';
 import { createVideoEditorStore } from './videoEditorStore';
 import { mainTrack, placeAtPlayhead } from './placement';
+import { timelapseClips } from '../domain/timelapse';
+import type { TransitionType } from '../domain/transitions';
 
 /** Short edge of the preview canvas (the export renders the same composition at its own size). */
 const PREVIEW_SHORT_EDGE = 720;
@@ -195,6 +197,23 @@ export function createEditorSession(host: EditorHost) {
     }
   }
 
+  /** RF-023: photos in order as consecutive picture clips at the playhead, one undo step. */
+  function addTimelapse(photos: MediaItem[], opts: { secondsPerPhoto: number; transition?: TransitionType }) {
+    if (photos.length === 0) return;
+    const at = time.get();
+    const stepMs = Math.round(opts.secondsPerPhoto * 1000);
+    editor.commit((before) => {
+      const { tracks, trackId } = placeAtPlayhead(before, 'image', at, photos.length * stepMs);
+      const clips = timelapseClips(photos, {
+        startMs: at,
+        stepMs,
+        color: KIND_COLORS.image,
+        transition: opts.transition,
+      });
+      return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, ...clips] } : t));
+    });
+  }
+
   function addText() {
     const at = time.get();
     const durationMs = 3000;
@@ -314,6 +333,7 @@ export function createEditorSession(host: EditorHost) {
     /** Diagnostics: what a media file is, as the editor reads it. */
     probe: (uri: string) => probeMedia(pool, uri),
     addMedia,
+    addTimelapse,
     addText,
     deleteSelected,
     colorOf: (kind: Track['kind']) => KIND_COLORS[kind],
