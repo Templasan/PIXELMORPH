@@ -332,7 +332,7 @@ describe('SyncProjectsUseCase', () => {
 
     const prepared = await b.uc.prepare('u1');
     expect(prepared.plan.conflicts).toEqual(['p1']);
-    expect(prepared.conflictNames).toEqual(['Viagem A']);
+    expect(prepared.conflicts).toEqual([{ id: 'p1', name: 'Viagem A' }]);
     const report = await b.uc.run('u1', prepared, () => undefined);
 
     expect(report.conflicts).toEqual(['Viagem A']);
@@ -447,8 +447,9 @@ describe('SyncProjectsUseCase', () => {
     expect(first.downloaded).toBe(1);
 
     const uploadsBefore = server.successfulUploads.length;
-    await syncOnce(b.uc);
+    const report = await syncOnce(b.uc);
 
+    expect(report.filesUploaded).toBe(0);
     expect(server.successfulUploads.length).toBe(uploadsBefore);
   });
 
@@ -494,6 +495,7 @@ describe('SyncProjectsUseCase', () => {
     expect(report.downloaded).toBe(1);
     const key = server.rows.get('p1')!.files[0].key;
     expect([...c.phone.fs.keys()]).toEqual([`file:///docs/cloud/p1/${key}`]);
+    expect(report.filesDownloaded).toBe(1);
   });
 
   it('a file replaced in place uploads again under the same key', async () => {
@@ -508,8 +510,9 @@ describe('SyncProjectsUseCase', () => {
       size: 20,
       modificationTime: 2000,
     });
-    await syncOnce(a.uc);
+    const report = await syncOnce(a.uc);
 
+    expect(report.filesUploaded).toBe(1);
     expect(server.rows.get('p1')!.files[0].key).toBe(key);
     expect(server.files.get(`p1/${key}`)).toBe('new bytes');
   });
@@ -530,12 +533,81 @@ describe('SyncProjectsUseCase', () => {
         { originalUri: 'file:///cache/baked.jpg' },
       ],
     });
-    await syncOnce(a.uc);
+    const report = await syncOnce(a.uc);
 
     const keys = server.rows.get('p1')!.files.map((f) => f.key);
     expect(keys).toHaveLength(2);
     expect(keys).toContain(oldKey);
     expect(keys.find((k) => k !== oldKey)).toMatch(/^[0-9a-f]{8}-\d+\.jpg$/);
+    expect(report.filesUploaded).toBe(1);
+  });
+
+  it('resolve local: sends this phone copy and clears the conflict', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem A' });
+    await syncOnce(a.uc);
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem B' });
+
+    const report = await b.uc.resolveConflict('u1', 'p1', 'local');
+
+    expect(report.uploaded).toBe(1);
+    expect(JSON.parse(server.rows.get('p1')!.payload.blobs['project:p1']).name).toBe('Viagem B');
+    expect((await b.uc.prepare('u1')).plan.conflicts).toEqual([]);
+  });
+
+  it('resolve remote: takes the account copy over this phone copy', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem A' });
+    await syncOnce(a.uc);
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem B' });
+
+    const report = await b.uc.resolveConflict('u1', 'p1', 'remote');
+
+    expect(report.downloaded).toBe(1);
+    expect(JSON.parse(b.phone.storage['project:p1']).name).toBe('Viagem A');
+    expect(b.phone.storage['project:p1']).not.toContain('file:///cache/');
+  });
+
+  it('resolve remote with a failed file download changes nothing locally', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/two.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({
+      id: 'p1',
+      name: 'Viagem A',
+      assets: [{ originalUri: 'file:///cache/one.jpg' }, { originalUri: 'file:///cache/two.jpg' }],
+    });
+    await syncOnce(a.uc);
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem B' });
+    const storageBefore = { ...b.phone.storage };
+    const fsBefore = new Map(b.phone.fs);
+    server.failDownloadKey = server.rows.get('p1')!.files[1].key;
+
+    const report = await b.uc.resolveConflict('u1', 'p1', 'remote');
+
+    expect(report.downloaded).toBe(0);
+    expect(report.pendingDownloads).toBe(1);
+    expect(b.phone.storage).toEqual(storageBefore);
+    expect(b.phone.fs).toEqual(fsBefore);
   });
 
   it('a payload with keys outside the project is refused and writes nothing', async () => {
@@ -567,6 +639,7 @@ describe('SyncProjectsUseCase', () => {
 
     expect(report.uploaded).toBe(1);
     expect(report.missingFiles).toBe(1);
+    expect(report.missingProjects).toEqual(['Viagem']);
     expect(server.successfulUploads).toEqual([]);
   });
 
@@ -582,6 +655,16 @@ describe('SyncProjectsUseCase', () => {
     expect(report.failed).toBe(1);
     expect(report.uploaded).toBe(1);
     expect(server.rows.has('p2')).toBe(true);
+  });
+
+  it('counts the files it sent and the files it received', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/two.jpg']);
+    expect((await syncOnce(a.uc)).filesUploaded).toBe(2);
+
+    const b = deviceWith(server);
+    expect((await syncOnce(b.uc)).filesDownloaded).toBe(2);
   });
 
   it('a remote change updates the local project and rewrites its file URIs', async () => {

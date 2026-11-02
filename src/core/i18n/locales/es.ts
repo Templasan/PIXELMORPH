@@ -192,19 +192,46 @@ const es: Record<string, string> = {
   'Enviar {n} projetos para sua conta? As mídias vão para o seu servidor.':
     '¿Enviar {n} proyectos a tu cuenta? Los medios irán a tu propio servidor.',
   Enviar: 'Enviar',
-  '1 enviado': '1 enviado',
-  '{u} enviados': '{u} enviados',
-  '1 recebido': '1 recibido',
-  '{d} recebidos': '{d} recibidos',
+  '1 projeto enviado': '1 proyecto enviado',
+  '{n} projetos enviados': '{n} proyectos enviados',
+  '1 arquivo enviado': '1 archivo enviado',
+  '{n} arquivos enviados': '{n} archivos enviados',
+  '1 projeto recebido': '1 proyecto recibido',
+  '{n} projetos recebidos': '{n} proyectos recibidos',
+  '1 arquivo recebido': '1 archivo recibido',
+  '{n} arquivos recebidos': '{n} archivos recibidos',
+  'Tudo em dia.': 'Todo al día.',
+  '1 removido da conta.': '1 eliminado de la cuenta.',
   '{n} removidos da conta.': '{n} eliminados de la cuenta.',
-  '{n} em conflito: mantidos como estão ({names})':
-    '{n} en conflicto: se mantienen como están ({names})',
-  'Servidor de mídia desligado: {n} arquivos pendentes':
-    'Servidor de medios apagado: {n} archivos pendientes',
-  '{n} projetos aguardando arquivos do servidor': '{n} proyectos esperando archivos del servidor',
-  '1 arquivo não encontrado neste aparelho, não enviado.': '1 archivo no encontrado en este dispositivo, no enviado.',
-  '{n} arquivos não encontrados neste aparelho, não enviados.': '{n} archivos no encontrados en este dispositivo, no enviados.',
-  '{n} projetos com erro, tentar de novo depois': '{n} proyectos con error, intenta de nuevo más tarde',
+  '1 removido da conta em outro aparelho: mantido aqui.':
+    '1 eliminado de la cuenta en otro dispositivo: se mantiene aquí.',
+  '{n} removidos da conta em outro aparelho: mantidos aqui.':
+    '{n} eliminados de la cuenta en otro dispositivo: se mantienen aquí.',
+  '1 em conflito: mantido como está ({names}).': '1 en conflicto: se mantiene como está ({names}).',
+  '{n} em conflito: mantidos como estão ({names}).':
+    '{n} en conflicto: se mantienen como están ({names}).',
+  'Servidor de mídia desligado: 1 arquivo pendente.':
+    'Servidor de medios apagado: 1 archivo pendiente.',
+  'Servidor de mídia desligado: {n} arquivos pendentes.':
+    'Servidor de medios apagado: {n} archivos pendientes.',
+  '1 projeto aguardando arquivos do servidor.': '1 proyecto esperando archivos del servidor.',
+  '{n} projetos aguardando arquivos do servidor.': '{n} proyectos esperando archivos del servidor.',
+  '1 arquivo não encontrado neste aparelho ({names}).':
+    '1 archivo no encontrado en este dispositivo ({names}).',
+  '{n} arquivos não encontrados neste aparelho ({names}).':
+    '{n} archivos no encontrados en este dispositivo ({names}).',
+  '1 projeto com erro, tentar de novo depois.': '1 proyecto con error, intenta de nuevo más tarde.',
+  '{n} projetos com erro, tentar de novo depois.':
+    '{n} proyectos con error, intenta de nuevo más tarde.',
+  '{a} e {b}': '{a} y {b}',
+  '{names} e mais 1 projeto': '{names} y 1 proyecto más',
+  '{names} e mais {n} projetos': '{names} y {n} proyectos más',
+  '{name} foi alterado neste aparelho e em outro.': '{name} cambió en este dispositivo y en otro.',
+  'Manter este aparelho': 'Mantener este dispositivo',
+  'Usar o da conta': 'Usar la de la cuenta',
+  'Decidir depois': 'Decidir después',
+  'As edições deste aparelho nesse projeto serão substituídas.':
+    'Los cambios hechos en este dispositivo en este proyecto se reemplazarán.',
   'Entre na conta de novo para sincronizar.': 'Vuelve a entrar para sincronizar.',
   'Não foi possível sincronizar agora.': 'No se pudo sincronizar ahora.',
 };

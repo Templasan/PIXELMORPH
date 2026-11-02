@@ -26,10 +26,13 @@ data are involved:
    (`network_security_config.xml`); everything else stays HTTPS.
 4. **HTTPS for demos and production.** `EXPO_PUBLIC_MEDIA_SERVER_URL` points to an HTTPS address,
    for example one from `ngrok http 3000`. Then the localhost exception is removed.
-5. **Conflicts are reported and never merged.** When both sides changed a project, neither copy is
-   touched; the user sees the project's name in the result. A local project with changes is never
-   deleted or overwritten by sync. Only a download of a project with no local copy writes, and only
-   after every file has arrived.
+5. **Conflicts are never merged; the user picks a side.** When both sides changed a project, a sync
+   run touches neither copy. After the run, one alert per conflicting project asks: "Manter este
+   aparelho" sends this phone's copy to the account (it forces the upload); "Usar o da conta" takes
+   the account's copy after a second confirmation, which replaces this phone's edits to that
+   project. "Decidir depois" leaves it, and the next sync asks again. A remote copy is written only
+   after every file has arrived; if one fails, nothing local changes and the report says so. A
+   local project with changes is never deleted by sync.
 6. **Sync is manual.** It runs when the user taps "Sincronizar agora". Nothing runs on its own.
 
 ## Consequences
