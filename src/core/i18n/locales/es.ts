@@ -245,8 +245,6 @@ const es: Record<string, string> = {
   'Entre na conta de novo para sincronizar.': 'Vuelve a entrar para sincronizar.',
   'Não foi possível sincronizar agora.': 'No se pudo sincronizar ahora.',
   Galeria: 'Galería',
-  '{n} projeto': '{n} proyecto',
-  '{n} projetos': '{n} proyectos',
 };
 
 export default es;
