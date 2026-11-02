@@ -17,7 +17,7 @@ import { createHistory, replay } from './history';
 import { createPhotoEditorStore } from './photoEditorStore';
 
 /** Collage side (square), as the app made it, a bit larger. */
-const COLLAGE_SIZE = 2048;
+export const COLLAGE_SIZE = 2048;
 /** Panorama height at most (the photos' own if smaller). */
 const PANORAMA_HEIGHT = 2048;
 /** Each picture of a collage or panorama is read at most this long. */

@@ -175,6 +175,7 @@ const en: Record<string, string> = {
 
   // Montage panels
   'Escolher foto': 'Choose photo',
+  'Arraste a foto dentro da célula para enquadrar.': 'Drag the photo inside its cell to frame it.',
   Espaçamento: 'Spacing',
   Borda: 'Border',
   'Não foi possível criar a colagem: {msg}': 'Could not create the collage: {msg}',
