@@ -5,6 +5,7 @@ import {
   createPaintLayer,
   distributeLayers,
   duplicateLayer,
+  movableLayers,
   mergeVisiblePaintLayers,
   type EditorLayer,
 } from '../../domain/layers';
@@ -41,8 +42,8 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
   const canDelete = !!selected && !selected.locked && selected.kind !== 'background';
   const visiblePaint = layers.filter((l) => l.kind === 'paint' && l.visible).length;
   const paintable = selected?.kind === 'paint' && !selected.locked;
-  // Distribution moves every visible text and shape layer (the only layers with a position).
-  const positioned = layers.filter((l) => (l.text || l.shape) && l.visible).length;
+  // Distribution moves every visible, unlocked text and shape layer (the only layers with a position).
+  const positioned = movableLayers(layers).length;
 
   const add = () =>
     editor.addLayers([createPaintLayer(t('Pintura {n}', { n: layers.filter((l) => l.kind === 'paint').length + 1 }))]);

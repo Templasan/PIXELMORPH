@@ -68,4 +68,20 @@ describe('distributeLayers', () => {
     expect(centre(out, 'b').x).toBeCloseTo(0.5, 9);
     expect(out.map((l) => l.id)).toEqual(layers.map((l) => l.id));
   });
+
+  it('keeps locked layers where they are and spaces the rest around them', () => {
+    const lockedEnd = { ...text('a', 0.0, 0.5), locked: true };
+    const layers = [lockedEnd, text('b', 0.2, 0.5), text('c', 0.3, 0.5), text('d', 0.9, 0.5)];
+    const out = distributeLayers(layers, 'horizontal');
+    expect(out.find((l) => l.id === 'a')).toBe(lockedEnd);
+    expect(centre(out, 'b').x).toBe(0.2);
+    expect(centre(out, 'c').x).toBeCloseTo(0.55, 9);
+    expect(centre(out, 'd').x).toBe(0.9);
+  });
+
+  it('leaves the input unchanged when locking leaves fewer than three movable layers', () => {
+    const locked = { ...text('b', 0.5, 0.5), locked: true };
+    const layers = [text('a', 0.1, 0.5), locked, text('c', 0.9, 0.5)];
+    expect(distributeLayers(layers, 'horizontal')).toBe(layers);
+  });
 });
