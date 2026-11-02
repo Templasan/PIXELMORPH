@@ -9,6 +9,7 @@ import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { LANGUAGES, useI18n } from '@core/i18n';
 import { useStore } from '@core/state';
 import { CloudError } from '@modules/projects';
+import { joinSentences } from './accountSentences';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
 
@@ -59,11 +60,13 @@ function describeSync(r: SyncReport, t: Translate): string {
   if (r.filesDownloaded) {
     moved.push(counted(r.filesDownloaded, '1 arquivo recebido', '{n} arquivos recebidos', t));
   }
+  // Whole sentences of their own: their text ends with a period, so they cannot sit in the comma list.
+  const removed: string[] = [];
   if (r.tombstoned) {
-    moved.push(counted(r.tombstoned, '1 removido da conta.', '{n} removidos da conta.', t));
+    removed.push(counted(r.tombstoned, '1 removido da conta.', '{n} removidos da conta.', t));
   }
   if (r.removedElsewhere) {
-    moved.push(
+    removed.push(
       counted(
         r.removedElsewhere,
         '1 removido da conta em outro aparelho: mantido aqui.',
@@ -127,10 +130,9 @@ function describeSync(r: SyncReport, t: Translate): string {
       )
     : '';
 
-  const sentences: string[] = [];
-  if (moved.length) sentences.push(`${moved.join(', ')}.`);
-  else if (!issues.length) sentences.push(t('Tudo em dia.'));
-  return [...sentences, ...issues, missing].filter(Boolean).join(' ');
+  const sentences = [moved.join(', '), ...removed].filter(Boolean);
+  if (!sentences.length && !issues.length) sentences.push(t('Tudo em dia.'));
+  return joinSentences([...sentences, ...issues, missing]);
 }
 
 function syncFailure(error: unknown, t: Translate): string {
