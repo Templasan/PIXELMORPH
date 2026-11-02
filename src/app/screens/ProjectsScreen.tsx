@@ -1,10 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { cancelProjectReminders, scheduleProjectReminders } from './projects/projectReminders';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { cancelProjectReminders } from './projects/projectReminders';
 import {
   Alert,
+  BackHandler,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,19 +21,19 @@ import { Icon } from '@core/ui';
 import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
-import {
-  createMediaAsset,
-  createMediaMetadata,
-  type Project,
-  type ProjectPriority,
-} from '@modules/projects';
+import { createMediaAsset, createMediaMetadata, type Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
 import { RawImportSheet } from './projects/RawImportSheet';
-import { ProjectCard } from './projects/ProjectCard';
-import { ReminderBanner } from './projects/ReminderBanner';
-import { ProjectInfoSheet } from './projects/ProjectInfoSheet';
+import {
+  ProjectGroupRow,
+  ProjectHero,
+  ProjectRow,
+  ProjectTile,
+  type ProjectLayout,
+} from './projects/ProjectCard';
+import { groupLabel, groupProjects } from './projects/projectGroups';
 import { PROJECT_SORT_ORDER, queryProjects, type ProjectSort } from './projects/projectListQuery';
 import { shareProject } from './projects/shareProject';
 
@@ -39,6 +41,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
 const TABS = ['TODOS', 'FOTOS', 'VÍDEOS', 'RASCUNHOS'] as const;
 type Tab = (typeof TABS)[number];
+/** The tab keys are uppercase; the chips read better in sentence case, in any language. */
+const sentenceCase = (text: string) => text.charAt(0) + text.slice(1).toLowerCase();
+
+/** Pictures an open group shows at first; "Ver mais" adds a page. Keeps a big month light. */
+const GROUP_PAGE = 12;
+const WEEK_KEY = 'week';
+/** Two rows, so the months stay in sight below the current week. */
+const WEEK_PAGE = 6;
 
 const SORT_LABELS: Record<ProjectSort, string> = {
   recent: 'Mais recentes',
@@ -56,11 +66,11 @@ function isDraft(project: Project): boolean {
 let mediaRepair: Promise<unknown> | null = null;
 
 export default function ProjectsScreen({ navigation }: Props) {
-  // Floating buttons are absolutely positioned, so they must clear the system navigation bar
+  // The bottom bar must clear the system navigation bar
   // themselves (3-button navigation takes ~150 px on many phones; SafeAreaView padding does not
   // move absolute children).
   const insets = useSafeAreaInsets();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { projects: projectsModule } = useAppModules();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('TODOS');
@@ -69,57 +79,14 @@ export default function ProjectsScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [multiSelect, setMultiSelect] = useState(false);
-  const [infoProject, setInfoProject] = useState<Project | null>(null);
   const [rawImportOpen, setRawImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ProjectSort>('recent');
-
-  const openInfo = useCallback((project: Project) => {
-    setInfoProject(project);
-  }, []);
-
-  // RF-070: lets the user actually set the deadline/priority the pending-projects reminder
-  // reads — previously only seed data had these fields.
-  const updateReminder = useCallback(
-    async (patch: { dueDate?: Date | null; priority?: ProjectPriority | null }) => {
-      if (!infoProject) return;
-      const updated = await projectsModule.updateProject.execute(infoProject.id, patch);
-      scheduleProjectReminders(updated).catch(() => undefined);
-      setInfoProject(updated);
-      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-    },
-    [infoProject]
-  );
-
-  const confirmDelete = useCallback(
-    (project: Project) => {
-      Alert.alert(
-        t('Apagar projeto'),
-        t('Apagar "{name}"? Esta ação não pode ser desfeita.', { name: project.name }),
-        [
-          { text: t('Cancelar'), style: 'cancel' },
-          {
-            text: t('Apagar'),
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await projectsModule.deleteProject.execute(project.id);
-                cancelProjectReminders(project.id).catch(() => undefined);
-                setProjects((prev) => prev.filter((p) => p.id !== project.id));
-                setInfoProject(null);
-              } catch (error) {
-                errorLogger.log(error, 'ProjectsScreen.deleteProject');
-                Alert.alert(t('Não foi possível apagar'), t('Tente novamente.'));
-              }
-            },
-          },
-        ]
-      );
-    },
-    [projectsModule, t]
-  );
+  const [layout, setLayout] = useState<ProjectLayout>('grid');
+  const [expanded, setExpanded] = useState<string[]>([WEEK_KEY]);
+  const [groupLimits, setGroupLimits] = useState<Record<string, number>>({});
 
   // Deletes one at a time and keeps going, so one failure does not leave the rest selected.
   const confirmDeleteSelected = useCallback(
@@ -273,6 +240,31 @@ export default function ProjectsScreen({ navigation }: Props) {
   );
   const nearest = pendingProjects[0];
 
+  const grouped = useMemo(() => groupProjects(filtered, new Date()), [filtered]);
+
+  // The albums only make sense for the default browsing; a search or another order is one grid.
+  const showAlbums = layout === 'grid' && !searchOpen && !query.trim() && sort === 'recent';
+  // Always the project edited last: the filter chips sit below it and do not touch it.
+  const hero = showAlbums && !multiSelect ? queryProjects(projects, '', 'recent')[0] : undefined;
+  const weekProjects = grouped.week.filter((p) => p !== hero);
+  const groupSections = [
+    ...(weekProjects.length > 0
+      ? [{ key: WEEK_KEY, label: t('Esta semana'), projects: weekProjects }]
+      : []),
+    ...grouped.groups.map((g) => ({ ...g, label: groupLabel(g, language) })),
+  ];
+  const flatProjects = filtered;
+
+  useEffect(() => {
+    if (!multiSelect) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setMultiSelect(false);
+      setSelected([]);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [multiSelect]);
+
   const multiSelectRef = useRef(multiSelect);
   multiSelectRef.current = multiSelect;
 
@@ -288,13 +280,45 @@ export default function ProjectsScreen({ navigation }: Props) {
           prev.includes(project.id) ? prev.filter((x) => x !== project.id) : [...prev, project.id]
         );
       } else {
-        navigation.navigate(project.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
-          projectId: project.id,
-        });
+        navigation.navigate('ProjectDetails', { projectId: project.id });
       }
     },
     [navigation]
   );
+
+  const openEditor = useCallback(
+    (project: Project) =>
+      navigation.navigate(project.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
+        projectId: project.id,
+      }),
+    [navigation]
+  );
+
+  const pressGroup = (group: { key: string; projects: Project[] }) => {
+    if (!multiSelect) {
+      setExpanded((prev) =>
+        prev.includes(group.key) ? prev.filter((k) => k !== group.key) : [...prev, group.key]
+      );
+      return;
+    }
+    const ids = group.projects.map((p) => p.id);
+    const allSelectedHere = ids.every((id) => selected.includes(id));
+    setSelected((prev) =>
+      allSelectedHere ? prev.filter((id) => !ids.includes(id)) : [...new Set([...prev, ...ids])]
+    );
+  };
+
+  const longPressGroup = (group: { projects: Project[] }) => {
+    if (multiSelect) return;
+    setMultiSelect(true);
+    setSelected(group.projects.map((p) => p.id));
+  };
+
+  // Everything the current filter holds, opened or not.
+  const selectableIds = flatProjects.map((p) => p.id);
+  const allSelected =
+    selectableIds.length > 0 && selectableIds.every((id) => selected.includes(id));
+  const toggleSelectAll = () => setSelected(allSelected ? [] : selectableIds);
 
   const onLongPressProject = useCallback((project: Project) => {
     if (!multiSelectRef.current) {
@@ -303,18 +327,124 @@ export default function ProjectsScreen({ navigation }: Props) {
     }
   }, []); // stable callback for memoized ProjectCard
 
-  const renderProject = useCallback(
+  const itemProps = { multiSelect, onPressProject, onLongPressProject };
+  const renderTile = useCallback(
     ({ item }: { item: Project }) => (
-      <ProjectCard
+      <View style={styles.tileCell}>
+        <ProjectTile
+          project={item}
+          isSelected={selected.includes(item.id)}
+          multiSelect={multiSelect}
+          onPressProject={onPressProject}
+          onLongPressProject={onLongPressProject}
+        />
+      </View>
+    ),
+    [selected, multiSelect, onPressProject, onLongPressProject]
+  );
+  const renderRow = useCallback(
+    ({ item }: { item: Project }) => (
+      <ProjectRow
         project={item}
         isSelected={selected.includes(item.id)}
         multiSelect={multiSelect}
         onPressProject={onPressProject}
         onLongPressProject={onLongPressProject}
-        onInfo={openInfo}
       />
     ),
-    [selected, multiSelect, onPressProject, onLongPressProject, openInfo]
+    [selected, multiSelect, onPressProject, onLongPressProject]
+  );
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={async () => {
+        setRefreshing(true);
+        try {
+          await loadProjects();
+        } finally {
+          setRefreshing(false);
+        }
+      }}
+      tintColor={colors.acento}
+    />
+  );
+
+  const listTools = (
+    <View style={styles.tools}>
+      {searchOpen ? (
+        <>
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('Buscar projetos')}
+            placeholderTextColor={colors.texto2}
+            autoFocus
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          <Pressable onPress={closeSearch} hitSlop={8} accessibilityLabel={t('Fechar')}>
+            <Icon name="x" size={22} />
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Pressable style={styles.sortButton} onPress={chooseSort} hitSlop={8}>
+            <Text style={styles.sortLabel}>{t(SORT_LABELS[sort])}</Text>
+            <Icon name="chevronDown" size={18} color={colors.texto2} />
+          </Pressable>
+          <Pressable
+            onPress={() => setSearchOpen(true)}
+            hitSlop={8}
+            accessibilityLabel={t('Buscar projetos')}
+          >
+            <Icon name="search" size={22} />
+          </Pressable>
+          <Pressable
+            onPress={() => setLayout(layout === 'grid' ? 'list' : 'grid')}
+            hitSlop={8}
+            accessibilityLabel={layout === 'grid' ? t('Ver em lista') : t('Ver em grade')}
+          >
+            <Icon name={layout === 'grid' ? 'list' : 'grid'} size={22} />
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+
+  const filterChips = (
+    <View style={styles.tabs}>
+      {TABS.map((tab) => {
+        const active = activeTab === tab;
+        return (
+          <Pressable
+            key={tab}
+            style={[styles.tab, active && styles.tabActive]}
+            onPress={() => setActiveTab(tab)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+          >
+            <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
+              {sentenceCase(t(tab))}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  // Search results are found by name, so they always show it, whatever the view.
+  const showRows = layout === 'list' || searchOpen;
+  const nothingToShow = showAlbums ? groupSections.length === 0 : filtered.length === 0;
+  const emptyState = !loading && nothingToShow && (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateText}>
+        {query.trim()
+          ? t('Nenhum projeto encontrado.')
+          : t('Nenhum projeto nesta categoria ainda.')}
+      </Text>
+    </View>
   );
 
   // Sharing takes one file, so the icon is live only when exactly one project is selected.
@@ -329,6 +459,14 @@ export default function ProjectsScreen({ navigation }: Props) {
             <Icon name="x" size={22} />
           </Pressable>
           <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
+          <Pressable
+            onPress={toggleSelectAll}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: allSelected }}
+          >
+            <Text style={styles.selectAll}>{allSelected ? t('Limpar') : t('Selecionar tudo')}</Text>
+          </Pressable>
           <Pressable
             onPress={() => selectedProject && shareProject(selectedProject)}
             disabled={!selectedProject}
@@ -348,115 +486,160 @@ export default function ProjectsScreen({ navigation }: Props) {
         </View>
       ) : (
         <View style={styles.topBar}>
-          {searchOpen ? (
-            <>
-              <TextInput
-                style={styles.searchInput}
-                value={query}
-                onChangeText={setQuery}
-                placeholder={t('Buscar projetos')}
-                placeholderTextColor={colors.texto2}
-                autoFocus
-                autoCorrect={false}
-                returnKeyType="search"
+          <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
+            <Icon name="menu" size={24} />
+          </Pressable>
+          <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
+        </View>
+      )}
+
+      {showAlbums ? (
+        <ScrollView
+          style={styles.body}
+          showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+        >
+          {hero && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>{t('Continuar editando')}</Text>
+                {nearest && (
+                  <Pressable onPress={() => onPressProject(nearest)} hitSlop={8}>
+                    <Text style={styles.pendingLink}>
+                      {pendingProjects.length === 1
+                        ? t('{n} pendente', { n: 1 })
+                        : t('{n} pendentes', { n: pendingProjects.length })}{' '}
+                      ›
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+              <ProjectHero
+                project={hero}
+                onPress={onPressProject}
+                onLongPress={onLongPressProject}
+                onOpen={openEditor}
               />
-              <Pressable onPress={closeSearch} hitSlop={8}>
-                <Icon name="x" size={22} />
-              </Pressable>
-            </>
+            </View>
+          )}
+          {filterChips}
+          {listTools}
+          {emptyState}
+          {groupSections.map((group) => {
+            const isOpen = expanded.includes(group.key);
+            const limit =
+              groupLimits[group.key] ?? (group.key === WEEK_KEY ? WEEK_PAGE : GROUP_PAGE);
+            const hidden = group.projects.length - limit;
+            return (
+              <View key={group.key}>
+                <ProjectGroupRow
+                  label={group.label}
+                  count={group.projects.length}
+                  cover={group.projects[0]}
+                  expanded={isOpen}
+                  multiSelect={multiSelect}
+                  isSelected={multiSelect && group.projects.every((p) => selected.includes(p.id))}
+                  onPress={() => pressGroup(group)}
+                  onLongPress={() => longPressGroup(group)}
+                />
+                {isOpen && (
+                  <View style={styles.groupGrid}>
+                    {group.projects.slice(0, limit).map((item) => (
+                      <View key={item.id} style={styles.tileCell}>
+                        <ProjectTile
+                          project={item}
+                          isSelected={selected.includes(item.id)}
+                          {...itemProps}
+                        />
+                      </View>
+                    ))}
+                    {hidden > 0 && (
+                      <Pressable
+                        style={styles.moreButton}
+                        onPress={() =>
+                          setGroupLimits((prev) => ({ ...prev, [group.key]: limit + GROUP_PAGE }))
+                        }
+                      >
+                        <Text style={styles.moreLabel}>{t('Ver mais {n}', { n: hidden })}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+      ) : (
+        <View style={styles.body}>
+          {filterChips}
+          {listTools}
+          {showRows ? (
+            <FlatList
+              key="list"
+              style={styles.body}
+              data={flatProjects}
+              extraData={selected}
+              keyExtractor={(p) => p.id}
+              renderItem={renderRow}
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={10}
+              maxToRenderPerBatch={8}
+              windowSize={7}
+              refreshControl={refreshControl}
+              ListHeaderComponent={<>{emptyState}</>}
+            />
           ) : (
-            <>
-              <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-                <Icon name="menu" size={22} />
-              </Pressable>
-              <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
-              <Pressable onPress={() => setSearchOpen(true)} hitSlop={8}>
-                <Icon name="search" size={20} />
-              </Pressable>
-              <View style={{ width: 8 }} />
-              <Pressable onPress={chooseSort} hitSlop={8}>
-                <Icon name="sort" size={20} />
-              </Pressable>
-            </>
+            <FlatList
+              key="grid"
+              style={styles.body}
+              data={flatProjects}
+              extraData={selected}
+              keyExtractor={(p) => p.id}
+              renderItem={renderTile}
+              // A FlatList cannot change its columns in place, hence the keys.
+              numColumns={3}
+              contentContainerStyle={styles.tileGrid}
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={18}
+              maxToRenderPerBatch={12}
+              windowSize={7}
+              refreshControl={refreshControl}
+              ListHeaderComponent={<>{emptyState}</>}
+            />
           )}
         </View>
       )}
 
-      <View style={styles.tabs}>
-        {TABS.map((tab) => (
-          <Pressable key={tab} style={styles.tab} onPress={() => setActiveTab(tab)}>
-            <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
-              {t(tab)}
-            </Text>
-            <View style={[styles.tabUnderline, activeTab === tab && styles.tabUnderlineActive]} />
-          </Pressable>
-        ))}
-      </View>
-
-      <FlatList
-        data={filtered}
-        extraData={selected}
-        keyExtractor={(p) => p.id}
-        renderItem={renderProject}
-        numColumns={2}
-        columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        initialNumToRender={8}
-        maxToRenderPerBatch={6}
-        windowSize={7}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              try {
-                await loadProjects();
-              } finally {
-                setRefreshing(false);
-              }
-            }}
-            tintColor={colors.acento}
-          />
-        }
-        ListHeaderComponent={
-          <>
-            {nearest && <ReminderBanner pendingProjects={pendingProjects} nearest={nearest} />}
-
-            {!loading && filtered.length === 0 && (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  {query.trim()
-                    ? t('Nenhum projeto encontrado.')
-                    : t('Nenhum projeto nesta categoria ainda.')}
-                </Text>
-              </View>
-            )}
-          </>
-        }
-      />
-
       {!multiSelect && (
-        <>
-          <Pressable
-            style={[styles.fab, styles.fabGallery, { bottom: 156 + insets.bottom }]}
-            onPress={importFromGallery}
-            disabled={importing}
-          >
-            <Icon name="image" size={20} color={colors.branco} />
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
+          <View style={styles.bottomItem}>
+            <View style={styles.bottomActiveLine} />
+            <Icon name="folder" size={24} color={colors.texto} />
+            <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>{t('Projetos')}</Text>
+          </View>
+          <Pressable style={styles.bottomItem} onPress={importFromGallery} disabled={importing}>
+            <Icon name="image" size={24} color={colors.texto2} />
+            <Text style={styles.bottomLabel}>{t('Galeria')}</Text>
           </Pressable>
           <Pressable
-            style={[styles.fab, styles.fabRaw, { bottom: 88 + insets.bottom }]}
-            onPress={() => setRawImportOpen(true)}
-          >
-            <Icon name="upload" size={20} color={colors.branco} />
-          </Pressable>
-          <Pressable
-            style={[styles.fab, { bottom: 20 + insets.bottom }]}
+            style={styles.bottomItem}
             onPress={() => navigation.navigate('Camera')}
+            accessibilityRole="button"
+            accessibilityLabel={t('Câmera')}
           >
-            <Icon name="camera" size={24} color={colors.branco} />
+            <View style={styles.cameraButton}>
+              <Icon name="camera" size={28} color={colors.branco} />
+            </View>
           </Pressable>
-        </>
+          <Pressable style={styles.bottomItem} onPress={() => setRawImportOpen(true)}>
+            <Icon name="upload" size={24} color={colors.texto2} />
+            <Text style={styles.bottomLabel}>RAW</Text>
+          </Pressable>
+          <Pressable style={styles.bottomItem} onPress={() => navigation.navigate('Account')}>
+            <Icon name="user" size={24} color={colors.texto2} />
+            <Text style={styles.bottomLabel}>{t('Conta')}</Text>
+          </Pressable>
+        </View>
       )}
 
       {rawImportOpen && (
@@ -466,17 +649,6 @@ export default function ProjectsScreen({ navigation }: Props) {
             setRawImportOpen(false);
             navigation.navigate('RawConverter', result);
           }}
-        />
-      )}
-
-      {infoProject && (
-        <ProjectInfoSheet
-          // Fresh tab/date state for each project, as when the sheet used to reset on open.
-          key={infoProject.id}
-          project={infoProject}
-          onClose={() => setInfoProject(null)}
-          onUpdateReminder={updateReminder}
-          onConfirmDelete={confirmDelete}
         />
       )}
 
@@ -496,20 +668,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   topBar: {
-    height: 56,
-    backgroundColor: colors.barra,
+    height: 60,
+    backgroundColor: colors.canvas,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.linha,
-    elevation: 4,
+    gap: 18,
   },
   topBarTitle: {
     flex: 1,
-    fontSize: fontSize.lg,
-    fontWeight: '500',
+    fontSize: 22,
+    fontWeight: '600',
     color: colors.texto,
   },
   searchInput: {
@@ -528,38 +697,107 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.linha,
   },
+  selectAll: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.texto,
+  },
   contextTitle: {
     flex: 1,
     fontSize: fontSize.md,
     color: colors.texto,
   },
+  tools: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  sortButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sortLabel: {
+    fontSize: fontSize.sm,
+    color: colors.texto2,
+  },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.barra,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.linha,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+    backgroundColor: colors.canvas,
   },
   tab: {
-    flex: 1,
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 17,
     alignItems: 'center',
-    paddingTop: 8,
+    justifyContent: 'center',
+    backgroundColor: colors.barra,
+  },
+  tabActive: {
+    backgroundColor: colors.texto,
   },
   tabLabel: {
-    fontSize: 11,
-    letterSpacing: 0.5,
+    fontSize: fontSize.sm,
+    fontWeight: '500',
     color: colors.texto2,
-    paddingBottom: 8,
   },
   tabLabelActive: {
-    color: colors.acento,
+    color: colors.canvas,
   },
-  tabUnderline: {
-    height: 2,
+  body: {
+    flex: 1,
+  },
+  section: {
+    marginBottom: 18,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.texto2,
+  },
+  pendingLink: {
+    fontSize: fontSize.sm,
+    color: colors.alerta,
+  },
+  groupGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  moreButton: {
     width: '100%',
-    backgroundColor: 'transparent',
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tabUnderlineActive: {
-    backgroundColor: colors.acento,
+  moreLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.texto,
+  },
+  tileGrid: {
+    paddingHorizontal: 14,
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
+  tileCell: {
+    width: '33.333%',
+    padding: 2,
   },
   emptyState: {
     padding: 24,
@@ -570,39 +808,44 @@ const styles = StyleSheet.create({
     color: colors.texto2,
     textAlign: 'center',
   },
-  gridRow: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    gap: 8,
+  bottomBar: {
+    zIndex: 1,
+    flexDirection: 'row',
+    backgroundColor: colors.canvas,
+    borderTopWidth: 1,
+    borderTopColor: colors.linha,
   },
-  fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.acento,
+  bottomItem: {
+    flex: 1,
+    height: 62,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    gap: 4,
   },
-  fabRaw: {
-    bottom: 88,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.painel,
-    borderWidth: 1,
-    borderColor: colors.linha,
+  // Rises above the bar; the ring in the page's colour separates it from the list behind.
+  cameraButton: {
+    width: 64,
+    height: 64,
+    marginTop: -24,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: colors.canvas,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.acento,
   },
-  fabGallery: {
-    bottom: 156,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.painel,
-    borderWidth: 1,
-    borderColor: colors.linha,
+  bottomActiveLine: {
+    position: 'absolute',
+    bottom: 0,
+    width: '76%',
+    height: 2,
+    backgroundColor: colors.texto,
+  },
+  bottomLabel: {
+    fontSize: fontSize.xs,
+    color: colors.texto2,
+  },
+  bottomLabelActive: {
+    color: colors.texto,
   },
 });

@@ -10,6 +10,7 @@ import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import NewPasswordScreen from '../screens/NewPasswordScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
+import ProjectDetailsScreen from '../screens/ProjectDetailsScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import TutorialsScreen from '../screens/TutorialsScreen';
 import PresetsScreen from '../screens/PresetsScreen';
@@ -22,6 +23,7 @@ export type RootStackParamList = {
   SignUp: undefined;
   NewPassword: undefined;
   Projects: undefined;
+  ProjectDetails: { projectId: string };
   Camera: undefined;
   PhotoEditor: { projectId?: string } | undefined;
   /** RF-003: RAW converter — white balance + tone curve, then hands off to PhotoEditor. */
@@ -78,6 +80,7 @@ const screens = {
   SignUp: withScreenBoundary(SignUpScreen, 'SignUp'),
   NewPassword: withScreenBoundary(NewPasswordScreen, 'NewPassword'),
   Projects: withScreenBoundary(ProjectsScreen, 'Projects'),
+  ProjectDetails: withScreenBoundary(ProjectDetailsScreen, 'ProjectDetails'),
   Camera: withScreenBoundary(CameraScreen, 'Camera'),
   PhotoEditor: withScreenBoundary(PhotoEditorScreen, 'PhotoEditor'),
   RawConverter: withScreenBoundary(RawConverterScreen, 'RawConverter'),
@@ -109,6 +112,7 @@ export default function RootNavigator() {
       <Stack.Screen name="SignUp" component={screens.SignUp} />
       <Stack.Screen name="NewPassword" component={screens.NewPassword} />
       <Stack.Screen name="Projects" component={screens.Projects} />
+      <Stack.Screen name="ProjectDetails" component={screens.ProjectDetails} />
       <Stack.Screen name="Camera" component={screens.Camera} />
       <Stack.Screen name="PhotoEditor" component={screens.PhotoEditor} />
       <Stack.Screen name="RawConverter" component={screens.RawConverter} />
