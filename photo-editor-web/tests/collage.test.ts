@@ -3,6 +3,7 @@ import {
   CENTRED_PAN,
   COLLAGE_LAYOUTS,
   coverPlacement,
+  gridLayout,
   panByDrag,
 } from '../src/domain/collage/CollageMath';
 import { coverFitRect } from '../src/domain/export/exportMath';
@@ -89,5 +90,27 @@ describe('panByDrag (RF-011 pan)', () => {
 
   it('keeps the pan on an axis with no spare room', () => {
     expect(panByDrag(wide, square, { x: 0.2, y: 0.7 }, 0, 50).y).toBe(0.7);
+  });
+});
+
+describe('gridLayout (RF-011 Personalizado)', () => {
+  it('makes rows x columns equal cells that tile the canvas', () => {
+    const layout = gridLayout(2, 3);
+    expect(layout.cells).toHaveLength(6);
+    for (const c of layout.cells) {
+      expect(c.width).toBeCloseTo(1 / 3, 9);
+      expect(c.height).toBeCloseTo(1 / 2, 9);
+    }
+    const area = layout.cells.reduce((sum, c) => sum + c.width * c.height, 0);
+    expect(area).toBeCloseTo(1, 9);
+  });
+
+  it('1 x 1 is one full cell', () => {
+    expect(gridLayout(1, 1).cells).toEqual([{ x: 0, y: 0, width: 1, height: 1 }]);
+  });
+
+  it('clamps the counts to 1..4', () => {
+    expect(gridLayout(0, 9).cells).toHaveLength(4);
+    expect(gridLayout(9, 0).cells).toHaveLength(4);
   });
 });

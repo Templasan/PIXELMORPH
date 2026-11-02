@@ -4,7 +4,9 @@ import { COLLAGE_SIZE, type PhotoSession } from '../../application/session';
 import {
   cellPixelRect,
   CENTRED_PAN,
+  CUSTOM_GRID_MAX,
   COLLAGE_LAYOUTS,
+  gridLayout,
   panByDrag,
   type CellPan,
 } from '../../domain/collage/CollageMath';
@@ -15,6 +17,7 @@ import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
 
 const BORDER_COLORS = ['#FFFFFF', '#000000', '#3A8FDE'];
+const CUSTOM = 'custom';
 /** The preview is drawn at this size; spacing and borders scale down with it. */
 const PREVIEW_SIZE = 480;
 const PREVIEW_PICTURE_EDGE = 512;
@@ -33,7 +36,10 @@ interface CellPicture {
 export function CollageSection({ session }: { session: PhotoSession }) {
   const busy = useStore(session.info, (i) => i.busy !== null);
   const [layoutId, setLayoutId] = useState(COLLAGE_LAYOUTS[0].id);
-  const layout = COLLAGE_LAYOUTS.find((l) => l.id === layoutId)!;
+  const [rows, setRows] = useState(2);
+  const [cols, setCols] = useState(2);
+  const layout =
+    layoutId === CUSTOM ? gridLayout(rows, cols) : COLLAGE_LAYOUTS.find((l) => l.id === layoutId)!;
   const [cells, setCells] = useState<(CellPicture | null)[]>([]);
   const [pans, setPans] = useState<CellPan[]>([]);
   const [spacing, setSpacing] = useState(8);
@@ -104,11 +110,17 @@ export function CollageSection({ session }: { session: PhotoSession }) {
   return (
     <>
       <Chips
-        options={COLLAGE_LAYOUTS.map((l) => l.id)}
+        options={[...COLLAGE_LAYOUTS.map((l) => l.id), CUSTOM]}
         value={layoutId}
-        label={(id) => t(COLLAGE_LAYOUTS.find((l) => l.id === id)!.label)}
+        label={(id) => (id === CUSTOM ? t('Personalizado') : t(COLLAGE_LAYOUTS.find((l) => l.id === id)!.label))}
         onPick={setLayoutId}
       />
+      {layoutId === CUSTOM && (
+        <>
+          <Stepper label={t('Linhas')} value={rows} onChange={setRows} />
+          <Stepper label={t('Colunas')} value={cols} onChange={setCols} />
+        </>
+      )}
       <div className="chips">
         {picked.map((c, i) => (
           <button key={i} className={`chip${c ? ' on' : ''}`} onClick={() => void pick(i)}>
@@ -148,6 +160,24 @@ export function CollageSection({ session }: { session: PhotoSession }) {
       </button>
       {error && <div className="muted">{error}</div>}
     </>
+  );
+}
+
+/** A count from 1 to CUSTOM_GRID_MAX with − and + (the custom collage's rows and columns). */
+function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="panel-row">
+      <span>{label}</span>
+      <span>
+        <button className="chip" disabled={value <= 1} onClick={() => onChange(value - 1)}>
+          −
+        </button>{' '}
+        {value}{' '}
+        <button className="chip" disabled={value >= CUSTOM_GRID_MAX} onClick={() => onChange(value + 1)}>
+          +
+        </button>
+      </span>
+    </div>
   );
 }
 
