@@ -40,3 +40,6 @@ Thumbs.db
 
 # Development Build
 development-build/
+
+# Media server local storage (users' photos and videos)
+media-server/data/
