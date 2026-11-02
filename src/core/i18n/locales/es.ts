@@ -210,6 +210,8 @@ const es: Record<string, string> = {
   '1 em conflito: mantido como está ({names}).': '1 en conflicto: se mantiene como está ({names}).',
   '{n} em conflito: mantidos como estão ({names}).':
     '{n} en conflicto: se mantienen como están ({names}).',
+  'Sua conta não tem acesso ao servidor de mídia.':
+    'Tu cuenta no tiene acceso al servidor de medios.',
   'Servidor de mídia desligado: 1 arquivo pendente.':
     'Servidor de medios apagado: 1 archivo pendiente.',
   'Servidor de mídia desligado: {n} arquivos pendentes.':

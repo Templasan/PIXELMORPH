@@ -74,6 +74,7 @@ function describeSync(r: SyncReport, t: Translate): string {
   }
 
   const issues: string[] = [];
+  if (r.serverForbidden) issues.push(t('Sua conta não tem acesso ao servidor de mídia.'));
   if (r.conflicts.length) {
     issues.push(
       counted(
