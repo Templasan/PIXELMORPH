@@ -9,7 +9,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PhotoEditor'>;
 /** Web design preview only (docs/web-preview.md). The app hosts the built editor in a WebView. */
 export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
-  const [src, setSrc] = useState<string | null>(projectId ? null : 'http://localhost:5175/');
+  const start = route.params?.start;
+  const [src, setSrc] = useState<string | null>(
+    projectId ? null : `http://localhost:5175/${start ? `?start=${start}` : ''}`
+  );
 
   useEffect(() => {
     if (!projectId) return;
@@ -19,5 +22,5 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
     });
   }, [projectId]);
 
-  return src ? <EditorFrame src={src} onBack={() => navigation.navigate('Projects')} /> : null;
+  return src ? <EditorFrame src={src} onBack={() => navigation.goBack()} /> : null;
 }

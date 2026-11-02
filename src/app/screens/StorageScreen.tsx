@@ -5,7 +5,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Switch } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { errorLogger } from '@core/reliability';
 import {
@@ -29,7 +28,6 @@ function SectionHeader({ label }: { label: string }) {
 
 export default function StorageScreen({ navigation }: Props) {
   const { projects } = useAppModules();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const { t } = useI18n();
   const [backupEnabled, setBackupEnabledState] = useState(true);
   const [lastBackupAt, setLastBackupAt] = useState<number | null>(null);
@@ -129,8 +127,8 @@ export default function StorageScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-          <Icon name="menu" size={22} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Icon name="chevronLeft" size={24} />
         </Pressable>
         <Text style={styles.topBarTitle}>{t('Armazenamento')}</Text>
       </View>
@@ -231,13 +229,6 @@ export default function StorageScreen({ navigation }: Props) {
           </View>
         </View>
       </ScrollView>
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Storage"
-      />
     </SafeAreaView>
   );
 }

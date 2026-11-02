@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Presets'>;
@@ -114,7 +113,6 @@ const PRESETS: Preset[] = [
 const CONTEXT_ACTIONS = ['Renomear', 'Duplicar', 'Exportar'];
 
 export default function PresetsScreen({ navigation }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('MEUS PRESETS');
   const [contextPreset, setContextPreset] = useState<Preset | null>(null);
   const [sheetPreset, setSheetPreset] = useState<Preset | null>(null);
@@ -122,8 +120,8 @@ export default function PresetsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-          <Icon name="menu" size={22} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Icon name="chevronLeft" size={24} />
         </Pressable>
         <Text style={styles.topBarTitle}>Presets</Text>
         {/* TODO: real preset search. */}
@@ -228,13 +226,6 @@ export default function PresetsScreen({ navigation }: Props) {
           </Pressable>
         </Pressable>
       )}
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Presets"
-      />
     </SafeAreaView>
   );
 }

@@ -11,6 +11,7 @@ import SignUpScreen from '../screens/SignUpScreen';
 import NewPasswordScreen from '../screens/NewPasswordScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
 import ProjectDetailsScreen from '../screens/ProjectDetailsScreen';
+import ExploreScreen from '../screens/ExploreScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import TutorialsScreen from '../screens/TutorialsScreen';
 import PresetsScreen from '../screens/PresetsScreen';
@@ -24,8 +25,10 @@ export type RootStackParamList = {
   NewPassword: undefined;
   Projects: undefined;
   ProjectDetails: { projectId: string };
+  Explore: undefined;
   Camera: undefined;
-  PhotoEditor: { projectId?: string } | undefined;
+  /** `start`: a collage or panorama opened from Explore, with no photo open yet. */
+  PhotoEditor: { projectId?: string; start?: 'collage' | 'panorama' } | undefined;
   /** RF-003: RAW converter — white balance + tone curve, then hands off to PhotoEditor. */
   RawConverter: {
     sourceUri: string;
@@ -33,7 +36,8 @@ export type RootStackParamList = {
     rawFormatLabel: string;
     rawMimeType: string;
   };
-  VideoEditor: { projectId?: string } | undefined;
+  /** `start`: opens with the time-lapse panel, from Explore. */
+  VideoEditor: { projectId?: string; start?: 'timelapse' } | undefined;
   Community: undefined;
   Tutorials: undefined;
   Presets: undefined;
@@ -81,6 +85,7 @@ const screens = {
   NewPassword: withScreenBoundary(NewPasswordScreen, 'NewPassword'),
   Projects: withScreenBoundary(ProjectsScreen, 'Projects'),
   ProjectDetails: withScreenBoundary(ProjectDetailsScreen, 'ProjectDetails'),
+  Explore: withScreenBoundary(ExploreScreen, 'Explore'),
   Camera: withScreenBoundary(CameraScreen, 'Camera'),
   PhotoEditor: withScreenBoundary(PhotoEditorScreen, 'PhotoEditor'),
   RawConverter: withScreenBoundary(RawConverterScreen, 'RawConverter'),
@@ -113,6 +118,7 @@ export default function RootNavigator() {
       <Stack.Screen name="NewPassword" component={screens.NewPassword} />
       <Stack.Screen name="Projects" component={screens.Projects} />
       <Stack.Screen name="ProjectDetails" component={screens.ProjectDetails} />
+      <Stack.Screen name="Explore" component={screens.Explore} />
       <Stack.Screen name="Camera" component={screens.Camera} />
       <Stack.Screen name="PhotoEditor" component={screens.PhotoEditor} />
       <Stack.Screen name="RawConverter" component={screens.RawConverter} />
