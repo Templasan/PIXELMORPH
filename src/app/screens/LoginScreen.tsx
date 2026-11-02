@@ -154,6 +154,11 @@ export default function LoginScreen({ navigation }: Props) {
             >
               <Text style={styles.secondaryButtonText}>{t('CONTINUAR COM GOOGLE')}</Text>
             </Pressable>
+            {/* Plain text on purpose: the Termos de uso and Política de privacidade documents are
+                pending, so there is nothing to link to yet. Add links when they exist. */}
+            <Text style={styles.termsNote}>
+              {t('Ao continuar, você aceita os Termos de uso e a Política de privacidade.')}
+            </Text>
 
             <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate('SignUp')}>
               <Text style={styles.secondaryButtonText}>{t('CRIAR CONTA')}</Text>
@@ -271,6 +276,12 @@ const styles = StyleSheet.create({
   dividerText: {
     fontSize: fontSize.xs,
     color: colors.texto2,
+  },
+  termsNote: {
+    fontSize: fontSize.xs,
+    color: colors.texto2,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   message: {
     fontSize: fontSize.xs,
