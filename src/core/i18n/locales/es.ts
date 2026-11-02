@@ -244,6 +244,7 @@ const es: Record<string, string> = {
     'Los cambios hechos en este dispositivo en este proyecto se reemplazarán.',
   'Entre na conta de novo para sincronizar.': 'Vuelve a entrar para sincronizar.',
   'Não foi possível sincronizar agora.': 'No se pudo sincronizar ahora.',
+  Galeria: 'Galería',
 };
 
 export default es;
