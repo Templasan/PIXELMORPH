@@ -217,6 +217,9 @@ const es: Record<string, string> = {
   'Servidor de mídia desligado: {n} arquivos pendentes.':
     'Servidor de medios apagado: {n} archivos pendientes.',
   '1 projeto aguardando arquivos do servidor.': '1 proyecto esperando archivos del servidor.',
+  '1 arquivo não enviado pelo servidor de mídia.': '1 archivo no enviado por el servidor de medios.',
+  '{n} arquivos não enviados pelo servidor de mídia.':
+    '{n} archivos no enviados por el servidor de medios.',
   '{n} projetos aguardando arquivos do servidor.': '{n} proyectos esperando archivos del servidor.',
   '1 arquivo não encontrado neste aparelho ({names}).':
     '1 archivo no encontrado en este dispositivo ({names}).',

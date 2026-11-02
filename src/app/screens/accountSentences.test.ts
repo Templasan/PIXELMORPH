@@ -1,4 +1,8 @@
-import { endSentence, joinSentences } from './accountSentences';
+import { endSentence, joinSentences, pendingUploadsSentence } from './accountSentences';
+
+// Stands in for i18n's t: fills {n} and returns the Portuguese source text.
+const pt = (text: string, params?: Record<string, string | number>) =>
+  text.replace(/\{(\w+)\}/g, (m, k: string) => (params && k in params ? String(params[k]) : m));
 
 describe('endSentence', () => {
   it('ends with exactly one period', () => {
@@ -38,5 +42,17 @@ describe('joinSentences', () => {
       expect(text.endsWith('.')).toBe(true);
       expect((text.match(/\./g) ?? []).length).toBe(chosen.length);
     }
+  });
+});
+
+describe('pendingUploadsSentence', () => {
+  it('says the server is off only when it did not answer', () => {
+    expect(pendingUploadsSentence(1, true, pt)).toBe('Servidor de mídia desligado: 1 arquivo pendente.');
+    expect(pendingUploadsSentence(3, true, pt)).toBe('Servidor de mídia desligado: 3 arquivos pendentes.');
+  });
+
+  it('does not call a server that answered (quota, error) off', () => {
+    expect(pendingUploadsSentence(1, false, pt)).toBe('1 arquivo não enviado pelo servidor de mídia.');
+    expect(pendingUploadsSentence(3, false, pt)).toBe('3 arquivos não enviados pelo servidor de mídia.');
   });
 });
