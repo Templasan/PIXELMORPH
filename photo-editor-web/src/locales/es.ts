@@ -175,6 +175,8 @@ const es: Record<string, string> = {
 
   // Montage panels
   'Escolher foto': 'Elegir foto',
+  'Distribuir na horizontal': 'Distribuir en horizontal',
+  'Distribuir na vertical': 'Distribuir en vertical',
   Personalizado: 'Personalizado',
   Linhas: 'Filas',
   Colunas: 'Columnas',
