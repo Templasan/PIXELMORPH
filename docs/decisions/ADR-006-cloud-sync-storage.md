@@ -34,11 +34,14 @@ data are involved:
 
 ## Consequences
 
-- Deleting a project on one device does not remove it from the others: a remote delete leaves the
-  local copy alone, and that device uploads it again on its next run. Fixing this needs a decision
-  on delete semantics (a tombstone that wins over a local copy with no changes). Not done in stage 2.
-- A file downloaded to a second device is uploaded back once, under a new key, because the key is
-  derived from the local path. The server ends up with two copies; the project row stays valid.
+- Deleting a project on one device removes it from the account (`deleted_at` on its row). Another
+  device that still has the project unchanged keeps its local copy and reports the removal once
+  ("removido da conta em outro aparelho"). It does not upload the copy back. A device with no copy
+  and no record does not download a deleted project. If the user edits the kept copy, it goes back
+  to the account, and that upload clears `deleted_at`.
+- A file downloaded to a second device keeps the server key of the original file. The phone records
+  it per local URI (`fileKeys` in the sync state) and does not upload the file back. A file replaced
+  in place (size or time changed) uploads again under the same key; a new file gets a new key.
 - Server files of deleted projects stay on the media server. Downloaded media is not removed when
   its project is deleted locally.
 - Losing the PC means losing the media: the server has no backup. Stated in `media-server/README.md`.

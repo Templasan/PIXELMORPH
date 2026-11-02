@@ -161,7 +161,7 @@ class FakePhone implements LocalProjectData {
   }
 
   async loadState(userId: string): Promise<SyncState> {
-    return structuredClone(this.states.get(userId) ?? { last: {}, uploaded: {} });
+    return structuredClone(this.states.get(userId) ?? { last: {}, uploaded: {}, fileKeys: {} });
   }
 
   async saveState(userId: string, state: SyncState) {
@@ -381,7 +381,7 @@ describe('SyncProjectsUseCase', () => {
     expect(state.last.p1).toBeUndefined();
   });
 
-  it('a remote delete never removes the local copy', async () => {
+  it('a remote delete never removes the local copy, and is reported once', async () => {
     const server = newServer();
     const a = deviceWith(server);
     a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
@@ -393,10 +393,149 @@ describe('SyncProjectsUseCase', () => {
     server.rows.set('p1', { ...row, deletedAt: at, updatedAt: at });
     const report = await syncOnce(a.uc);
 
-    expect(report.downloaded).toBe(0);
-    expect(report.tombstoned).toBe(0);
+    expect(report).toMatchObject({
+      downloaded: 0,
+      tombstoned: 0,
+      removedElsewhere: 1,
+      uploaded: 0,
+    });
     expect(a.phone.storage['project:p1']).toBeDefined();
-    expect((await a.phone.loadState('u1')).last.p1).toBeUndefined();
+    expect((await a.phone.loadState('u1')).last.p1?.remoteUpdatedAt).toBe(at);
+
+    const again = await syncOnce(a.uc);
+    expect(again.removedElsewhere).toBe(0);
+    expect(server.upserts.filter((id) => id === 'p1')).toHaveLength(1);
+  });
+
+  it('a project deleted on one device stays on the other until it is edited there; then it comes back', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    a.phone.removeProject('p1');
+    expect((await syncOnce(a.uc)).tombstoned).toBe(1);
+
+    await tick();
+    expect((await syncOnce(b.uc)).removedElsewhere).toBe(1);
+    expect(await syncOnce(b.uc)).toMatchObject({ removedElsewhere: 0, uploaded: 0 });
+    expect(b.phone.storage['project:p1']).toBeDefined();
+    expect(server.rows.get('p1')?.deletedAt).not.toBeNull();
+
+    // A device with no copy and no record does not bring a deleted project back.
+    expect(await syncOnce(a.uc)).toMatchObject({ downloaded: 0 });
+
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem B' });
+    expect((await syncOnce(b.uc)).uploaded).toBe(1);
+    expect(server.rows.get('p1')?.deletedAt).toBeNull();
+
+    expect((await syncOnce(a.uc)).downloaded).toBe(1);
+    expect(a.phone.storage['project:p1']).toBeDefined();
+  });
+
+  it('after a download, the next run uploads no file again', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/two.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    const first = await syncOnce(b.uc);
+    expect(first.downloaded).toBe(1);
+
+    const uploadsBefore = server.successfulUploads.length;
+    await syncOnce(b.uc);
+
+    expect(server.successfulUploads.length).toBe(uploadsBefore);
+  });
+
+  it('an edit after a download uploads the row with the original file keys and no file', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const originalKeys = server.rows.get('p1')!.files.map((f) => f.key);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({
+      ...JSON.parse(b.phone.storage['project:p1']),
+      name: 'Viagem B',
+    });
+    const uploadsBefore = server.successfulUploads.length;
+    const report = await syncOnce(b.uc);
+
+    expect(report.uploaded).toBe(1);
+    expect(server.rows.get('p1')!.files.map((f) => f.key)).toEqual(originalKeys);
+    expect(server.successfulUploads.length).toBe(uploadsBefore);
+  });
+
+  it('a third device can download a row whose files came from a download', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+    await tick();
+    b.phone.storage['project:p1'] = JSON.stringify({
+      ...JSON.parse(b.phone.storage['project:p1']),
+      name: 'Viagem B',
+    });
+    await syncOnce(b.uc);
+
+    const c = deviceWith(server);
+    const report = await syncOnce(c.uc);
+
+    expect(report.downloaded).toBe(1);
+    const key = server.rows.get('p1')!.files[0].key;
+    expect([...c.phone.fs.keys()]).toEqual([`file:///docs/cloud/p1/${key}`]);
+  });
+
+  it('a file replaced in place uploads again under the same key', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const key = server.rows.get('p1')!.files[0].key;
+
+    a.phone.fs.set('file:///cache/one.jpg', {
+      content: 'new bytes',
+      size: 20,
+      modificationTime: 2000,
+    });
+    await syncOnce(a.uc);
+
+    expect(server.rows.get('p1')!.files[0].key).toBe(key);
+    expect(server.files.get(`p1/${key}`)).toBe('new bytes');
+  });
+
+  it('a new baked file gets a new key', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const oldKey = server.rows.get('p1')!.files[0].key;
+
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/baked.jpg']);
+    a.phone.storage['project:p1'] = JSON.stringify({
+      id: 'p1',
+      name: 'Viagem',
+      assets: [
+        { originalUri: 'file:///cache/one.jpg' },
+        { originalUri: 'file:///cache/baked.jpg' },
+      ],
+    });
+    await syncOnce(a.uc);
+
+    const keys = server.rows.get('p1')!.files.map((f) => f.key);
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain(oldKey);
+    expect(keys.find((k) => k !== oldKey)).toMatch(/^[0-9a-f]{8}-\d+\.jpg$/);
   });
 
   it('a payload with keys outside the project is refused and writes nothing', async () => {

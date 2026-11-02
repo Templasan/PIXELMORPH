@@ -80,11 +80,16 @@ export class LocalProjectStorage implements LocalProjectData {
 
   async loadState(userId: string): Promise<SyncState> {
     const json = await AsyncStorage.getItem(stateKey(userId));
-    const empty: SyncState = { last: {}, uploaded: {} };
+    const empty: SyncState = { last: {}, uploaded: {}, fileKeys: {} };
     if (!json) return empty;
     try {
+      // Older saved state has no fileKeys: missing maps load as empty.
       const state = JSON.parse(json) as Partial<SyncState>;
-      return { last: state.last ?? {}, uploaded: state.uploaded ?? {} };
+      return {
+        last: state.last ?? {},
+        uploaded: state.uploaded ?? {},
+        fileKeys: state.fileKeys ?? {},
+      };
     } catch {
       // A damaged state only costs conflicts on the next run; it cannot delete or overwrite anything.
       return empty;
