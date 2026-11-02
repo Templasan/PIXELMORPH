@@ -17,7 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
 import { SideDrawer } from '../navigation/SideDrawer';
-import { colors, fontSize, monoFontFamily, radius } from '@core/theme';
+import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
 import {
   createMediaAsset,
@@ -38,8 +38,6 @@ import { shareProject } from './projects/shareProject';
 type Props = NativeStackScreenProps<RootStackParamList, 'Projects'>;
 
 const TABS = ['TODOS', 'FOTOS', 'VÍDEOS', 'RASCUNHOS'] as const;
-/** The tab keys are uppercase; the chips read better in sentence case, in any language. */
-const sentenceCase = (text: string) => text.charAt(0) + text.slice(1).toLowerCase();
 type Tab = (typeof TABS)[number];
 
 const SORT_LABELS: Record<ProjectSort, string> = {
@@ -58,7 +56,7 @@ function isDraft(project: Project): boolean {
 let mediaRepair: Promise<unknown> | null = null;
 
 export default function ProjectsScreen({ navigation }: Props) {
-  // The bottom action bar must clear the system navigation bar
+  // Floating buttons are absolutely positioned, so they must clear the system navigation bar
   // themselves (3-button navigation takes ~150 px on many phones; SafeAreaView padding does not
   // move absolute children).
   const insets = useSafeAreaInsets();
@@ -372,7 +370,6 @@ export default function ProjectsScreen({ navigation }: Props) {
                 <Icon name="menu" size={22} />
               </Pressable>
               <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
-              {!loading && <Text style={styles.topBarCount}>{projects.length}</Text>}
               <Pressable onPress={() => setSearchOpen(true)} hitSlop={8}>
                 <Icon name="search" size={20} />
               </Pressable>
@@ -386,22 +383,14 @@ export default function ProjectsScreen({ navigation }: Props) {
       )}
 
       <View style={styles.tabs}>
-        {TABS.map((tab) => {
-          const active = activeTab === tab;
-          return (
-            <Pressable
-              key={tab}
-              style={[styles.tab, active && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
-                {sentenceCase(t(tab))}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {TABS.map((tab) => (
+          <Pressable key={tab} style={styles.tab} onPress={() => setActiveTab(tab)}>
+            <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+              {t(tab)}
+            </Text>
+            <View style={[styles.tabUnderline, activeTab === tab && styles.tabUnderlineActive]} />
+          </Pressable>
+        ))}
       </View>
 
       <FlatList
@@ -410,7 +399,8 @@ export default function ProjectsScreen({ navigation }: Props) {
         keyExtractor={(p) => p.id}
         renderItem={renderProject}
         numColumns={2}
-        contentContainerStyle={styles.grid}
+        columnWrapperStyle={styles.gridRow}
+        contentContainerStyle={{ paddingBottom: 24 }}
         initialNumToRender={8}
         maxToRenderPerBatch={6}
         windowSize={7}
@@ -446,23 +436,27 @@ export default function ProjectsScreen({ navigation }: Props) {
       />
 
       {!multiSelect && (
-        <View style={[styles.actionBar, { paddingBottom: 12 + insets.bottom }]}>
+        <>
           <Pressable
-            style={[styles.action, styles.actionPrimary]}
+            style={[styles.fab, styles.fabGallery, { bottom: 156 + insets.bottom }]}
+            onPress={importFromGallery}
+            disabled={importing}
+          >
+            <Icon name="image" size={20} color={colors.branco} />
+          </Pressable>
+          <Pressable
+            style={[styles.fab, styles.fabRaw, { bottom: 88 + insets.bottom }]}
+            onPress={() => setRawImportOpen(true)}
+          >
+            <Icon name="upload" size={20} color={colors.branco} />
+          </Pressable>
+          <Pressable
+            style={[styles.fab, { bottom: 20 + insets.bottom }]}
             onPress={() => navigation.navigate('Camera')}
           >
-            <Icon name="camera" size={20} color={colors.branco} />
-            <Text style={[styles.actionLabel, styles.actionLabelPrimary]}>{t('Câmera')}</Text>
+            <Icon name="camera" size={24} color={colors.branco} />
           </Pressable>
-          <Pressable style={styles.action} onPress={importFromGallery} disabled={importing}>
-            <Icon name="image" size={18} color={colors.texto} />
-            <Text style={styles.actionLabel}>{t('Galeria')}</Text>
-          </Pressable>
-          <Pressable style={styles.action} onPress={() => setRawImportOpen(true)}>
-            <Icon name="upload" size={18} color={colors.texto} />
-            <Text style={styles.actionLabel}>RAW</Text>
-          </Pressable>
-        </View>
+        </>
       )}
 
       {rawImportOpen && (
@@ -503,23 +497,20 @@ const styles = StyleSheet.create({
   },
   topBar: {
     height: 56,
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.barra,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    gap: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.linha,
+    elevation: 4,
   },
   topBarTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: '600',
-    color: colors.texto,
-  },
-  topBarCount: {
     flex: 1,
-    marginLeft: -8,
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
-    color: colors.texto2,
+    fontSize: fontSize.lg,
+    fontWeight: '500',
+    color: colors.texto,
   },
   searchInput: {
     flex: 1,
@@ -544,29 +535,31 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.canvas,
+    backgroundColor: colors.barra,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.linha,
   },
   tab: {
-    height: 32,
-    paddingHorizontal: 12,
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius,
-    backgroundColor: colors.faixa,
-  },
-  tabActive: {
-    backgroundColor: colors.texto,
+    paddingTop: 8,
   },
   tabLabel: {
-    fontSize: fontSize.xs,
+    fontSize: 11,
+    letterSpacing: 0.5,
     color: colors.texto2,
-    fontWeight: '500',
+    paddingBottom: 8,
   },
   tabLabelActive: {
-    color: colors.canvas,
+    color: colors.acento,
+  },
+  tabUnderline: {
+    height: 2,
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
+  tabUnderlineActive: {
+    backgroundColor: colors.acento,
   },
   emptyState: {
     padding: 24,
@@ -577,40 +570,39 @@ const styles = StyleSheet.create({
     color: colors.texto2,
     textAlign: 'center',
   },
-  grid: {
-    paddingHorizontal: 10,
-    paddingTop: 4,
-    paddingBottom: 8,
-  },
-  actionBar: {
-    flexDirection: 'row',
+  gridRow: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
     gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: colors.barra,
-    borderTopWidth: 1,
-    borderTopColor: colors.linha,
   },
-  action: {
-    flex: 1,
-    height: 44,
-    flexDirection: 'row',
+  fab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.acento,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: radius,
+    elevation: 6,
+  },
+  fabRaw: {
+    bottom: 88,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.painel,
+    borderWidth: 1,
+    borderColor: colors.linha,
   },
-  actionPrimary: {
-    flex: 1.4,
-    backgroundColor: colors.acento,
-  },
-  actionLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: '500',
-    color: colors.texto,
-  },
-  actionLabelPrimary: {
-    color: colors.branco,
+  fabGallery: {
+    bottom: 156,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.painel,
+    borderWidth: 1,
+    borderColor: colors.linha,
   },
 });
