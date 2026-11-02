@@ -1,16 +1,16 @@
 :root {
-  --barra: #252525;
-  --painel: #2f2f2f;
-  --canvas: #1a1a1a;
-  --faixa: #1f1f1f;
-  --linha: #3c3c3c;
-  --texto: #e4e4e4;
-  --texto2: #8e8e8e;
-  --acento: #3a8fde;
-  --acento-fraco: rgba(58, 143, 222, 0.3);
+  --barra: #242424;
+  --painel: #2e2e2e;
+  --canvas: #141414;
+  --faixa: #1c1c1c;
+  --linha: #2e2e2e;
+  --texto: #f2f2f2;
+  --texto2: #a8a8a8;
+  --acento: #f2f2f2;
+  --acento-fraco: rgba(242, 242, 242, 0.2);
   --perigo: #d25252;
   --ok: #5fb98f;
-  --alerta: #d2a05e;
+  --alerta: #e0a85c;
   --icone: #b0b0b0;
   --mono: ui-monospace, 'Roboto Mono', 'Cascadia Mono', monospace;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -96,7 +96,7 @@ button:disabled {
   height: 34px;
   padding: 0 14px;
   background: var(--acento);
-  color: #0b1a29;
+  color: #141414;
   font-weight: 700;
   letter-spacing: 0.06em;
   border-radius: 4px;
@@ -354,7 +354,7 @@ button:disabled {
 
 .transition-mark.on {
   background: var(--acento);
-  color: #0b1a29;
+  color: #141414;
   border-color: var(--acento);
 }
 
