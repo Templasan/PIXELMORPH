@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { AppCompositionRoot } from '../CompositionRoot';
-import { Icon, Switch } from '@core/ui';
+import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { LANGUAGES, useI18n } from '@core/i18n';
 import { useStore } from '@core/state';
@@ -76,32 +76,6 @@ function ArrowRow({
   );
 }
 
-function ToggleRow({
-  label,
-  value,
-  sub,
-  toggled,
-  onToggle,
-}: {
-  label: string;
-  value?: string;
-  sub?: string;
-  toggled: boolean;
-  onToggle: (v: boolean) => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <View style={[styles.row, sub && styles.rowTall]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{t(label)}</Text>
-        {sub && <Text style={styles.rowSub}>{t(sub)}</Text>}
-      </View>
-      {value && <Text style={styles.rowValue}>{t(value)}</Text>}
-      <Switch value={toggled} onChange={onToggle} />
-    </View>
-  );
-}
-
 function Bordered({ children }: { children: ReactNode }) {
   return <View style={styles.bordered}>{children}</View>;
 }
@@ -109,11 +83,6 @@ function Bordered({ children }: { children: ReactNode }) {
 export default function AccountScreen({ navigation }: Props) {
   const { t, language, changeLanguage } = useI18n();
   const account = useStore(auth.state, (s) => s.account);
-  // TODO: back these toggles with the real preference store instead of local component state.
-  const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
-  const [unlimitedUndo, setUnlimitedUndo] = useState(true);
-  const [onDeviceAI, setOnDeviceAI] = useState(true);
-  const [signEdits, setSignEdits] = useState(true);
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
   const [syncLine, setSyncLine] = useState<string | null>(null);
   // A ref, not state: a second tap in the same frame must not start a second run.
@@ -236,49 +205,12 @@ export default function AccountScreen({ navigation }: Props) {
           ))}
         </View>
 
-        <SectionHeader label="EDIÇÃO" />
-        <Bordered>
-          <ToggleRow
-            label="Salvamento automático de rascunhos"
-            sub="A cada alteração significativa"
-            toggled={autoSaveDrafts}
-            onToggle={setAutoSaveDrafts}
-          />
-          <ToggleRow
-            label="Histórico ilimitado de desfazer"
-            sub="Preservado entre sessões até excluir o projeto"
-            toggled={unlimitedUndo}
-            onToggle={setUnlimitedUndo}
-          />
-          {/* TODO: real preview-quality picker. */}
-          <ArrowRow label="Qualidade da pré-visualização" value="Alta" />
-        </Bordered>
-
-        <SectionHeader label="PRIVACIDADE" />
-        <Bordered>
-          <ToggleRow
-            label="Processar IA no dispositivo"
-            sub="Detecção facial e correções não saem do aparelho"
-            toggled={onDeviceAI}
-            onToggle={setOnDeviceAI}
-          />
-          <ToggleRow
-            label="Assinar edições publicadas"
-            sub="Adiciona nome e data verificáveis, não removíveis"
-            toggled={signEdits}
-            onToggle={setSignEdits}
-          />
-        </Bordered>
-
         <SectionHeader label="SOBRE" />
         <Bordered>
           <View style={styles.versionRow}>
             <Text style={styles.rowLabelFlex}>{t('Versão')}</Text>
             <Text style={styles.versionValue}>2.4.1</Text>
           </View>
-          {/* TODO: real terms / privacy-policy documents. */}
-          <ArrowRow label="Termos de uso" />
-          <ArrowRow label="Política de privacidade" />
           {account && (
             <Pressable style={styles.signOutButton} onPress={() => void auth.signOut()}>
               <Text style={styles.signOutText}>{t('Sair da conta')}</Text>

@@ -28,7 +28,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: 'folder', label: 'Projetos', screen: 'Projects' },
   { icon: 'camera', label: 'Câmera', screen: 'Camera' },
-  { icon: 'users', label: 'Comunidade', screen: 'Community' },
   { icon: 'bookOpen', label: 'Tutoriais', screen: 'Tutorials' },
   { icon: 'star', label: 'Presets', screen: 'Presets' },
   { icon: 'save', label: 'Armazenamento', screen: 'Storage' },
