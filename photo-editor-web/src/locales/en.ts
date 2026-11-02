@@ -175,6 +175,9 @@ const en: Record<string, string> = {
 
   // Montage panels
   'Escolher foto': 'Choose photo',
+  Personalizado: 'Custom',
+  Linhas: 'Rows',
+  Colunas: 'Columns',
   'Arraste a foto dentro da célula para enquadrar.': 'Drag the photo inside its cell to frame it.',
   Espaçamento: 'Spacing',
   Borda: 'Border',

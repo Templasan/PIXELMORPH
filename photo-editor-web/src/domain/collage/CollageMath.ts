@@ -124,3 +124,17 @@ export function panByDrag(
   return { x: step(pan.x, dx, spare.x), y: step(pan.y, dy, spare.y) };
 }
 
+/** RF-011 "Personalizado": rows x columns cells of equal size (each count clamped to 1..4). */
+export const CUSTOM_GRID_MAX = 4;
+
+export function gridLayout(rows: number, cols: number): CollageLayout {
+  const r = Math.min(CUSTOM_GRID_MAX, Math.max(1, Math.round(rows)));
+  const c = Math.min(CUSTOM_GRID_MAX, Math.max(1, Math.round(cols)));
+  const cells: CollageCell[] = [];
+  for (let row = 0; row < r; row++) {
+    for (let col = 0; col < c; col++) {
+      cells.push({ x: col / c, y: row / r, width: 1 / c, height: 1 / r });
+    }
+  }
+  return { id: `grid-${r}x${c}`, label: 'Personalizado', cells };
+}
