@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Tutorials'>;
@@ -149,7 +148,6 @@ function TutorialOverlay({ tutorial, onClose }: { tutorial: Tutorial; onClose: (
 }
 
 export default function TutorialsScreen({ navigation }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('TRILHAS');
   const [activeTutorial, setActiveTutorial] = useState<Tutorial | null>(null);
 
@@ -158,8 +156,8 @@ export default function TutorialsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-          <Icon name="menu" size={22} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Icon name="chevronLeft" size={24} />
         </Pressable>
         <Text style={styles.topBarTitle}>Tutoriais</Text>
       </View>
@@ -208,13 +206,6 @@ export default function TutorialsScreen({ navigation }: Props) {
       {activeTutorial && (
         <TutorialOverlay tutorial={activeTutorial} onClose={() => setActiveTutorial(null)} />
       )}
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Tutorials"
-      />
     </SafeAreaView>
   );
 }

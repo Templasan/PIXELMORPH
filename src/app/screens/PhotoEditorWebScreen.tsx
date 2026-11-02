@@ -81,6 +81,7 @@ async function readableCopyOf(uri: string): Promise<string> {
  */
 export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const projectId = route.params?.projectId;
+  const start = route.params?.start ?? '';
   const { projects } = useAppModules();
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
@@ -321,7 +322,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
 
   // The page draws edge to edge: give it the system bars' sizes before it lays out.
   // The editor's UI language (RNF-016), read once by the page before it draws.
-  const insetsScript = `(function(){window.__pmLanguage='${language}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
+  const insetsScript = `(function(){window.__pmLanguage='${language}';window.__pmStart='${start}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
 
   return (
     <View style={styles.container}>

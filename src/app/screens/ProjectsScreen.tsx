@@ -12,20 +12,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { retryFailedCardThumbs } from './projects/cardThumb';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
+import { MainBar } from '../navigation/MainBar';
 import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
-import { createMediaAsset, createMediaMetadata, type Project } from '@modules/projects';
+import type { Project } from '@modules/projects';
 import { useAppModules } from '../hooks';
-import { pickFromGallery, probeVideoDurationMs } from '@modules/device-media';
 import { errorLogger } from '@core/reliability';
-import { RawImportSheet } from './projects/RawImportSheet';
 import {
   ProjectGroupRow,
   ProjectHero,
@@ -66,21 +64,14 @@ function isDraft(project: Project): boolean {
 let mediaRepair: Promise<unknown> | null = null;
 
 export default function ProjectsScreen({ navigation }: Props) {
-  // The bottom bar must clear the system navigation bar
-  // themselves (3-button navigation takes ~150 px on many phones; SafeAreaView padding does not
-  // move absolute children).
-  const insets = useSafeAreaInsets();
   const { t, language } = useI18n();
   const { projects: projectsModule } = useAppModules();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('TODOS');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [multiSelect, setMultiSelect] = useState(false);
-  const [rawImportOpen, setRawImportOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<ProjectSort>('recent');
@@ -152,57 +143,6 @@ export default function ProjectsScreen({ navigation }: Props) {
     }, [loadProjects])
   );
 
-  // RF-028/US-11: a real device gallery import — creates a project from the file the user
-  // actually picked, not a bundled demo asset.
-  const importFromGallery = useCallback(async () => {
-    setImporting(true);
-    try {
-      const picked = await pickFromGallery();
-      if (!picked) return; // user cancelled
-
-      const mod = projectsModule;
-      const name = picked.fileName?.replace(/\.[^./]+$/, '') || 'Importado da galeria';
-      const project = await mod.createProjectWithMedia.execute(
-        name,
-        picked.type === 'video' ? 'video' : 'photo',
-        [
-          createMediaAsset(
-            `asset_${Date.now()}`,
-            picked.type,
-            picked.uri,
-            picked.uri,
-            createMediaMetadata(picked.mimeType, {
-              width: picked.width || undefined,
-              height: picked.height || undefined,
-              durationMs:
-                picked.type === 'video'
-                  ? picked.durationMs || (await probeVideoDurationMs(picked.uri))
-                  : undefined,
-              fileSizeBytes: picked.fileSizeBytes ?? undefined,
-            })
-          ),
-        ]
-      );
-
-      await loadProjects();
-      navigation.navigate(picked.type === 'video' ? 'VideoEditor' : 'PhotoEditor', {
-        projectId: project.id,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message === 'PERMISSION_DENIED') {
-        Alert.alert(
-          'Permissão necessária',
-          'Autorize o acesso à galeria nas configurações do dispositivo para importar arquivos.'
-        );
-      } else {
-        errorLogger.log(error, 'ProjectsScreen.importFromGallery');
-        Alert.alert('Não foi possível importar', 'Tente novamente.');
-      }
-    } finally {
-      setImporting(false);
-    }
-  }, [navigation, loadProjects]);
-
   const filtered = useMemo(
     () =>
       queryProjects(
@@ -245,7 +185,7 @@ export default function ProjectsScreen({ navigation }: Props) {
   // The albums only make sense for the default browsing; a search or another order is one grid.
   const showAlbums = layout === 'grid' && !searchOpen && !query.trim() && sort === 'recent';
   // Always the project edited last: the filter chips sit below it and do not touch it.
-  const hero = showAlbums && !multiSelect ? queryProjects(projects, '', 'recent')[0] : undefined;
+  const hero = showAlbums ? queryProjects(projects, '', 'recent')[0] : undefined;
   const weekProjects = grouped.week.filter((p) => p !== hero);
   const groupSections = [
     ...(weekProjects.length > 0
@@ -458,7 +398,11 @@ export default function ProjectsScreen({ navigation }: Props) {
           <Pressable onPress={exitMultiSelect} hitSlop={8}>
             <Icon name="x" size={22} />
           </Pressable>
-          <Text style={styles.contextTitle}>{t('{n} selecionados', { n: selected.length })}</Text>
+          <Text style={styles.contextTitle}>
+            {selected.length === 1
+              ? t('{n} selecionado', { n: 1 })
+              : t('{n} selecionados', { n: selected.length })}
+          </Text>
           <Pressable
             onPress={toggleSelectAll}
             hitSlop={8}
@@ -486,9 +430,6 @@ export default function ProjectsScreen({ navigation }: Props) {
         </View>
       ) : (
         <View style={styles.topBar}>
-          <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-            <Icon name="menu" size={24} />
-          </Pressable>
           <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
         </View>
       )}
@@ -496,6 +437,7 @@ export default function ProjectsScreen({ navigation }: Props) {
       {showAlbums ? (
         <ScrollView
           style={styles.body}
+          contentContainerStyle={styles.pageEnd}
           showsVerticalScrollIndicator={false}
           refreshControl={refreshControl}
         >
@@ -519,6 +461,8 @@ export default function ProjectsScreen({ navigation }: Props) {
                 onPress={onPressProject}
                 onLongPress={onLongPressProject}
                 onOpen={openEditor}
+                multiSelect={multiSelect}
+                isSelected={selected.includes(hero.id)}
               />
             </View>
           )}
@@ -527,8 +471,10 @@ export default function ProjectsScreen({ navigation }: Props) {
           {emptyState}
           {groupSections.map((group) => {
             const isOpen = expanded.includes(group.key);
-            const limit =
+            const page =
               groupLimits[group.key] ?? (group.key === WEEK_KEY ? WEEK_PAGE : GROUP_PAGE);
+            // A button that would reveal a single picture costs more room than the picture.
+            const limit = group.projects.length - page === 1 ? group.projects.length : page;
             const hidden = group.projects.length - limit;
             return (
               <View key={group.key}>
@@ -610,54 +556,7 @@ export default function ProjectsScreen({ navigation }: Props) {
         </View>
       )}
 
-      {!multiSelect && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
-          <View style={styles.bottomItem}>
-            <View style={styles.bottomActiveLine} />
-            <Icon name="folder" size={24} color={colors.texto} />
-            <Text style={[styles.bottomLabel, styles.bottomLabelActive]}>{t('Projetos')}</Text>
-          </View>
-          <Pressable style={styles.bottomItem} onPress={importFromGallery} disabled={importing}>
-            <Icon name="image" size={24} color={colors.texto2} />
-            <Text style={styles.bottomLabel}>{t('Galeria')}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.bottomItem}
-            onPress={() => navigation.navigate('Camera')}
-            accessibilityRole="button"
-            accessibilityLabel={t('Câmera')}
-          >
-            <View style={styles.cameraButton}>
-              <Icon name="camera" size={28} color={colors.branco} />
-            </View>
-          </Pressable>
-          <Pressable style={styles.bottomItem} onPress={() => setRawImportOpen(true)}>
-            <Icon name="upload" size={24} color={colors.texto2} />
-            <Text style={styles.bottomLabel}>RAW</Text>
-          </Pressable>
-          <Pressable style={styles.bottomItem} onPress={() => navigation.navigate('Account')}>
-            <Icon name="user" size={24} color={colors.texto2} />
-            <Text style={styles.bottomLabel}>{t('Conta')}</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {rawImportOpen && (
-        <RawImportSheet
-          onClose={() => setRawImportOpen(false)}
-          onConfirm={(result) => {
-            setRawImportOpen(false);
-            navigation.navigate('RawConverter', result);
-          }}
-        />
-      )}
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Projects"
-      />
+      {!multiSelect && <MainBar active="Projects" />}
     </SafeAreaView>
   );
 }
@@ -751,6 +650,10 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: colors.canvas,
   },
+  // The camera button rises over the end of the page.
+  pageEnd: {
+    paddingBottom: 32,
+  },
   body: {
     flex: 1,
   },
@@ -807,45 +710,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.texto2,
     textAlign: 'center',
-  },
-  bottomBar: {
-    zIndex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.canvas,
-    borderTopWidth: 1,
-    borderTopColor: colors.linha,
-  },
-  bottomItem: {
-    flex: 1,
-    height: 62,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  // Rises above the bar; the ring in the page's colour separates it from the list behind.
-  cameraButton: {
-    width: 64,
-    height: 64,
-    marginTop: -24,
-    borderRadius: 32,
-    borderWidth: 4,
-    borderColor: colors.canvas,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.acento,
-  },
-  bottomActiveLine: {
-    position: 'absolute',
-    bottom: 0,
-    width: '76%',
-    height: 2,
-    backgroundColor: colors.texto,
-  },
-  bottomLabel: {
-    fontSize: fontSize.xs,
-    color: colors.texto2,
-  },
-  bottomLabelActive: {
-    color: colors.texto,
   },
 });

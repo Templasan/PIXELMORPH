@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Help'>;
@@ -37,7 +36,6 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export default function HelpScreen({ navigation }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(FAQS[0].q);
   const [search, setSearch] = useState('');
   const needle = search.trim().toLowerCase();
@@ -49,8 +47,8 @@ export default function HelpScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-          <Icon name="menu" size={22} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Icon name="chevronLeft" size={24} />
         </Pressable>
         <Text style={styles.topBarTitle}>Ajuda</Text>
       </View>
@@ -117,13 +115,6 @@ export default function HelpScreen({ navigation }: Props) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Help"
-      />
     </SafeAreaView>
   );
 }

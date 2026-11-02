@@ -7,7 +7,7 @@ export function EditorFrame({ src, onBack }: { src: string; onBack: () => void }
   return (
     <View style={styles.page}>
       <Pressable style={styles.bar} onPress={onBack}>
-        <Text style={styles.back}>‹ Projetos (só no preview)</Text>
+        <Text style={styles.back}>‹ Voltar (só no preview)</Text>
       </Pressable>
       {createElement('iframe', {
         src,

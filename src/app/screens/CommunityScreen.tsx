@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon, Tabs } from '@core/ui';
-import { SideDrawer } from '../navigation/SideDrawer';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { StarRating } from './community/StarRating';
 
@@ -56,7 +55,7 @@ const POSTS = [
 type Post = (typeof POSTS)[number];
 
 const TABS = ['EM ALTA', 'RECENTES', 'MINHAS EDIÇÕES', 'REVISÕES'] as const;
-// TODO: replace with the real logged-in user once auth lands (see SideDrawer).
+// TODO: replace with the real logged-in user once auth lands.
 const CURRENT_USER: string = 'João Silva';
 const POST_TABS = ['COMENTÁRIOS', 'ÁUDIO', 'AJUSTES USADOS'] as const;
 type PostTab = (typeof POST_TABS)[number];
@@ -214,7 +213,6 @@ function PostDetail({ post, onBack }: { post: Post; onBack: () => void }) {
 }
 
 export default function CommunityScreen({ navigation }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('EM ALTA');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
@@ -239,8 +237,8 @@ export default function CommunityScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-          <Icon name="menu" size={22} />
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Icon name="chevronLeft" size={24} />
         </Pressable>
         <Text style={styles.topBarTitle}>Comunidade</Text>
         {/* TODO: real search. */}
@@ -303,13 +301,6 @@ export default function CommunityScreen({ navigation }: Props) {
         <Icon name="upload" size={18} color={colors.branco} />
         <Text style={styles.fabText}>Enviar edição</Text>
       </Pressable>
-
-      <SideDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        navigation={navigation}
-        current="Community"
-      />
     </SafeAreaView>
   );
 }

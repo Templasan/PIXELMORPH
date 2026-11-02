@@ -123,11 +123,15 @@ export function ProjectHero({
   onPress,
   onLongPress,
   onOpen,
+  multiSelect,
+  isSelected,
 }: {
   project: Project;
   onPress: (p: Project) => void;
   onLongPress: (p: Project) => void;
   onOpen: (p: Project) => void;
+  multiSelect: boolean;
+  isSelected: boolean;
 }) {
   const { t } = useI18n();
   const due = useDueLabel(project);
@@ -140,7 +144,7 @@ export function ProjectHero({
         : t('Editado em {date}', { date: dateFormatter.format(project.updatedAt) });
   return (
     <Pressable
-      style={styles.hero}
+      style={[styles.hero, isSelected && styles.tileSelected]}
       onPress={() => onPress(project)}
       onLongPress={() => onLongPress(project)}
     >
@@ -154,10 +158,13 @@ export function ProjectHero({
             {due ? `${edited} · ${due}` : edited}
           </Text>
         </View>
-        <Pressable style={styles.heroOpen} onPress={() => onOpen(project)}>
-          <Text style={styles.heroOpenText}>{t('Abrir')}</Text>
-        </Pressable>
+        {!multiSelect && (
+          <Pressable style={styles.heroOpen} onPress={() => onOpen(project)}>
+            <Text style={styles.heroOpenText}>{t('Abrir')}</Text>
+          </Pressable>
+        )}
       </View>
+      {multiSelect && <Check isSelected={isSelected} />}
     </Pressable>
   );
 }

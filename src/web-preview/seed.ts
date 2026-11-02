@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppCompositionRoot } from '../app/CompositionRoot';
+import { createPhotoEditorModule } from '@modules/photo-editor';
 import { createMediaAsset, createMediaMetadata, createProject } from '@modules/projects';
 import type { ProjectPriority } from '@modules/projects';
 
-const SEEDED_KEY = 'preview:seeded:v2';
+const SEEDED_KEY = 'preview:seeded:v4';
 const PHOTOS = 'http://localhost:5175/media/';
 const DAY = 86_400_000;
 
@@ -129,6 +130,11 @@ export async function seedPreviewProjects(force = false): Promise<void> {
       dueDate: s.dueInDays === undefined ? undefined : new Date(Date.now() + s.dueInDays * DAY),
       priority: s.priority,
     });
+  }
+  const { savePreset, listPresets } = createPhotoEditorModule();
+  if ((await listPresets.execute()).length === 0) {
+    await savePreset.execute('Praia quente', { temperatura: 12, saturacao: 25, vibracao: 8 });
+    await savePreset.execute('Preto e branco', { saturacao: -100, contraste: 15 });
   }
   await AsyncStorage.setItem(SEEDED_KEY, '1');
 }

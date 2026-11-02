@@ -21,12 +21,20 @@ type Panel =
   | { kind: 'format' }
   | { kind: 'timelapse' };
 
+/** Set by the app (or ?start= in a desktop browser) when opened from its Explore screen. */
+function startsWithTimelapse(): boolean {
+  const start =
+    (window as unknown as { __pmStart?: string }).__pmStart ||
+    new URLSearchParams(location.search).get('start');
+  return start === 'timelapse';
+}
+
 export function App({ session }: { session: EditorSession }) {
   const { editor } = session;
   const name = useStore(session.projectName);
   const history = useStore(session.historyState);
   const selection = useStore(editor.store, (s) => selectedClipOf(s));
-  const [panel, setPanel] = useState<Panel>({ kind: 'none' });
+  const [panel, setPanel] = useState<Panel>({ kind: startsWithTimelapse() ? 'timelapse' : 'none' });
   const [exporting, setExporting] = useState(false);
 
   // A panel about the selected clip closes when the selection goes away.
