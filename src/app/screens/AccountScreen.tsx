@@ -16,37 +16,120 @@ const { auth } = AppCompositionRoot.account;
 const sync = AppCompositionRoot.sync;
 type SyncPrepared = Awaited<ReturnType<typeof sync.prepare>>;
 type SyncReport = Awaited<ReturnType<typeof sync.run>>;
+type SyncConflict = SyncPrepared['conflicts'][number];
 type Translate = (text: string, params?: Record<string, string | number>) => string;
 
-/** One result line: what moved, then what still needs attention. */
+/** A count with the noun in its right form: "1 projeto", "3 projetos". */
+function counted(
+  n: number,
+  one: string,
+  many: string,
+  t: Translate,
+  params: Record<string, string | number> = {}
+): string {
+  return n === 1 ? t(one, params) : t(many, { ...params, n });
+}
+
+/** Up to three project names, then how many more there are. */
+function projectNames(names: string[], t: Translate): string {
+  const shown = names.slice(0, 3);
+  const rest = names.length - shown.length;
+  if (rest > 0) {
+    const head = shown.join(', ');
+    return rest === 1
+      ? t('{names} e mais 1 projeto', { names: head })
+      : t('{names} e mais {n} projetos', { names: head, n: rest });
+  }
+  if (shown.length <= 1) return shown[0] ?? '';
+  return t('{a} e {b}', { a: shown.slice(0, -1).join(', '), b: shown[shown.length - 1] });
+}
+
+/** The report line: what moved, then what needs attention. Each sentence ends with a period. */
 function describeSync(r: SyncReport, t: Translate): string {
-  const sent = r.uploaded === 1 ? t('1 enviado') : t('{u} enviados', { u: r.uploaded });
-  const received = r.downloaded === 1 ? t('1 recebido') : t('{d} recebidos', { d: r.downloaded });
-  const parts = [`${sent}, ${received}.`];
-  if (r.tombstoned) parts.push(t('{n} removidos da conta.', { n: r.tombstoned }));
+  const moved: string[] = [];
+  if (r.uploaded) {
+    moved.push(counted(r.uploaded, '1 projeto enviado', '{n} projetos enviados', t));
+  }
+  if (r.filesUploaded) {
+    moved.push(counted(r.filesUploaded, '1 arquivo enviado', '{n} arquivos enviados', t));
+  }
+  if (r.downloaded) {
+    moved.push(counted(r.downloaded, '1 projeto recebido', '{n} projetos recebidos', t));
+  }
+  if (r.filesDownloaded) {
+    moved.push(counted(r.filesDownloaded, '1 arquivo recebido', '{n} arquivos recebidos', t));
+  }
+  if (r.tombstoned) {
+    moved.push(counted(r.tombstoned, '1 removido da conta.', '{n} removidos da conta.', t));
+  }
+  if (r.removedElsewhere) {
+    moved.push(
+      counted(
+        r.removedElsewhere,
+        '1 removido da conta em outro aparelho: mantido aqui.',
+        '{n} removidos da conta em outro aparelho: mantidos aqui.',
+        t
+      )
+    );
+  }
+
+  const issues: string[] = [];
   if (r.conflicts.length) {
-    parts.push(
-      t('{n} em conflito: mantidos como estão ({names})', {
-        n: r.conflicts.length,
-        names: r.conflicts.join(', '),
-      })
+    issues.push(
+      counted(
+        r.conflicts.length,
+        '1 em conflito: mantido como está ({names}).',
+        '{n} em conflito: mantidos como estão ({names}).',
+        t,
+        { names: r.conflicts.join(', ') }
+      )
     );
   }
   if (r.pendingUploads) {
-    parts.push(t('Servidor de mídia desligado: {n} arquivos pendentes', { n: r.pendingUploads }));
-  }
-  if (r.pendingDownloads) {
-    parts.push(t('{n} projetos aguardando arquivos do servidor', { n: r.pendingDownloads }));
-  }
-  if (r.missingFiles) {
-    parts.push(
-      r.missingFiles === 1
-        ? t('1 arquivo não encontrado neste aparelho, não enviado.')
-        : t('{n} arquivos não encontrados neste aparelho, não enviados.', { n: r.missingFiles })
+    issues.push(
+      counted(
+        r.pendingUploads,
+        'Servidor de mídia desligado: 1 arquivo pendente.',
+        'Servidor de mídia desligado: {n} arquivos pendentes.',
+        t
+      )
     );
   }
-  if (r.failed) parts.push(t('{n} projetos com erro, tentar de novo depois', { n: r.failed }));
-  return parts.join(' ');
+  if (r.pendingDownloads) {
+    issues.push(
+      counted(
+        r.pendingDownloads,
+        '1 projeto aguardando arquivos do servidor.',
+        '{n} projetos aguardando arquivos do servidor.',
+        t
+      )
+    );
+  }
+  if (r.failed) {
+    issues.push(
+      counted(
+        r.failed,
+        '1 projeto com erro, tentar de novo depois.',
+        '{n} projetos com erro, tentar de novo depois.',
+        t
+      )
+    );
+  }
+  // Missing files are reported even when nothing else needs attention ("Tudo em dia." comes first).
+  const missing = r.missingFiles
+    ? counted(
+        r.missingFiles,
+        '1 arquivo não encontrado neste aparelho ({names}).',
+        '{n} arquivos não encontrados neste aparelho ({names}).',
+        t,
+        { names: projectNames(r.missingProjects, t) }
+      )
+    : '';
+
+  const sentences: string[] = [];
+  if (moved.length) sentences.push(`${moved.join(', ')}.`);
+  else if (!issues.length) sentences.push(t('Tudo em dia.'));
+  return [...sentences, ...issues, missing].filter(Boolean).join(' ');
 }
 
 function syncFailure(error: unknown, t: Translate): string {
@@ -101,12 +184,52 @@ export default function AccountScreen({ navigation }: Props) {
     setSyncProgress(null);
   };
 
+  const settle = (userId: string, id: string, choice: 'local' | 'remote') =>
+    sync
+      .resolveConflict(userId, id, choice)
+      .then((report) => setSyncLine(describeSync(report, t)))
+      .catch((error) => setSyncLine(syncFailure(error, t)));
+
+  // One alert per conflicting project, in turn. "Decidir depois" leaves it for the next sync.
+  const askConflict = (userId: string, c: SyncConflict): Promise<void> =>
+    new Promise((next) => {
+      const ask = () =>
+        Alert.alert(
+          'PixelMorph',
+          t('{name} foi alterado neste aparelho e em outro.', { name: c.name }),
+          [
+            {
+              text: t('Manter este aparelho'),
+              onPress: () => void settle(userId, c.id, 'local').then(next),
+            },
+            { text: t('Usar o da conta'), onPress: confirmRemote },
+            { text: t('Decidir depois'), style: 'cancel', onPress: () => next() },
+          ],
+          { cancelable: false }
+        );
+      const confirmRemote = () =>
+        Alert.alert(
+          'PixelMorph',
+          t('As edições deste aparelho nesse projeto serão substituídas.'),
+          [
+            { text: t('Cancelar'), style: 'cancel', onPress: ask },
+            {
+              text: t('Usar o da conta'),
+              onPress: () => void settle(userId, c.id, 'remote').then(next),
+            },
+          ],
+          { cancelable: false }
+        );
+      ask();
+    });
+
   const execute = async (userId: string, prepared: SyncPrepared) => {
     try {
       const report = await sync.run(userId, prepared, (done, total) =>
         setSyncProgress(`${done}/${total}`)
       );
       setSyncLine(describeSync(report, t));
+      for (const c of prepared.conflicts) await askConflict(userId, c);
     } catch (error) {
       setSyncLine(syncFailure(error, t));
     } finally {

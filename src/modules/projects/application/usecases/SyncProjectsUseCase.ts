@@ -55,7 +55,7 @@ export interface PreparedSync {
   /** Projects that would reach the server for the first time. */
   firstTimeUploadCount: number;
   /** Projects in conflict, with the names the user sees. */
-  conflictNames: string[];
+  conflicts: { id: string; name: string }[];
   /** Server time of each project in `plan.removedElsewhere`. */
   removedAt: Record<string, string>;
 }
@@ -70,6 +70,10 @@ export interface SyncReport {
   pendingUploads: number;
   pendingDownloads: number;
   missingFiles: number;
+  /** Names of the projects with missing files, each listed once. */
+  missingProjects: string[];
+  filesUploaded: number;
+  filesDownloaded: number;
   serverOffline: boolean;
 }
 
@@ -87,6 +91,9 @@ function emptyReport(): SyncReport {
     pendingUploads: 0,
     pendingDownloads: 0,
     missingFiles: 0,
+    missingProjects: [],
+    filesUploaded: 0,
+    filesDownloaded: 0,
     serverOffline: false,
   };
 }
@@ -150,7 +157,7 @@ export class SyncProjectsUseCase {
     return {
       plan,
       firstTimeUploadCount: plan.upload.filter((id) => !remoteById.has(id)).length,
-      conflictNames: plan.conflicts.map((id) => remoteById.get(id)?.name ?? id),
+      conflicts: plan.conflicts.map((id) => ({ id, name: remoteById.get(id)?.name ?? id })),
       removedAt,
     };
   }
@@ -167,7 +174,7 @@ export class SyncProjectsUseCase {
     const { plan } = prepared;
     const state = await this.local.loadState(userId);
     const report = emptyReport();
-    report.conflicts = prepared.conflictNames;
+    report.conflicts = prepared.conflicts.map((c) => c.name);
     const save = () => this.local.saveState(userId, state);
     const total = plan.upload.length + plan.tombstone.length + plan.download.length;
     let done = 0;
@@ -217,7 +224,7 @@ export class SyncProjectsUseCase {
     const presentNow = new Set(await this.local.listIds());
     for (const id of plan.download) {
       try {
-        await this.download(id, presentNow.has(id), state, report);
+        await this.download(id, presentNow.has(id), state, report, false);
         await save();
       } catch (error) {
         this.countCloudError(error, report, 'pendingDownloads');
@@ -239,6 +246,33 @@ export class SyncProjectsUseCase {
     for (const id of plan.forget) delete state.last[id];
     await save();
 
+    return report;
+  }
+
+  /**
+   * Settles a project in conflict. 'local' sends this phone's copy over the account's, 'remote'
+   * takes the account's copy over this phone's, as a download does (all files first).
+   */
+  async resolveConflict(
+    userId: string,
+    id: string,
+    choice: 'local' | 'remote'
+  ): Promise<SyncReport> {
+    const state = await this.local.loadState(userId);
+    const report = emptyReport();
+    try {
+      if (choice === 'local') {
+        if (await this.sendRow(id, state)) {
+          report.uploaded++;
+          await this.uploadFiles(id, state, report, true);
+        }
+      } else {
+        await this.download(id, true, state, report, true);
+      }
+    } catch (error) {
+      this.countCloudError(error, report, choice === 'local' ? 'failed' : 'pendingDownloads');
+    }
+    await this.local.saveState(userId, state);
     return report;
   }
 
@@ -272,6 +306,8 @@ export class SyncProjectsUseCase {
     for (const ref of await this.fileRefs(id, blobs, state)) {
       if (!ref.info?.exists) {
         report.missingFiles++;
+        const name = nameOf(blobs, id);
+        if (!report.missingProjects.includes(name)) report.missingProjects.push(name);
         continue;
       }
       const { size, modificationTime } = ref.info;
@@ -284,6 +320,7 @@ export class SyncProjectsUseCase {
       try {
         await this.files.upload(id, ref.key, ref.uri);
         state.uploaded[`${id}/${ref.key}`] = { size, modificationTime };
+        report.filesUploaded++;
       } catch (error) {
         this.countCloudError(error, report, 'pendingUploads');
         if (
@@ -301,14 +338,15 @@ export class SyncProjectsUseCase {
     id: string,
     alreadyHere: boolean,
     state: SyncState,
-    report: SyncReport
+    report: SyncReport,
+    force: boolean
   ): Promise<void> {
     const row = await this.cloud.get(id);
     if (!isValidRemote(id, row)) {
       report.failed++;
       return;
     }
-    if (alreadyHere) {
+    if (alreadyHere && !force) {
       // Only a copy that is exactly what was last synced may be replaced; any other local edit
       // (or a copy this device never synced) is kept and reported.
       const hash = fingerprint({ blobs: await this.local.readBlobs(id) });
@@ -356,6 +394,7 @@ export class SyncProjectsUseCase {
         };
     }
     report.downloaded++;
+    report.filesDownloaded += targets.length;
   }
 
   private countCloudError(

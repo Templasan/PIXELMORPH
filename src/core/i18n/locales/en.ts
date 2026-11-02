@@ -188,17 +188,45 @@ const en: Record<string, string> = {
   'Enviar {n} projetos para sua conta? As mídias vão para o seu servidor.':
     'Send {n} projects to your account? The media will go to your own server.',
   Enviar: 'Send',
-  '1 enviado': '1 sent',
-  '{u} enviados': '{u} sent',
-  '1 recebido': '1 received',
-  '{d} recebidos': '{d} received',
+  '1 projeto enviado': '1 project sent',
+  '{n} projetos enviados': '{n} projects sent',
+  '1 arquivo enviado': '1 file sent',
+  '{n} arquivos enviados': '{n} files sent',
+  '1 projeto recebido': '1 project received',
+  '{n} projetos recebidos': '{n} projects received',
+  '1 arquivo recebido': '1 file received',
+  '{n} arquivos recebidos': '{n} files received',
+  'Tudo em dia.': 'All up to date.',
+  '1 removido da conta.': '1 removed from the account.',
   '{n} removidos da conta.': '{n} removed from the account.',
-  '{n} em conflito: mantidos como estão ({names})': '{n} in conflict: kept as they are ({names})',
-  'Servidor de mídia desligado: {n} arquivos pendentes': 'Media server offline: {n} files pending',
-  '{n} projetos aguardando arquivos do servidor': '{n} projects waiting for files from the server',
-  '1 arquivo não encontrado neste aparelho, não enviado.': '1 file not found on this device, not sent.',
-  '{n} arquivos não encontrados neste aparelho, não enviados.': '{n} files not found on this device, not sent.',
-  '{n} projetos com erro, tentar de novo depois': '{n} projects failed, try again later',
+  '1 removido da conta em outro aparelho: mantido aqui.':
+    '1 removed from the account on another device: kept here.',
+  '{n} removidos da conta em outro aparelho: mantidos aqui.':
+    '{n} removed from the account on another device: kept here.',
+  '1 em conflito: mantido como está ({names}).': '1 in conflict: kept as it is ({names}).',
+  '{n} em conflito: mantidos como estão ({names}).': '{n} in conflict: kept as they are ({names}).',
+  'Servidor de mídia desligado: 1 arquivo pendente.': 'Media server offline: 1 file pending.',
+  'Servidor de mídia desligado: {n} arquivos pendentes.':
+    'Media server offline: {n} files pending.',
+  '1 projeto aguardando arquivos do servidor.': '1 project waiting for files from the server.',
+  '{n} projetos aguardando arquivos do servidor.':
+    '{n} projects waiting for files from the server.',
+  '1 arquivo não encontrado neste aparelho ({names}).':
+    '1 file not found on this device ({names}).',
+  '{n} arquivos não encontrados neste aparelho ({names}).':
+    '{n} files not found on this device ({names}).',
+  '1 projeto com erro, tentar de novo depois.': '1 project failed, try again later.',
+  '{n} projetos com erro, tentar de novo depois.': '{n} projects failed, try again later.',
+  '{a} e {b}': '{a} and {b}',
+  '{names} e mais 1 projeto': '{names} and 1 more project',
+  '{names} e mais {n} projetos': '{names} and {n} more projects',
+  '{name} foi alterado neste aparelho e em outro.':
+    '{name} changed on this device and on another one.',
+  'Manter este aparelho': 'Keep this device',
+  'Usar o da conta': 'Use the account version',
+  'Decidir depois': 'Decide later',
+  'As edições deste aparelho nesse projeto serão substituídas.':
+    'Changes made on this device to this project will be replaced.',
   'Entre na conta de novo para sincronizar.': 'Sign in again to sync.',
   'Não foi possível sincronizar agora.': 'Could not sync right now.',
 };
