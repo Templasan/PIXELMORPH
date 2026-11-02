@@ -7,9 +7,9 @@ import type { EditorLayer } from './Layer';
 
 export type DistributeAxis = 'horizontal' | 'vertical';
 
-/** The layers that have a position to move: visible text and shape layers. */
-function positioned(layers: readonly EditorLayer[]): EditorLayer[] {
-  return layers.filter((l) => (l.text || l.shape) && l.visible);
+/** The layers that have a position to move: visible, unlocked text and shape layers. */
+export function movableLayers(layers: readonly EditorLayer[]): EditorLayer[] {
+  return layers.filter((l) => (l.text || l.shape) && l.visible && !l.locked);
 }
 
 /**
@@ -18,7 +18,7 @@ function positioned(layers: readonly EditorLayer[]): EditorLayer[] {
  * are. With fewer than three positioned layers the input is returned unchanged.
  */
 export function distributeLayers(layers: EditorLayer[], axis: DistributeAxis): EditorLayer[] {
-  const movable = positioned(layers);
+  const movable = movableLayers(layers);
   if (movable.length < 3) return layers;
   const key = axis === 'horizontal' ? 'x' : 'y';
   const at = (l: EditorLayer) => (l.text ?? l.shape)!;
