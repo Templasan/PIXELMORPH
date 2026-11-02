@@ -40,6 +40,8 @@ const en: Record<string, string> = {
   '{c} cores': '{c} colors',
   Cancelar: 'Cancel',
   'Pronto: {mb} MB em {s} s': 'Done: {mb} MB in {s} s',
+  'Compressão inteligente': 'Smart compression',
+  'Compressão inteligente: {mbps} Mbps ({pct}% do preset)': 'Smart compression: {mbps} Mbps ({pct}% of the preset)',
   Transição: 'Transition',
   'Esconder faixa': 'Hide track',
   'Mostrar faixa': 'Show track',

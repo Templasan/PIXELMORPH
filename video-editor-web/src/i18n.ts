@@ -16,7 +16,11 @@ function readLanguage(): string {
   return fromApp ?? fromUrl ?? 'pt';
 }
 
-const dictionary: Dictionary = dictionaries[readLanguage()] ?? {};
+const language = readLanguage();
+const dictionary: Dictionary = dictionaries[language] ?? {};
+
+/** The UI language ('pt', 'en' or 'es'), for number formats. */
+export { language };
 
 /** Translates `text` and fills `{name}` placeholders from `params`. */
 export function t(text: string, params?: Record<string, string | number>): string {

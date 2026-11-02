@@ -5,6 +5,7 @@ import {
   CanvasSource,
   Mp4OutputFormat,
   Output,
+  Quality,
   StreamTarget,
   type StreamTargetChunk,
   type VideoSample,
@@ -12,6 +13,7 @@ import {
 import { opsAt, type Composition, type MediaOp } from '../domain/composition';
 import { GifPalette, GifWriter, gifDelayCs } from '../domain/gifEncoder';
 import { GIF_MAX_DURATION_MS } from '../domain/gifPlan';
+import { adaptiveBitrate, complexityOf, frameStats, type FrameStats } from '../domain/sceneComplexity';
 import type { ExportSink } from '../ports/host';
 import { mixWindow } from './audio';
 import { drawFrame } from './draw';
@@ -21,6 +23,9 @@ const FPS = 30;
 /** Sound goes in windows this long, just ahead of the frames, so the muxer can interleave. */
 const AUDIO_WINDOW_MS = 10_000;
 const GIF_PALETTE_SAMPLES = 12;
+/** RNF-013: complexity is read from at most this many frames, drawn at most this many pixels wide. */
+const ANALYSIS_SAMPLES = 24;
+const ANALYSIS_EDGE = 96;
 
 /** A new file per export: an export never overwrites an earlier one. */
 function exportName(ext: string): string {
@@ -31,7 +36,10 @@ function exportName(ext: string): string {
 
 export interface ExportRequest {
   comp: Composition;
+  /** The preset's bitrate: the ceiling for the file, and the whole of it when `adaptive` is off. */
   bitrate: number;
+  /** RNF-013: lower the mp4 bitrate for a simple clip (see sceneComplexity.ts). */
+  adaptive?: boolean;
   gif?: { fps: number; maxColors: number };
   sink: ExportSink;
   onProgress(percent: number): void;
@@ -46,6 +54,8 @@ export interface ExportOutcome {
   truncated: boolean;
   /** Sources whose sound could not be decoded here and was left out. */
   silent: string[];
+  /** Set when the adaptive bitrate was read and used; `bitrate` is what the encoder got. */
+  smart?: { bitrate: number; presetBitrate: number; complexity: number; analysisMs: number };
 }
 
 /**
@@ -86,6 +96,8 @@ async function mp4(
   const { comp, sink } = req;
   const endMs = comp.durationMs;
   const total = Math.max(1, Math.floor((endMs / 1000) * FPS));
+  const smart = req.adaptive ? await smartBitrate(req, canvas, frameAt, endMs) : undefined;
+  const bitrate = smart?.bitrate ?? req.bitrate;
   await sink.start(exportName('mp4'));
   let bytes = 0;
   let writes = Promise.resolve();
@@ -104,15 +116,31 @@ async function mp4(
     codec: 'avc1.640028',
     width: comp.width,
     height: comp.height,
-    bitrate: req.bitrate,
+    bitrate,
     hardwareAcceleration: 'prefer-hardware',
   }).then(
     (r) => !!r.supported,
     () => false
   );
+  // Variable bitrate only when the adaptive target is in use and the browser accepts it: a still
+  // clip then really spends less. Otherwise the encoder runs exactly as before.
+  const vbr =
+    !!smart &&
+    (await VideoEncoder.isConfigSupported({
+      codec: 'avc1.640028',
+      width: comp.width,
+      height: comp.height,
+      bitrate,
+      bitrateMode: 'variable',
+      hardwareAcceleration: 'prefer-hardware',
+    }).then(
+      (r) => !!r.supported,
+      () => false
+    ));
+  const rate = vbr ? { quality: new Quality({ bitrate, bitrateMode: 'variable' }) } : { bitrate };
   const video = new CanvasSource(canvas, {
     codec: 'avc',
-    bitrate: req.bitrate,
+    ...rate,
     keyFrameInterval: 1,
     hardwareAcceleration: hw ? 'prefer-hardware' : 'no-preference',
   });
@@ -153,7 +181,73 @@ async function mp4(
   await writes;
   const path = await sink.finish();
   req.onProgress(100);
-  return { path, bytes, durationMs: endMs, frameCount: total, truncated: false, silent: [...silent] };
+  return {
+    path,
+    bytes,
+    durationMs: endMs,
+    frameCount: total,
+    truncated: false,
+    silent: [...silent],
+    smart,
+  };
+}
+
+/**
+ * RNF-013: the adaptive bitrate for this export, or undefined on any failure, which keeps the
+ * preset's bitrate. The export never fails because of the read.
+ */
+async function smartBitrate(
+  req: ExportRequest,
+  canvas: OffscreenCanvas,
+  frameAt: (t: number) => Promise<void>,
+  endMs: number
+): Promise<ExportOutcome['smart']> {
+  try {
+    const t0 = performance.now();
+    const complexity = complexityOf(await readComplexity(canvas, frameAt, endMs));
+    return {
+      bitrate: adaptiveBitrate(req.bitrate, complexity),
+      presetBitrate: req.bitrate,
+      complexity,
+      analysisMs: performance.now() - t0,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Up to ANALYSIS_SAMPLES frames, evenly across the export, read through the same `frameAt` the
+ * encoder uses (composition, transitions, speed included). Each one is compared with the frame a
+ * tick before it, for motion. Shortcut: a sample is read by seeking, so cost grows with the
+ * number of seeks, not the clip length; upgrade to sequential reads if a long clip is slow.
+ */
+async function readComplexity(
+  canvas: OffscreenCanvas,
+  frameAt: (t: number) => Promise<void>,
+  endMs: number
+): Promise<FrameStats[]> {
+  const scale = Math.min(1, ANALYSIS_EDGE / Math.max(canvas.width, canvas.height));
+  const w = Math.max(1, Math.round(canvas.width * scale));
+  const h = Math.max(1, Math.round(canvas.height * scale));
+  const small = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true })!;
+  const lumaAt = async (t: number) => {
+    await frameAt(t);
+    small.drawImage(canvas, 0, 0, w, h);
+    const px = small.getImageData(0, 0, w, h).data;
+    const luma = new Uint8ClampedArray(w * h);
+    for (let i = 0; i < luma.length; i++) {
+      luma[i] = (px[i * 4] * 77 + px[i * 4 + 1] * 150 + px[i * 4 + 2] * 29) >> 8;
+    }
+    return luma;
+  };
+  const stats: FrameStats[] = [];
+  for (let s = 0; s < ANALYSIS_SAMPLES; s++) {
+    const t = (endMs * (s + 0.5)) / ANALYSIS_SAMPLES;
+    const before = await lumaAt(Math.max(0, t - 1000 / FPS));
+    stats.push(frameStats(await lumaAt(t), w, h, before));
+  }
+  return stats;
 }
 
 async function gif(

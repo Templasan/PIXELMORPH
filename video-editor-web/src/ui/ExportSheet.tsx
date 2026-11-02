@@ -7,7 +7,7 @@ import { GIF_COLOR_OPTIONS, GIF_FPS_OPTIONS, GIF_MAX_DURATION_MS } from '../doma
 import type { ExportOutcome } from '../engine/exporter';
 import { useStore } from '../state/useStore';
 import type { ProjectFormat } from '../ports/host';
-import { t } from '../i18n';
+import { language, t } from '../i18n';
 
 type Frame = { width: number; height: number; cover: boolean };
 
@@ -32,6 +32,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   const [gifSize, setGifSize] = useState(360);
   const [gifFps, setGifFps] = useState<number>(10);
   const [gifColors, setGifColors] = useState<number>(128);
+  const [smart, setSmart] = useState(true);
   const [state, setState] = useState<State>({ phase: 'idle' });
   const cancelled = useRef(false);
   const duration = session.durationMs();
@@ -49,6 +50,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
       const result = await session.exportVideo({
         frame: size,
         bitrate: OUTPUTS[out].bitrate,
+        adaptive: kind === 'mp4' && smart,
         gif: kind === 'gif' ? { fps: gifFps, maxColors: gifColors } : undefined,
         onProgress: (pct) => setState({ phase: 'running', pct }),
         isCancelled: () => cancelled.current,
@@ -111,6 +113,12 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
             {duration > GIF_MAX_DURATION_MS && <p className="muted">{t('O GIF leva só os primeiros 15 s.')}</p>}
           </>
         )}
+        {kind === 'mp4' && (
+          <label className="muted">
+            <input type="checkbox" checked={smart} disabled={running} onChange={(e) => setSmart(e.target.checked)} />{' '}
+            {t('Compressão inteligente')}
+          </label>
+        )}
         <p className="muted">
           {size.width}×{size.height} · {format} · {formatTimecode(duration)}
         </p>
@@ -127,6 +135,15 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
         {state.phase === 'done' && (
           <p>
             {t('Pronto: {mb} MB em {s} s', { mb: (state.out.bytes / 1024 / 1024).toFixed(2), s: (state.tookMs / 1000).toFixed(1) })}
+            {state.out.smart && (
+              <>
+                <br />
+                {t('Compressão inteligente: {mbps} Mbps ({pct}% do preset)', {
+                  mbps: new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(state.out.smart.bitrate / 1e6),
+                  pct: Math.round((state.out.smart.bitrate / state.out.smart.presetBitrate) * 100),
+                })}
+              </>
+            )}
             <br />
             <span className="muted">{state.out.path}</span>
             {state.out.silent.length > 0 && (
