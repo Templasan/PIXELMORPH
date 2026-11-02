@@ -7,15 +7,19 @@ import { AppCompositionRoot } from '../CompositionRoot';
 import { TopBar } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
 import { AUTH_FAILURE_TEXT, AuthFailure } from '@modules/account';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NewPassword'>;
 
 const { auth } = AppCompositionRoot.account;
 
-/** Reached from a password reset link, or from "Alterar senha" while signed in. */
+/** Reached from a password reset link, or from "Alterar senha" / "Criar senha" while signed in. */
 export default function NewPasswordScreen({ navigation }: Props) {
   const { t } = useI18n();
+  const account = useStore(auth.state, (s) => s.account);
+  // Read once: after saving, the account has a password, and the wording must not flip before the screen closes.
+  const [creating] = useState(() => account !== null && !account.hasPassword);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,9 +40,12 @@ export default function NewPasswordScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TopBar title={t('Nova senha')} onBackPress={() => navigation.navigate('Projects')} />
+      <TopBar
+        title={t(creating ? 'Criar senha' : 'Nova senha')}
+        onBackPress={() => navigation.navigate('Projects')}
+      />
       <View style={styles.content}>
-        <Text style={styles.label}>{t('Nova senha')}</Text>
+        <Text style={styles.label}>{t(creating ? 'Criar senha' : 'Nova senha')}</Text>
         <TextInput
           value={password}
           onChangeText={setPassword}
@@ -65,7 +72,7 @@ export default function NewPasswordScreen({ navigation }: Props) {
           disabled={!canSubmit}
           onPress={submit}
         >
-          <Text style={styles.buttonText}>{t('SALVAR SENHA')}</Text>
+          <Text style={styles.buttonText}>{t(creating ? 'CRIAR SENHA' : 'SALVAR SENHA')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

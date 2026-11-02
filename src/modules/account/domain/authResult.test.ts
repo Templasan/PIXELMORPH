@@ -1,4 +1,23 @@
-import { classifyAuthError, parseAuthCallback } from './authResult';
+import { classifyAuthError, hasPasswordLogin, parseAuthCallback } from './authResult';
+
+describe('hasPasswordLogin', () => {
+  it('an e-mail account has a password', () => {
+    expect(hasPasswordLogin(['email'], undefined)).toBe(true);
+  });
+
+  it('a Google-only account has no password', () => {
+    expect(hasPasswordLogin(['google'], undefined)).toBe(false);
+  });
+
+  it('a Google account that set a password in the app has one', () => {
+    expect(hasPasswordLogin(['google'], true)).toBe(true);
+  });
+
+  it('missing metadata means no password', () => {
+    expect(hasPasswordLogin(undefined, undefined)).toBe(false);
+    expect(hasPasswordLogin([], 'true')).toBe(false);
+  });
+});
 
 describe('parseAuthCallback', () => {
   it('reads the tokens and the link type from the fragment', () => {

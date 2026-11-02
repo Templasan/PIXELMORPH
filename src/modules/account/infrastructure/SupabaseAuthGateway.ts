@@ -11,6 +11,7 @@ import { createStore } from '@core/state';
 import {
   AuthFailure,
   classifyAuthError,
+  hasPasswordLogin,
   parseAuthCallback,
   type Account,
 } from '../domain/authResult';
@@ -19,9 +20,18 @@ import type { AuthGateway, AuthState } from '../ports/AuthGateway';
 const CALLBACK_URL = 'pixelmorph://auth-callback';
 
 function accountOf(session: Session): Account {
-  const meta = session.user.user_metadata as { full_name?: string; name?: string };
+  const meta = session.user.user_metadata as {
+    full_name?: string;
+    name?: string;
+    password_set?: unknown;
+  };
   const email = session.user.email ?? '';
-  return { id: session.user.id, email, name: meta.full_name || meta.name || email };
+  return {
+    id: session.user.id,
+    email,
+    name: meta.full_name || meta.name || email,
+    hasPassword: hasPasswordLogin(session.user.app_metadata.providers, meta.password_set),
+  };
 }
 
 function failOn(error: { code?: string; status?: number } | null): void {
@@ -123,7 +133,8 @@ export class SupabaseAuthGateway implements AuthGateway {
   }
 
   async updatePassword(password: string): Promise<void> {
-    const { error } = await supabase.auth.updateUser({ password });
+    // The USER_UPDATED event (onAuthStateChange) carries the updated user, so account.hasPassword follows.
+    const { error } = await supabase.auth.updateUser({ password, data: { password_set: true } });
     failOn(error);
     this.recovering = false;
     this.state.set((prev) => ({ ...prev, status: 'signedIn' }));

@@ -289,7 +289,11 @@ export default function AccountScreen({ navigation }: Props) {
                   </Text>
                 </View>
               </View>
-              <ArrowRow label="Alterar senha" onPress={() => navigation.navigate('NewPassword')} />
+              <ArrowRow
+                label={account.hasPassword ? 'Alterar senha' : 'Criar senha'}
+                sub={account.hasPassword ? undefined : 'Para entrar também com e-mail e senha'}
+                onPress={() => navigation.navigate('NewPassword')}
+              />
             </>
           ) : (
             <ArrowRow
