@@ -1,5 +1,4 @@
-import { cellPixelRect, type CollageLayout } from '../domain/collage/CollageMath';
-import { coverFitRect } from '../domain/export/exportMath';
+import { cellPixelRect, CENTRED_PAN, coverPlacement, type CellPan, type CollageLayout } from '../domain/collage/CollageMath';
 import type { panoramaLayout } from '../domain/panorama/panoramaLayout';
 
 export interface CollageOptions {
@@ -8,12 +7,14 @@ export interface CollageOptions {
   shadow: number;
   borderWidth: number;
   borderColor: string;
+  /** RF-011: each cell's pan (index = cell); missing entries are centred. */
+  pans: readonly CellPan[];
 }
 
-/** RF-011: each picture cover-fitted into its cell, on the border colour, with spacing/borders. */
+/** RF-011: each picture cover-fitted into its cell, panned, on the border colour, with spacing/borders. */
 export function drawCollage(
-  pictures: readonly CanvasImageSource[],
-  sizes: readonly { width: number; height: number }[],
+  pictures: readonly (CanvasImageSource | undefined)[],
+  sizes: readonly ({ width: number; height: number } | undefined)[],
   layout: CollageLayout,
   size: number,
   o: CollageOptions
@@ -25,9 +26,10 @@ export function drawCollage(
   ctx.fillRect(0, 0, size, size);
   layout.cells.forEach((cell, i) => {
     const picture = pictures[i];
-    if (!picture) return;
+    const pic = sizes[i];
+    if (!picture || !pic) return;
     const r = cellPixelRect(cell, size, size, o.spacing);
-    const fit = coverFitRect(sizes[i].width, sizes[i].height, r.width, r.height);
+    const fit = coverPlacement(pic, r, o.pans[i] ?? CENTRED_PAN);
     if (o.shadow > 0) {
       ctx.save();
       ctx.shadowColor = `rgba(0,0,0,${0.6 * o.shadow})`;

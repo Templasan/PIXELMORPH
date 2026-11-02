@@ -3,6 +3,8 @@
  * Skia-free so it's unit-testable (same split as exportMath.ts/colorAdjustments.ts).
  */
 
+import { coverFitRect } from '../export/exportMath';
+
 export interface CollageCell {
   x: number; // normalized 0..1
   y: number;
@@ -68,3 +70,57 @@ export function cellPixelRect(
     height: cell.height * canvasHeight - spacing,
   };
 }
+
+/**
+ * RF-011: where a photo sits inside its cell, per axis from -1 to 1. 0 is centred (the cover
+ * default); -1 and 1 put the photo's far and near edge on the cell's edge. Never past them, so the
+ * cell is always covered.
+ */
+export interface CellPan {
+  x: number;
+  y: number;
+}
+
+export const CENTRED_PAN: CellPan = { x: 0, y: 0 };
+
+const clampUnit = (v: number) => Math.min(1, Math.max(-1, v));
+
+/** How far the cover-fitted photo overhangs the cell on each axis (0 when it fits exactly). */
+function spareOf(pic: { width: number; height: number }, cell: { width: number; height: number }) {
+  const fit = coverFitRect(pic.width, pic.height, cell.width, cell.height);
+  return { x: Math.max(0, fit.width - cell.width), y: Math.max(0, fit.height - cell.height) };
+}
+
+/** The photo's rect inside its cell (cell-local origin), cover-fitted and panned. */
+export function coverPlacement(
+  pic: { width: number; height: number },
+  cell: { width: number; height: number },
+  pan: CellPan
+): { x: number; y: number; width: number; height: number } {
+  const fit = coverFitRect(pic.width, pic.height, cell.width, cell.height);
+  const spare = spareOf(pic, cell);
+  return {
+    x: -spare.x / 2 + (clampUnit(pan.x) * spare.x) / 2,
+    y: -spare.y / 2 + (clampUnit(pan.y) * spare.y) / 2,
+    width: fit.width,
+    height: fit.height,
+  };
+}
+
+/**
+ * The pan after dragging the photo by (dx, dy) cell pixels: the photo follows the pointer and
+ * stops at the cell's edge. An axis the photo does not overhang keeps its pan.
+ */
+export function panByDrag(
+  pic: { width: number; height: number },
+  cell: { width: number; height: number },
+  pan: CellPan,
+  dx: number,
+  dy: number
+): CellPan {
+  const spare = spareOf(pic, cell);
+  const step = (value: number, delta: number, room: number) =>
+    room > 0 ? clampUnit(value + (2 * delta) / room) : clampUnit(value);
+  return { x: step(pan.x, dx, spare.x), y: step(pan.y, dy, spare.y) };
+}
+
