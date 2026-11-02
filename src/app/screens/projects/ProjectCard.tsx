@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
 import { useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
 import type { Project } from '@modules/projects';
 import {
   dateFormatter,
@@ -12,7 +13,9 @@ import {
   formatTypeLabel,
   primaryAsset,
 } from './projectFormat';
+import { cardThumbPathOf, cardThumbStore } from './cardThumb';
 import { ProjectThumb } from './ProjectThumb';
+import { cropsInHighlight } from './thumbAspect';
 
 export type ProjectLayout = 'grid' | 'list';
 
@@ -25,6 +28,7 @@ interface ItemProps {
 }
 
 const BADGE_BACKGROUND = 'rgba(0,0,0,0.7)';
+const COVER_CANDIDATES = 8;
 
 function useDueLabel(project: Project): string | null {
   const { t } = useI18n();
@@ -135,6 +139,7 @@ export function ProjectHero({
 }) {
   const { t } = useI18n();
   const due = useDueLabel(project);
+  const heroMeta = primaryAsset(project)?.metadata;
   const age = -daysUntil(project.updatedAt);
   const edited =
     age <= 0
@@ -145,10 +150,21 @@ export function ProjectHero({
   return (
     <Pressable
       style={[styles.hero, isSelected && styles.tileSelected]}
+      accessibilityLabel={project.name}
       onPress={() => onPress(project)}
       onLongPress={() => onLongPress(project)}
     >
-      <ProjectThumb project={project} style={styles.fill} />
+      {cropsInHighlight(heroMeta?.width, heroMeta?.height) ? (
+        // The whole picture, over a blurred copy of itself so the frame never looks empty.
+        <>
+          <ProjectThumb project={project} style={styles.fill} blurRadius={20} />
+          <View style={styles.heroWhole}>
+            <ProjectThumb project={project} style={styles.fill} contain />
+          </View>
+        </>
+      ) : (
+        <ProjectThumb project={project} style={styles.fill} />
+      )}
       <View style={styles.heroCaption}>
         <View style={styles.heroText}>
           <Text style={styles.heroName} numberOfLines={1}>
@@ -169,11 +185,21 @@ export function ProjectHero({
   );
 }
 
+/** The first picture of the group that exists: a project whose file is gone must not be the face. */
+function GroupCover({ projects }: { projects: Project[] }) {
+  const statuses = useStore(cardThumbStore);
+  const cover =
+    projects
+      .slice(0, COVER_CANDIDATES)
+      .find((p) => statuses[cardThumbPathOf(p) ?? ''] !== 'failed') ?? projects[0];
+  return <ProjectThumb key={cover.id} project={cover} style={styles.fill} />;
+}
+
 /** A month or year, collapsed by default so the screen stays short however many projects exist. */
 export function ProjectGroupRow({
   label,
   count,
-  cover,
+  projects,
   expanded,
   multiSelect,
   isSelected,
@@ -182,7 +208,7 @@ export function ProjectGroupRow({
 }: {
   label: string;
   count: number;
-  cover: Project;
+  projects: Project[];
   expanded: boolean;
   multiSelect: boolean;
   isSelected: boolean;
@@ -198,7 +224,7 @@ export function ProjectGroupRow({
       accessibilityState={{ expanded, selected: isSelected }}
     >
       <View style={styles.groupCover}>
-        <ProjectThumb project={cover} style={styles.fill} />
+        <GroupCover projects={projects} />
       </View>
       <Text style={styles.groupName} numberOfLines={1}>
         {label}
@@ -305,6 +331,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: colors.faixa,
+  },
+  // Stops above the caption, which would otherwise cover part of the picture.
+  heroWhole: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: 64,
   },
   heroCaption: {
     position: 'absolute',

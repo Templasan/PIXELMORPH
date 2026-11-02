@@ -10,13 +10,20 @@ import type { MakeCardThumb } from './cardThumb';
 const CARD_THUMB_EDGE = 384;
 const VIDEO_FILE = /\.(mp4|mov|m4v|3gp|webm|mkv)$/i;
 
-/** Video: a native frame at 0 ms (from the 720p copy when it exists). Photo: the light copy when it exists (much cheaper), else the original. */
+/** Recordings often open on black, so the thumb looks a little further in. */
+const VIDEO_FRAME_MS = 500;
+
+/** Video: a native frame near the start (from the 720p copy when it exists). Photo: the light copy when it exists (much cheaper), else the original. */
 export const makeCardThumb: MakeCardThumb = async (sourceUri, tmpUri) => {
   if (VIDEO_FILE.test(sourceUri.split(/[?#]/)[0])) {
     // The 720p preview copy, when it exists, is far cheaper to decode than a 4K original.
     const proxy = proxyPathOf(sourceUri);
     const useProxy = proxy !== null && (await FileSystem.getInfoAsync(proxy)).exists;
-    const frame = await extractFrame(useProxy && proxy ? proxy : sourceUri, 0, CARD_THUMB_EDGE);
+    const video = useProxy && proxy ? proxy : sourceUri;
+    // A clip shorter than that has no frame there.
+    const frame = await extractFrame(video, VIDEO_FRAME_MS, CARD_THUMB_EDGE).catch(() =>
+      extractFrame(video, 0, CARD_THUMB_EDGE)
+    );
     await FileSystem.copyAsync({ from: frame.uri, to: tmpUri });
     await FileSystem.deleteAsync(frame.uri, { idempotent: true }).catch(() => {});
     return;

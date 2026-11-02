@@ -28,8 +28,8 @@ export async function loadPicture(
   if (long <= maxLongEdge) return { bitmap: full, ...own };
   const k = maxLongEdge / long;
   const small = await createImageBitmap(full, {
-    resizeWidth: Math.round(full.width * k),
-    resizeHeight: Math.round(full.height * k),
+    resizeWidth: Math.max(1, Math.round(full.width * k)),
+    resizeHeight: Math.max(1, Math.round(full.height * k)),
     resizeQuality: 'high',
   });
   full.close();

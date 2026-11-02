@@ -42,3 +42,10 @@ describe('exportScaleOf', () => {
     expect(exportScaleOf(200, 150, FRAME_W, FRAME_H)).toBe(1);
   });
 });
+
+describe('fitLongEdgeOf with an extreme shape', () => {
+  it('never rounds a side down to zero', () => {
+    expect(fitLongEdgeOf(6000, 1, 384)).toEqual({ width: 384, height: 1 });
+    expect(fitLongEdgeOf(1, 6000, 384)).toEqual({ width: 1, height: 384 });
+  });
+});

@@ -83,7 +83,7 @@ export function scaleToFit(
   const longEdge = Math.max(width, height);
   if (longEdge <= maxLongEdge) return { width, height };
   const scale = maxLongEdge / longEdge;
-  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
 /** "Cover" fit geometry for resizing/cropping to a target preset — pure math, testable. */
