@@ -129,6 +129,9 @@ class FakePhone implements LocalProjectData {
 
   async writeBlobs(projectId: string, blobs: Record<string, string>, isNew: boolean) {
     this.writes.push(projectId);
+    for (const key of Object.keys(await this.readBlobs(projectId))) {
+      if (!(key in blobs)) delete this.storage[key];
+    }
     Object.assign(this.storage, blobs);
     if (isNew) {
       const list = this.ids();
@@ -440,5 +443,136 @@ describe('SyncProjectsUseCase', () => {
     expect(report.failed).toBe(1);
     expect(report.uploaded).toBe(1);
     expect(server.rows.has('p2')).toBe(true);
+  });
+
+  it('a remote change updates the local project and rewrites its file URIs', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({
+      id: 'p1',
+      name: 'Viagem nova',
+      assets: [{ originalUri: 'file:///cache/one.jpg' }],
+    });
+    await syncOnce(a.uc);
+
+    const report = await syncOnce(b.uc);
+
+    expect(report).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(JSON.parse(b.phone.storage['project:p1']).name).toBe('Viagem nova');
+    expect(b.phone.storage['project:p1']).not.toContain('file:///cache/');
+    expect(b.phone.storage['project:p1']).toContain('file:///docs/cloud/p1/');
+  });
+
+  it('a shorter history from the server leaves no stale key on the phone', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    a.phone.storage['history:p1'] = '{"index":1}';
+    a.phone.storage['history:p1#g1-0'] = '[1]';
+    a.phone.storage['history:p1#g1-1'] = '[2]';
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+    expect(b.phone.storage['history:p1#g1-1']).toBe('[2]');
+
+    await tick();
+    delete a.phone.storage['history:p1#g1-1'];
+    a.phone.storage['history:p1'] = '{"index":0}';
+    await syncOnce(a.uc);
+    const report = await syncOnce(b.uc);
+
+    expect(report.downloaded).toBe(1);
+    expect(b.phone.storage['history:p1#g1-1']).toBeUndefined();
+    expect(b.phone.storage['history:p1#g1-0']).toBe('[1]');
+  });
+
+  it('a local edit made between prepare and run is a conflict and touches nothing locally', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem nova' });
+    await syncOnce(a.uc);
+
+    const prepared = await b.uc.prepare('u1');
+    expect(prepared.plan.download).toEqual(['p1']);
+    const edited = JSON.stringify({ id: 'p1', name: 'Editado aqui' });
+    b.phone.storage['project:p1'] = edited;
+    const storageBefore = { ...b.phone.storage };
+    const fsBefore = new Map(b.phone.fs);
+
+    const report = await b.uc.run('u1', prepared, () => undefined);
+
+    expect(report.conflicts).toEqual(['Viagem nova']);
+    expect(report.downloaded).toBe(0);
+    expect(b.phone.storage['project:p1']).toBe(edited);
+    expect(b.phone.storage).toEqual(storageBefore);
+    expect(b.phone.fs).toEqual(fsBefore);
+  });
+
+  it('a failed file download over a synced local copy leaves that copy untouched', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/two.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({
+      id: 'p1',
+      name: 'Viagem nova',
+      assets: [{ originalUri: 'file:///cache/one.jpg' }, { originalUri: 'file:///cache/two.jpg' }],
+    });
+    await syncOnce(a.uc);
+    server.failDownloadKey = server.rows.get('p1')!.files[1].key;
+    const storageBefore = { ...b.phone.storage };
+    const fsBefore = new Map(b.phone.fs);
+
+    const report = await syncOnce(b.uc);
+
+    expect(report.downloaded).toBe(0);
+    expect(report.pendingDownloads).toBe(1);
+    expect(b.phone.storage).toEqual(storageBefore);
+    expect(b.phone.fs).toEqual(fsBefore);
+  });
+
+  it('after a download, the next run does nothing', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg']);
+    await syncOnce(a.uc);
+    const b = deviceWith(server);
+    await syncOnce(b.uc);
+
+    await tick();
+    a.phone.storage['project:p1'] = JSON.stringify({ id: 'p1', name: 'Viagem nova' });
+    await syncOnce(a.uc);
+    expect((await syncOnce(b.uc)).downloaded).toBe(1);
+
+    const upsertsBefore = server.upserts.length;
+    const uploadsBefore = server.successfulUploads.length;
+    const report = await syncOnce(b.uc);
+
+    expect(report).toMatchObject({
+      uploaded: 0,
+      downloaded: 0,
+      conflicts: [],
+      failed: 0,
+      pendingUploads: 0,
+      pendingDownloads: 0,
+    });
+    expect(server.upserts.length).toBe(upsertsBefore);
+    expect(server.successfulUploads.length).toBe(uploadsBefore);
   });
 });
