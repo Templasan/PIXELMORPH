@@ -32,6 +32,14 @@ missing items enter this sprint and which move to Sprint 3.
 
 Later improvement for the verification e-mail: opening the link on another device leaves a blank page and the app waiting. Options: a 6-digit code in the e-mail (works on any device, no redirect), or the waiting screen retrying sign-in; a websocket does not fit because the account has no session until it is confirmed.
 
+### Pending tests (parked by the owner, 2026-11-02)
+
+**Owner, real accounts (emulator `Pixel_7`, build `C:/apks/PixelMorph-sync4-x86_64.apk`):** two accounts stay separate (a second account's rows and the other emulator do not receive them); forgot password link opens "Nova senha"; Google login, then "Criar senha", then e-mail + password; terms line under the Google button.
+
+**Phone (Poco, build `PixelMorph-sync4-arm64.apk`, `adb install -r` only):** RNF-011 one minute of Full HD exported in 2 minutes or less; reminder notification time (read 06:00 on the emulator); mic gain with real AAC; video social presets; background music across cuts; heavy photo bake, to see whether the emulator's "GPU hang" happens on a phone; smart compression on a real clip; drag a photo inside a collage cell; 2 and 3 finger shortcuts (owner, by hand). Sync on the phone only if the owner decides, since it sends real projects.
+
+**Also not done:** distribute evenly with spread-out layers on a device (layers created at one spot do not move, as expected); the 14 emulator projects with missing files are believed to predate sync, not proven.
+
 ## Where each story stands
 
 | Story | Done | Partial | Fake | Missing | Main gaps |
