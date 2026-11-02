@@ -238,6 +238,7 @@ const en: Record<string, string> = {
     'Changes made on this device to this project will be replaced.',
   'Entre na conta de novo para sincronizar.': 'Sign in again to sync.',
   'Não foi possível sincronizar agora.': 'Could not sync right now.',
+  Galeria: 'Gallery',
 };
 
 export default en;
