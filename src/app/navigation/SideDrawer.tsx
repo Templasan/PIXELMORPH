@@ -5,7 +5,9 @@ import type { NavigationProp } from '@react-navigation/native';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { Icon } from '@core/ui';
 import type { RootStackParamList } from './RootNavigator';
+import { AppCompositionRoot } from '../CompositionRoot';
 import { useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
 import {
   formatBytes,
   getStorageUsageCached,
@@ -32,6 +34,8 @@ const navItems: NavItem[] = [
   { icon: 'save', label: 'Armazenamento', screen: 'Storage' },
 ];
 
+const { auth } = AppCompositionRoot.account;
+
 interface SideDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -47,6 +51,7 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const [usage, setUsage] = useState<StorageUsage | null>(null);
+  const account = useStore(auth.state, (s) => s.account);
 
   useEffect(() => {
     if (open) getStorageUsageCached().then(setUsage, () => undefined);
@@ -54,7 +59,7 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
 
   if (!open) return null;
 
-  const go = (screen: DrawerScreenName) => {
+  const go = (screen: DrawerScreenName | 'Login') => {
     onClose();
     navigation.navigate(screen);
   };
@@ -66,15 +71,25 @@ export function SideDrawer({ open, onClose, navigation, current }: SideDrawerPro
           absolutely-positioned child ignores — re-apply it here so the drawer doesn't
           render under the status bar. */}
       <View style={[styles.drawer, { paddingTop: insets.top }]}>
-        <View style={styles.profile}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>JS</Text>
+        {account ? (
+          <View style={styles.profile}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{account.name.slice(0, 2).toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileName} numberOfLines={1}>
+                {account.name}
+              </Text>
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {account.email}
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.profileName}>João Silva</Text>
-            <Text style={styles.profileEmail}>joao@pixelmorph.com</Text>
-          </View>
-        </View>
+        ) : (
+          <Pressable style={styles.profile} onPress={() => go('Login')}>
+            <Text style={styles.profileName}>{t('Entrar ou criar conta')}</Text>
+          </Pressable>
+        )}
 
         <ScrollView style={styles.list}>
           {navItems.map(({ icon, label, screen }) => {
