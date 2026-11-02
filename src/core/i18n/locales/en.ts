@@ -211,6 +211,8 @@ const en: Record<string, string> = {
   'Servidor de mídia desligado: {n} arquivos pendentes.':
     'Media server offline: {n} files pending.',
   '1 projeto aguardando arquivos do servidor.': '1 project waiting for files from the server.',
+  '1 arquivo não enviado pelo servidor de mídia.': '1 file not sent by the media server.',
+  '{n} arquivos não enviados pelo servidor de mídia.': '{n} files not sent by the media server.',
   '{n} projetos aguardando arquivos do servidor.':
     '{n} projects waiting for files from the server.',
   '1 arquivo não encontrado neste aparelho ({names}).':

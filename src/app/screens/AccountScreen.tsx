@@ -9,7 +9,7 @@ import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { LANGUAGES, useI18n } from '@core/i18n';
 import { useStore } from '@core/state';
 import { CloudError } from '@modules/projects';
-import { joinSentences } from './accountSentences';
+import { joinSentences, pendingUploadsSentence } from './accountSentences';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
 
@@ -89,16 +89,7 @@ function describeSync(r: SyncReport, t: Translate): string {
       )
     );
   }
-  if (r.pendingUploads) {
-    issues.push(
-      counted(
-        r.pendingUploads,
-        'Servidor de mídia desligado: 1 arquivo pendente.',
-        'Servidor de mídia desligado: {n} arquivos pendentes.',
-        t
-      )
-    );
-  }
+  if (r.pendingUploads) issues.push(pendingUploadsSentence(r.pendingUploads, r.serverOffline, t));
   if (r.pendingDownloads) {
     issues.push(
       counted(
