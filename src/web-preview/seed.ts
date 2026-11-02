@@ -3,7 +3,7 @@ import { AppCompositionRoot } from '../app/CompositionRoot';
 import { createMediaAsset, createMediaMetadata, createProject } from '@modules/projects';
 import type { ProjectPriority } from '@modules/projects';
 
-const SEEDED_KEY = 'preview:seeded:v1';
+const SEEDED_KEY = 'preview:seeded:v2';
 const PHOTOS = 'http://localhost:5175/media/';
 const DAY = 86_400_000;
 
@@ -91,12 +91,21 @@ const SAMPLES: Sample[] = [
   },
 ];
 
+// Enough older projects to fill several months and an earlier year.
+const OLDER_FILES = ['photo.jpg', 'exif6-1600x1200.jpg', 'i03-9x16-1080x1920.png', 'logo.png'];
+const OLDER_SAMPLES: Sample[] = Array.from({ length: 60 }, (_, i) => ({
+  id: `preview-old-${i}`,
+  name: `Projeto ${i + 1}`,
+  file: OLDER_FILES[i % OLDER_FILES.length],
+  ageDays: 14 + i * 9,
+}));
+
 /** Fills the browser's storage once with sample projects, through the app's real repository. */
 export async function seedPreviewProjects(force = false): Promise<void> {
   if (!force && (await AsyncStorage.getItem(SEEDED_KEY))) return;
   const { repository } = AppCompositionRoot.projects;
   for (const existing of await repository.findAll()) await repository.delete(existing.id);
-  for (const s of SAMPLES) {
+  for (const s of [...SAMPLES, ...OLDER_SAMPLES]) {
     const uri = s.video ? `http://localhost:5174/media/${s.id}.mp4` : `${PHOTOS}${s.file}`;
     const [width, height] = s.size ?? [1600, 1200];
     const asset = createMediaAsset(

@@ -1,169 +1,377 @@
 import { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@core/ui';
-import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { colors, fontSize } from '@core/theme';
+import { useI18n } from '@core/i18n';
 import type { Project } from '@modules/projects';
-import { dateFormatter, formatDuration, formatTypeLabel, primaryAsset } from './projectFormat';
-import { useCardThumb } from './cardThumb';
-import { makeCardThumb } from './cardThumbMaker';
+import {
+  dateFormatter,
+  daysUntil,
+  formatDuration,
+  formatFileSize,
+  formatTypeLabel,
+  primaryAsset,
+} from './projectFormat';
+import { ProjectThumb } from './ProjectThumb';
 
-interface CardProps {
+export type ProjectLayout = 'grid' | 'list';
+
+interface ItemProps {
   project: Project;
   isSelected: boolean;
   multiSelect: boolean;
   onPressProject: (p: Project) => void;
   onLongPressProject: (p: Project) => void;
-  onInfo: (p: Project) => void;
 }
 
-export const ProjectCard = memo(function ProjectCard({
+const BADGE_BACKGROUND = 'rgba(0,0,0,0.7)';
+
+function useDueLabel(project: Project): string | null {
+  const { t } = useI18n();
+  if (!project.dueDate) return null;
+  const days = daysUntil(project.dueDate);
+  if (days === 0) return t('Vence hoje');
+  if (days === 1) return t('Vence amanhã');
+  if (days === -1) return t('Atrasado há 1 dia');
+  if (days < 0) return t('Atrasado há {n} dias', { n: -days });
+  return t('Vence em {n} dias', { n: days });
+}
+
+function Duration({ project }: { project: Project }) {
+  const duration =
+    project.type === 'video' ? formatDuration(primaryAsset(project)?.metadata.durationMs) : null;
+  if (!duration) return null;
+  return (
+    <View style={styles.duration}>
+      <Text style={styles.durationText}>{duration}</Text>
+    </View>
+  );
+}
+
+function Check({ isSelected }: { isSelected: boolean }) {
+  return (
+    <View style={[styles.check, isSelected && styles.checkActive]}>
+      {isSelected && <Icon name="check" size={13} color={colors.preto} />}
+    </View>
+  );
+}
+
+/** A square picture: the rail of the current week and the grid inside a month. */
+export const ProjectTile = memo(function ProjectTile({
   project,
   isSelected,
   multiSelect,
   onPressProject,
   onLongPressProject,
-  onInfo,
-}: CardProps) {
-  const asset = primaryAsset(project);
-  const thumbUri = useCardThumb(project, makeCardThumb);
-  const isVideo = project.type === 'video';
-  const duration = formatDuration(asset?.metadata.durationMs);
+}: ItemProps) {
   return (
     <Pressable
-      style={[styles.card, isSelected && styles.cardSelected]}
-      onLongPress={() => onLongPressProject(project)}
+      style={[styles.tile, isSelected && styles.tileSelected]}
       onPress={() => onPressProject(project)}
+      onLongPress={() => onLongPressProject(project)}
+      accessibilityLabel={project.name}
     >
-      <View style={styles.thumbWrap}>
-        {thumbUri ? (
-          <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
-        ) : (
-          <View style={styles.thumbPlaceholder}>
-            <Icon name={isVideo ? 'film' : 'image'} size={28} color={colors.linha} />
-          </View>
-        )}
-        {isVideo && (
-          <>
-            <View style={styles.playOverlay}>
-              <View style={styles.playBadge}>
-                <Icon name="play" size={16} color={colors.texto} />
-              </View>
-            </View>
-            {duration && (
-              <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>{duration}</Text>
-              </View>
-            )}
-          </>
-        )}
-        {multiSelect && (
-          <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
-            {isSelected && <Icon name="check" size={12} color={colors.preto} />}
-          </View>
-        )}
-      </View>
-      <View style={styles.cardInfo}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.cardName} numberOfLines={1}>
-            {project.name}
-          </Text>
-          <Text style={styles.cardMeta}>
-            {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)}
-          </Text>
-        </View>
-        <Pressable hitSlop={8} onPress={() => onInfo(project)}>
-          <Icon name="info" size={14} color={colors.texto2} />
-        </Pressable>
-      </View>
+      <ProjectThumb project={project} style={styles.fill} />
+      <Duration project={project} />
+      {multiSelect && <Check isSelected={isSelected} />}
     </Pressable>
   );
 });
 
+/** A line of the list view: the only view that shows every detail. */
+export const ProjectRow = memo(function ProjectRow({
+  project,
+  isSelected,
+  multiSelect,
+  onPressProject,
+  onLongPressProject,
+}: ItemProps) {
+  const size = formatFileSize(primaryAsset(project)?.metadata.fileSizeBytes);
+  const due = useDueLabel(project);
+  return (
+    <Pressable
+      style={[styles.row, isSelected && styles.rowSelected]}
+      onPress={() => onPressProject(project)}
+      onLongPress={() => onLongPressProject(project)}
+    >
+      <View style={styles.rowThumb}>
+        <ProjectThumb project={project} style={styles.fill} />
+        <Duration project={project} />
+        {multiSelect && <Check isSelected={isSelected} />}
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {project.name}
+        </Text>
+        <Text style={styles.rowMeta} numberOfLines={1}>
+          {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)} · {size}
+        </Text>
+        {due && (
+          <Text style={styles.rowDue} numberOfLines={1}>
+            {due}
+          </Text>
+        )}
+      </View>
+      {!multiSelect && <Icon name="chevronRight" size={20} color={colors.texto2} />}
+    </Pressable>
+  );
+});
+
+/** The latest project, large: what the user most likely came back for. */
+export function ProjectHero({
+  project,
+  onPress,
+  onLongPress,
+  onOpen,
+}: {
+  project: Project;
+  onPress: (p: Project) => void;
+  onLongPress: (p: Project) => void;
+  onOpen: (p: Project) => void;
+}) {
+  const { t } = useI18n();
+  const due = useDueLabel(project);
+  const age = -daysUntil(project.updatedAt);
+  const edited =
+    age <= 0
+      ? t('Editado hoje')
+      : age === 1
+        ? t('Editado ontem')
+        : t('Editado em {date}', { date: dateFormatter.format(project.updatedAt) });
+  return (
+    <Pressable
+      style={styles.hero}
+      onPress={() => onPress(project)}
+      onLongPress={() => onLongPress(project)}
+    >
+      <ProjectThumb project={project} style={styles.fill} />
+      <View style={styles.heroCaption}>
+        <View style={styles.heroText}>
+          <Text style={styles.heroName} numberOfLines={1}>
+            {project.name}
+          </Text>
+          <Text style={styles.heroMeta} numberOfLines={1}>
+            {due ? `${edited} · ${due}` : edited}
+          </Text>
+        </View>
+        <Pressable style={styles.heroOpen} onPress={() => onOpen(project)}>
+          <Text style={styles.heroOpenText}>{t('Abrir')}</Text>
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}
+
+/** A month or year, collapsed by default so the screen stays short however many projects exist. */
+export function ProjectGroupRow({
+  label,
+  count,
+  cover,
+  expanded,
+  multiSelect,
+  isSelected,
+  onPress,
+  onLongPress,
+}: {
+  label: string;
+  count: number;
+  cover: Project;
+  expanded: boolean;
+  multiSelect: boolean;
+  isSelected: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.groupRow, isSelected && styles.rowSelected]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityState={{ expanded, selected: isSelected }}
+    >
+      <View style={styles.groupCover}>
+        <ProjectThumb project={cover} style={styles.fill} />
+      </View>
+      <Text style={styles.groupName} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={styles.groupCount}>{count}</Text>
+      {multiSelect ? (
+        <View style={[styles.groupCheck, isSelected && styles.checkActive]}>
+          {isSelected && <Icon name="check" size={13} color={colors.preto} />}
+        </View>
+      ) : (
+        <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={20} color={colors.texto2} />
+      )}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  card: {
-    width: '48%',
-    backgroundColor: colors.painel,
-    borderWidth: 1,
-    borderColor: colors.linha,
+  fill: {
+    width: '100%',
+    height: '100%',
   },
-  cardSelected: {
-    borderColor: colors.acento,
-  },
-  thumbWrap: {
+  tile: {
+    width: '100%',
     aspectRatio: 1,
-    backgroundColor: colors.faixa,
-    position: 'relative',
+    borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: colors.faixa,
   },
-  thumb: {
-    width: '100%',
-    height: '100%',
+  tileSelected: {
+    borderWidth: 3,
+    borderColor: colors.branco,
   },
-  thumbPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playOverlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  durationBadge: {
+  duration: {
     position: 'absolute',
-    bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 4,
+    bottom: 4,
+    paddingHorizontal: 5,
     paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: BADGE_BACKGROUND,
   },
   durationText: {
-    fontFamily: monoFontFamily,
-    fontSize: 10,
-    color: colors.texto,
+    fontSize: 11,
+    color: colors.branco,
   },
-  checkCircle: {
+  check: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
+    top: 5,
+    left: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: colors.texto,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderColor: colors.branco,
+    backgroundColor: colors.veu,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkCircleActive: {
-    borderColor: colors.acento,
-    backgroundColor: colors.acento,
+  checkActive: {
+    backgroundColor: colors.branco,
   },
-  cardInfo: {
-    padding: 6,
-    paddingHorizontal: 8,
+  row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 4,
+    alignItems: 'center',
+    gap: 14,
+    minHeight: 92,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.barra,
   },
-  cardName: {
+  rowSelected: {
+    backgroundColor: colors.barra,
+  },
+  rowThumb: {
+    width: 96,
+    height: 72,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.faixa,
+  },
+  rowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.texto,
+  },
+  rowMeta: {
+    marginTop: 4,
+    fontSize: fontSize.xs,
+    color: colors.texto2,
+  },
+  rowDue: {
+    marginTop: 4,
+    fontSize: fontSize.xs,
+    color: colors.alerta,
+  },
+  hero: {
+    marginHorizontal: 16,
+    height: 170,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: colors.faixa,
+  },
+  heroCaption: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: BADGE_BACKGROUND,
+  },
+  heroText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroName: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: colors.branco,
+  },
+  heroMeta: {
+    marginTop: 2,
     fontSize: fontSize.xs,
     color: colors.texto,
-    fontWeight: '500',
   },
-  cardMeta: {
-    fontFamily: monoFontFamily,
-    fontSize: 10,
+  heroOpen: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.texto,
+  },
+  heroOpenText: {
+    fontSize: fontSize.sm,
+    fontWeight: '500',
+    color: colors.canvas,
+  },
+  groupRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.barra,
+  },
+  groupCover: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: colors.faixa,
+  },
+  groupName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.texto,
+  },
+  groupCount: {
+    fontSize: fontSize.sm,
     color: colors.texto2,
-    marginTop: 2,
+  },
+  groupCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.branco,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

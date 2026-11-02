@@ -4,6 +4,12 @@ import { colors } from '../theme';
 /** Outline icon paths (24x24 viewBox), ported 1:1 from the Figma Make prototype's icons.tsx. */
 const paths: Record<string, string> = {
   menu: 'M3 6h18M3 12h18M3 18h18',
+  video: 'M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM10 8l6 4-6 4V8z',
+  user: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
+  clock: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2',
+  moreVertical: 'M12 6h.01M12 12h.01M12 18h.01',
+  list: 'M4 6h16M4 12h16M4 18h16',
+  fileText: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M8 13h8M8 17h8',
   search: 'M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z',
   sort: 'M3 7h18M6 12h12M9 17h6',
   chevronLeft: 'M15 18l-6-6 6-6',
