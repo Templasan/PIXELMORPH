@@ -239,6 +239,8 @@ const en: Record<string, string> = {
   'Entre na conta de novo para sincronizar.': 'Sign in again to sync.',
   'Não foi possível sincronizar agora.': 'Could not sync right now.',
   Galeria: 'Gallery',
+  '{n} projeto': '{n} project',
+  '{n} projetos': '{n} projects',
 };
 
 export default en;

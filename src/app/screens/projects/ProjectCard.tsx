@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@core/ui';
-import { colors, fontSize, monoFontFamily, radius } from '@core/theme';
+import { colors, fontSize, monoFontFamily } from '@core/theme';
 import type { Project } from '@modules/projects';
 import { dateFormatter, formatDuration, formatTypeLabel, primaryAsset } from './projectFormat';
 import { useCardThumb } from './cardThumb';
@@ -16,6 +16,7 @@ interface CardProps {
   onInfo: (p: Project) => void;
 }
 
+/** One tile of the media grid, in the manner of Vegas' Project Media and Bridge's thumbnails. */
 export const ProjectCard = memo(function ProjectCard({
   project,
   isSelected,
@@ -30,63 +31,70 @@ export const ProjectCard = memo(function ProjectCard({
   const duration = formatDuration(asset?.metadata.durationMs);
   return (
     <Pressable
-      style={styles.card}
+      style={styles.cell}
       onLongPress={() => onLongPressProject(project)}
       onPress={() => onPressProject(project)}
     >
-      <View style={[styles.thumbWrap, isSelected && styles.thumbSelected]}>
-        {thumbUri ? (
-          <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
-        ) : (
-          <View style={styles.thumbPlaceholder}>
-            <Icon name={isVideo ? 'film' : 'image'} size={32} color={colors.linha} />
+      <View style={[styles.tile, isSelected && styles.tileSelected]}>
+        <View style={styles.well}>
+          {thumbUri ? (
+            <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
+          ) : (
+            <View style={styles.thumbPlaceholder}>
+              <Icon name={isVideo ? 'film' : 'image'} size={24} color={colors.linha} />
+            </View>
+          )}
+          <View style={styles.typeTag}>
+            <Text style={styles.tagText}>{formatTypeLabel(project)}</Text>
           </View>
-        )}
-        {isVideo && (
-          <View style={styles.videoBadge}>
-            <Icon name="play" size={10} color={colors.branco} />
-            {duration && <Text style={styles.durationText}>{duration}</Text>}
-          </View>
-        )}
-        {multiSelect && (
-          <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
-            {isSelected && <Icon name="check" size={12} color={colors.preto} />}
-          </View>
-        )}
-      </View>
-      <View style={styles.cardInfo}>
-        <View style={styles.cardText}>
-          <Text style={styles.cardName} numberOfLines={1}>
-            {project.name}
-          </Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>
-            {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)}
-          </Text>
+          {isVideo && duration && (
+            <View style={styles.durationTag}>
+              <Text style={styles.tagText}>{duration}</Text>
+            </View>
+          )}
+          {multiSelect && (
+            <View style={[styles.check, isSelected && styles.checkActive]}>
+              {isSelected && <Icon name="check" size={11} color={colors.preto} />}
+            </View>
+          )}
         </View>
-        <Pressable hitSlop={10} onPress={() => onInfo(project)} style={styles.infoButton}>
-          <Icon name="info" size={16} color={colors.texto2} />
-        </Pressable>
+        <View style={styles.caption}>
+          <View style={styles.captionText}>
+            <Text style={styles.name} numberOfLines={1}>
+              {project.name}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {dateFormatter.format(project.updatedAt)}
+            </Text>
+          </View>
+          <Pressable hitSlop={10} onPress={() => onInfo(project)}>
+            <Icon name="info" size={13} color={colors.texto2} />
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
-  // Half of the row, with the gutter inside: the last card of an odd list keeps the same width.
-  card: {
-    width: '50%',
-    paddingHorizontal: 6,
-    paddingBottom: 16,
+  // A third of the row, with the gutter inside: the last tiles keep their width in a short row.
+  cell: {
+    width: '33.333%',
+    padding: 2,
   },
-  thumbWrap: {
-    aspectRatio: 1,
-    backgroundColor: colors.faixa,
-    borderRadius: radius,
-    overflow: 'hidden',
+  tile: {
+    borderWidth: 1,
+    borderColor: colors.linha,
+    backgroundColor: colors.barra,
   },
-  thumbSelected: {
-    borderWidth: 2,
+  tileSelected: {
     borderColor: colors.acento,
+    backgroundColor: colors.acentoFraco2,
+  },
+  well: {
+    aspectRatio: 1,
+    backgroundColor: colors.canvas,
+    overflow: 'hidden',
   },
   thumb: {
     width: '100%',
@@ -98,61 +106,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoBadge: {
+  typeTag: {
     position: 'absolute',
-    left: 6,
-    bottom: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: radius,
+    top: 0,
+    left: 0,
+    paddingHorizontal: 3,
     backgroundColor: colors.veuForte,
   },
-  durationText: {
+  durationTag: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 3,
+    backgroundColor: colors.veuForte,
+  },
+  tagText: {
     fontFamily: monoFontFamily,
     fontSize: fontSize.xxs,
-    color: colors.branco,
+    color: colors.texto,
   },
-  checkCircle: {
+  check: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 20,
-    height: 20,
+    top: 3,
+    right: 3,
+    width: 16,
+    height: 16,
     borderWidth: 1,
     borderColor: colors.texto,
     backgroundColor: colors.veu,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkCircleActive: {
+  checkActive: {
     borderColor: colors.acento,
     backgroundColor: colors.acento,
   },
-  cardInfo: {
-    paddingTop: 8,
+  caption: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    borderTopWidth: 1,
+    borderTopColor: colors.linha,
   },
-  cardText: {
+  captionText: {
     flex: 1,
     minWidth: 0,
   },
-  cardName: {
-    fontSize: fontSize.sm,
+  name: {
+    fontSize: 11,
     color: colors.texto,
-    fontWeight: '500',
   },
-  cardMeta: {
+  meta: {
     fontFamily: monoFontFamily,
     fontSize: fontSize.xxs,
     color: colors.texto2,
-    marginTop: 3,
-  },
-  infoButton: {
-    paddingTop: 1,
   },
 });
