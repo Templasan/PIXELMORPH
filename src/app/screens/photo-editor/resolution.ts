@@ -15,7 +15,7 @@ export function fitLongEdgeOf(
   const long = Math.max(width, height);
   if (long <= maxLongEdge) return { width, height };
   const s = maxLongEdge / long;
-  return { width: Math.round(width * s), height: Math.round(height * s) };
+  return { width: Math.max(1, Math.round(width * s)), height: Math.max(1, Math.round(height * s)) };
 }
 
 /**

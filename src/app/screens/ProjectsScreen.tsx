@@ -481,7 +481,7 @@ export default function ProjectsScreen({ navigation }: Props) {
                 <ProjectGroupRow
                   label={group.label}
                   count={group.projects.length}
-                  cover={group.projects[0]}
+                  projects={group.projects}
                   expanded={isOpen}
                   multiSelect={multiSelect}
                   isSelected={multiSelect && group.projects.every((p) => selected.includes(p.id))}
@@ -556,7 +556,10 @@ export default function ProjectsScreen({ navigation }: Props) {
         </View>
       )}
 
-      {!multiSelect && <MainBar active="Projects" />}
+      {/* Hidden, not removed, while selecting: its height keeps the page from jumping. */}
+      <View style={multiSelect && styles.barHidden} pointerEvents={multiSelect ? 'none' : 'auto'}>
+        <MainBar active="Projects" />
+      </View>
     </SafeAreaView>
   );
 }
@@ -587,7 +590,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   contextBar: {
-    height: 56,
+    height: 60,
     backgroundColor: colors.barra,
     flexDirection: 'row',
     alignItems: 'center',
@@ -653,6 +656,9 @@ const styles = StyleSheet.create({
   // The camera button rises over the end of the page.
   pageEnd: {
     paddingBottom: 32,
+  },
+  barHidden: {
+    opacity: 0,
   },
   body: {
     flex: 1,
