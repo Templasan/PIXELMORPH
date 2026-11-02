@@ -282,6 +282,8 @@ export function createEditorSession(host: EditorHost) {
     /** The output frame: the project's shape at a short edge, or a social preset's own size. */
     frame: { width: number; height: number; cover: boolean };
     bitrate: number;
+    /** RNF-013: lower the mp4 bitrate for a simple clip. */
+    adaptive?: boolean;
     gif?: { fps: number; maxColors: number };
     onProgress: (pct: number) => void;
     isCancelled: () => boolean;
@@ -292,6 +294,7 @@ export function createEditorSession(host: EditorHost) {
       return await exportComposition(pool, {
         comp,
         bitrate: opts.bitrate,
+        adaptive: opts.adaptive,
         gif: opts.gif,
         sink: host.exportSink(),
         onProgress: opts.onProgress,

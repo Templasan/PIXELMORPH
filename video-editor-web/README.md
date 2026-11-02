@@ -16,6 +16,24 @@ Test media goes in `media/` (not committed; any .mp4/.jpg/.png/.m4a). Exports fr
 server land in `exports/`. In the dev console `pm` is the editing session (`pm.addMedia`,
 `pm.seek`, `pm.startTrace()`/`pm.stopTrace()` for per-frame diagnostics).
 
+## Smart compression (RNF-013)
+
+The export sheet's "Compressão inteligente" (on by default for MP4, not for GIF) reads the clip's
+complexity from up to 24 frames, evenly spread across the export and drawn through the same
+composition path the encoder uses (96 px long edge). Each sample is compared with the frame a tick
+before it, so motion counts. `src/domain/sceneComplexity.ts` turns that into a number: the 90th
+percentile of per-frame detail plus motion, so a busy section that covers about a tenth of the
+samples or more sets the bitrate; a mean would hide it. The bitrate then runs from 45% of the
+preset (still) to the preset itself (busy), never above it. The encoder uses variable bitrate only
+when that adaptive target is in use and `VideoEncoder.isConfigSupported` accepts it.
+
+Honest limits: this is per export, not per scene. One bitrate covers the whole file, so a busy
+section sets it for everything and a short one below the sampling resolution is not seen. Any
+failure in the read keeps the preset's bitrate, so the export never fails because of it.
+The thresholds (`BUSY`, `FLOOR`) are not yet tuned against measured PSNR and file size: the
+calibration needs a desktop browser on the dev server and was not run. Until it is, the savings
+are unmeasured.
+
 ## Why it was moved out
 
 The app version split the editor in two runtimes: the timeline, playhead and edit state in React
