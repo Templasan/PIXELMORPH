@@ -26,6 +26,8 @@ module.exports = {
     'react/react-in-jsx-scope': 'off',
   },
   overrides: [
+    // The owner's media server runs on Node: its globals (Buffer, URL, fetch's Response) are declared here.
+    { files: ['media-server/**/*.{js,mjs}'], env: { node: true } },
     {
       files: ['src/app/**/*.{ts,tsx}', 'src/modules/**/*.{ts,tsx}'],
       rules: { 'no-restricted-imports': ['error', { patterns: [INTERNALS] }] },
