@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plain HTTP is allowed for localhost only. The phone reaches the PC's media server through
+  `adb reverse tcp:3000 tcp:3000`, so that traffic never leaves the device. For demos, use the
+  HTTPS address from ngrok instead and remove the domain-config below.
+-->
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false" />
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="false">localhost</domain>
+  </domain-config>
+</network-security-config>

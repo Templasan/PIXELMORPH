@@ -182,6 +182,21 @@ const en: Record<string, string> = {
   'e a': 'and the',
   'Já tenho conta.': 'I already have an account.',
   'Entrar': 'Sign in',
+  // Cloud sync (Account, signed in only)
+  SINCRONIZAÇÃO: 'SYNC',
+  'Sincronizar agora': 'Sync now',
+  'Enviar {n} projetos para sua conta? As mídias vão para o seu servidor.':
+    'Send {n} projects to your account? The media will go to your own server.',
+  Enviar: 'Send',
+  '{u} enviados, {d} recebidos.': '{u} sent, {d} received.',
+  '{n} removidos da conta.': '{n} removed from the account.',
+  '{n} em conflito: mantidos como estão ({names})': '{n} in conflict: kept as they are ({names})',
+  'Servidor de mídia desligado: {n} arquivos pendentes': 'Media server offline: {n} files pending',
+  '{n} projetos aguardando arquivos do servidor': '{n} projects waiting for files from the server',
+  '{n} arquivos não encontrados': '{n} files not found',
+  '{n} projetos com erro, tentar de novo depois': '{n} projects failed, try again later',
+  'Entre na conta de novo para sincronizar.': 'Sign in again to sync.',
+  'Não foi possível sincronizar agora.': 'Could not sync right now.',
 };
 
 export default en;
