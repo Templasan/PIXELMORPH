@@ -164,6 +164,8 @@ const en: Record<string, string> = {
   'Algo deu errado. Tente de novo.': 'Something went wrong. Try again.',
   'Nova senha': 'New password',
   'SALVAR SENHA': 'SAVE PASSWORD',
+  'Ao continuar, você aceita os Termos de uso e a Política de privacidade.':
+    'By continuing, you accept the Terms of use and the Privacy policy.',
   'Criar senha': 'Create password',
   'CRIAR SENHA': 'CREATE PASSWORD',
   'Para entrar também com e-mail e senha': 'To also sign in with e-mail and password',

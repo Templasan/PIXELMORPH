@@ -168,6 +168,8 @@ const es: Record<string, string> = {
   'Algo deu errado. Tente de novo.': 'Algo salió mal. Inténtalo de nuevo.',
   'Nova senha': 'Nueva contraseña',
   'SALVAR SENHA': 'GUARDAR CONTRASEÑA',
+  'Ao continuar, você aceita os Termos de uso e a Política de privacidade.':
+    'Al continuar, aceptas los Términos de uso y la Política de privacidad.',
   'Criar senha': 'Crear contraseña',
   'CRIAR SENHA': 'CREAR CONTRASEÑA',
   'Para entrar também com e-mail e senha': 'Para entrar también con e-mail y contraseña',
