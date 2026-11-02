@@ -15,8 +15,10 @@ async function authorization(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+// 507 (quota) and anything else is 'failed': that one file is refused, the rest are still tried.
 function kindOfStatus(status: number): CloudErrorKind {
   if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
   if (status === 404) return 'notFound';
   if (status === 503) return 'offline';
   return 'failed';

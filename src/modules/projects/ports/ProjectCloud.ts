@@ -3,10 +3,11 @@ import type { ProjectPayload } from '../domain/sync/syncPlan';
 /**
  * offline: could not connect, or the service answered 503.
  * unauthorized: no session, or the service answered 401.
+ * forbidden: signed in, but the account may not use the service (403). Signing in again does not help.
  * notFound: the row or file does not exist (404).
  * failed: anything else, such as a rejected row.
  */
-export type CloudErrorKind = 'offline' | 'unauthorized' | 'notFound' | 'failed';
+export type CloudErrorKind = 'offline' | 'unauthorized' | 'forbidden' | 'notFound' | 'failed';
 
 export class CloudError extends Error {
   constructor(

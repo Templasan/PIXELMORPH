@@ -75,6 +75,8 @@ export interface SyncReport {
   filesUploaded: number;
   filesDownloaded: number;
   serverOffline: boolean;
+  /** The media server refused this account (403): its files are not sent again this run. */
+  serverForbidden: boolean;
 }
 
 /** fileKeyOf output: 8 hex digits, a dash, the length, and an optional extension. */
@@ -95,6 +97,7 @@ function emptyReport(): SyncReport {
     filesUploaded: 0,
     filesDownloaded: 0,
     serverOffline: false,
+    serverForbidden: false,
   };
 }
 
@@ -325,7 +328,7 @@ export class SyncProjectsUseCase {
         this.countCloudError(error, report, 'pendingUploads');
         if (
           error instanceof CloudError &&
-          (error.kind === 'offline' || error.kind === 'unauthorized')
+          (error.kind === 'offline' || error.kind === 'unauthorized' || error.kind === 'forbidden')
         ) {
           ok = false;
         }
@@ -404,6 +407,7 @@ export class SyncProjectsUseCase {
   ): void {
     if (!(error instanceof CloudError)) throw error;
     if (error.kind === 'offline') report.serverOffline = true;
+    if (error.kind === 'forbidden') report.serverForbidden = true;
     report[counter]++;
   }
 

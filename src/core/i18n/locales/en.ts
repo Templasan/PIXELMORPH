@@ -205,6 +205,8 @@ const en: Record<string, string> = {
     '{n} removed from the account on another device: kept here.',
   '1 em conflito: mantido como está ({names}).': '1 in conflict: kept as it is ({names}).',
   '{n} em conflito: mantidos como estão ({names}).': '{n} in conflict: kept as they are ({names}).',
+  'Sua conta não tem acesso ao servidor de mídia.':
+    'Your account has no access to the media server.',
   'Servidor de mídia desligado: 1 arquivo pendente.': 'Media server offline: 1 file pending.',
   'Servidor de mídia desligado: {n} arquivos pendentes.':
     'Media server offline: {n} files pending.',

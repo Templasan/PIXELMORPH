@@ -19,6 +19,7 @@ interface FakeServer {
   rows: Map<string, CloudProject>;
   files: Map<string, string>;
   offline: boolean;
+  forbidden: boolean;
   failDownloadKey: string | null;
   rejectUpsertIds: Set<string>;
   successfulUploads: string[];
@@ -31,6 +32,7 @@ function newServer(): FakeServer {
     rows: new Map(),
     files: new Map(),
     offline: false,
+    forbidden: false,
     failDownloadKey: null,
     rejectUpsertIds: new Set(),
     successfulUploads: [],
@@ -178,6 +180,7 @@ class PhoneFiles implements CloudFileStore {
 
   async upload(projectId: string, key: string, localUri: string): Promise<void> {
     if (this.server.offline) throw new CloudError('offline');
+    if (this.server.forbidden) throw new CloudError('forbidden', 'HTTP 403');
     const file = this.phone.fs.get(localUri);
     if (!file) throw new CloudError('failed', 'missing local file');
     this.server.files.set(`${projectId}/${key}`, file.content);
@@ -268,6 +271,19 @@ describe('SyncProjectsUseCase', () => {
     const second = await syncOnce(a.uc);
     expect(second.pendingUploads).toBe(0);
     expect(server.successfulUploads).toHaveLength(2);
+  });
+
+  it('a 403 from the media server stops the uploads, is flagged, and is not an offline PC', async () => {
+    const server = newServer();
+    const a = deviceWith(server);
+    a.phone.addProject('p1', 'Viagem', ['file:///cache/one.jpg', 'file:///cache/two.jpg']);
+
+    server.forbidden = true;
+    const report = await syncOnce(a.uc);
+    expect(report.serverForbidden).toBe(true);
+    expect(report.serverOffline).toBe(false);
+    expect(report.pendingUploads).toBe(2);
+    expect(server.successfulUploads).toHaveLength(0);
   });
 
   it('a failed download writes nothing locally and cleans up its partial files', async () => {
