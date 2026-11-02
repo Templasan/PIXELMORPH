@@ -45,6 +45,9 @@ export class LocalProjectStorage implements LocalProjectData {
   }
 
   async writeBlobs(projectId: string, blobs: Record<string, string>, isNew: boolean) {
+    // Keys the new data no longer has (a shorter history, say) must not survive the write.
+    const stale = Object.keys(await this.readBlobs(projectId)).filter((key) => !(key in blobs));
+    if (stale.length) await AsyncStorage.multiRemove(stale);
     await AsyncStorage.multiSet(Object.entries(blobs));
     if (!isNew) return;
     const list = await readList();

@@ -281,9 +281,13 @@ export class SyncProjectsUseCase {
       return;
     }
     if (alreadyHere) {
-      // The plan saw no local copy; one has appeared since. Never overwrite it.
-      report.conflicts.push(row.name);
-      return;
+      // Only a copy that is exactly what was last synced may be replaced; any other local edit
+      // (or a copy this device never synced) is kept and reported.
+      const hash = fingerprint({ blobs: await this.local.readBlobs(id) });
+      if (!state.last[id] || state.last[id].hash !== hash) {
+        report.conflicts.push(row.name);
+        return;
+      }
     }
 
     const targets = row.files.map((f) => ({
@@ -308,7 +312,7 @@ export class SyncProjectsUseCase {
     for (const [key, text] of Object.entries(row.payload.blobs)) {
       blobs[key] = rewriteUris(text, rewrite);
     }
-    await this.local.writeBlobs(id, blobs, true);
+    await this.local.writeBlobs(id, blobs, !alreadyHere);
     const back = await this.local.readBlobs(id);
     state.last[id] = { hash: fingerprint({ blobs: back }), remoteUpdatedAt: row.updatedAt };
     report.downloaded++;

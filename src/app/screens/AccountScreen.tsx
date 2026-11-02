@@ -20,7 +20,9 @@ type Translate = (text: string, params?: Record<string, string | number>) => str
 
 /** One result line: what moved, then what still needs attention. */
 function describeSync(r: SyncReport, t: Translate): string {
-  const parts = [t('{u} enviados, {d} recebidos.', { u: r.uploaded, d: r.downloaded })];
+  const sent = r.uploaded === 1 ? t('1 enviado') : t('{u} enviados', { u: r.uploaded });
+  const received = r.downloaded === 1 ? t('1 recebido') : t('{d} recebidos', { d: r.downloaded });
+  const parts = [`${sent}, ${received}.`];
   if (r.tombstoned) parts.push(t('{n} removidos da conta.', { n: r.tombstoned }));
   if (r.conflicts.length) {
     parts.push(
@@ -36,7 +38,13 @@ function describeSync(r: SyncReport, t: Translate): string {
   if (r.pendingDownloads) {
     parts.push(t('{n} projetos aguardando arquivos do servidor', { n: r.pendingDownloads }));
   }
-  if (r.missingFiles) parts.push(t('{n} arquivos não encontrados', { n: r.missingFiles }));
+  if (r.missingFiles) {
+    parts.push(
+      r.missingFiles === 1
+        ? t('1 arquivo não encontrado neste aparelho, não enviado.')
+        : t('{n} arquivos não encontrados neste aparelho, não enviados.', { n: r.missingFiles })
+    );
+  }
   if (r.failed) parts.push(t('{n} projetos com erro, tentar de novo depois', { n: r.failed }));
   return parts.join(' ');
 }

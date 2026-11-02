@@ -192,14 +192,18 @@ const es: Record<string, string> = {
   'Enviar {n} projetos para sua conta? As mídias vão para o seu servidor.':
     '¿Enviar {n} proyectos a tu cuenta? Los medios irán a tu propio servidor.',
   Enviar: 'Enviar',
-  '{u} enviados, {d} recebidos.': '{u} enviados, {d} recibidos.',
+  '1 enviado': '1 enviado',
+  '{u} enviados': '{u} enviados',
+  '1 recebido': '1 recibido',
+  '{d} recebidos': '{d} recibidos',
   '{n} removidos da conta.': '{n} eliminados de la cuenta.',
   '{n} em conflito: mantidos como estão ({names})':
     '{n} en conflicto: se mantienen como están ({names})',
   'Servidor de mídia desligado: {n} arquivos pendentes':
     'Servidor de medios apagado: {n} archivos pendientes',
   '{n} projetos aguardando arquivos do servidor': '{n} proyectos esperando archivos del servidor',
-  '{n} arquivos não encontrados': '{n} archivos no encontrados',
+  '1 arquivo não encontrado neste aparelho, não enviado.': '1 archivo no encontrado en este dispositivo, no enviado.',
+  '{n} arquivos não encontrados neste aparelho, não enviados.': '{n} archivos no encontrados en este dispositivo, no enviados.',
   '{n} projetos com erro, tentar de novo depois': '{n} proyectos con error, intenta de nuevo más tarde',
   'Entre na conta de novo para sincronizar.': 'Vuelve a entrar para sincronizar.',
   'Não foi possível sincronizar agora.': 'No se pudo sincronizar ahora.',
