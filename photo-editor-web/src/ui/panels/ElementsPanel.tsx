@@ -80,6 +80,11 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
           <button className="primary-btn wide" disabled={!draft.content.trim()} onClick={() => editor.submitText()}>
             {editingText ? t('APLICAR') : t('ADICIONAR AO CANVAS')}
           </button>
+          {editingText && (
+            <button className="chip" onClick={() => editor.selectLayer('fundo')}>
+              {t('Novo texto')}
+            </button>
+          )}
         </>
       )}
 
@@ -96,6 +101,11 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
           <button className="primary-btn wide" onClick={() => editor.submitShape()}>
             {editingShape ? t('APLICAR') : t('ADICIONAR AO CANVAS')}
           </button>
+          {editingShape && (
+            <button className="chip" onClick={() => editor.selectLayer('fundo')}>
+              {t('Nova forma')}
+            </button>
+          )}
         </>
       )}
 

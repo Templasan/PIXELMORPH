@@ -145,6 +145,8 @@ const en: Record<string, string> = {
   Contorno: 'Outline',
   APLICAR: 'APPLY',
   'ADICIONAR AO CANVAS': 'ADD TO CANVAS',
+  'Novo texto': 'New text',
+  'Nova forma': 'New shape',
   'Adesivo {emoji}': 'Sticker {emoji}',
   'Texto de cima': 'Top text',
   'Texto de baixo': 'Bottom text',

@@ -145,6 +145,8 @@ const es: Record<string, string> = {
   Contorno: 'Contorno',
   APLICAR: 'APLICAR',
   'ADICIONAR AO CANVAS': 'AÑADIR AL LIENZO',
+  'Novo texto': 'Nuevo texto',
+  'Nova forma': 'Nueva forma',
   'Adesivo {emoji}': 'Adhesivo {emoji}',
   'Texto de cima': 'Texto de arriba',
   'Texto de baixo': 'Texto de abajo',

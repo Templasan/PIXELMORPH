@@ -214,4 +214,34 @@ describe('photo editor store — Elementos (text, shapes, memes, stickers)', () 
     expect(sticker.text!.content).toBe('🔥');
     expect(sticker.text!.strokeWidth).toBe(0);
   });
+
+  it('"Novo texto": selecting Fundo then submitting adds a second text and leaves the first unchanged', () => {
+    const { editor, state } = setup();
+    editor.setTextDraft({ content: 'Um', color: '#FF0000' });
+    editor.submitText();
+    const firstId = state().selectedLayerId;
+    const before = structuredClone(state().layers.find((l) => l.id === firstId)!);
+    editor.selectLayer('fundo');
+    editor.setTextDraft({ content: 'Dois' });
+    editor.submitText();
+    const texts = state().layers.filter((l) => l.kind === 'text');
+    expect(texts).toHaveLength(2);
+    expect(state().layers.find((l) => l.id === firstId)).toEqual(before);
+    expect(texts[1].text).toMatchObject({ content: 'Dois', color: '#FF0000' });
+  });
+
+  it('"Nova forma": selecting Fundo then submitting adds a second shape and leaves the first unchanged', () => {
+    const { editor, state } = setup();
+    editor.setShapeDraft({ kind: 'rect', color: '#00FF00' });
+    editor.submitShape();
+    const firstId = state().selectedLayerId;
+    const before = structuredClone(state().layers.find((l) => l.id === firstId)!);
+    editor.selectLayer('fundo');
+    editor.setShapeDraft({ kind: 'circle' });
+    editor.submitShape();
+    const shapes = state().layers.filter((l) => l.kind === 'shape');
+    expect(shapes).toHaveLength(2);
+    expect(state().layers.find((l) => l.id === firstId)).toEqual(before);
+    expect(shapes[1].shape).toMatchObject({ kind: 'circle', color: '#00FF00' });
+  });
 });
