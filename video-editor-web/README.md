@@ -16,23 +16,56 @@ Test media goes in `media/` (not committed; any .mp4/.jpg/.png/.m4a). Exports fr
 server land in `exports/`. In the dev console `pm` is the editing session (`pm.addMedia`,
 `pm.seek`, `pm.startTrace()`/`pm.stopTrace()` for per-frame diagnostics).
 
-## Smart compression (RNF-013)
+## Smart compression (RNF-013): off by default
 
-The export sheet's "Compressão inteligente" (on by default for MP4, not for GIF) reads the clip's
-complexity from up to 24 frames, evenly spread across the export and drawn through the same
-composition path the encoder uses (96 px long edge). Each sample is compared with the frame a tick
-before it, so motion counts. `src/domain/sceneComplexity.ts` turns that into a number: the 90th
-percentile of per-frame detail plus motion, so a busy section that covers about a tenth of the
-samples or more sets the bitrate; a mean would hide it. The bitrate then runs from 45% of the
-preset (still) to the preset itself (busy), never above it. The encoder uses variable bitrate only
-when that adaptive target is in use and `VideoEncoder.isConfigSupported` accepts it.
+The export sheet's "Compressão inteligente" (MP4 only) lowers the bitrate of still clips and keeps
+the preset for busy ones. It is **off by default**: quality and size pass on the clips below, but
+the analysis costs 23-32% of the export time on the desktop browser, against the 10% target. The
+checkbox stays so it can be tried.
 
-Honest limits: this is per export, not per scene. One bitrate covers the whole file, so a busy
-section sets it for everything and a short one below the sampling resolution is not seen. Any
-failure in the read keeps the preset's bitrate, so the export never fails because of it.
-The thresholds (`BUSY`, `FLOOR`) are not yet tuned against measured PSNR and file size: the
-calibration needs a desktop browser on the dev server and was not run. Until it is, the savings
-are unmeasured.
+`src/domain/sceneComplexity.ts` reads up to 24 frames, evenly spread across the export and drawn
+through the composition path the encoder uses at a 480 px long edge. Each sample is compared with
+the frame a tick before (motion counts). The score is the 90th percentile of per-frame detail plus
+motion, mapped to 0-1 between a quiet level (0.006) and a busy level (0.015). The bitrate runs from
+55% of the preset (still) to the preset (busy), never above it. Variable bitrate is used only when
+that target is in use and `VideoEncoder.isConfigSupported` accepts it. Any failure in the read
+keeps the preset's bitrate, so the export never fails because of it.
+
+Measured on headless Edge 156 (Windows, desktop hardware encoder). Preset 1920x1080 at 8 Mbps;
+four 20 s clips at 1920x1080, 30 fps, made with ffmpeg (no clip in `media/` is a talking head).
+Quality is luma PSNR at 30 evenly spaced frames, each export against its source, decoded in
+software. Variable bitrate was accepted for every ON export.
+
+| Clip | Smart | Complexity | Target Mbps (% preset) | File | Avg Mbps | Export | Analysis (% export) | PSNR mean / min dB | Δ mean dB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| a simple gradient | off | - | 8.00 (100%) | 12.30 MB | 4.92 | 2.42 s | - | 58.61 / 53.47 | - |
+| a simple gradient | on | 0.00 | 4.40 (55%) | 8.01 MB (-35%) | 3.20 | 3.09 s | 0.71 s (23%) | 57.67 / 52.84 | -0.94 |
+| b talking head, grain | off | - | 8.00 (100%) | 17.38 MB | 6.95 | 2.46 s | - | 45.01 / 40.02 | - |
+| b talking head, grain | on | 1.00 | 8.00 (100%) | 17.38 MB (0%) | 6.95 | 3.24 s | 0.73 s (23%) | 45.01 / 40.02 | 0.00 |
+| c full-frame noise | off | - | 8.00 (100%) | 23.40 MB | 9.36 | 2.52 s | - | 34.54 / 27.17 | - |
+| c full-frame noise | on | 1.00 | 8.00 (100%) | 23.40 MB (0%) | 9.36 | 3.85 s | 1.23 s (32%) | 34.54 / 27.17 | 0.00 |
+| d 80% static, 20% noise | off | - | 8.00 (100%) | 17.99 MB | 7.19 | 2.63 s | - | 53.46 / 23.08 | - |
+| d 80% static, 20% noise | on | 1.00 | 8.00 (100%) | 17.99 MB (0%) | 7.19 | 3.53 s | 0.92 s (26%) | 53.46 / 23.08 | 0.00 |
+
+Acceptance, as set for RNF-013: mean PSNR loss at most 1.0 dB and minimum at least 32 dB (unless off
+is below it): passed on all four clips (simple: -0.94 dB mean, -0.63 dB min). Simple clip saving of
+30% or more: passed (-35%). Analysis under 10% of export time: failed (23-32%). Analysis is about one
+extra decode pass of the clip, and fewer samples (12 instead of 24) barely changed it (0.67 s
+against 0.72 s), so it is not a tuning problem. Clips at the busy level came out identical to off.
+
+Why the constants changed: the first values (96 px read, busy at 0.25, floor 45%) lost 3.9 dB on the
+talking head at half the bitrate and 1.1 dB on the simple clip. At 96 px the read could not tell a
+gradient from grain, and both came out as nearly still. The 480 px read and the quiet/busy band fixed
+that. The 90th percentile caught the 20% busy part of the mixed clip; a shorter burst was not tested.
+
+Honest limits:
+- Desktop only. A phone's hardware encoder and decoder behave differently and were not measured.
+- This desktop H.264 decoder rejected frames 480-485 of the mixed export, which are valid (ffmpeg
+  decodes them), so the measurement decodes in software.
+- Per export, not per scene: one bitrate covers the whole file, and a short busy section below the
+  sampling resolution is not seen.
+- Four 20 s clips with x264 default GOPs (250). Analysis cost depends on the decode, so phone
+  footage with short GOPs may differ.
 
 ## Why it was moved out
 

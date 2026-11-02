@@ -32,7 +32,8 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   const [gifSize, setGifSize] = useState(360);
   const [gifFps, setGifFps] = useState<number>(10);
   const [gifColors, setGifColors] = useState<number>(128);
-  const [smart, setSmart] = useState(true);
+  // Off by default until the analysis cost is under 10% of the export (README, RNF-013).
+  const [smart, setSmart] = useState(false);
   const [state, setState] = useState<State>({ phase: 'idle' });
   const cancelled = useRef(false);
   const duration = session.durationMs();

@@ -55,6 +55,11 @@ describe('complexityOf', () => {
     expect(complexityOf(clip(new Array(24).fill(255)))).toBeGreaterThan(0.95);
   });
 
+  it('reads detail below the quiet level as still and detail at the busy level as full', () => {
+    expect(complexityOf([{ spatial: 0.005, temporal: 0 }])).toBe(0);
+    expect(complexityOf([{ spatial: 0.015, temporal: 0 }])).toBe(1);
+  });
+
   it('scores a mostly static clip with a busy section high', () => {
     const amps = [...new Array(18).fill(0), ...new Array(6).fill(255)];
     expect(complexityOf(clip(amps))).toBeGreaterThan(0.95);
@@ -80,11 +85,12 @@ describe('adaptiveBitrate', () => {
     for (let c = 0; c <= 1; c += 0.05) expect(adaptiveBitrate(preset, c)).toBeLessThanOrEqual(preset);
   });
 
-  it('never goes below 45% of the preset', () => {
-    expect(adaptiveBitrate(preset, 0)).toBe(2_700_000);
-    expect(adaptiveBitrate(preset, -1)).toBe(2_700_000);
+  it('never goes below 55% of the preset', () => {
+    // Float rounding of 0.55 * preset can add one bit under ceil, hence not toBe.
+    expect(adaptiveBitrate(preset, 0)).toBeCloseTo(3_300_000, -1);
+    expect(adaptiveBitrate(preset, -1)).toBeCloseTo(3_300_000, -1);
     for (const p of [2_500_001, 8_000_003, 1]) {
-      expect(adaptiveBitrate(p, 0)).toBeGreaterThanOrEqual(0.45 * p);
+      expect(adaptiveBitrate(p, 0)).toBeGreaterThanOrEqual(0.55 * p);
     }
   });
 
