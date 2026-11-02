@@ -28,6 +28,11 @@ export interface SyncState {
   last: Record<string, SyncSnapshot>;
   /** Per `projectId/key`: the size and time of a file already on the media server. */
   uploaded: Record<string, { size: number; modificationTime: number }>;
+  /**
+   * Per `projectId|localUri`: the server key of a file this phone got from the server. Its local
+   * URI differs from the uploader's, so the key cannot be derived from it again.
+   */
+  fileKeys: Record<string, string>;
 }
 
 /** What the sync needs from the device's local storage and file system. */
@@ -49,14 +54,17 @@ export interface PreparedSync {
   plan: SyncPlan;
   /** Projects that would reach the server for the first time. */
   firstTimeUploadCount: number;
-  /** Names of the conflicting projects, for the report. */
+  /** Projects in conflict, with the names the user sees. */
   conflictNames: string[];
+  /** Server time of each project in `plan.removedElsewhere`. */
+  removedAt: Record<string, string>;
 }
 
 export interface SyncReport {
   uploaded: number;
   downloaded: number;
   tombstoned: number;
+  removedElsewhere: number;
   conflicts: string[];
   failed: number;
   pendingUploads: number;
@@ -67,6 +75,26 @@ export interface SyncReport {
 
 /** fileKeyOf output: 8 hex digits, a dash, the length, and an optional extension. */
 const KEY_PATTERN = /^[0-9a-f]{8}-\d+(\.[A-Za-z0-9]{1,8})?$/;
+
+function emptyReport(): SyncReport {
+  return {
+    uploaded: 0,
+    downloaded: 0,
+    tombstoned: 0,
+    removedElsewhere: 0,
+    conflicts: [],
+    failed: 0,
+    pendingUploads: 0,
+    pendingDownloads: 0,
+    missingFiles: 0,
+    serverOffline: false,
+  };
+}
+
+/** The server key of a local file: the one it came from the server with, else derived from its URI. */
+function keyOf(id: string, uri: string, state: SyncState): string {
+  return state.fileKeys[`${id}|${uri}`] ?? fileKeyOf(uri);
+}
 
 function nameOf(blobs: Record<string, string>, id: string): string {
   try {
@@ -114,10 +142,16 @@ export class SyncProjectsUseCase {
     const remote = await this.cloud.list();
     const plan = planSync(local, remote, state.last);
     const remoteById = new Map(remote.map((r) => [r.id, r]));
+    const removedAt: Record<string, string> = {};
+    for (const id of plan.removedElsewhere) {
+      const row = remoteById.get(id);
+      if (row) removedAt[id] = row.updatedAt;
+    }
     return {
       plan,
       firstTimeUploadCount: plan.upload.filter((id) => !remoteById.has(id)).length,
       conflictNames: plan.conflicts.map((id) => remoteById.get(id)?.name ?? id),
+      removedAt,
     };
   }
 
@@ -132,17 +166,8 @@ export class SyncProjectsUseCase {
   ): Promise<SyncReport> {
     const { plan } = prepared;
     const state = await this.local.loadState(userId);
-    const report: SyncReport = {
-      uploaded: 0,
-      downloaded: 0,
-      tombstoned: 0,
-      conflicts: [...prepared.conflictNames],
-      failed: 0,
-      pendingUploads: 0,
-      pendingDownloads: 0,
-      missingFiles: 0,
-      serverOffline: false,
-    };
+    const report = emptyReport();
+    report.conflicts = prepared.conflictNames;
     const save = () => this.local.saveState(userId, state);
     const total = plan.upload.length + plan.tombstone.length + plan.download.length;
     let done = 0;
@@ -150,24 +175,10 @@ export class SyncProjectsUseCase {
     // 1. Local projects to the server: the row first, files after (step 4).
     for (const id of plan.upload) {
       try {
-        const blobs = await this.local.readBlobs(id);
-        if (!blobs[`project:${id}`]) continue;
-        const hash = fingerprint({ blobs });
-        const files: CloudFile[] = [];
-        for (const ref of await this.fileRefs(blobs)) {
-          if (ref.info?.exists) files.push({ key: ref.key, uri: ref.uri, size: ref.info.size });
+        if (await this.sendRow(id, state)) {
+          report.uploaded++;
+          await save();
         }
-        const updatedAt = new Date().toISOString();
-        await this.cloud.upsert({
-          id,
-          name: nameOf(blobs, id),
-          payload: { blobs },
-          files,
-          updatedAt,
-        });
-        state.last[id] = { hash, remoteUpdatedAt: updatedAt };
-        report.uploaded++;
-        await save();
       } catch (error) {
         this.countCloudError(error, report, 'failed');
       } finally {
@@ -190,6 +201,18 @@ export class SyncProjectsUseCase {
       }
     }
 
+    // 2b. Projects deleted on another device and kept here: the new server time is recorded so
+    // the deletion is reported once. The local copy is not touched.
+    for (const id of plan.removedElsewhere) {
+      const snapshot = state.last[id];
+      const at = prepared.removedAt[id];
+      if (snapshot && at) {
+        state.last[id] = { ...snapshot, remoteUpdatedAt: at };
+        report.removedElsewhere++;
+      }
+    }
+    await save();
+
     // 3. Projects from the server: only written when every file arrived.
     const presentNow = new Set(await this.local.listIds());
     for (const id of plan.download) {
@@ -205,60 +228,10 @@ export class SyncProjectsUseCase {
 
     // 4. Files still to upload, for every local project that is not in conflict.
     const conflicting = new Set(plan.conflicts);
-    const jobsByProject = new Map<
-      string,
-      { key: string; uri: string; size: number; modificationTime: number }[]
-    >();
+    let reachable = true;
     for (const id of await this.local.listIds()) {
       if (conflicting.has(id)) continue;
-      const refs = await this.fileRefs(await this.local.readBlobs(id));
-      const jobs: { key: string; uri: string; size: number; modificationTime: number }[] = [];
-      for (const ref of refs) {
-        if (!ref.info?.exists) {
-          report.missingFiles++;
-          continue;
-        }
-        const mark = state.uploaded[`${id}/${ref.key}`];
-        if (
-          mark &&
-          mark.size === ref.info.size &&
-          mark.modificationTime === ref.info.modificationTime
-        ) {
-          continue;
-        }
-        jobs.push({
-          key: ref.key,
-          uri: ref.uri,
-          size: ref.info.size,
-          modificationTime: ref.info.modificationTime,
-        });
-      }
-      if (jobs.length) jobsByProject.set(id, jobs);
-    }
-
-    let stopped = false;
-    for (const [id, jobs] of jobsByProject) {
-      for (const job of jobs) {
-        if (stopped) {
-          report.pendingUploads++;
-          continue;
-        }
-        try {
-          await this.files.upload(id, job.key, job.uri);
-          state.uploaded[`${id}/${job.key}`] = {
-            size: job.size,
-            modificationTime: job.modificationTime,
-          };
-        } catch (error) {
-          this.countCloudError(error, report, 'pendingUploads');
-          if (
-            error instanceof CloudError &&
-            (error.kind === 'offline' || error.kind === 'unauthorized')
-          ) {
-            stopped = true;
-          }
-        }
-      }
+      reachable = await this.uploadFiles(id, state, report, reachable);
       await save();
     }
 
@@ -267,6 +240,61 @@ export class SyncProjectsUseCase {
     await save();
 
     return report;
+  }
+
+  /** Sends one local project's row. Returns false when there is no local project to send. */
+  private async sendRow(id: string, state: SyncState): Promise<boolean> {
+    const blobs = await this.local.readBlobs(id);
+    if (!blobs[`project:${id}`]) return false;
+    const hash = fingerprint({ blobs });
+    const files: CloudFile[] = [];
+    for (const ref of await this.fileRefs(id, blobs, state)) {
+      if (ref.info?.exists) files.push({ key: ref.key, uri: ref.uri, size: ref.info.size });
+    }
+    const updatedAt = new Date().toISOString();
+    await this.cloud.upsert({ id, name: nameOf(blobs, id), payload: { blobs }, files, updatedAt });
+    state.last[id] = { hash, remoteUpdatedAt: updatedAt };
+    return true;
+  }
+
+  /**
+   * Uploads the files of one project that the server does not have yet. Returns whether the
+   * server is still reachable: once it is not, the rest of the files only count as pending.
+   */
+  private async uploadFiles(
+    id: string,
+    state: SyncState,
+    report: SyncReport,
+    reachable: boolean
+  ): Promise<boolean> {
+    const blobs = await this.local.readBlobs(id);
+    let ok = reachable;
+    for (const ref of await this.fileRefs(id, blobs, state)) {
+      if (!ref.info?.exists) {
+        report.missingFiles++;
+        continue;
+      }
+      const { size, modificationTime } = ref.info;
+      const mark = state.uploaded[`${id}/${ref.key}`];
+      if (mark && mark.size === size && mark.modificationTime === modificationTime) continue;
+      if (!ok) {
+        report.pendingUploads++;
+        continue;
+      }
+      try {
+        await this.files.upload(id, ref.key, ref.uri);
+        state.uploaded[`${id}/${ref.key}`] = { size, modificationTime };
+      } catch (error) {
+        this.countCloudError(error, report, 'pendingUploads');
+        if (
+          error instanceof CloudError &&
+          (error.kind === 'offline' || error.kind === 'unauthorized')
+        ) {
+          ok = false;
+        }
+      }
+    }
+    return ok;
   }
 
   private async download(
@@ -315,6 +343,18 @@ export class SyncProjectsUseCase {
     await this.local.writeBlobs(id, blobs, !alreadyHere);
     const back = await this.local.readBlobs(id);
     state.last[id] = { hash: fingerprint({ blobs: back }), remoteUpdatedAt: row.updatedAt };
+
+    // The files are already on the server under their original keys: remember those keys and
+    // their size and time, so the next run does not upload them again.
+    for (const t of targets) {
+      state.fileKeys[`${id}|${t.target}`] = t.key;
+      const info = await this.local.fileInfo(t.target);
+      if (info)
+        state.uploaded[`${id}/${t.key}`] = {
+          size: info.size,
+          modificationTime: info.modificationTime,
+        };
+    }
     report.downloaded++;
   }
 
@@ -328,7 +368,7 @@ export class SyncProjectsUseCase {
     report[counter]++;
   }
 
-  private async fileRefs(blobs: Record<string, string>) {
+  private async fileRefs(id: string, blobs: Record<string, string>, state: SyncState) {
     const uris = new Set<string>();
     for (const text of Object.values(blobs)) {
       for (const uri of collectFileUris(text)) uris.add(uri);
@@ -336,7 +376,7 @@ export class SyncProjectsUseCase {
     return Promise.all(
       [...uris].map(async (uri) => ({
         uri,
-        key: fileKeyOf(uri),
+        key: keyOf(id, uri, state),
         info: await this.local.fileInfo(uri),
       }))
     );

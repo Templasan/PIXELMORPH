@@ -24,6 +24,8 @@ export interface SyncPlan {
   tombstone: string[];
   forget: string[];
   conflicts: string[];
+  /** Deleted on another device, kept here unchanged: the local copy stays and this is reported. */
+  removedElsewhere: string[];
 }
 
 /** A project's synced data: every AsyncStorage entry that belongs to it, keyed by that entry's key. */
@@ -99,7 +101,14 @@ export function planSync(
   remote: readonly RemoteSyncProject[],
   last: Readonly<Record<string, SyncSnapshot>>
 ): SyncPlan {
-  const plan: SyncPlan = { upload: [], download: [], tombstone: [], forget: [], conflicts: [] };
+  const plan: SyncPlan = {
+    upload: [],
+    download: [],
+    tombstone: [],
+    forget: [],
+    conflicts: [],
+    removedElsewhere: [],
+  };
   const localById = new Map(local.map((p) => [p.id, p]));
   const remoteById = new Map(remote.map((p) => [p.id, p]));
   const ids = new Set([...localById.keys(), ...remoteById.keys(), ...Object.keys(last)]);
@@ -118,13 +127,17 @@ export function planSync(
       } else {
         const localChanged = L.hash !== S.hash;
         const remoteChanged = !sameInstant(R.updatedAt, S.remoteUpdatedAt);
-        if (localChanged && remoteChanged) {
-          (deleted ? plan.upload : plan.conflicts).push(id);
+        if (deleted) {
+          // Edited here after another device deleted it: it returns to the account (upsert
+          // clears deleted_at). Untouched: the local copy stays and the deletion is reported once.
+          if (localChanged) plan.upload.push(id);
+          else if (remoteChanged) plan.removedElsewhere.push(id);
+        } else if (localChanged && remoteChanged) {
+          plan.conflicts.push(id);
         } else if (localChanged) {
           plan.upload.push(id);
         } else if (remoteChanged) {
-          // A remote delete never removes the local copy; the entry is forgotten instead.
-          (deleted ? plan.forget : plan.download).push(id);
+          plan.download.push(id);
         }
       }
     } else if (!R) {

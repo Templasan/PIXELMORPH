@@ -31,7 +31,14 @@ describe('planSync decision table', () => {
 
   it('no L, R deleted: nothing, and forget if S', () => {
     const none = planSync([], [remote('a', T2, T2)], {});
-    expect(none).toEqual({ upload: [], download: [], tombstone: [], forget: [], conflicts: [] });
+    expect(none).toEqual({
+      upload: [],
+      download: [],
+      tombstone: [],
+      forget: [],
+      conflicts: [],
+      removedElsewhere: [],
+    });
     expect(planSync([], [remote('a', T2, T2)], { a: snap() }).forget).toEqual(['a']);
   });
 
@@ -42,19 +49,45 @@ describe('planSync decision table', () => {
 
   it('L, R, S, neither changed: nothing', () => {
     const plan = planSync([local('a')], [remote('a')], { a: snap() });
-    expect(plan).toEqual({ upload: [], download: [], tombstone: [], forget: [], conflicts: [] });
+    expect(plan).toEqual({
+      upload: [],
+      download: [],
+      tombstone: [],
+      forget: [],
+      conflicts: [],
+      removedElsewhere: [],
+    });
   });
 
   it('L, R, S, only local changed: upload', () => {
     expect(planSync([local('a', 'h2')], [remote('a')], { a: snap() }).upload).toEqual(['a']);
   });
 
-  it('L, R, S, only remote changed: live -> download; deleted -> forget, local kept', () => {
+  it('L, R, S, only remote changed: live -> download; deleted -> removedElsewhere, S kept', () => {
     expect(planSync([local('a')], [remote('a', T2)], { a: snap() }).download).toEqual(['a']);
     const gone = planSync([local('a')], [remote('a', T2, T2)], { a: snap() });
-    expect(gone.forget).toEqual(['a']);
+    expect(gone.removedElsewhere).toEqual(['a']);
+    expect(gone.forget).toEqual([]);
     expect(gone.download).toEqual([]);
     expect(gone.upload).toEqual([]);
+  });
+
+  it('L, R deleted, S, nothing changed on either side: nothing, not reported again', () => {
+    const plan = planSync([local('a')], [remote('a', T2, T2)], { a: snap('h1', T2) });
+    expect(plan).toEqual({
+      upload: [],
+      download: [],
+      tombstone: [],
+      forget: [],
+      conflicts: [],
+      removedElsewhere: [],
+    });
+  });
+
+  it('L, R deleted, S, local edited: upload (it returns to the account)', () => {
+    expect(planSync([local('a', 'h2')], [remote('a', T2, T2)], { a: snap() }).upload).toEqual([
+      'a',
+    ]);
   });
 
   it('L, R, S, both changed: conflict, unless R deleted -> upload', () => {
