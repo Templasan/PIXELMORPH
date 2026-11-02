@@ -12,10 +12,12 @@ export interface FrameStats {
   temporal: number;
 }
 
-/** A frame whose detail+motion reaches this is treated as fully busy. Tuned by measurement (README). */
-const BUSY = 0.25;
+/** Measured at 480 px (README): a flat gradient reads ~0.005, a grainy talking head ~0.018. */
+const QUIET = 0.006;
+/** At or above this detail+motion the clip is treated as fully busy. */
+const BUSY = 0.015;
 /** The smallest bitrate, as a share of the preset: a flat clip never drops below it. */
-const FLOOR = 0.45;
+const FLOOR = 0.55;
 
 /**
  * `luma` is w*h values, row by row. `prev` is the frame before it, for the temporal part; without
@@ -47,11 +49,11 @@ export function complexityOf(stats: readonly FrameStats[]): number {
   if (!stats.length) return 1;
   const values = stats.map((s) => s.spatial + s.temporal).sort((a, b) => a - b);
   const p90 = values[Math.min(values.length - 1, Math.ceil(values.length * 0.9) - 1)];
-  return Math.min(1, Math.max(0, p90 / BUSY));
+  return Math.min(1, Math.max(0, (p90 - QUIET) / (BUSY - QUIET)));
 }
 
 /**
- * The bitrate for a clip of this complexity: from 45% of the preset (still) up to the preset
+ * The bitrate for a clip of this complexity: from 55% of the preset (still) up to the preset
  * itself (busy), rounded up to whole bits per second. Never above the preset.
  */
 export function adaptiveBitrate(presetBitrate: number, complexity: number): number {

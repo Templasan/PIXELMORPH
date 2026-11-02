@@ -25,7 +25,7 @@ const AUDIO_WINDOW_MS = 10_000;
 const GIF_PALETTE_SAMPLES = 12;
 /** RNF-013: complexity is read from at most this many frames, drawn at most this many pixels wide. */
 const ANALYSIS_SAMPLES = 24;
-const ANALYSIS_EDGE = 96;
+const ANALYSIS_EDGE = 480;
 
 /** A new file per export: an export never overwrites an earlier one. */
 function exportName(ext: string): string {
