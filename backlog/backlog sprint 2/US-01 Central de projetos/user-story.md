@@ -9,7 +9,7 @@
 • A tela principal exibe todos os projetos em grade, com miniatura automática, data de modificação e tipo de mídia. [RF-001]
 • O painel de propriedades mostra dimensões, taxa de bits, codificação e histórico de edições de cada mídia. [RF-037]
 • Notificações lembram o usuário de projetos pendentes, com prazo e prioridade configuráveis. [RF-070]
-• O acesso à conta e aos projetos salvos exige e-mail/senha e verificação em duas etapas (SMS ou app autenticador). [RNF-001]
+• A conta é opcional: o app e os projetos locais funcionam sem ela; recursos que usam a conta ou a nuvem exigem login por e-mail/senha ou Google, com e-mail de verificação na criação da conta. [RNF-001]
 • Toda sincronização de projetos com o servidor usa HTTPS com certificado válido. [RNF-002]
 • O app inicializa em menos de 3 segundos em dispositivos Android 9 ou superior. [RNF-007]
 • A instalação inicial ocupa no máximo 200 MB, com recursos extras baixados sob demanda. [RNF-014]
@@ -24,7 +24,7 @@
 
 ## Requisitos Não Funcionais (RNF)
 
-- [RNF-001](RNF-001.md) — Autenticação de conta com verificação em duas etapas
+- [RNF-001](RNF-001.md) — Autenticação de conta com e-mail e verificação
 - [RNF-002](RNF-002.md) — Comunicação exclusivamente por canal seguro
 - [RNF-007](RNF-007.md) — Tempo de inicialização
 - [RNF-014](RNF-014.md) — Espaço de instalação

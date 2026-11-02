@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,90 +12,55 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { AppCompositionRoot } from '../CompositionRoot';
 import { Icon } from '@core/ui';
-import { colors, fontSize, monoFontFamily } from '@core/theme';
+import { colors, fontSize } from '@core/theme';
 import { LANGUAGES, useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
+import { AUTH_FAILURE_TEXT, AuthFailure } from '@modules/account';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
-const CODE_LENGTH = 6;
+const { auth } = AppCompositionRoot.account;
 
 export default function LoginScreen({ navigation }: Props) {
   const { t, language, changeLanguage } = useI18n();
-  const [step, setStep] = useState<'login' | '2fa'>('login');
+  const status = useStore(auth.state, (s) => s.status);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
-  // TODO: real countdown timer + resend-code request. Static per the prototype's example data.
-  const [timer] = useState(42);
-  const inputs = useRef<(TextInput | null)[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState(false);
 
-  const handleLogin = () => {
-    // TODO: call real authentication API; currently jumps straight to the 2FA step.
-    setStep('2fa');
-  };
+  useEffect(() => {
+    if (status === 'signedIn') navigation.reset({ index: 0, routes: [{ name: 'Projects' }] });
+  }, [status, navigation]);
 
-  const handleCodeChange = (i: number, val: string) => {
-    const digit = val.replace(/[^0-9]/g, '').slice(-1);
-    const next = [...code];
-    next[i] = digit;
-    setCode(next);
-    if (digit && i < CODE_LENGTH - 1) inputs.current[i + 1]?.focus();
-  };
-
-  const handleKeyPress = (i: number, key: string) => {
-    if (key === 'Backspace' && !code[i] && i > 0) {
-      inputs.current[i - 1]?.focus();
+  const attempt = async (action: () => Promise<unknown>, done?: string) => {
+    setBusy(true);
+    setMessage(null);
+    setUnconfirmed(false);
+    try {
+      await action();
+      if (done) setMessage(t(done));
+    } catch (e) {
+      const kind = e instanceof AuthFailure ? e.kind : 'unknown';
+      setMessage(t(AUTH_FAILURE_TEXT[kind]));
+      setUnconfirmed(kind === 'emailNotConfirmed');
     }
+    setBusy(false);
   };
 
-  const handleVerify = () => {
-    // TODO: validate the 6-digit code against the backend before granting access.
-    navigation.reset({ index: 0, routes: [{ name: 'Projects' }] });
-  };
+  const canSignIn = email.trim() !== '' && password !== '' && !busy;
 
-  if (step === '2fa') {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerColumn}>
-          <View style={styles.shieldBox}>
-            <Icon name="shield" size={32} color={colors.acento} />
-          </View>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={styles.stepTitle}>{t('Verificação em duas etapas')}</Text>
-            <Text style={styles.stepSubtitle}>{t('Digite o código enviado para seu e-mail')}</Text>
-          </View>
-          <View style={styles.codeRow}>
-            {code.map((v, i) => (
-              <TextInput
-                key={i}
-                ref={(el) => {
-                  inputs.current[i] = el;
-                }}
-                value={v}
-                onChangeText={(text) => handleCodeChange(i, text)}
-                onKeyPress={(e) => handleKeyPress(i, e.nativeEvent.key)}
-                keyboardType="number-pad"
-                maxLength={1}
-                style={[styles.codeBox, v ? styles.codeBoxFilled : null]}
-              />
-            ))}
-          </View>
-          <Text style={styles.timerText}>
-            {t('Reenviar código em')}{' '}
-            <Text style={styles.timerValue}>00:{String(timer).padStart(2, '0')}</Text>
-          </Text>
-          <Pressable style={styles.primaryButton} onPress={handleVerify}>
-            <Text style={styles.primaryButtonText}>{t('VERIFICAR')}</Text>
-          </Pressable>
-          <Pressable>
-            <Text style={styles.linkText}>{t('Usar app autenticador')}</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleForgot = () => {
+    if (!email.trim()) {
+      setMessage(t('Digite seu e-mail acima para receber o link.'));
+      return;
+    }
+    void attempt(() => auth.sendPasswordReset(email), 'Enviamos um link para redefinir sua senha.');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -122,6 +87,8 @@ export default function LoginScreen({ navigation }: Props) {
                   placeholder="usuario@email.com"
                   placeholderTextColor={colors.texto2}
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
                   keyboardType="email-address"
                   style={styles.input}
                 />
@@ -146,12 +113,31 @@ export default function LoginScreen({ navigation }: Props) {
                   </Pressable>
                 </View>
               </View>
-              <Pressable>
+              <Pressable onPress={handleForgot} disabled={busy}>
                 <Text style={styles.linkText}>{t('Esqueci minha senha')}</Text>
               </Pressable>
             </View>
 
-            <Pressable style={styles.primaryButton} onPress={handleLogin}>
+            {message && <Text style={styles.message}>{message}</Text>}
+            {unconfirmed && (
+              <Pressable
+                disabled={busy}
+                onPress={() =>
+                  void attempt(
+                    () => auth.resendConfirmation(email),
+                    'Enviamos um novo link de confirmação.'
+                  )
+                }
+              >
+                <Text style={styles.linkText}>{t('Reenviar e-mail de confirmação')}</Text>
+              </Pressable>
+            )}
+
+            <Pressable
+              style={[styles.primaryButton, !canSignIn && styles.buttonOff]}
+              disabled={!canSignIn}
+              onPress={() => void attempt(() => auth.signIn(email, password))}
+            >
               <Text style={styles.primaryButtonText}>{t('ENTRAR')}</Text>
             </Pressable>
 
@@ -161,8 +147,20 @@ export default function LoginScreen({ navigation }: Props) {
               <View style={styles.dividerLine} />
             </View>
 
+            <Pressable
+              style={styles.secondaryButton}
+              disabled={busy}
+              onPress={() => void attempt(() => auth.signInWithGoogle())}
+            >
+              <Text style={styles.secondaryButtonText}>{t('CONTINUAR COM GOOGLE')}</Text>
+            </Pressable>
+
             <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate('SignUp')}>
               <Text style={styles.secondaryButtonText}>{t('CRIAR CONTA')}</Text>
+            </Pressable>
+
+            <Pressable style={styles.skip} onPress={() => navigation.navigate('Projects')}>
+              <Text style={styles.linkText}>{t('Agora não')}</Text>
             </Pressable>
           </View>
 
@@ -274,6 +272,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.texto2,
   },
+  message: {
+    fontSize: fontSize.xs,
+    color: colors.texto,
+  },
+  buttonOff: {
+    opacity: 0.4,
+  },
+  skip: {
+    alignSelf: 'center',
+  },
   langRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -285,53 +293,6 @@ const styles = StyleSheet.create({
     color: colors.texto2,
   },
   langTextActive: {
-    color: colors.texto,
-  },
-  shieldBox: {
-    width: 64,
-    height: 64,
-    borderWidth: 2,
-    borderColor: colors.acento,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  stepTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: '500',
-    color: colors.texto,
-  },
-  stepSubtitle: {
-    fontSize: fontSize.sm,
-    color: colors.texto2,
-    marginTop: 4,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-  },
-  codeBox: {
-    width: 48,
-    height: 48,
-    textAlign: 'center',
-    fontSize: fontSize.xl,
-    fontFamily: monoFontFamily,
-    color: colors.texto,
-    backgroundColor: colors.painel,
-    borderWidth: 1,
-    borderColor: colors.linha,
-  },
-  codeBoxFilled: {
-    borderColor: colors.acento,
-  },
-  timerText: {
-    fontSize: fontSize.xs,
-    color: colors.texto2,
-    textAlign: 'center',
-  },
-  timerValue: {
-    fontFamily: monoFontFamily,
     color: colors.texto,
   },
 });

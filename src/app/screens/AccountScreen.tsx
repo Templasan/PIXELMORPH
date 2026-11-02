@@ -3,11 +3,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { AppCompositionRoot } from '../CompositionRoot';
 import { Icon, Switch } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { LANGUAGES, useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
+
+const { auth } = AppCompositionRoot.account;
 
 function SectionHeader({ label }: { label: string }) {
   const { t } = useI18n();
@@ -70,8 +74,8 @@ function Bordered({ children }: { children: ReactNode }) {
 
 export default function AccountScreen({ navigation }: Props) {
   const { t, language, changeLanguage } = useI18n();
+  const account = useStore(auth.state, (s) => s.account);
   // TODO: back these toggles with the real preference store instead of local component state.
-  const [twoFactor, setTwoFactor] = useState(true);
   const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
   const [unlimitedUndo, setUnlimitedUndo] = useState(true);
   const [onDeviceAI, setOnDeviceAI] = useState(true);
@@ -89,25 +93,30 @@ export default function AccountScreen({ navigation }: Props) {
       <ScrollView style={{ flex: 1 }}>
         <SectionHeader label="CONTA" />
         <Bordered>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>JS</Text>
-            </View>
-            <View>
-              <Text style={styles.profileName}>João Silva</Text>
-              <Text style={styles.profileEmail}>joao@pixelmorph.com</Text>
-            </View>
-          </View>
-          {/* TODO: real change-password flow. */}
-          <ArrowRow label="Alterar senha" />
-          <ToggleRow
-            label="Verificação em duas etapas"
-            value="App autenticador"
-            toggled={twoFactor}
-            onToggle={setTwoFactor}
-          />
-          {/* TODO: real connected-devices list. */}
-          <ArrowRow label="Dispositivos conectados" value="3 ativos" />
+          {account ? (
+            <>
+              <View style={styles.profileRow}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{account.name.slice(0, 2).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.profileName} numberOfLines={1}>
+                    {account.name}
+                  </Text>
+                  <Text style={styles.profileEmail} numberOfLines={1}>
+                    {account.email}
+                  </Text>
+                </View>
+              </View>
+              <ArrowRow label="Alterar senha" onPress={() => navigation.navigate('NewPassword')} />
+            </>
+          ) : (
+            <ArrowRow
+              label="Entrar ou criar conta"
+              sub="Opcional: o app funciona sem conta"
+              onPress={() => navigation.navigate('Login')}
+            />
+          )}
         </Bordered>
 
         <SectionHeader label="IDIOMA" />
@@ -169,13 +178,11 @@ export default function AccountScreen({ navigation }: Props) {
           {/* TODO: real terms / privacy-policy documents. */}
           <ArrowRow label="Termos de uso" />
           <ArrowRow label="Política de privacidade" />
-          {/* TODO: real sign-out flow (clear session, navigate to Login). */}
-          <Pressable
-            style={styles.signOutButton}
-            onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}
-          >
-            <Text style={styles.signOutText}>{t('Sair da conta')}</Text>
-          </Pressable>
+          {account && (
+            <Pressable style={styles.signOutButton} onPress={() => void auth.signOut()}>
+              <Text style={styles.signOutText}>{t('Sair da conta')}</Text>
+            </Pressable>
+          )}
         </Bordered>
       </ScrollView>
     </SafeAreaView>

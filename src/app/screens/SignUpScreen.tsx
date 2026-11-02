@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { AppCompositionRoot } from '../CompositionRoot';
 import { Icon, TopBar } from '@core/ui';
 import { colors, fontSize } from '@core/theme';
+import { useI18n } from '@core/i18n';
+import { useStore } from '@core/state';
+import { AUTH_FAILURE_TEXT, AuthFailure } from '@modules/account';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SignUp'>;
+
+const { auth } = AppCompositionRoot.account;
 
 function passwordStrength(password: string): 1 | 2 | 3 | 4 {
   if (password.length < 6) return 1;
@@ -23,6 +29,11 @@ const strengthColor: Record<1 | 2 | 3 | 4, string> = {
 };
 
 export default function SignUpScreen({ navigation }: Props) {
+  const { t } = useI18n();
+  const status = useStore(auth.state, (s) => s.status);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,38 +44,80 @@ export default function SignUpScreen({ navigation }: Props) {
 
   const passwordsMatch = confirm === '' || password === confirm;
   const canSubmit = Boolean(
-    name.trim() && email.trim() && password.length >= 8 && password === confirm && terms
+    name.trim() && email.trim() && password.length >= 8 && password === confirm && terms && !busy
   );
   const strength = passwordStrength(password);
 
-  const handleSubmit = () => {
-    // TODO: call real sign-up API; currently just returns to Login on success.
-    if (canSubmit) navigation.navigate('Login');
+  // The confirmation link signs the account in, wherever the user is waiting.
+  useEffect(() => {
+    if (status === 'signedIn') navigation.reset({ index: 0, routes: [{ name: 'Projects' }] });
+  }, [status, navigation]);
+
+  const attempt = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (e) {
+      setError(t(AUTH_FAILURE_TEXT[e instanceof AuthFailure ? e.kind : 'unknown']));
+    }
+    setBusy(false);
   };
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    void attempt(async () => {
+      setSent(await auth.signUp(name, email, password));
+    });
+  };
+
+  if (sent) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <TopBar title={t('Confirme seu e-mail')} onBackPress={() => navigation.navigate('Login')} />
+        <View style={styles.content}>
+          <Text style={styles.tagline}>
+            {t('Enviamos um link de confirmação para')} {email.trim()}.{' '}
+            {t(
+              'Abra o link neste aparelho, ou confirme em qualquer lugar e depois entre com sua senha.'
+            )}
+          </Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+          <Pressable
+            style={[styles.submitButton, { marginTop: 24 }]}
+            disabled={busy}
+            onPress={() => void attempt(() => auth.resendConfirmation(email))}
+          >
+            <Text style={styles.submitText}>{t('REENVIAR E-MAIL')}</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <TopBar title="Criar conta" onBackPress={() => navigation.navigate('Login')} />
+      <TopBar title={t('Criar conta')} onBackPress={() => navigation.navigate('Login')} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={{ marginBottom: 24 }}>
           <Text style={styles.logo}>PixelMorph</Text>
-          <Text style={styles.tagline}>Crie sua conta gratuitamente</Text>
+          <Text style={styles.tagline}>{t('Crie sua conta gratuitamente')}</Text>
         </View>
 
         <View style={{ gap: 16 }}>
           <View>
-            <Text style={styles.fieldLabel}>Nome completo</Text>
+            <Text style={styles.fieldLabel}>{t('Nome completo')}</Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Seu nome"
+              placeholder={t('Seu nome')}
               placeholderTextColor={colors.texto2}
               style={styles.input}
             />
           </View>
 
           <View>
-            <Text style={styles.fieldLabel}>E-mail</Text>
+            <Text style={styles.fieldLabel}>{t('E-mail')}</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -77,12 +130,12 @@ export default function SignUpScreen({ navigation }: Props) {
           </View>
 
           <View>
-            <Text style={styles.fieldLabel}>Senha</Text>
+            <Text style={styles.fieldLabel}>{t('Senha')}</Text>
             <View>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={t('Mínimo 8 caracteres')}
                 placeholderTextColor={colors.texto2}
                 secureTextEntry={!showPw}
                 style={[styles.input, { paddingRight: 40 }]}
@@ -107,12 +160,12 @@ export default function SignUpScreen({ navigation }: Props) {
           </View>
 
           <View>
-            <Text style={styles.fieldLabel}>Confirmar senha</Text>
+            <Text style={styles.fieldLabel}>{t('Confirmar senha')}</Text>
             <View>
               <TextInput
                 value={confirm}
                 onChangeText={setConfirm}
-                placeholder="Repita a senha"
+                placeholder={t('Repita a senha')}
                 placeholderTextColor={colors.texto2}
                 secureTextEntry={!showConfirm}
                 style={[
@@ -129,7 +182,9 @@ export default function SignUpScreen({ navigation }: Props) {
                 <Icon name={showConfirm ? 'eyeOff' : 'eye'} size={18} color={colors.texto2} />
               </Pressable>
             </View>
-            {!passwordsMatch && <Text style={styles.errorText}>As senhas não coincidem</Text>}
+            {!passwordsMatch && (
+              <Text style={styles.errorText}>{t('As senhas não coincidem')}</Text>
+            )}
           </View>
 
           <Pressable style={styles.termsRow} onPress={() => setTerms((v) => !v)}>
@@ -137,23 +192,25 @@ export default function SignUpScreen({ navigation }: Props) {
               {terms && <Icon name="check" size={12} color={colors.branco} />}
             </View>
             <Text style={styles.termsText}>
-              Li e aceito os <Text style={styles.termsLink}>Termos de uso</Text> e a{' '}
-              <Text style={styles.termsLink}>Política de privacidade</Text>
+              {t('Li e aceito os')} <Text style={styles.termsLink}>{t('Termos de uso')}</Text>{' '}
+              {t('e a')} <Text style={styles.termsLink}>{t('Política de privacidade')}</Text>
             </Text>
           </Pressable>
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
           <Pressable
             style={[styles.submitButton, canSubmit && styles.submitButtonEnabled]}
             onPress={handleSubmit}
           >
             <Text style={[styles.submitText, canSubmit && styles.submitTextEnabled]}>
-              CRIAR CONTA
+              {t('CRIAR CONTA')}
             </Text>
           </Pressable>
 
           <Pressable style={{ alignItems: 'center' }} onPress={() => navigation.navigate('Login')}>
             <Text style={styles.loginHint}>
-              Já tenho conta. <Text style={styles.termsLink}>Entrar</Text>
+              {t('Já tenho conta.')} <Text style={styles.termsLink}>{t('Entrar')}</Text>
             </Text>
           </Pressable>
         </View>

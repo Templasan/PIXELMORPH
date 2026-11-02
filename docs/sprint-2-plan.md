@@ -28,6 +28,8 @@ fps, open ~0.5-1 s, full-size export ~3.4-5.5 s). Criteria marked "device" need 
 Pending owner answers: which test projects to delete on the Poco; pushing `sprint-2`; which
 missing items enter this sprint and which move to Sprint 3.
 
+**Note 2026-11-02 (done after the status above):** drag reorder with ripple, speed ramp, time-lapse, social presets, codec in the info panel, reminder notifications, mic gain with a separate audio track, editors translated, optional login (e-mail, Google, verification e-mail). HTTPS sync is still pending. The table above is not rewritten.
+
 ## Where each story stands
 
 | Story | Done | Partial | Fake | Missing | Main gaps |

@@ -417,6 +417,9 @@ Per-module overhead: < 2MB
 - typescript (required)
 - eslint (required)
 - prettier (required)
+- @supabase/supabase-js (MIT, backend client for auth and sync)
+- @react-native-google-signin/google-signin (MIT, native Google login, version 17, needs a native build)
+- react-native-url-polyfill (MIT, URL support the Supabase client needs on React Native)
 
 ### Pending Research
 - State management (Redux/Zustand/MobX)
