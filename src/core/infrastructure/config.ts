@@ -18,6 +18,8 @@ export const CONFIG = {
   isDevelopment: ENVIRONMENT === ENV.DEV,
   isStaging: ENVIRONMENT === ENV.STAGING,
   isProduction: ENVIRONMENT === ENV.PROD,
+  /** The owner's media server (media-server/). In production it must be an HTTPS URL (RNF-002). */
+  mediaServerUrl: process.env.EXPO_PUBLIC_MEDIA_SERVER_URL || 'http://localhost:3000',
   /** RNF-017: HTTPS endpoint that receives anonymous error reports. Empty = nothing is sent. */
   errorReportUrl: process.env.EXPO_PUBLIC_ERROR_REPORT_URL || '',
   /** Public by design: the publishable key and the OAuth client id only identify the app. */

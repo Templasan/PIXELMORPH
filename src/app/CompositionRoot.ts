@@ -1,5 +1,6 @@
 import { createAccountModule } from '@modules/account';
 import { createProjectsModule } from '@modules/projects';
+import { createProjectSync } from '@modules/projects/sync';
 
 /**
  * Global composition root. Instantiates all modules and their adapters.
@@ -9,6 +10,7 @@ import { createProjectsModule } from '@modules/projects';
 export const AppCompositionRoot = {
   account: createAccountModule(),
   projects: createProjectsModule(),
+  sync: createProjectSync(),
 };
 
 export type AppCompositionRootType = typeof AppCompositionRoot;
