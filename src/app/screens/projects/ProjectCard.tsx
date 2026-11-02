@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@core/ui';
-import { colors, fontSize, monoFontFamily, radius } from '@core/theme';
+import { colors, fontSize, monoFontFamily } from '@core/theme';
 import type { Project } from '@modules/projects';
 import { dateFormatter, formatDuration, formatTypeLabel, primaryAsset } from './projectFormat';
 import { useCardThumb } from './cardThumb';
@@ -30,23 +30,31 @@ export const ProjectCard = memo(function ProjectCard({
   const duration = formatDuration(asset?.metadata.durationMs);
   return (
     <Pressable
-      style={styles.card}
+      style={[styles.card, isSelected && styles.cardSelected]}
       onLongPress={() => onLongPressProject(project)}
       onPress={() => onPressProject(project)}
     >
-      <View style={[styles.thumbWrap, isSelected && styles.thumbSelected]}>
+      <View style={styles.thumbWrap}>
         {thumbUri ? (
           <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
         ) : (
           <View style={styles.thumbPlaceholder}>
-            <Icon name={isVideo ? 'film' : 'image'} size={32} color={colors.linha} />
+            <Icon name={isVideo ? 'film' : 'image'} size={28} color={colors.linha} />
           </View>
         )}
         {isVideo && (
-          <View style={styles.videoBadge}>
-            <Icon name="play" size={10} color={colors.branco} />
-            {duration && <Text style={styles.durationText}>{duration}</Text>}
-          </View>
+          <>
+            <View style={styles.playOverlay}>
+              <View style={styles.playBadge}>
+                <Icon name="play" size={16} color={colors.texto} />
+              </View>
+            </View>
+            {duration && (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{duration}</Text>
+              </View>
+            )}
+          </>
         )}
         {multiSelect && (
           <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
@@ -55,16 +63,16 @@ export const ProjectCard = memo(function ProjectCard({
         )}
       </View>
       <View style={styles.cardInfo}>
-        <View style={styles.cardText}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.cardName} numberOfLines={1}>
             {project.name}
           </Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>
+          <Text style={styles.cardMeta}>
             {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)}
           </Text>
         </View>
-        <Pressable hitSlop={10} onPress={() => onInfo(project)} style={styles.infoButton}>
-          <Icon name="info" size={16} color={colors.texto2} />
+        <Pressable hitSlop={8} onPress={() => onInfo(project)}>
+          <Icon name="info" size={14} color={colors.texto2} />
         </Pressable>
       </View>
     </Pressable>
@@ -72,21 +80,20 @@ export const ProjectCard = memo(function ProjectCard({
 });
 
 const styles = StyleSheet.create({
-  // Half of the row, with the gutter inside: the last card of an odd list keeps the same width.
   card: {
-    width: '50%',
-    paddingHorizontal: 6,
-    paddingBottom: 16,
+    width: '48%',
+    backgroundColor: colors.painel,
+    borderWidth: 1,
+    borderColor: colors.linha,
+  },
+  cardSelected: {
+    borderColor: colors.acento,
   },
   thumbWrap: {
     aspectRatio: 1,
     backgroundColor: colors.faixa,
-    borderRadius: radius,
+    position: 'relative',
     overflow: 'hidden',
-  },
-  thumbSelected: {
-    borderWidth: 2,
-    borderColor: colors.acento,
   },
   thumb: {
     width: '100%',
@@ -98,22 +105,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoBadge: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
-    flexDirection: 'row',
+  playOverlay: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: radius,
-    backgroundColor: colors.veuForte,
+    justifyContent: 'center',
+  },
+  playBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   durationText: {
     fontFamily: monoFontFamily,
-    fontSize: fontSize.xxs,
-    color: colors.branco,
+    fontSize: 10,
+    color: colors.texto,
   },
   checkCircle: {
     position: 'absolute',
@@ -123,7 +139,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderWidth: 1,
     borderColor: colors.texto,
-    backgroundColor: colors.veu,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -132,27 +148,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.acento,
   },
   cardInfo: {
-    paddingTop: 8,
+    padding: 6,
+    paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
-  },
-  cardText: {
-    flex: 1,
-    minWidth: 0,
+    justifyContent: 'space-between',
+    gap: 4,
   },
   cardName: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.texto,
     fontWeight: '500',
   },
   cardMeta: {
     fontFamily: monoFontFamily,
-    fontSize: fontSize.xxs,
+    fontSize: 10,
     color: colors.texto2,
-    marginTop: 3,
-  },
-  infoButton: {
-    paddingTop: 1,
+    marginTop: 2,
   },
 });
