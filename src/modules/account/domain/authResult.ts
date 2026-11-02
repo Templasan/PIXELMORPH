@@ -2,6 +2,19 @@ export interface Account {
   id: string;
   email: string;
   name: string;
+  /** False for a Google-only account, which can sign in with Google but has no e-mail password yet. */
+  hasPassword: boolean;
+}
+
+/**
+ * True when the account can sign in with e-mail and password: it has an e-mail login, or it set a
+ * password in the app (user_metadata.password_set, written with the new password).
+ */
+export function hasPasswordLogin(
+  providers: readonly string[] | undefined,
+  passwordSet: unknown
+): boolean {
+  return (providers ?? []).includes('email') || passwordSet === true;
 }
 
 /** 'recovery': a password reset link was opened; the session only leads to the new password screen. */
