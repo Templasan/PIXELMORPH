@@ -68,7 +68,8 @@
         }
       ],
       "expo-video",
-      "expo-sharing"
+      "expo-sharing",
+      "@react-native-google-signin/google-signin"
     ],
     "scheme": "pixelmorph"
   }

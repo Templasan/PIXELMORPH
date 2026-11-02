@@ -20,5 +20,12 @@ export const CONFIG = {
   isProduction: ENVIRONMENT === ENV.PROD,
   /** RNF-017: HTTPS endpoint that receives anonymous error reports. Empty = nothing is sent. */
   errorReportUrl: process.env.EXPO_PUBLIC_ERROR_REPORT_URL || '',
+  /** Public by design: the publishable key and the OAuth client id only identify the app. */
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vqpzwjwhsrsjbsqnnofi.supabase.co',
+  supabaseKey:
+    process.env.EXPO_PUBLIC_SUPABASE_KEY || 'sb_publishable_uYtPcCI3jVtGlBv94ShdmQ_6DDwRTTN',
+  googleWebClientId:
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+    '920774188192-b2jcrjkudsgqb0ds31v1fs8vcfl6f6ng.apps.googleusercontent.com',
   logLevel: (process.env.LOG_LEVEL || 'debug') as 'debug' | 'info' | 'warn' | 'error',
 };

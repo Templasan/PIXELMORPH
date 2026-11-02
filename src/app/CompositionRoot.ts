@@ -1,3 +1,4 @@
+import { createAccountModule } from '@modules/account';
 import { createProjectsModule } from '@modules/projects';
 
 /**
@@ -6,6 +7,7 @@ import { createProjectsModule } from '@modules/projects';
  * Screens and components should only call use cases through these module instances.
  */
 export const AppCompositionRoot = {
+  account: createAccountModule(),
   projects: createProjectsModule(),
 };
 

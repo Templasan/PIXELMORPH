@@ -8,6 +8,7 @@ import {
 import { withScreenBoundary } from './ScreenErrorBoundary';
 import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import NewPasswordScreen from '../screens/NewPasswordScreen';
 import ProjectsScreen from '../screens/ProjectsScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import TutorialsScreen from '../screens/TutorialsScreen';
@@ -19,6 +20,7 @@ import HelpScreen from '../screens/HelpScreen';
 export type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  NewPassword: undefined;
   Projects: undefined;
   Camera: undefined;
   PhotoEditor: { projectId?: string } | undefined;
@@ -74,6 +76,7 @@ const VideoEditorScreen = lazyScreen(loaders.VideoEditor);
 const screens = {
   Login: withScreenBoundary(LoginScreen, 'Login'),
   SignUp: withScreenBoundary(SignUpScreen, 'SignUp'),
+  NewPassword: withScreenBoundary(NewPasswordScreen, 'NewPassword'),
   Projects: withScreenBoundary(ProjectsScreen, 'Projects'),
   Camera: withScreenBoundary(CameraScreen, 'Camera'),
   PhotoEditor: withScreenBoundary(PhotoEditorScreen, 'PhotoEditor'),
@@ -104,6 +107,7 @@ export default function RootNavigator() {
     >
       <Stack.Screen name="Login" component={screens.Login} />
       <Stack.Screen name="SignUp" component={screens.SignUp} />
+      <Stack.Screen name="NewPassword" component={screens.NewPassword} />
       <Stack.Screen name="Projects" component={screens.Projects} />
       <Stack.Screen name="Camera" component={screens.Camera} />
       <Stack.Screen name="PhotoEditor" component={screens.PhotoEditor} />
