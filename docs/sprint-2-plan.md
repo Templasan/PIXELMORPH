@@ -30,6 +30,8 @@ missing items enter this sprint and which move to Sprint 3.
 
 **Note 2026-11-02 (done after the status above):** drag reorder with ripple, speed ramp, time-lapse, social presets, codec in the info panel, reminder notifications, mic gain with a separate audio track, editors translated, optional login (e-mail, Google, verification e-mail). HTTPS sync code exists (stage 2, see ADR-006: the project list in Supabase, files on the owner's media server); the device test is still pending. The table above is not rewritten.
 
+Later improvement for the verification e-mail: opening the link on another device leaves a blank page and the app waiting. Options: a 6-digit code in the e-mail (works on any device, no redirect), or the waiting screen retrying sign-in; a websocket does not fit because the account has no session until it is confirmed.
+
 ## Where each story stands
 
 | Story | Done | Partial | Fake | Missing | Main gaps |
