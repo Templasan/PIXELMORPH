@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fontSize, radius } from '@core/theme';
+import { colors } from '@core/theme';
 import type { Project } from '@modules/projects';
 import { useI18n } from '@core/i18n';
 import { daysUntil, priorityLabel } from './projectFormat';
@@ -14,7 +14,7 @@ export function ReminderBanner({ pendingProjects, nearest }: ReminderBannerProps
   return (
     <View style={styles.reminderCard}>
       <View style={styles.reminderStripe} />
-      <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12 }}>
+      <View style={{ flex: 1, paddingVertical: 4, paddingHorizontal: 8 }}>
         <Text style={styles.reminderTitle}>
           {pendingProjects.length === 1
             ? t('{n} projeto pendente', { n: pendingProjects.length })
@@ -39,11 +39,10 @@ export function ReminderBanner({ pendingProjects, nearest }: ReminderBannerProps
 
 const styles = StyleSheet.create({
   reminderCard: {
-    marginHorizontal: 6,
-    marginBottom: 16,
+    margin: 2,
     backgroundColor: colors.faixa,
-    borderRadius: radius,
-    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.linha,
     flexDirection: 'row',
   },
   reminderStripe: {
@@ -51,13 +50,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.alerta,
   },
   reminderTitle: {
-    fontSize: fontSize.sm,
+    fontSize: 11,
     color: colors.texto,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   reminderSubtitle: {
-    fontSize: fontSize.xs,
+    fontSize: 11,
     color: colors.texto2,
-    marginTop: 3,
+    marginTop: 1,
   },
 });

@@ -17,7 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
 import { SideDrawer } from '../navigation/SideDrawer';
-import { colors, fontSize, monoFontFamily, radius } from '@core/theme';
+import { colors, fontSize, monoFontFamily } from '@core/theme';
 import { useI18n } from '@core/i18n';
 import {
   createMediaAsset,
@@ -58,7 +58,7 @@ function isDraft(project: Project): boolean {
 let mediaRepair: Promise<unknown> | null = null;
 
 export default function ProjectsScreen({ navigation }: Props) {
-  // The bottom action bar must clear the system navigation bar
+  // The tool bar must clear the system navigation bar
   // themselves (3-button navigation takes ~150 px on many phones; SafeAreaView padding does not
   // move absolute children).
   const insets = useSafeAreaInsets();
@@ -369,16 +369,14 @@ export default function ProjectsScreen({ navigation }: Props) {
           ) : (
             <>
               <Pressable onPress={() => setDrawerOpen(true)} hitSlop={8}>
-                <Icon name="menu" size={22} />
+                <Icon name="menu" size={20} />
               </Pressable>
               <Text style={styles.topBarTitle}>{t('Projetos')}</Text>
-              {!loading && <Text style={styles.topBarCount}>{projects.length}</Text>}
               <Pressable onPress={() => setSearchOpen(true)} hitSlop={8}>
-                <Icon name="search" size={20} />
+                <Icon name="search" size={18} />
               </Pressable>
-              <View style={{ width: 8 }} />
               <Pressable onPress={chooseSort} hitSlop={8}>
-                <Icon name="sort" size={20} />
+                <Icon name="sort" size={18} />
               </Pressable>
             </>
           )}
@@ -409,10 +407,11 @@ export default function ProjectsScreen({ navigation }: Props) {
         extraData={selected}
         keyExtractor={(p) => p.id}
         renderItem={renderProject}
-        numColumns={2}
+        numColumns={3}
+        style={styles.panel}
         contentContainerStyle={styles.grid}
-        initialNumToRender={8}
-        maxToRenderPerBatch={6}
+        initialNumToRender={15}
+        maxToRenderPerBatch={9}
         windowSize={7}
         refreshControl={
           <RefreshControl
@@ -445,22 +444,30 @@ export default function ProjectsScreen({ navigation }: Props) {
         }
       />
 
+      <View style={styles.statusBar}>
+        <Text style={styles.statusText}>
+          {filtered.length === 1
+            ? t('{n} projeto', { n: filtered.length })
+            : t('{n} projetos', { n: filtered.length })}
+        </Text>
+        <Text style={styles.statusText}>{t(SORT_LABELS[sort])}</Text>
+      </View>
+
       {!multiSelect && (
-        <View style={[styles.actionBar, { paddingBottom: 12 + insets.bottom }]}>
-          <Pressable
-            style={[styles.action, styles.actionPrimary]}
-            onPress={() => navigation.navigate('Camera')}
-          >
-            <Icon name="camera" size={20} color={colors.branco} />
-            <Text style={[styles.actionLabel, styles.actionLabelPrimary]}>{t('Câmera')}</Text>
+        <View style={[styles.toolBar, { paddingBottom: insets.bottom }]}>
+          <Pressable style={styles.tool} onPress={() => navigation.navigate('Camera')}>
+            <Icon name="camera" size={20} color={colors.acento} />
+            <Text style={styles.toolLabel}>{t('Câmera')}</Text>
           </Pressable>
-          <Pressable style={styles.action} onPress={importFromGallery} disabled={importing}>
-            <Icon name="image" size={18} color={colors.texto} />
-            <Text style={styles.actionLabel}>{t('Galeria')}</Text>
+          <View style={styles.toolDivider} />
+          <Pressable style={styles.tool} onPress={importFromGallery} disabled={importing}>
+            <Icon name="image" size={20} color={colors.icone} />
+            <Text style={styles.toolLabel}>{t('Galeria')}</Text>
           </Pressable>
-          <Pressable style={styles.action} onPress={() => setRawImportOpen(true)}>
-            <Icon name="upload" size={18} color={colors.texto} />
-            <Text style={styles.actionLabel}>RAW</Text>
+          <View style={styles.toolDivider} />
+          <Pressable style={styles.tool} onPress={() => setRawImportOpen(true)}>
+            <Icon name="upload" size={20} color={colors.icone} />
+            <Text style={styles.toolLabel}>RAW</Text>
           </Pressable>
         </View>
       )}
@@ -502,33 +509,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   topBar: {
-    height: 56,
-    backgroundColor: colors.canvas,
+    height: 40,
+    backgroundColor: colors.barra,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.preto,
   },
   topBarTitle: {
-    fontSize: fontSize.xl,
+    flex: 1,
+    fontSize: fontSize.sm,
     fontWeight: '600',
     color: colors.texto,
   },
-  topBarCount: {
-    flex: 1,
-    marginLeft: -8,
-    fontFamily: monoFontFamily,
-    fontSize: fontSize.xs,
-    color: colors.texto2,
-  },
   searchInput: {
     flex: 1,
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     color: colors.texto,
     paddingVertical: 0,
   },
   contextBar: {
-    height: 56,
+    height: 40,
     backgroundColor: colors.barra,
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,29 +547,36 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: colors.canvas,
+    paddingTop: 4,
+    paddingHorizontal: 4,
+    backgroundColor: colors.faixa,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.linha,
   },
   tab: {
-    height: 32,
-    paddingHorizontal: 12,
+    height: 26,
+    paddingHorizontal: 10,
+    marginBottom: -1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius,
-    backgroundColor: colors.faixa,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   tabActive: {
-    backgroundColor: colors.texto,
+    backgroundColor: colors.painel,
+    borderColor: colors.linha,
+    borderBottomColor: colors.painel,
   },
   tabLabel: {
     fontSize: fontSize.xs,
     color: colors.texto2,
-    fontWeight: '500',
   },
   tabLabelActive: {
-    color: colors.canvas,
+    color: colors.texto,
+  },
+  panel: {
+    flex: 1,
+    backgroundColor: colors.painel,
   },
   emptyState: {
     padding: 24,
@@ -578,39 +588,43 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   grid: {
-    paddingHorizontal: 10,
-    paddingTop: 4,
-    paddingBottom: 8,
+    padding: 2,
   },
-  actionBar: {
+  statusBar: {
+    height: 22,
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: colors.barra,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    backgroundColor: colors.faixa,
     borderTopWidth: 1,
     borderTopColor: colors.linha,
   },
-  action: {
-    flex: 1,
-    height: 44,
+  statusText: {
+    fontFamily: monoFontFamily,
+    fontSize: fontSize.xxs,
+    color: colors.texto2,
+  },
+  toolBar: {
     flexDirection: 'row',
+    backgroundColor: colors.barra,
+    borderTopWidth: 1,
+    borderTopColor: colors.preto,
+  },
+  tool: {
+    flex: 1,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: radius,
-    backgroundColor: colors.painel,
+    gap: 3,
   },
-  actionPrimary: {
-    flex: 1.4,
-    backgroundColor: colors.acento,
+  toolDivider: {
+    width: 1,
+    marginVertical: 8,
+    backgroundColor: colors.linha,
   },
-  actionLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: '500',
+  toolLabel: {
+    fontSize: fontSize.xxs,
     color: colors.texto,
-  },
-  actionLabelPrimary: {
-    color: colors.branco,
   },
 });
