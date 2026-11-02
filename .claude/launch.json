@@ -10,6 +10,15 @@
       "port": 8081
     },
     {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "web"
+      ],
+      "port": 8082
+    },
+    {
       "name": "video-editor-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

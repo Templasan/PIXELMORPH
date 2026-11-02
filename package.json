@@ -8,6 +8,7 @@
     "start": "expo start",
     "start:android": "expo start --android",
     "start:ios": "expo start --ios",
+    "web": "node scripts/web-preview.mjs",
     "build:dev:android": "eas build --platform android --profile preview",
     "build:editors": "npm run build:app --prefix video-editor-web && npm run build:app --prefix photo-editor-web",
     "lint": "eslint . --ext .ts,.tsx",
