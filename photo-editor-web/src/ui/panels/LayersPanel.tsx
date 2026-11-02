@@ -3,6 +3,7 @@ import type { PhotoSession } from '../../application/session';
 import {
   BRUSH_SHAPES,
   createPaintLayer,
+  distributeLayers,
   duplicateLayer,
   mergeVisiblePaintLayers,
   type EditorLayer,
@@ -40,6 +41,8 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
   const canDelete = !!selected && !selected.locked && selected.kind !== 'background';
   const visiblePaint = layers.filter((l) => l.kind === 'paint' && l.visible).length;
   const paintable = selected?.kind === 'paint' && !selected.locked;
+  // Distribution moves every visible text and shape layer (the only layers with a position).
+  const positioned = layers.filter((l) => (l.text || l.shape) && l.visible).length;
 
   const add = () =>
     editor.addLayers([createPaintLayer(t('Pintura {n}', { n: layers.filter((l) => l.kind === 'paint').length + 1 }))]);
@@ -111,6 +114,15 @@ export function LayersPanel({ session }: { session: PhotoSession }) {
             </div>
           );
         })}
+      </div>
+
+      <div className="chips">
+        <button className="chip" disabled={positioned < 3} onClick={() => editor.setLayers((ls) => distributeLayers(ls, 'horizontal'))}>
+          {t('Distribuir na horizontal')}
+        </button>
+        <button className="chip" disabled={positioned < 3} onClick={() => editor.setLayers((ls) => distributeLayers(ls, 'vertical'))}>
+          {t('Distribuir na vertical')}
+        </button>
       </div>
 
       {selected && (
