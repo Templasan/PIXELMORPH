@@ -258,3 +258,5 @@ US-24 partly brought in: remove a painted or circled object, filled from nearby 
 US-29 partly brought in: an animated thumbnail of the best moments, chosen by detail and scene change (RF-030). Open: captions from speech (RF-069) need a model.
 
 US-31 brought in: PSD with separate rasterized layers (checked with psd-tools; not opened in Photoshop itself), DPI, a simulated CMYK print proof, and sRGB, Display P3 and Adobe RGB output. In a PSD, adjustments and masks are baked into the bottom layer, and crop and social frames are left out. Adobe RGB needs JPEG or PNG.
+
+US-13 brought in: a viewer for side-by-side and over-under photos, following the device tilt (or moving by itself), with pause and exit. Detection is by file name and shape, so it is offered, never forced; MPO files are not read. Tilt checked with simulated events.

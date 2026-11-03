@@ -12,6 +12,7 @@ import { fillHole } from '../domain/fillHole';
 import { createImageLayer, createLayerId, type EditorLayer } from '../domain/layers';
 import { isValidQRContent, readQr } from '../domain/QRCode';
 import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
+import { detectStereoscopicFromDimensions, detectStereoscopicFromUri, eyeRects } from '../domain/stereoscopic/StereoscopicDetection';
 import { qrDataUrl } from '../engine/qr';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
@@ -861,6 +862,32 @@ export function createPhotoSession(host: EditorHost) {
       layer.image = { ...layer.image!, x: (left + right) / 2 / sw, y: (top + bottom) / 2 / sh, size: (right - left) / sw };
       editor.setLayers((ls) => ls.map((l) => (l.id === layerId ? layer : l)));
       editor.selectLayer('fundo');
+    },
+    /** RF-071: if the photo looks stereoscopic, where each eye's picture is. */
+    stereoViews() {
+      const photo = info.get().photo;
+      if (!photo?.width || !photo.height || !light) return null;
+      const byName = detectStereoscopicFromUri(photo.uri);
+      const found = byName.isStereoscopic ? byName : detectStereoscopicFromDimensions(photo.width, photo.height);
+      return found.isStereoscopic ? eyeRects(found.format, light.width, light.height) : null;
+    },
+    /** RF-071: draws the view `mix` of the way from the left eye to the right one. */
+    drawStereo(canvas: HTMLCanvasElement, mix: number) {
+      const views = this.stereoViews();
+      const ctx = canvas.getContext('2d');
+      if (!views || !ctx || !light) return;
+      const { left, right } = views;
+      const k = Math.min(canvas.width / left.w, canvas.height / left.h);
+      const w = left.w * k;
+      const h = left.h * k;
+      const x = (canvas.width - w) / 2;
+      const y = (canvas.height - h) / 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(light, left.x, left.y, left.w, left.h, x, y, w, h);
+      ctx.globalAlpha = mix;
+      ctx.drawImage(light, right.x, right.y, right.w, right.h, x, y, w, h);
+      ctx.globalAlpha = 1;
     },
     /** US-26: what the picture on screen suggests. Fast enough to run when the panel opens. */
     analyzePicture() {
