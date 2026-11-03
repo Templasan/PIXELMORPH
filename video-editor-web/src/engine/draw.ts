@@ -63,6 +63,14 @@ function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap): B
   ctx.rotate(turn);
   if (sample) sample.draw(ctx, -w / 2, -h / 2, w, h);
   else ctx.drawImage(frame as ImageBitmap, -w / 2, -h / 2, w, h);
+  if (op.border) {
+    // Inside the picture's edge: the box would cut half of a centred line.
+    const px = op.border.px / op.scale;
+    ctx.filter = 'none';
+    ctx.lineWidth = px;
+    ctx.strokeStyle = op.border.color;
+    ctx.strokeRect(-w / 2 + px / 2, -h / 2 + px / 2, w - px, h - px);
+  }
   // A cropped picture is as big as its box, not as big as what was cut off.
   const shownW = Math.min(iw * k, rect.w);
   const shownH = Math.min(ih * k, rect.h);

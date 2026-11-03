@@ -148,6 +148,7 @@ const es: Record<string, string> = {
   'Mesclagem': 'Mezcla',
   'Da faixa': 'De la pista',
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Capas detenidas en la vista previa: {n}. El video final las reproduce todas.',
+  Borda: 'Borde',
 };
 
 export default es;

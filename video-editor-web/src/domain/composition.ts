@@ -61,6 +61,8 @@ export interface MediaOp {
   /** Canvas brightness factor (1 = unchanged), from the clip's colour correction. */
   brightness: number;
   blend: TrackBlend;
+  /** A window's border, in frame pixels; null when it has none. */
+  border: { color: string; px: number } | null;
 }
 
 export interface CaptionOp {
@@ -241,6 +243,10 @@ function mediaOp(
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
     blend: clip.blend ?? layer.blend,
+    border:
+      clip.pipSize && clip.pipBorder?.width
+        ? { color: clip.pipBorder.color, px: (clip.pipBorder.width / 100) * Math.min(c.width, c.height) }
+        : null,
   };
 }
 
