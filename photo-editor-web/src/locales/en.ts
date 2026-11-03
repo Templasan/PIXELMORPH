@@ -305,6 +305,18 @@ const en: Record<string, string> = {
   "Movimento automático": "Automatic motion",
   "Continuar": "Resume",
   "Pausar": "Pause",
+  "Toque em Ajustes, na barra de baixo.": "Tap Adjust in the bottom bar.",
+  "Arraste um controle para mudar a foto.": "Drag a control to change the photo.",
+  "Toque em Comparar, no alto (< >), para ver antes e depois.": "Tap Compare at the top (< >) to see before and after.",
+  "Toque em Elementos, na barra de baixo.": "Tap Elements in the bottom bar.",
+  "Digite um texto e toque em Adicionar ao canvas.": "Type a text and tap Add to canvas.",
+  "Agora toque em Camadas.": "Now tap Layers.",
+  "Com o texto selecionado, baixe a Opacidade.": "With the text selected, lower the Opacity.",
+  "Toque em Máscaras, na barra de baixo.": "Tap Masks in the bottom bar.",
+  "Toque em + Foco para desfocar o fundo.": "Tap + Focus to blur the background.",
+  "Arraste o ponto na foto até o que deve ficar nítido.": "Drag the point on the photo to what should stay sharp.",
+  "Pronto! A foto é sua para continuar editando.": "Done! The photo is yours to keep editing.",
+  "Sair do tutorial": "Leave tutorial",
 };
 
 export default en;

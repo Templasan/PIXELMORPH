@@ -292,6 +292,14 @@ const es: Record<string, string> = {
   'Excluir preset?': '¿Eliminar preset?',
   'Excluir preset {name}': 'Eliminar preset {name}',
   'Excluir': 'Eliminar',
+  "Primeiros ajustes": "Primeros ajustes",
+  "Mude a foto e compare com o original.": "Cambia la foto y compárala con el original.",
+  "Texto e camadas": "Texto y capas",
+  "Escreva sobre a foto e controle a camada.": "Escribe sobre la foto y controla la capa.",
+  "Foco seletivo": "Enfoque selectivo",
+  "Desfoque o fundo com uma máscara.": "Desenfoca el fondo con una máscara.",
+  "Cada tutorial abre uma foto de exemplo e guia você passo a passo. Pode sair quando quiser.": "Cada tutorial abre una foto de ejemplo y te guía paso a paso. Puedes salir cuando quieras.",
+  "Não foi possível abrir o tutorial": "No se pudo abrir el tutorial",
 };
 
 export default es;

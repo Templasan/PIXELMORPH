@@ -305,6 +305,18 @@ const es: Record<string, string> = {
   "Movimento automático": "Movimiento automático",
   "Continuar": "Continuar",
   "Pausar": "Pausar",
+  "Toque em Ajustes, na barra de baixo.": "Toca Ajustes en la barra inferior.",
+  "Arraste um controle para mudar a foto.": "Arrastra un control para cambiar la foto.",
+  "Toque em Comparar, no alto (< >), para ver antes e depois.": "Toca Comparar arriba (< >) para ver antes y después.",
+  "Toque em Elementos, na barra de baixo.": "Toca Elementos en la barra inferior.",
+  "Digite um texto e toque em Adicionar ao canvas.": "Escribe un texto y toca Añadir al lienzo.",
+  "Agora toque em Camadas.": "Ahora toca Capas.",
+  "Com o texto selecionado, baixe a Opacidade.": "Con el texto seleccionado, baja la Opacidad.",
+  "Toque em Máscaras, na barra de baixo.": "Toca Máscaras en la barra inferior.",
+  "Toque em + Foco para desfocar o fundo.": "Toca + Foco para desenfocar el fondo.",
+  "Arraste o ponto na foto até o que deve ficar nítido.": "Arrastra el punto en la foto hasta lo que debe quedar nítido.",
+  "Pronto! A foto é sua para continuar editando.": "¡Listo! La foto es tuya para seguir editando.",
+  "Sair do tutorial": "Salir del tutorial",
 };
 
 export default es;

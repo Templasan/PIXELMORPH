@@ -4,6 +4,8 @@ import type { PhotoSession } from '../application/session';
 import { scaleToFit } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
 import { StereoViewer } from './StereoViewer';
+import { TutorialCoach } from './TutorialCoach';
+import { tutorialOf } from '../application/tutorials';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { PhotoView, type ViewMode } from './PhotoView';
@@ -30,6 +32,10 @@ const TOOLS = [
   { id: 'sugestoes', icon: 'info', label: 'Sugestões' },
   { id: 'panorama', icon: 'image', label: 'Panorama' },
 ] as const;
+
+const tutorial = tutorialOf(
+  (window as unknown as { __pmStart?: string }).__pmStart || new URLSearchParams(location.search).get('start')
+);
 
 function formatBytes(n: number): string {
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
@@ -109,6 +115,7 @@ export function App({ session }: { session: PhotoSession }) {
           {t('EXPORTAR')}
         </button>
       </header>
+      {tutorial && <TutorialCoach session={session} steps={tutorial} />}
       <div className="tech">
         <span>
           {p?.width && p.height ? `${p.width} × ${p.height}` : '…'}
