@@ -28,7 +28,7 @@ export type RootStackParamList = {
   Explore: undefined;
   Camera: undefined;
   /** `start`: a collage or panorama opened from Explore, with no photo open yet. */
-  PhotoEditor: { projectId?: string; start?: 'collage' | 'panorama' } | undefined;
+  PhotoEditor: { projectId?: string; start?: 'collage' | 'panorama' | `tutorial:${string}` } | undefined;
   /** RF-003: RAW converter — white balance + tone curve, then hands off to PhotoEditor. */
   RawConverter: {
     sourceUri: string;
