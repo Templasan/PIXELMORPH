@@ -284,6 +284,11 @@ const es: Record<string, string> = {
   "Terços": "Tercios",
   "Proporção áurea": "Proporción áurea",
   "Sem corte": "Sin recorte",
+  "Filtros artísticos": "Filtros artísticos",
+  "Filtro artístico": "Filtro artístico",
+  "Aquarela": "Acuarela",
+  "Óleo": "Óleo",
+  "Carvão": "Carboncillo",
 };
 
 export default es;

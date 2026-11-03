@@ -15,6 +15,7 @@ import {
   type LayerGroup,
 } from '../domain/layers';
 import type { SceneSize } from '../domain/sceneSize';
+import { drawArt } from './artGl';
 import { drawWarp } from './warpGl';
 
 /** The brush of the stroke being drawn (application's Brush). */
@@ -90,6 +91,10 @@ export function drawLayer(
 ) {
   if (layer.local) {
     drawLocal(ctx, layer, w, h);
+    return;
+  }
+  if (layer.art) {
+    drawArt(ctx, layer.art, layer.opacity / 100);
     return;
   }
   if (layer.warp) {

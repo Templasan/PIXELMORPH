@@ -1,5 +1,6 @@
 import {
   arrowPath,
+  createArtLayer,
   createImageLayer,
   createPaintLayer,
   createShapeLayer,
@@ -250,5 +251,14 @@ describe('clipping', () => {
   it('over a fixed layer there is nothing to clip to: it draws as usual', () => {
     const b = paint('b', { clip: true });
     expect(layerGroups([fixed, b]).map((g) => g.base.name)).toEqual(['f', 'b']);
+  });
+});
+
+describe('artistic filters', () => {
+  it('are layers with a style, at full intensity', () => {
+    const l = createArtLayer('Óleo', 'oil');
+    expect(l.kind).toBe('art');
+    expect(l.art).toBe('oil');
+    expect(l.opacity).toBe(100);
   });
 });

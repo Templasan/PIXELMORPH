@@ -284,6 +284,11 @@ const en: Record<string, string> = {
   "Terços": "Thirds",
   "Proporção áurea": "Golden ratio",
   "Sem corte": "No crop",
+  "Filtros artísticos": "Artistic filters",
+  "Filtro artístico": "Artistic filter",
+  "Aquarela": "Watercolour",
+  "Óleo": "Oil",
+  "Carvão": "Charcoal",
 };
 
 export default en;

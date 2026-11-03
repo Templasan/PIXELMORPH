@@ -248,3 +248,5 @@ US-06 brought in: masks as layers (painted, by colour, linear, radial, selective
 US-07 brought in: clone brush and liquify (push, pull, twirl), each a layer drawn in the scene path.
 
 US-26 partly brought in: palette and harmonies (RF-010), crop suggestions by thirds and golden section with a non-destructive crop (RF-042), 34 ms in the browser (RNF-012). Open: scene recognition (RF-034) needs a model; converging lines are not analysed.
+
+US-27 brought in with shader filters, not a trained model: watercolour, oil and charcoal, with intensity and the compare divider. They are honest filters, so they should not be presented as AI.

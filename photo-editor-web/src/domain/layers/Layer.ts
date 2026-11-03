@@ -8,7 +8,16 @@
 import { t } from '../../i18n';
 import type { LocalAdjust } from './LocalAdjust';
 import type { WarpSample } from './Warp';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify' | 'art';
+
+/** RF-050: painted looks, made by filters on the picture; opacity is their intensity. */
+export type ArtStyle = 'watercolor' | 'oil' | 'charcoal';
+
+export const ART_STYLES: readonly { id: ArtStyle; name: string }[] = [
+  { id: 'watercolor', name: 'Aquarela' },
+  { id: 'oil', name: 'Óleo' },
+  { id: 'charcoal', name: 'Carvão' },
+];
 
 /** How the lines of a text line up with each other. */
 export type TextAlign = 'left' | 'center' | 'right';
@@ -137,6 +146,7 @@ export interface EditorLayer {
   image?: ImageElement; // only present (and meaningful) for kind === 'image'
   local?: LocalAdjust; // only present (and meaningful) for kind === 'local'
   warp?: WarpSample[]; // only present (and meaningful) for kind === 'liquify'
+  art?: ArtStyle; // only present (and meaningful) for kind === 'art'
 }
 
 let strokeCounter = 0;
@@ -236,6 +246,10 @@ export function createShapeLayer(
 
 export function createLocalLayer(name: string, local: LocalAdjust): EditorLayer {
   return { id: createLayerId(), name, kind: 'local', visible: true, opacity: 100, locked: false, local };
+}
+
+export function createArtLayer(name: string, art: ArtStyle): EditorLayer {
+  return { id: createLayerId(), name, kind: 'art', visible: true, opacity: 100, locked: false, art };
 }
 
 export function createLiquifyLayer(name: string): EditorLayer {

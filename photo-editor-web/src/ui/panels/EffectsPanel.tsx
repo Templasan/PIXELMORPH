@@ -1,10 +1,11 @@
+import { ART_STYLES, createArtLayer } from '../../domain/layers';
 import { t } from '../../i18n';
 import { useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import type { PictureRef } from '../../ports/host';
 import { BLEND_MODE_LABELS, FRAME_STYLES, LIGHT_TYPES, OVERLAY_TEXTURE_NAMES } from '../../domain/effects';
 import { useStore } from '../../state/useStore';
-import { Chips, commit, FieldSlider, Swatches } from '../controls';
+import { Chips, commit, FieldSlider, Swatches, Range } from '../controls';
 import { Icon } from '../Icon';
 
 const TABS = ['Retrô', 'Overlays', 'Molduras', 'Iluminação', 'Dupla exposição'] as const;
@@ -19,6 +20,48 @@ const indices = (names: readonly string[]) => names.map((_, i) => i);
  * light drawn over it. `lightEdit` puts the photo into light-positioning mode (the handle is in
  * PhotoView, owned by App).
  */
+/** RF-050: a painted look as a layer: its opacity is the intensity, and Comparar shows the original. */
+function ArtSection({ session }: { session: PhotoSession }) {
+  const { editor } = session;
+  const layer = useStore(editor.store, (s) => s.layers.find((l) => l.art));
+  return (
+    <>
+      <div className="sub">{t('Filtros artísticos')}</div>
+      <div className="chips">
+        {ART_STYLES.map((a) => (
+          <button
+            key={a.id}
+            className={`chip${layer?.art === a.id ? ' on' : ''}`}
+            onClick={() =>
+              editor.setLayers((ls) =>
+                layer?.art === a.id
+                  ? ls.filter((l) => l.id !== layer.id)
+                  : layer
+                    ? ls.map((l) => (l.id === layer.id ? { ...l, art: a.id, name: t(a.name) } : l))
+                    : [...ls, createArtLayer(t(a.name), a.id)]
+              )
+            }
+          >
+            {t(a.name)}
+          </button>
+        ))}
+      </div>
+      {layer && (
+        <div onPointerUp={() => editor.endLayers()} onKeyUp={() => editor.endLayers()}>
+          <Range
+            label={t('Intensidade')}
+            value={layer.opacity}
+            min={0}
+            max={100}
+            format={(v) => `${v}%`}
+            onChange={(opacity) => editor.liveLayers((ls) => ls.map((l) => (l.id === layer.id ? { ...l, opacity } : l)))}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 export function EffectsPanel({
   session,
   lightEdit,
@@ -44,6 +87,7 @@ export function EffectsPanel({
 
   return (
     <>
+      <ArtSection session={session} />
       <Chips options={TABS} value={tab} onPick={pickTab} />
 
       {tab === 'Retrô' && (
