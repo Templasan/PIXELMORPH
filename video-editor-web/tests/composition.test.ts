@@ -89,12 +89,34 @@ describe('composition', () => {
     expect(media(opsAt(gap, 2200))).toHaveLength(1);
   });
 
-  it('draws texts above every media layer', () => {
+  it('stacks texts, pictures and videos in track order, on any track', () => {
     const v = clip('v', 0, 2000);
+    const i = clip('i', 0, 2000, { image: true });
     const t = { ...clip('t', 0, 2000), text: { ...DEFAULT_TEXT, content: 'Oi' } };
-    const c = buildComposition([track('txt', 'text', [t]), track('v1', 'video', [v])]);
-    const ops = opsAt(c, 500);
-    expect(ops[ops.length - 1].kind).toBe('caption');
+    const v2 = clip('v2', 0, 2000);
+    const c = buildComposition([
+      track('v1', 'video', [v]),
+      track('v2', 'video', [t]),
+      track('v3', 'video', [i]),
+      track('v4', 'video', [v2]),
+    ]);
+    expect(opsAt(c, 500).map((o) => o.kind)).toEqual(['clear', 'video', 'caption', 'image', 'video']);
+  });
+
+  it('a layer shows at its track opacity times its clip opacity, with the track blend', () => {
+    const v = clip('v', 0, 2000, { opacity: 50 });
+    const c = buildComposition([{ ...track('v1', 'video', [v]), opacity: 50, blend: 'multiply' }]);
+    const op = media(opsAt(c, 500))[0];
+    expect(op.opacity).toBeCloseTo(0.25);
+    expect(op.blend).toBe('multiply');
+  });
+
+  it('a picture on a video track has no sound and a video on an old image track has', () => {
+    const c = buildComposition([
+      track('v1', 'video', [clip('i', 0, 2000, { image: true })]),
+      track('img', 'image', [clip('v', 0, 2000, { image: false })]),
+    ]);
+    expect(c.audio.map((a) => a.uri)).toEqual(['v.mp4']);
   });
 
   it('mixes the sound of every video clip and audio clip, overlaps included', () => {

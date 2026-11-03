@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../application/session';
 import { selectedClipOf } from '../application/videoEditorStore';
+import { clipMedia } from '../domain/Track';
 import { stepFrameMs } from '../domain/frameMath';
 import { useStore } from '../state/useStore';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { ClipPanel, type ClipTool } from './panels/ClipPanel';
+import { LayersPanel } from './panels/LayersPanel';
 import { MediaPanel } from './panels/MediaPanel';
+import { PreviewHandles } from './PreviewHandles';
 import { TimelapsePanel } from './panels/TimelapsePanel';
 import { TransitionPanel } from './panels/TransitionPanel';
 import { Timeline } from './Timeline';
@@ -15,7 +18,8 @@ import { t } from '../i18n';
 
 type Panel =
   | { kind: 'none' }
-  | { kind: 'media'; media: 'video' | 'image' | 'audio' }
+  | { kind: 'media'; media: 'video' | 'image' | 'audio'; stack?: boolean }
+  | { kind: 'layers' }
   | { kind: 'clip'; tool: ClipTool }
   | { kind: 'transition'; clipId: string }
   | { kind: 'format' }
@@ -36,6 +40,16 @@ export function App({ session }: { session: EditorSession }) {
   const selection = useStore(editor.store, (s) => selectedClipOf(s));
   const [panel, setPanel] = useState<Panel>({ kind: startsWithTimelapse() ? 'timelapse' : 'none' });
   const [exporting, setExporting] = useState(false);
+  /** The system picker where the host has one (the app); the file list otherwise (dev). */
+  const addMedia = (media: 'video' | 'image' | 'audio', stack = false) =>
+    session.host.pickIsFinal
+      ? void session.host
+          .pickMedia(media)
+          .then(async (items) => {
+            for (const item of items) await session.addMedia(item, stack);
+          })
+          .catch((e) => session.error.set(String((e as Error)?.message ?? e)))
+      : setPanel({ kind: 'media', media, stack });
 
   // A panel about the selected clip closes when the selection goes away.
   useEffect(() => {
@@ -85,10 +99,17 @@ export function App({ session }: { session: EditorSession }) {
 
       <Preview session={session} />
       <Transport session={session} />
-      <Timeline session={session} onTransition={(clipId) => setPanel({ kind: 'transition', clipId })} />
+      <Timeline
+        session={session}
+        onTransition={(clipId) => setPanel({ kind: 'transition', clipId })}
+        onTrack={() => setPanel({ kind: 'layers' })}
+      />
 
       {panel.kind === 'media' && (
-        <MediaPanel session={session} kind={panel.media} onClose={() => setPanel({ kind: 'none' })} />
+        <MediaPanel session={session} kind={panel.media} stack={panel.stack} onClose={() => setPanel({ kind: 'none' })} />
+      )}
+      {panel.kind === 'layers' && (
+        <LayersPanel session={session} onAdd={(media) => addMedia(media, true)} onClose={() => setPanel({ kind: 'none' })} />
       )}
       {panel.kind === 'clip' && selection && (
         <ClipPanel session={session} tool={panel.tool} onClose={() => setPanel({ kind: 'none' })} />
@@ -103,16 +124,8 @@ export function App({ session }: { session: EditorSession }) {
           session={session}
           onFormat={() => setPanel({ kind: 'format' })}
           onTimelapse={() => setPanel({ kind: 'timelapse' })}
-          onMedia={(media) =>
-            session.host.pickIsFinal
-              ? void session.host
-                  .pickMedia(media)
-                  .then(async (items) => {
-                    for (const item of items) await session.addMedia(item);
-                  })
-                  .catch((e) => session.error.set(String((e as Error)?.message ?? e)))
-              : setPanel({ kind: 'media', media })
-          }
+          onLayers={() => setPanel({ kind: 'layers' })}
+          onMedia={(media) => addMedia(media)}
           onTool={(tool) => setPanel({ kind: 'clip', tool })}
         />
       )}
@@ -126,6 +139,7 @@ function Preview({ session }: { session: EditorSession }) {
   const error = useStore(session.error);
   const busy = useStore(session.busy);
   const copies = useStore(session.previewCopies);
+  const frozen = useStore(session.frozenLayers);
   useEffect(() => {
     session.attach(canvasRef.current!);
     return () => session.detach();
@@ -133,7 +147,11 @@ function Preview({ session }: { session: EditorSession }) {
   return (
     <div className="preview" onClick={() => session.toggle()}>
       <canvas ref={canvasRef} />
+      <PreviewHandles session={session} canvasRef={canvasRef} />
       {copies > 0 && <div className="badge">{t('Prévia leve')}</div>}
+      {frozen > 0 && (
+        <div className="badge frozen">{t('Camadas paradas na prévia: {n}. O vídeo final toca todas.', { n: frozen })}</div>
+      )}
       {(error || busy) && (
         <div className="toast" onClick={(e) => (e.stopPropagation(), session.error.set(null))}>
           {busy ?? error}
@@ -213,12 +231,14 @@ function Toolbar({
   session,
   onFormat,
   onTimelapse,
+  onLayers,
   onMedia,
   onTool,
 }: {
   session: EditorSession;
   onFormat: () => void;
   onTimelapse: () => void;
+  onLayers: () => void;
   onMedia: (kind: 'video' | 'image' | 'audio') => void;
   onTool: (tool: ClipTool) => void;
 }) {
@@ -232,6 +252,7 @@ function Toolbar({
         <Tool icon="image" label={t('Foto')} onClick={() => onMedia('image')} />
         <Tool icon="music" label={t('Áudio')} onClick={() => onMedia('audio')} />
         <Tool icon="type" label={t('Texto')} onClick={() => session.addText()} />
+        <Tool icon="layers" label={t('Camadas')} onClick={onLayers} />
         <Tool icon="crop" label={t('Formato')} onClick={onFormat} />
         <Tool icon="speed" label={t('Time-lapse')} onClick={onTimelapse} />
         <RippleTool session={session} />
@@ -240,19 +261,20 @@ function Toolbar({
   }
   const { track, clip } = selection;
   const inside = time > clip.startMs && time < clip.startMs + (clip.outPointMs - clip.inPointMs) / (clip.speed ?? 1);
-  const media = track.kind === 'video' || track.kind === 'image';
+  const kind = clipMedia(track, clip);
+  const media = kind === 'video' || kind === 'image';
   return (
     <nav className="toolbar">
       <Tool icon="scissors" label={t('Dividir')} disabled={!inside || track.locked} onClick={() => editor.split(time)} />
-      {track.kind === 'text' && <Tool icon="type" label={t('Editar')} onClick={() => onTool('text')} />}
-      {track.kind === 'video' && <Tool icon="speed" label={t('Velocidade')} onClick={() => onTool('speed')} />}
-      {(track.kind === 'video' || track.kind === 'audio') && (
+      {kind === 'text' && <Tool icon="type" label={t('Editar')} onClick={() => onTool('text')} />}
+      {kind === 'video' && <Tool icon="speed" label={t('Velocidade')} onClick={() => onTool('speed')} />}
+      {(kind === 'video' || kind === 'audio') && (
         <Tool icon="volume" label={t('Volume')} onClick={() => onTool('volume')} />
       )}
       {media && <Tool icon="sun" label={t('Cor')} onClick={() => onTool('color')} />}
       {media && <Tool icon="maximize" label={t('Posição')} onClick={() => onTool('position')} />}
       {media && <Tool icon="rotate" label={t('Girar')} onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
-      {track.kind === 'video' && (
+      {kind === 'video' && (
         <Tool icon="freeze" label={t('Congelar')} disabled={!inside} onClick={() => editor.freeze(time)} />
       )}
       <Tool icon="copy" label={t('Duplicar')} onClick={() => session.duplicateSelected()} />

@@ -2,7 +2,6 @@ import type { Project } from '@modules/projects';
 import {
   buildTimelapseTrack,
   createClip,
-  ensureImageTrack,
   MIN_CLIP_DURATION_MS,
   type Track,
 } from '@modules/video-editor';
@@ -28,8 +27,7 @@ export function buildInitialTracks(project: Project | null): Track[] {
     );
     return [
       { id: 'v1', name: 'V1', kind: 'video', visible: true, locked: false, clips: [] },
-      { ...frames, id: 'img', name: 'IMG' },
-      { id: 'txt', name: 'TXT', kind: 'text', visible: true, locked: false, clips: [] },
+      { ...frames, id: 'img', name: 'V2' },
       { id: 'a1', name: 'A1', kind: 'audio', visible: true, locked: false, clips: [] },
     ];
   }
@@ -63,14 +61,6 @@ export function buildInitialTracks(project: Project | null): Track[] {
         ]
       : [],
   };
-  const txt: Track = {
-    id: 'txt',
-    name: 'TXT',
-    kind: 'text',
-    visible: true,
-    locked: false,
-    clips: [],
-  };
   const a1: Track = {
     id: 'a1',
     name: 'A1',
@@ -93,5 +83,5 @@ export function buildInitialTracks(project: Project | null): Track[] {
           ]
         : [],
   };
-  return ensureImageTrack([v1, txt, a1]);
+  return [v1, a1];
 }

@@ -11,7 +11,7 @@ import {
   TEXT_OUTLINE_WIDTH,
   type ClipText,
 } from '../../domain/textCaption';
-import type { Clip, Track } from '../../domain/Track';
+import { TRACK_BLENDS, type Clip, type Track } from '../../domain/Track';
 import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
 import { t } from '../../i18n';
@@ -27,6 +27,7 @@ const TITLES: Record<ClipTool, string> = {
 };
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4];
 const RAMP_EDGES = ['start', 'end'] as const;
+const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
 const TEXT_COLORS = ['#ffffff', '#000000', '#ffd400', '#ff4d4d', '#3a8fde', '#5fb98f'];
 
 /**
@@ -165,7 +166,7 @@ export function ClipPanel({
         <PositionTool session={session} clip={clip} live={live} commit={commit} />
       )}
 
-      {tool === 'text' && clip.text && track.kind === 'text' && (
+      {tool === 'text' && clip.text && (
         <TextTool session={session} text={clip.text} />
       )}
     </section>
@@ -218,6 +219,25 @@ function SpeedRamp({ session, track, clip }: { session: EditorSession; track: Tr
   );
 }
 
+/** What a clip does to the layers below it: its opacity and, if it has its own, its blend. */
+function LayerLook({ session, clip }: { session: EditorSession; clip: Clip }) {
+  const { editor } = session;
+  return (
+    <>
+      <Slider session={session} label={t('Opacidade')} value={clip.opacity ?? 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => editor.liveClip((c) => ({ ...c, opacity: v }))} />
+      <div className="field">
+        <label>{t('Mesclagem')}</label>
+        <Chips
+          options={['', ...TRACK_BLENDS.map((b) => b.id)]}
+          value={clip.blend ?? ''}
+          label={(id) => t(TRACK_BLENDS.find((b) => b.id === id)?.name ?? 'Da faixa')}
+          onPick={(id) => editor.commitClip((c) => ({ ...c, blend: TRACK_BLENDS.find((b) => b.id === id)?.id }))}
+        />
+      </div>
+    </>
+  );
+}
+
 function PositionTool({
   session,
   clip,
@@ -235,11 +255,13 @@ function PositionTool({
   // The window's height follows the picture's shape (see drawMedia); only its width is set.
   const setBox = (x: number, y: number, s: number) =>
     live({
-      pipPosition: { x: Math.max(0, Math.min(1 - s, x)), y: Math.max(0, Math.min(1, y)) },
+      pipPosition: { x: Math.max(-s, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) },
       pipSize: { width: s, height: s },
     });
   return (
     <>
+      <LayerLook session={session} clip={clip} />
+      <Slider session={session} label={t('Rotação')} value={clip.rotation ?? 0} min={0} max={360} format={(v) => `${Math.round(v)}°`} onLive={(v) => live({ rotation: v })} />
       <Chips
         options={['Encaixar', 'Preencher']}
         value={clip.fill ? 'Preencher' : 'Encaixar'}
@@ -269,6 +291,7 @@ function PositionTool({
 
 function TextTool({ session, text }: { session: EditorSession; text: ClipText }) {
   const { editor } = session;
+  const clip = useStore(editor.store, (s) => selectedClipOf(s)?.clip);
   const live = (patch: Partial<ClipText>) =>
     editor.liveClip((c) => ({ ...c, text: { ...c.text!, ...patch } }));
   const commit = (patch: Partial<ClipText>) =>
@@ -281,7 +304,7 @@ function TextTool({ session, text }: { session: EditorSession; text: ClipText })
       <div className="field">
         <label>{t('Texto')}</label>
         <textarea
-          rows={2}
+          rows={3}
           value={text.content}
           onChange={(e) =>
             editor.liveClip((c) => ({
@@ -310,6 +333,14 @@ function TextTool({ session, text }: { session: EditorSession; text: ClipText })
             : commit({ strokeWidth: text.strokeWidth > 0 ? 0 : TEXT_OUTLINE_WIDTH })
         }
       />
+      {clip && <LayerLook session={session} clip={clip} />}
+      <Chips
+        options={TEXT_ALIGNS}
+        value={text.align ?? 'center'}
+        label={(a) => t(a === 'left' ? 'Esquerda' : a === 'right' ? 'Direita' : 'Centro')}
+        onPick={(align) => commit({ align })}
+      />
+      <Slider session={session} label={t('Rotação')} value={text.rotation ?? 0} min={0} max={360} format={(v) => `${Math.round(v)}°`} onLive={(v) => live({ rotation: v })} />
       <Slider session={session} label={t('Tamanho')} value={text.size * 100} min={MIN_TEXT_SIZE * 100} max={MAX_TEXT_SIZE * 100} step={0.5} format={(v) => `${v.toFixed(1)}%`} onLive={(v) => live({ size: v / 100 })} />
       <Slider session={session} label={t('Horizontal')} value={text.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ x: v / 100 })} />
       <Slider session={session} label={t('Vertical')} value={text.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => live({ y: v / 100 })} />

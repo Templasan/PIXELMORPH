@@ -1,19 +1,21 @@
 import type { VideoSample } from 'mediabunny';
-import type { CompositionOp, MediaOp } from '../domain/composition';
+import type { Box, CompositionOp, MediaOp } from '../domain/composition';
 
 export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /**
  * Draws one frame. The only drawing code: preview, seek and export all come through here.
  * `frameOf` gives the decoded sample (video) or picture (image) of a media op, null when it has
- * none yet; such a layer is skipped for this frame.
+ * none yet; such a layer is skipped for this frame. `boxes` receives where each clip landed, in
+ * frame pixels (the preview's handles sit on them).
  */
 export function drawFrame(
   ctx: Ctx2D,
   width: number,
   height: number,
   ops: readonly CompositionOp[],
-  frameOf: (op: MediaOp) => VideoSample | ImageBitmap | null
+  frameOf: (op: MediaOp) => VideoSample | ImageBitmap | null,
+  boxes?: Map<string, Box>
 ) {
   for (const op of ops) {
     ctx.save();
@@ -21,27 +23,35 @@ export function drawFrame(
       ctx.fillStyle = op.color;
       ctx.fillRect(0, 0, width, height);
     } else if (op.kind === 'caption') {
-      drawCaption(ctx, op, width, height);
+      ctx.globalCompositeOperation = op.blend;
+      const box = drawCaption(ctx, op, width, height);
+      boxes?.set(op.clipId, box);
     } else {
+      ctx.globalCompositeOperation = op.blend;
       const frame = frameOf(op);
-      if (frame) drawMedia(ctx, op, frame);
+      if (frame) {
+        const box = drawMedia(ctx, op, frame);
+        if (box && op.role === 'in') boxes?.set(op.clipId, box);
+      }
     }
     ctx.restore();
   }
 }
 
-function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap) {
+function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap): Box | null {
   const sample = 'displayWidth' in frame ? frame : null;
   const sw = sample ? sample.displayWidth : (frame as ImageBitmap).width;
   const sh = sample ? sample.displayHeight : (frame as ImageBitmap).height;
-  if (!sw || !sh) return;
-  const quarter = Math.abs(op.rotationDeg) % 180 === 90;
-  const iw = quarter ? sh : sw;
-  const ih = quarter ? sw : sh;
+  if (!sw || !sh) return null;
+  // Everything fits by the box around the turned picture, so turning never makes it jump.
+  const turn = (op.rotationDeg * Math.PI) / 180;
+  const iw = sw * Math.abs(Math.cos(turn)) + sh * Math.abs(Math.sin(turn));
+  const ih = sw * Math.abs(Math.sin(turn)) + sh * Math.abs(Math.cos(turn));
   // A PiP window is as wide as asked and as tall as the picture is, from its top-left corner.
   const rect = op.window ? { ...op.rect, h: op.rect.w * (ih / iw) } : op.rect;
   const k = (op.fit === 'cover' && !op.window ? Math.max : Math.min)(rect.w / iw, rect.h / ih);
-  const [w, h] = quarter ? [ih * k, iw * k] : [iw * k, ih * k];
+  const w = sw * k;
+  const h = sh * k;
   // The box clips its content: a "cover" layer or a slide never spills outside it.
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
@@ -50,9 +60,20 @@ function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap) {
   if (op.brightness !== 1) ctx.filter = `brightness(${op.brightness})`;
   ctx.translate(rect.x + rect.w / 2 + op.translateX, rect.y + rect.h / 2);
   ctx.scale(op.scale, op.scale);
-  ctx.rotate((op.rotationDeg * Math.PI) / 180);
+  ctx.rotate(turn);
   if (sample) sample.draw(ctx, -w / 2, -h / 2, w, h);
   else ctx.drawImage(frame as ImageBitmap, -w / 2, -h / 2, w, h);
+  // A cropped picture is as big as its box, not as big as what was cut off.
+  const shownW = Math.min(iw * k, rect.w);
+  const shownH = Math.min(ih * k, rect.h);
+  return {
+    x: rect.x + (rect.w - shownW) / 2,
+    y: rect.y + (rect.h - shownH) / 2,
+    w: shownW,
+    h: shownH,
+    rotation: 0,
+    aspect: ih / iw,
+  };
 }
 
 /** Splits `text` into lines no wider than `maxWidth` (words kept whole unless one is wider). */
@@ -79,10 +100,10 @@ function drawCaption(
   op: Extract<CompositionOp, { kind: 'caption' }>,
   frameWidth: number,
   frameHeight: number
-) {
+): Box {
   ctx.globalAlpha = op.opacity;
   ctx.font = `bold ${op.fontPx}px ${op.fontFamily}`;
-  ctx.textAlign = 'center';
+  ctx.textAlign = op.align;
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
   // Wrapped at 90% of the frame so a long text stays inside it (same in preview and export).
@@ -97,7 +118,12 @@ function drawCaption(
     (half * 2 + margin * 2 >= frameHeight
       ? frameHeight / 2
       : Math.min(Math.max(rest, half + margin), frameHeight - half - margin)) + op.offsetY;
+  // The lines line up on an edge of the block; the block stays centred on the text's position.
+  const fullLines = wrapLines(ctx, op.content, (frameWidth * 0.9) / Math.max(0.01, op.scale));
+  const widest = Math.max(...fullLines.map((l) => ctx.measureText(l).width));
+  const x = op.align === 'left' ? -widest / 2 : op.align === 'right' ? widest / 2 : 0;
   ctx.translate(op.cx, cy);
+  ctx.rotate((op.rotationDeg * Math.PI) / 180);
   ctx.scale(op.scale, op.scale);
   lines.forEach((line, i) => {
     const y = (i - (lines.length - 1) / 2) * lineH;
@@ -109,11 +135,13 @@ function drawCaption(
     if (op.strokePx > 0) {
       ctx.lineWidth = op.strokePx * 2; // half of a centred stroke is hidden under the fill
       ctx.strokeStyle = op.strokeColor;
-      ctx.strokeText(line, 0, y);
+      ctx.strokeText(line, x, y);
       ctx.shadowColor = 'transparent'; // one shadow, cast by the outline
     }
     ctx.fillStyle = op.color;
-    ctx.fillText(line, 0, y);
+    ctx.fillText(line, x, y);
     ctx.shadowColor = 'transparent';
   });
+  const w = Math.max(op.fontPx, widest) * op.scale;
+  return { x: op.cx - w / 2, y: cy - half, w, h: half * 2, rotation: op.rotationDeg };
 }

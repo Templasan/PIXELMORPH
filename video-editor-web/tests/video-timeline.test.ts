@@ -6,7 +6,6 @@ import {
   type Track,
 } from '../src/domain/Track';
 import {
-  ensureImageTrack,
   topClipAt,
   trackDurationMs,
   timelineDurationMs,
@@ -634,20 +633,6 @@ describe('image track and layering (US-14 / RF-005)', () => {
     visible,
     locked: false,
     clips,
-  });
-
-  it('adds an empty image track after the last video track when none exists', () => {
-    const result = ensureImageTrack([
-      track('v1', 'video', []),
-      track('txt', 'text', []),
-      track('a1', 'audio', []),
-    ]);
-    expect(result.map((t) => t.kind)).toEqual(['video', 'image', 'text', 'audio']);
-  });
-
-  it('leaves a timeline that already has an image track untouched', () => {
-    const tracks = [track('v1', 'video', []), track('img', 'image', [])];
-    expect(ensureImageTrack(tracks)).toBe(tracks);
   });
 
   it('shows the image over the video where both have a clip', () => {

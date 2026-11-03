@@ -10,6 +10,7 @@ import {
   type Clip,
   type Track,
   clipDurationMs,
+  clipMedia,
   clipEndMs,
   createClipId,
   createTrackId,
@@ -83,6 +84,68 @@ export function moveClip(
 
   const nextClips = track.clips.map((c) => (c.id === clipId ? { ...c, startMs: start } : c));
   return replaceTrack(tracks, trackId, nextClips);
+}
+
+/**
+ * Takes a clip to another track at the nearest free spot to `desiredStartMs`. A picture cannot go
+ * to a sound track, or sound to a picture track. Its transition stays behind: it joined the clip
+ * to its old neighbour.
+ */
+export function moveClipToTrack(
+  tracks: Track[],
+  fromId: string,
+  toId: string,
+  clipId: string,
+  desiredStartMs: number
+): Track[] {
+  const found = findTrackAndClip(tracks, fromId, clipId);
+  const target = tracks.find((t) => t.id === toId);
+  if (!found || !target || target.locked) return tracks;
+  if ((found.track.kind === 'audio') !== (target.kind === 'audio')) return tracks;
+  if (fromId === toId) return moveClip(tracks, fromId, clipId, desiredStartMs);
+  const moved: Clip = {
+    ...found.clip,
+    transitionIn: undefined,
+    image: clipMedia(found.track, found.clip) === 'image',
+  };
+  const changed = tracks.map((t) =>
+    t.id === fromId
+      ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
+      : t.id === toId
+        ? { ...t, clips: [...t.clips, moved] }
+        : t
+  );
+  return moveClip(changed, toId, clipId, desiredStartMs);
+}
+
+/** A new empty picture track on top of the stack (sound tracks stay as they are). */
+export function addPictureTrack(tracks: Track[], id = createTrackId()): Track[] {
+  const n = tracks.filter((t) => t.kind !== 'audio').length + 1;
+  const track: Track = { id, name: `V${n}`, kind: 'video', visible: true, locked: false, clips: [] };
+  let at = 0;
+  tracks.forEach((t, i) => {
+    if (t.kind !== 'audio') at = i + 1;
+  });
+  return [...tracks.slice(0, at), track, ...tracks.slice(at)];
+}
+
+/**
+ * Moves a track `steps` rows up the screen (negative: down) among the tracks of its class:
+ * pictures among pictures, sound among sound. Pictures show the end of the list on top, sound
+ * shows it at the bottom.
+ */
+export function shiftTrack(tracks: Track[], trackId: string, steps: number): Track[] {
+  const track = tracks.find((t) => t.id === trackId);
+  if (!track || steps === 0) return tracks;
+  const audio = track.kind === 'audio';
+  const peers = tracks.filter((t) => (t.kind === 'audio') === audio);
+  const from = peers.indexOf(track);
+  const to = Math.max(0, Math.min(peers.length - 1, from + (audio ? -steps : steps)));
+  if (to === from) return tracks;
+  const others = peers.filter((t) => t !== track);
+  const order = [...others.slice(0, to), track, ...others.slice(to)];
+  let i = 0;
+  return tracks.map((t) => ((t.kind === 'audio') === audio ? order[i++] : t));
 }
 
 /**
@@ -307,26 +370,29 @@ export function rippleShiftAfter(
   );
 }
 
+/** The names the editor gives tracks by itself; a track with another name was named on purpose. */
+const AUTO_NAME = /^(V\d+|IMG( \d+)?|TXT( \d+)?)$/;
+
 /**
- * US-14 / RF-005: every timeline has a track for still images (V1 video, IMG image, TXT text,
- * A1 audio). Projects saved before it existed get an empty one right after their last video
- * track; a timeline that already has one is returned untouched.
+ * Projects saved when each kind of clip had its own track: every picture track becomes a plain one
+ * (V1, V2...), what each clip is moves onto the clip, and the empty IMG and TXT rows go away. A
+ * timeline with none of those is returned untouched.
  */
-export function ensureImageTrack(tracks: Track[]): Track[] {
-  if (tracks.some((t) => t.kind === 'image')) return tracks;
-  const imageTrack: Track = {
-    id: 'img',
-    name: 'IMG',
-    kind: 'image',
-    visible: true,
-    locked: false,
-    clips: [],
-  };
-  let at = 0;
-  tracks.forEach((t, i) => {
-    if (t.kind === 'video') at = i + 1;
-  });
-  return [...tracks.slice(0, at), imageTrack, ...tracks.slice(at)];
+export function migrateTracks(tracks: Track[]): Track[] {
+  if (!tracks.some((t) => t.kind === 'image' || t.kind === 'text')) return tracks;
+  let n = 0;
+  return tracks
+    .filter((t) => (t.kind !== 'image' && t.kind !== 'text') || t.clips.length > 0)
+    .map((t) => {
+      if (t.kind === 'audio') return t;
+      n += 1;
+      return {
+        ...t,
+        kind: 'video' as const,
+        name: AUTO_NAME.test(t.name) ? `V${n}` : t.name,
+        clips: t.clips.map((c) => ({ ...c, image: clipMedia(t, c) === 'image' })),
+      };
+    });
 }
 
 /**

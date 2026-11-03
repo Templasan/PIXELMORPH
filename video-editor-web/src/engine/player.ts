@@ -1,5 +1,13 @@
 import type { VideoSample } from 'mediabunny';
-import { mediaAround, opsAt, type Composition, type MediaOp } from '../domain/composition';
+import {
+  liveLayerCap,
+  liveLayerKeys,
+  mediaAround,
+  opsAt,
+  type Box,
+  type Composition,
+  type MediaOp,
+} from '../domain/composition';
 import { AudioMixer } from './audio';
 import { drawFrame } from './draw';
 import type { Feed } from './feed';
@@ -29,6 +37,10 @@ export interface PlayerEvents {
   onTime(ms: number): void;
   onPlaying(playing: boolean): void;
   onError(message: string): void;
+  /** How many video layers hold their frame while playing, to keep the rest fluid. */
+  onFrozenLayers?(count: number): void;
+  /** A frame reached the canvas; `Player.boxes` now says where its clips are. */
+  onDrawn?(): void;
   /** Diagnostics: every displayed frame while playing (time, layers drawn, layers late). */
   onFrame?(info: FrameInfo): void;
 }
@@ -46,6 +58,10 @@ const PRUNE_EVERY_MS = 1000;
  * it); paused, the time is exactly the last requested one.
  */
 export class Player {
+  /** Where each clip was last drawn, in frame pixels. */
+  readonly boxes = new Map<string, Box>();
+  private readonly liveCap = liveLayerCap((navigator as { deviceMemory?: number }).deviceMemory);
+  private frozen = 0;
   private comp: Composition;
   private t = 0;
   private playing = false;
@@ -168,6 +184,7 @@ export class Player {
     this.playing = false;
     cancelAnimationFrame(this.raf);
     this.audio.stop();
+    this.setFrozen(0);
     this.events.onPlaying(false);
     this.events.onTime(this.t);
     this.drawStill(this.t);
@@ -226,9 +243,11 @@ export class Player {
     const c1 = performance.now();
     const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
     const late: string[] = [];
+    const live = liveLayerKeys(ops, this.liveCap);
+    this.setFrozen(ops.filter((o) => o.kind === 'video' && !live.has(o.key)).length);
     for (const op of ops) {
       if (op.kind !== 'video' && op.kind !== 'image') continue;
-      const frame = this.liveFrame(op);
+      const frame = this.liveFrame(op, live.has(op.key));
       if (!frame) late.push(op.key);
       frames.set(op, frame);
     }
@@ -243,7 +262,8 @@ export class Player {
       const sig = this.signature(ops, frames);
       if (sig !== this.lastSig) {
         this.lastSig = sig;
-        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null, this.boxes);
+        this.events.onDrawn?.();
       }
     }
     const c3 = performance.now();
@@ -269,14 +289,20 @@ export class Player {
     this.raf = requestAnimationFrame(this.tick);
   };
 
-  private liveFrame(op: MediaOp): VideoSample | ImageBitmap | null {
+  private setFrozen(count: number) {
+    if (count === this.frozen) return;
+    this.frozen = count;
+    this.events.onFrozenLayers?.(count);
+  }
+
+  private liveFrame(op: MediaOp, decoding: boolean): VideoSample | ImageBitmap | null {
     if (op.kind === 'image') return this.pool.pictureNow(op.uri, this.comp.width);
     const feed = this.pool.liveFeed(op.key, op.uri);
     if (!feed) {
       void this.pool.feedReady(op.key, op.uri).catch((e) => this.fail(e));
       return null;
     }
-    return feed.tick(op.sourceTimeMs / 1000);
+    return !decoding && feed.cur ? feed.cur : feed.tick(op.sourceTimeMs / 1000);
   }
 
   /** Opens and positions the decoders of clips about to show, once per clip and playhead jump. */
@@ -339,7 +365,8 @@ export class Player {
         );
         // A newer request arrived while decoding: draw that one instead of a stale frame.
         if (this.stillWanted !== null) continue;
-        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null);
+        drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null, this.boxes);
+        this.events.onDrawn?.();
       }
     } catch (e) {
       this.fail(e);

@@ -2,8 +2,8 @@ import { createStore, type Store } from '../state/createStore';
 import { clipEndMs, type Clip, type Track } from '../domain/Track';
 import {
   appendClip,
-  ensureImageTrack,
   findClip,
+  migrateTracks,
   moveClip,
   rippleShiftAfter,
   setClipSpeed,
@@ -23,6 +23,8 @@ export interface TracksHistory {
 export interface VideoEditorState {
   tracks: Track[];
   selectedClipId: string | null;
+  /** The track new media goes to (tapped in its header); null: where each kind usually goes. */
+  activeTrackId: string | null;
   playing: boolean;
   rippleMode: boolean;
   freezeHoldMs: number;
@@ -36,6 +38,7 @@ export function initialVideoEditorState(tracks: Track[] = []): VideoEditorState 
   return {
     tracks,
     selectedClipId: null,
+    activeTrackId: null,
     playing: false,
     rippleMode: false,
     freezeHoldMs: 2000,
@@ -109,13 +112,13 @@ export function createVideoEditorStore(
   }
 
   function restore(op: ReturnType<TracksHistory['undo']>, side: 'from' | 'to') {
-    if (op?.type === HISTORY_TYPE) setTracks(ensureImageTrack(op.params[side] as Track[]));
+    if (op?.type === HISTORY_TYPE) setTracks(migrateTracks(op.params[side] as Track[]));
   }
 
   /** Runs `fn` on the selected clip (no-op without a selection). */
   function withSelected(fn: (sel: NonNullable<ReturnType<typeof selectedClipOf>>) => void) {
     const sel = selectedClipOf(get());
-    if (sel) fn(sel);
+    if (sel && !sel.track.locked) fn(sel);
   }
 
   /** Trims the out-point and, in Ripple mode, shifts every later clip to close the gap. */
@@ -141,7 +144,7 @@ export function createVideoEditorStore(
     /** Loads the timeline (seeded project + replayed history); ignored mid-gesture. */
     hydrate(tracks: Track[]) {
       if (gestureStart) return;
-      setTracks(ensureImageTrack(tracks));
+      setTracks(migrateTracks(tracks));
     },
 
     commit,
@@ -217,6 +220,7 @@ export function createVideoEditorStore(
       setTracks(get().tracks.map((t) => (t.id === trackId ? { ...t, locked: !t.locked } : t)));
     },
 
+    setActiveTrack: (activeTrackId: string | null) => set({ activeTrackId }),
     toggleSelect(clipId: string) {
       set({ selectedClipId: get().selectedClipId === clipId ? null : clipId });
     },
