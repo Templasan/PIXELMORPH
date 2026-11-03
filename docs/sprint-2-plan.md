@@ -266,3 +266,9 @@ US-36 brought in: the Tutorials screen now opens a sample photo (drawn by a scri
 US-19 brought in: a clip can be marked 360 and turned, or cut flat to one angle (preview and export). Open: the exported file has the 360 picture but not the metadata that tells players it is 360. Tested with a synthetic 2:1 clip, not a real 360 camera file.
 
 US-21 partly: the filter chosen in the camera now becomes the captured photo first edit, which it was not before. The live preview is still a colour tint, not the real filter: a true live pipeline needs a native camera change (architecture decision). US-23: the AR layer is not real surface tracking; real anchoring needs ARCore (architecture decision).
+
+### Sprint 3 status after this round (2026-11-03)
+
+Left out because each needs a decision: US-34 and US-35 (server design for collaboration and community), US-23 and the live filter of US-21 (native camera pipeline, ARCore), US-25, RF-004, RF-034 and RF-069 (which AI model, its licence and download), US-18 (needs a phone's sensors; the Poco is deferred).
+
+Checked on the emulator: all photo layer kinds together in one export, Adobe RGB tag on a JPEG, QR block, object removal, watermark storage, palette and crops (40 ms), tutorial start, camera filter on the photo with undo, the PSD share sheet. Browser only: stereo viewer, batch resize, panorama alignment, GIF thumbnail, window border. The 360 clip exported on the emulator without errors, but that scene was too cluttered to judge the picture; it was judged in the browser.
