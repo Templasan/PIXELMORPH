@@ -1,10 +1,14 @@
 import {
   arrowPath,
+  createImageLayer,
   createPaintLayer,
   createShapeLayer,
   createTextLayer,
   duplicateLayer,
+  layerGroups,
   mergeVisiblePaintLayers,
+  reorderLayer,
+  scaleElement,
   type EditorLayer,
 } from '../src/domain/layers';
 
@@ -171,5 +175,80 @@ describe('mergeVisiblePaintLayers', () => {
     const result = mergeVisiblePaintLayers([a]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('a');
+  });
+});
+
+describe('stacking', () => {
+  const stack = () => {
+    const fixed = (id: string, kind: 'background' | 'adjustments') =>
+      ({ id, name: id, kind, visible: true, opacity: 100, locked: false }) as const;
+    return [fixed('fundo', 'background'), fixed('ajustes', 'adjustments'), createPaintLayer('a'), createPaintLayer('b'), createPaintLayer('c')];
+  };
+
+  it('reorders above the fixed layers only', () => {
+    const ls = stack();
+    const [, , a, b, c] = ls;
+    expect(reorderLayer(ls, c.id, 2).map((l) => l.id)).toEqual(['fundo', 'ajustes', c.id, a.id, b.id]);
+    expect(reorderLayer(ls, a.id, 99).map((l) => l.id)).toEqual(['fundo', 'ajustes', b.id, c.id, a.id]);
+    expect(reorderLayer(ls, c.id, 0).map((l) => l.id)).toEqual(['fundo', 'ajustes', c.id, a.id, b.id]);
+    expect(reorderLayer(ls, 'fundo', 3)).toBe(ls);
+    expect(reorderLayer(ls, a.id, 2)).toBe(ls);
+  });
+
+  it('fits a picture layer inside the canvas whatever its shape', () => {
+    expect(createImageLayer('w', 'u', 2, 1).image!.size).toBeCloseTo(0.7);
+    // A tall picture on a wide canvas: limited by the canvas height.
+    const tall = createImageLayer('t', 'u', 0.5, 2).image!;
+    expect((tall.size * 2) / tall.aspect).toBeCloseTo(0.7);
+  });
+
+  it('resizes each kind from its own measure and keeps it in range', () => {
+    const text = createTextLayer('t', 'x', { fontSize: 20 });
+    expect(scaleElement(text, 2).text!.fontSize).toBe(40);
+    expect(scaleElement(text, 1000).text!.fontSize).toBe(240);
+    const shape = createShapeLayer('s', 'rect', { size: 0.1 });
+    expect(scaleElement(shape, 2).shape!.size).toBeCloseTo(0.2);
+    const image = createImageLayer('i', 'u', 1, 1);
+    expect(scaleElement(image, 0).image!.size).toBe(0.03);
+  });
+
+  it('a copy of a placed layer lands beside the original and is a new layer', () => {
+    const image = createImageLayer('i', 'u', 1, 1);
+    const copy = duplicateLayer(image);
+    expect(copy.id).not.toBe(image.id);
+    expect(copy.image!.x).toBeGreaterThan(image.image!.x);
+    expect(image.image!.x).toBe(0.5);
+  });
+});
+
+describe('clipping', () => {
+  const fixed = { id: 'fundo', name: 'f', kind: 'background', visible: true, opacity: 100, locked: false } as const;
+  const paint = (name: string, extra: Partial<EditorLayer> = {}) => ({ ...createPaintLayer(name), ...extra });
+
+  it('groups clipped layers on the layer below them', () => {
+    const a = paint('a');
+    const b = paint('b', { clip: true });
+    const c = paint('c', { clip: true });
+    const d = paint('d');
+    const groups = layerGroups([fixed, a, b, c, d]);
+    expect(groups.map((g) => [g.base.name, g.clipped.map((l) => l.name)])).toEqual([
+      ['f', []],
+      ['a', ['b', 'c']],
+      ['d', []],
+    ]);
+  });
+
+  it('a clipped layer hides with its base, and when it is hidden the base stays', () => {
+    const a = paint('a', { visible: false });
+    const b = paint('b', { clip: true });
+    expect(layerGroups([a, b])).toEqual([]);
+    const shown = paint('a');
+    const off = paint('b', { clip: true, visible: false });
+    expect(layerGroups([shown, off])).toEqual([{ base: shown, clipped: [] }]);
+  });
+
+  it('over a fixed layer there is nothing to clip to: it draws as usual', () => {
+    const b = paint('b', { clip: true });
+    expect(layerGroups([fixed, b]).map((g) => g.base.name)).toEqual(['f', 'b']);
   });
 });

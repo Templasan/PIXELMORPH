@@ -330,6 +330,37 @@ button:disabled {
   cursor: grab;
 }
 
+.gizmo {
+  position: absolute;
+  min-width: 28px;
+  min-height: 28px;
+  outline: 1.5px solid var(--acento);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+  cursor: move;
+}
+.gizmo-knob {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--acento-fraco);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  touch-action: none;
+}
+.gizmo-knob.scale {
+  right: -12px;
+  bottom: -12px;
+  cursor: nwse-resize;
+}
+.gizmo-knob.rotate {
+  left: 50%;
+  top: -36px;
+  margin-left: -12px;
+  cursor: grab;
+}
+
 .guide {
   position: absolute;
   background: var(--acento);
@@ -473,8 +504,31 @@ button:disabled {
   white-space: nowrap;
 }
 
+.layer-thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 1px solid var(--linha);
+  background: repeating-conic-gradient(#2a2a2a 0 25%, #222 0 50%) 0 0 / 12px 12px;
+}
+
+.layer-grip {
+  flex: none;
+  width: 32px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: var(--icone);
+  touch-action: none;
+  cursor: grab;
+}
+
 .layer-list {
-  max-height: 180px;
+  max-height: 232px;
   overflow-y: auto;
   border: 1px solid var(--linha);
   border-radius: 4px;
@@ -491,6 +545,12 @@ button:disabled {
 
 .layer-row:last-child {
   border-bottom: 0;
+}
+
+/* Indented like the layer it depends on: it shows only inside the one below. */
+.layer-row.clipped {
+  padding-left: 22px;
+  box-shadow: inset 12px 0 0 var(--faixa);
 }
 
 .layer-row.on {

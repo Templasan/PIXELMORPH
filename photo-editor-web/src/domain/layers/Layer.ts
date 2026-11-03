@@ -6,7 +6,32 @@
  */
 
 import { t } from '../../i18n';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image';
+
+/** How the lines of a text line up with each other. */
+export type TextAlign = 'left' | 'center' | 'right';
+
+/** How a layer mixes with what is under it; each id is a canvas composite operation. */
+export type LayerBlend =
+  | 'source-over'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'soft-light'
+  | 'darken'
+  | 'lighten'
+  | 'difference';
+
+export const LAYER_BLENDS: readonly { id: LayerBlend; name: string }[] = [
+  { id: 'source-over', name: 'Normal' },
+  { id: 'multiply', name: 'Multiplicar' },
+  { id: 'screen', name: 'Tela' },
+  { id: 'overlay', name: 'Sobrepor' },
+  { id: 'soft-light', name: 'Luz suave' },
+  { id: 'darken', name: 'Escurecer' },
+  { id: 'lighten', name: 'Clarear' },
+  { id: 'difference', name: 'Diferença' },
+];
 
 /** RF-033: brush tip — round (soft ends), square (square ends, sharp corners), flat (cut ends). */
 export type BrushShape = 'round' | 'square' | 'flat';
@@ -67,6 +92,8 @@ export interface TextElement {
   strokeWidth: number; // 0 = no outline
   entrada: number; // 0..100
   saida: number; // 0..100
+  rotation?: number; // degrees
+  align?: TextAlign; // defaults to 'center'
 }
 
 /** RF-044: a real vector shape overlay — circle, rectangle, line or arrow. */
@@ -79,6 +106,17 @@ export interface ShapeElement {
   size: number; // normalized 0..1, half-extent relative to canvas width
   color: string;
   strokeWidth: number;
+  rotation?: number; // degrees
+}
+
+/** A picture stacked over the photo; its pixels stay in their own file. */
+export interface ImageElement {
+  uri: string;
+  x: number; // normalized 0..1, center point
+  y: number;
+  size: number; // width as a fraction of the canvas width
+  aspect: number; // width / height of the picture
+  rotation?: number; // degrees
 }
 
 export interface EditorLayer {
@@ -88,9 +126,12 @@ export interface EditorLayer {
   visible: boolean;
   opacity: number; // 0..100
   locked: boolean;
+  blend?: LayerBlend; // defaults to 'source-over'
+  clip?: boolean; // shows only where the layer below it has pixels
   strokes?: PaintStroke[]; // only present (and meaningful) for kind === 'paint'
   text?: TextElement; // only present (and meaningful) for kind === 'text'
   shape?: ShapeElement; // only present (and meaningful) for kind === 'shape'
+  image?: ImageElement; // only present (and meaningful) for kind === 'image'
 }
 
 let strokeCounter = 0;
@@ -126,6 +167,7 @@ export interface TextLayerOptions {
   strokeWidth?: number;
   entrada?: number;
   saida?: number;
+  align?: TextAlign;
 }
 
 export function createTextLayer(
@@ -153,6 +195,7 @@ export function createTextLayer(
       strokeWidth: options.strokeWidth ?? 2,
       entrada: options.entrada ?? 0,
       saida: options.saida ?? 100,
+      align: options.align ?? 'center',
     },
   };
 }
@@ -186,14 +229,110 @@ export function createShapeLayer(
   };
 }
 
+/** A picture layer filling at most `fill` of a canvas of `canvasAspect` (width / height). */
+export function createImageLayer(
+  name: string,
+  uri: string,
+  aspect: number,
+  canvasAspect: number,
+  fill = 0.7
+): EditorLayer {
+  return {
+    id: createLayerId(),
+    name,
+    kind: 'image',
+    visible: true,
+    opacity: 100,
+    locked: false,
+    image: { uri, x: 0.5, y: 0.5, size: fill * Math.min(1, aspect / canvasAspect), aspect },
+  };
+}
+
+/** Where a copy lands relative to its original, so it can be seen. */
+const COPY_OFFSET = 0.03;
+
 /** RF-052: duplicate — a deep copy so editing the copy never touches the original strokes. */
 export function duplicateLayer(layer: EditorLayer): EditorLayer {
-  return {
+  const copy: EditorLayer = {
     ...layer,
     id: createLayerId(),
     name: t('{name} (cópia)', { name: layer.name }),
     strokes: layer.strokes?.map((s) => ({ ...s, id: createStrokeId() })),
   };
+  const el = elementOf(layer);
+  return el ? patchElement(copy, { x: el.x + COPY_OFFSET, y: el.y + COPY_OFFSET }) : copy;
+}
+
+/** Fixed at the bottom of the stack: everything else may be reordered, copied and deleted. */
+export function isFixedLayer(layer: EditorLayer): boolean {
+  return layer.kind === 'background' || layer.kind === 'adjustments';
+}
+
+export interface LayerGroup {
+  base: EditorLayer;
+  /** The layers that show only inside the base, bottom first. */
+  clipped: EditorLayer[];
+}
+
+/**
+ * What to draw, bottom to top: each visible layer with the layers clipped to it. A clipped layer
+ * follows its base: it hides with it. Over a fixed layer (nothing to clip to) it draws as usual.
+ */
+export function layerGroups(layers: readonly EditorLayer[]): LayerGroup[] {
+  const groups: LayerGroup[] = [];
+  let current: LayerGroup | null = null;
+  for (const layer of layers) {
+    if (layer.clip && current && !isFixedLayer(current.base)) {
+      if (layer.visible) current.clipped.push(layer);
+      continue;
+    }
+    current = { base: layer, clipped: [] };
+    if (layer.visible) groups.push(current);
+  }
+  return groups;
+}
+
+/** What a layer places on the picture (text, shape or image); null for the others. */
+export function elementOf(layer: EditorLayer): TextElement | ShapeElement | ImageElement | null {
+  return layer.text ?? layer.shape ?? layer.image ?? null;
+}
+
+export function patchElement(
+  layer: EditorLayer,
+  patch: { x?: number; y?: number; rotation?: number }
+): EditorLayer {
+  if (layer.text) return { ...layer, text: { ...layer.text, ...patch } };
+  if (layer.shape) return { ...layer, shape: { ...layer.shape, ...patch } };
+  if (layer.image) return { ...layer, image: { ...layer.image, ...patch } };
+  return layer;
+}
+
+/** Resizes a placed layer by `factor` from `start` (its state when the gesture began). */
+export function scaleElement(start: EditorLayer, factor: number): EditorLayer {
+  if (start.text) {
+    const fontSize = Math.max(6, Math.min(240, start.text.fontSize * factor));
+    return { ...start, text: { ...start.text, fontSize } };
+  }
+  if (start.shape) {
+    const size = Math.max(0.01, Math.min(1, start.shape.size * factor));
+    return { ...start, shape: { ...start.shape, size } };
+  }
+  if (start.image) {
+    const size = Math.max(0.03, Math.min(4, start.image.size * factor));
+    return { ...start, image: { ...start.image, size } };
+  }
+  return start;
+}
+
+/** Moves a layer to `toIndex` of the stack (later = on top), never below the fixed layers. */
+export function reorderLayer(layers: EditorLayer[], id: string, toIndex: number): EditorLayer[] {
+  const from = layers.findIndex((l) => l.id === id);
+  if (from < 0 || isFixedLayer(layers[from])) return layers;
+  const floor = layers.filter(isFixedLayer).length;
+  const to = Math.max(floor, Math.min(layers.length - 1, toIndex));
+  if (to === from) return layers;
+  const rest = layers.filter((l) => l.id !== id);
+  return [...rest.slice(0, to), layers[from], ...rest.slice(to)];
 }
 
 /** RF-044: builds a right-pointing arrow (shaft + head) as an SVG path, in pixel space. */
@@ -238,6 +377,7 @@ export interface TextDraft {
   strokeWidth: number;
   entrada: number;
   saida: number;
+  align: TextAlign;
 }
 
 /** RF-044: the Elementos ▸ Formas form — same create-or-edit pattern as text. */

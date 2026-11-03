@@ -35,3 +35,22 @@ describe('presets in the log', () => {
     });
   });
 });
+
+describe('a long session', () => {
+  it('layer steps never push adjustments out, so reopening keeps them', () => {
+    const { log, state } = createHistory();
+    log.push('exposure', 0, 40);
+    for (let i = 0; i < 500; i += 1) log.push('layers', [], []);
+    expect(state.get().done.filter((op) => op.type === 'exposure')).toHaveLength(1);
+    expect(state.get().done.filter((op) => op.type === 'layers')).toHaveLength(200);
+  });
+
+  it('many adjustments drop only steps a later one overwrites', () => {
+    const { log, state } = createHistory();
+    log.push('contrast', 0, 25);
+    for (let i = 0; i < 300; i += 1) log.push('exposure', i, i + 1);
+    const out = replay({ contrast: 0, exposure: 0 }, state.get().done);
+    expect(out).toEqual({ contrast: 25, exposure: 300 });
+    expect(state.get().done).toHaveLength(200);
+  });
+});

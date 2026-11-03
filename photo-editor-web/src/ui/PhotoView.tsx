@@ -9,6 +9,8 @@ import {
 import type { PhotoSession } from '../application/session';
 import { perspectiveCornersOf, type Adjustments as Adj } from '../domain/adjustments';
 import { snapToGuides, type SnapTargets } from '../domain/geometry/snapGuides';
+import { elementOf, patchElement, scaleElement, type EditorLayer } from '../domain/layers';
+import { layerBox } from '../engine/scene';
 import { useStore } from '../state/useStore';
 import { t } from '../i18n';
 
@@ -54,12 +56,14 @@ export function PhotoView({
   const size = info.size && session.size();
   const selected = st.layers.find((l) => l.id === st.selectedLayerId);
   const painting = st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked;
+  const movable =
+    (st.activeTool === 'elementos' || st.activeTool === 'camadas') &&
+    !!selected &&
+    selected.visible &&
+    !selected.locked &&
+    !!elementOf(selected);
   // A tool that takes one finger (painting, compare divider, a handle) keeps one-finger drags.
-  const oneFingerTool =
-    painting ||
-    st.compareMode ||
-    mode !== 'none' ||
-    (st.activeTool === 'elementos' && !!selected && !!(selected.text || selected.shape));
+  const oneFingerTool = painting || st.compareMode || mode !== 'none' || movable;
 
   useLayoutEffect(() => {
     const el = boxRef.current!;
@@ -161,7 +165,7 @@ export function PhotoView({
     };
   };
   const onDown = (e: ReactPointerEvent) => {
-    if ((e.target as Element).closest('.handle') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if ((e.target as Element).closest('.handle, .gizmo') || (e.pointerType === 'mouse' && e.button !== 0)) return;
     if (touches.current.size === 0)
       gesture.current = { max: 0, moved: false, t0: performance.now(), at: rel(e.clientX, e.clientY) };
     touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
@@ -247,9 +251,10 @@ export function PhotoView({
   const targets: SnapTargets = { x: [], y: [] };
   for (const l of st.layers) {
     if (l.id === st.selectedLayerId || !l.visible) continue;
-    if (l.text) {
-      targets.x.push(l.text.x);
-      targets.y.push(l.text.y);
+    if (l.text || l.image) {
+      const el = (l.text ?? l.image)!;
+      targets.x.push(el.x);
+      targets.y.push(el.y);
     } else if (l.shape) {
       const hw = l.shape.size;
       const hh = (l.shape.size * sw) / sh;
@@ -298,31 +303,8 @@ export function PhotoView({
         adjustments={() => editor.store.get().adjustments}
       />
     );
-  } else if (st.activeTool === 'elementos' && selected && (selected.text || selected.shape)) {
-    const el = selected.text ?? selected.shape!;
-    handles.push(
-      <Handle
-        key={selected.id}
-        x={el.x}
-        y={el.y}
-        snap={targets}
-        onMove={(nx, ny) =>
-          editor.setLayers((ls) =>
-            ls.map((l) =>
-              l.id !== selected.id
-                ? l
-                : l.text
-                  ? { ...l, text: { ...l.text, x: nx, y: ny } }
-                  : l.shape
-                    ? { ...l, shape: { ...l.shape, x: nx, y: ny } }
-                    : l
-            )
-          )
-        }
-        onEnd={() => {}}
-        adjustments={() => editor.store.get().adjustments}
-      />
-    );
+  } else if (movable) {
+    handles.push(<Gizmo key={selected.id} session={session} layer={selected} w={sw} h={sh} snap={targets} />);
   }
 
   return (
@@ -421,6 +403,97 @@ function Handle({
           setGuide(null);
         }}
       />
+    </>
+  );
+}
+
+/** Turning this close to a right angle lands on it. */
+const ROTATE_SNAP_DEG = 4;
+
+/**
+ * The selected layer's box on the picture: drag it to move, the corner to resize, the knob above
+ * it to turn. One undo step per gesture.
+ */
+function Gizmo({
+  session,
+  layer,
+  w,
+  h,
+  snap,
+}: {
+  session: PhotoSession;
+  layer: EditorLayer;
+  w: number;
+  h: number;
+  snap: SnapTargets;
+}) {
+  const { editor } = session;
+  const box = layerBox(layer, w, h)!;
+  const [guide, setGuide] = useState<{ gx: number | null; gy: number | null } | null>(null);
+  type Grab = { id: number; mode: 'move' | 'scale' | 'rotate'; start: EditorLayer; cx: number; cy: number; dx: number; dy: number };
+  const grab = useRef<Grab | null>(null);
+  const areaOf = (el: Element) => el.closest('.photo-input')!.getBoundingClientRect();
+  const begin = (e: ReactPointerEvent, mode: Grab['mode']) => {
+    e.stopPropagation();
+    if (grab.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const r = areaOf(e.currentTarget);
+    const cx = r.left + (box.cx / w) * r.width;
+    const cy = r.top + (box.cy / h) * r.height;
+    grab.current = { id: e.pointerId, mode, start: layer, cx, cy, dx: e.clientX - cx, dy: e.clientY - cy };
+  };
+  const move = (e: ReactPointerEvent) => {
+    const g = grab.current;
+    if (!g || g.id !== e.pointerId) return;
+    e.stopPropagation();
+    let next: EditorLayer;
+    const dx = e.clientX - g.cx;
+    const dy = e.clientY - g.cy;
+    if (g.mode === 'move') {
+      const r = areaOf(e.currentTarget);
+      // A layer may hang off the picture, but its centre stays on it so it can be grabbed again.
+      const nx = Math.min(1, Math.max(0, (e.clientX - g.dx - r.left) / r.width));
+      const ny = Math.min(1, Math.max(0, (e.clientY - g.dy - r.top) / r.height));
+      const s = snapToGuides(nx, ny, 0.02, snap);
+      setGuide({ gx: s.guideX, gy: s.guideY });
+      next = patchElement(g.start, { x: s.x, y: s.y });
+    } else if (g.mode === 'scale') {
+      next = scaleElement(g.start, Math.hypot(dx, dy) / Math.max(1, Math.hypot(g.dx, g.dy)));
+    } else {
+      const base = elementOf(g.start)!.rotation ?? 0;
+      const turned = base + ((Math.atan2(dy, dx) - Math.atan2(g.dy, g.dx)) * 180) / Math.PI;
+      const normal = ((turned % 360) + 360) % 360;
+      const right = Math.round(normal / 90) * 90;
+      next = patchElement(g.start, { rotation: Math.abs(normal - right) < ROTATE_SNAP_DEG ? right % 360 : normal });
+    }
+    editor.liveLayers((ls) => ls.map((l) => (l.id === layer.id ? next : l)));
+  };
+  const end = (e: ReactPointerEvent) => {
+    if (grab.current?.id !== e.pointerId) return;
+    grab.current = null;
+    setGuide(null);
+    editor.endLayers();
+  };
+  const handlers = { onPointerMove: move, onPointerUp: end, onPointerCancel: end };
+  return (
+    <>
+      {guide?.gx != null && <div className="guide v" style={{ left: `${guide.gx * 100}%` }} />}
+      {guide?.gy != null && <div className="guide h" style={{ top: `${guide.gy * 100}%` }} />}
+      <div
+        className="gizmo"
+        style={{
+          left: `${(box.cx / w) * 100}%`,
+          top: `${(box.cy / h) * 100}%`,
+          width: `${(box.w / w) * 100}%`,
+          height: `${(box.h / h) * 100}%`,
+          transform: `translate(-50%, -50%) rotate(${box.rotation}deg)`,
+        }}
+        onPointerDown={(e) => begin(e, 'move')}
+        {...handlers}
+      >
+        <div className="gizmo-knob scale" onPointerDown={(e) => begin(e, 'scale')} {...handlers} aria-label={t('Redimensionar')} />
+        <div className="gizmo-knob rotate" onPointerDown={(e) => begin(e, 'rotate')} {...handlers} aria-label={t('Girar')} />
+      </div>
     </>
   );
 }
