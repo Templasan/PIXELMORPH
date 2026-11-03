@@ -1,6 +1,7 @@
 import { t } from '../i18n';
 import { useState } from 'react';
 import { QrUnreadableError, type ExportFormat, type ExportOptions, type ExportResult, type PhotoSession } from '../application/session';
+import { COLOR_SPACES } from '../domain/export/colorSpace';
 import { SOCIAL_PRESETS, formatBytes, watermarkShadow } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
 import { Chips, Range, SizeChips } from './controls';
@@ -10,6 +11,7 @@ const FORMATS: { id: ExportFormat; label: string }[] = [
   { id: 'png', label: 'PNG' },
   { id: 'webp', label: 'WebP' },
   { id: 'heic', label: 'HEIC' },
+  { id: 'psd', label: 'PSD' },
 ];
 const DPI_OPTIONS = [72, 150, 300, 600];
 /** The 3x3 watermark grid, row by row: 0 top-left ... 8 bottom-right. */
@@ -63,14 +65,33 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
           onPick={(format) => set({ format })}
         />
 
-        {(o.format === 'jpeg' || o.format === 'png') && (
+        {o.format !== 'psd' && o.format !== 'heic' && (
+          <>
+            <div className="sub">{t('Espaço de cor')}</div>
+            <Chips
+              options={COLOR_SPACES.filter((c) => c.id !== 'adobe-rgb' || o.format !== 'webp').map((c) => c.id)}
+              value={o.format === 'webp' && o.colorSpace === 'adobe-rgb' ? 'srgb' : o.colorSpace}
+              label={(id) => COLOR_SPACES.find((c) => c.id === id)!.name}
+              onPick={(colorSpace) => set({ colorSpace })}
+            />
+          </>
+        )}
+        {o.format !== 'psd' && (
+          <div className="chips">
+            <button className={`chip${o.proofCmyk ? ' on' : ''}`} onClick={() => set({ proofCmyk: !o.proofCmyk })}>
+              {t('Simular impressão CMYK')}
+            </button>
+          </div>
+        )}
+
+        {(o.format === 'jpeg' || o.format === 'png' || o.format === 'psd') && (
           <>
             <div className="sub">DPI</div>
             <Chips options={DPI_OPTIONS} value={o.dpi} onPick={(dpi) => set({ dpi })} />
           </>
         )}
 
-        {o.format !== 'png' && (
+        {o.format !== 'png' && o.format !== 'psd' && (
           <>
             <div className="sub">{t('Compressão')}</div>
             {o.format !== 'heic' && (

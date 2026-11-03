@@ -298,6 +298,8 @@ const en: Record<string, string> = {
   "Remover objeto": "Remove object",
   "Pinte ou circule o que quer tirar da foto.": "Paint or circle what you want out of the photo.",
   "REMOVER": "REMOVE",
+  "Espaço de cor": "Colour space",
+  "Simular impressão CMYK": "Simulate CMYK printing",
 };
 
 export default en;
