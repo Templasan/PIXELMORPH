@@ -228,3 +228,11 @@ Photo light copies (`photoProxy.ts`, `.proxy2048.jpg`):
 
 Stopped agents' worktrees with no commits, not reviewed: `agent-a035d0c451c1ad4a7` (photo
 editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when those parts start.
+
+## Owner decisions, 2026-11-03
+
+- Everything that depends on the Poco waits (see "Pending tests" above). Testing continues on the emulator.
+- The 6-digit e-mail verification code waits; the link flow stays for now.
+- Sprint 3 stories are brought into this sprint to get ahead. The owner intends to publish on Google Play after the college work, so no choice may block that (see `docs/melhorias/08-produto-e-lancamento.md`).
+
+Sprint 3 stories brought in, in order: US-20 (window border added; window move and resize came with the layers). Next candidates: US-22, US-02, US-32.
