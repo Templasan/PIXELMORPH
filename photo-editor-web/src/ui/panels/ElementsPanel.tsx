@@ -1,12 +1,13 @@
 import { t } from '../../i18n';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import type { ShapeKind, TextAlign } from '../../domain/layers';
 import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
+import { Icon } from '../Icon';
 import { CollageSection } from './MontagePanels';
 
-const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'Colagem'] as const;
+const TABS = ['Texto', 'Formas', 'Adesivos', 'Meme', 'QR code', "Marca d'água", 'Colagem'] as const;
 type Tab = (typeof TABS)[number];
 
 // Android system family names (the same list the app's Elementos drawer offers).
@@ -33,6 +34,101 @@ const TEXT_ALIGNS: { label: string; align: TextAlign }[] = [
 ];
 const STICKERS = ['👍', '😂', '🔥', '❤️', '😮', '🎉'];
 
+/** RF-066: a QR code from a link or text. The export reads it back before saving. */
+function QrSection({ session }: { session: PhotoSession }) {
+  const [content, setContent] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const add = () => {
+    setError(null);
+    try {
+      session.addQrLayer(content);
+      setContent('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <>
+      <div className="field">
+        <input type="text" value={content} placeholder={t('Link ou texto')} onChange={(e) => setContent(e.target.value)} />
+      </div>
+      <button className="primary-btn wide" disabled={!content.trim()} onClick={add}>
+        {t('ADICIONAR AO CANVAS')}
+      </button>
+      {error && <div className="muted">{error}</div>}
+      <div className="muted">{t('Mova e redimensione na foto. Antes de salvar, o export confere se o código pode ser lido.')}</div>
+    </>
+  );
+}
+
+/** RF-020: a text or logo layer kept for other photos, with its place, size, turn and opacity. */
+function WatermarkSection({ session }: { session: PhotoSession }) {
+  const { editor } = session;
+  const kept = useStore(session.watermarks);
+  const selected = useStore(editor.store, (s) => s.layers.find((l) => l.id === s.selectedLayerId));
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void session.loadWatermarks();
+  }, [session]);
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  const keepable = !!selected && (selected.kind === 'text' || selected.kind === 'image');
+  return (
+    <>
+      <button className="chip" onClick={() => session.addImageLayer().catch(fail)}>
+        {t('Logo da galeria')}
+      </button>
+      {keepable ? (
+        <>
+          <div onPointerUp={() => editor.endLayers()}>
+            <Range
+              label={t('Transparência')}
+              value={100 - selected.opacity}
+              min={0}
+              max={100}
+              format={(v) => `${v}%`}
+              onChange={(v) =>
+                editor.liveLayers((ls) => ls.map((l) => (l.id === selected.id ? { ...l, opacity: 100 - v } : l)))
+              }
+            />
+          </div>
+          <div className="field">
+            <input type="text" value={name} placeholder={t('Nome da marca')} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <button
+            className="primary-btn wide"
+            disabled={!name.trim()}
+            onClick={() => {
+              setError(null);
+              session
+                .saveWatermark(name, selected)
+                .then(() => setName(''))
+                .catch(fail);
+            }}
+          >
+            {t('SALVAR COMO MARCA')}
+          </button>
+        </>
+      ) : (
+        <div className="muted">{t('Selecione ou crie um texto ou logo para salvar como marca.')}</div>
+      )}
+      {error && <div className="muted">{error}</div>}
+      <div className="chips">
+        {(kept ?? []).map((w) => (
+          <span key={w.id} className="chips">
+            <button className="chip" onClick={() => session.applyWatermark(w)}>
+              {w.name}
+            </button>
+            <button className="icon-btn" onClick={() => void session.deleteWatermark(w.id).catch(fail)} aria-label={t('Excluir marca {name}', { name: w.name })}>
+              <Icon name="trash" size={16} />
+            </button>
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** Elementos (RF-008/044/046): text, shapes, stickers and memes, placed on the picture as layers. */
 export function ElementsPanel({ session }: { session: PhotoSession }) {
   const { editor } = session;
@@ -51,6 +147,8 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
       <Chips options={TABS} value={tab} onPick={setTab} />
 
       {tab === 'Colagem' && <CollageSection session={session} />}
+      {tab === 'QR code' && <QrSection session={session} />}
+      {tab === "Marca d'água" && <WatermarkSection session={session} />}
       {tab === 'Texto' && (
         <>
           <div className="field">

@@ -117,6 +117,7 @@ export interface ImageElement {
   size: number; // width as a fraction of the canvas width
   aspect: number; // width / height of the picture
   rotation?: number; // degrees
+  qr?: string; // RF-066: what the picture says, when it is a generated QR code
 }
 
 export interface EditorLayer {

@@ -21,6 +21,13 @@ export interface PictureRef {
   uri: string;
 }
 
+/** RF-020: a watermark kept for other photos: a text or picture layer, with its place and look. */
+export interface WatermarkRef {
+  id: string;
+  name: string;
+  layer: EditorLayer;
+}
+
 export interface SavedPhoto {
   name: string;
   /** The photo being edited, at full resolution (the export reads it). */
@@ -69,6 +76,9 @@ export interface EditorHost {
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
   listPresets(): Promise<PresetRef[]>;
+  listWatermarks(): Promise<WatermarkRef[]>;
+  saveWatermark(watermark: WatermarkRef): Promise<void>;
+  deleteWatermark(id: string): Promise<void>;
   /** The other photo projects (batch edit). */
   listPhotoProjects(): Promise<{ id: string; name: string }[]>;
   /** Applies `look` to those projects as one undo step each; returns how many. */

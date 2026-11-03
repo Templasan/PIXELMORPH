@@ -1,3 +1,4 @@
+import { deleteWatermark, listWatermarks, saveWatermark } from './photo-editor/watermarks';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -182,6 +183,10 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         }
         return ids.length;
       },
+
+      listWatermarks,
+      saveWatermark,
+      deleteWatermark,
 
       async listPresets() {
         const presets = await createPhotoEditorModule().listPresets.execute();

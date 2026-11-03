@@ -240,3 +240,5 @@ Sprint 3 stories brought in, in order: US-20 (window border added; window move a
 US-22 brought in: timer length (3, 5, 10 s) with cancel, stop-motion plays at the picked rate. Frames show in a strip, not the grid the story words it as.
 
 US-02 brought in: the Presets screen now lists the real saved presets, with delete; batch apply shows progress. The final size is now a setting of the photo (RF-015, as the owner proposed): shown in the top bar, applied by the export, undoable and carried by a batch.
+
+US-32 brought in: QR code layers checked as readable before saving, and text or logo watermarks kept for other photos. The older export-only watermark stays.

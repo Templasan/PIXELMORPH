@@ -233,6 +233,19 @@ const en: Record<string, string> = {
   'Recortar na camada de baixo': 'Clip to the layer below',
   'Aplicando {done} de {total}…': 'Applying {done} of {total}…',
   'Tamanho final': 'Final size',
+  "QR code": "QR code",
+  "Link ou texto": "Link or text",
+  "Mova e redimensione na foto. Antes de salvar, o export confere se o código pode ser lido.": "Move and resize it on the photo. Before saving, the export checks the code can be read.",
+  "Logo da galeria": "Logo from gallery",
+  "Transparência": "Transparency",
+  "Nome da marca": "Watermark name",
+  "SALVAR COMO MARCA": "SAVE AS WATERMARK",
+  "Selecione ou crie um texto ou logo para salvar como marca.": "Select or create a text or logo to save as a watermark.",
+  "Excluir marca {name}": "Delete watermark {name}",
+  "Exportar mesmo assim": "Export anyway",
+  "O QR code \"{name}\" não pode ser lido nesta foto.": "The QR code \"{name}\" cannot be read on this photo.",
+  "Digite um link ou texto.": "Type a link or text.",
+  "Texto longo demais para um QR code.": "Text too long for a QR code.",
 };
 
 export default en;
