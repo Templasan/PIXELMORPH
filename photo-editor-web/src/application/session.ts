@@ -14,6 +14,7 @@ import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
 import { drawCollage, drawPanorama, type CollageOptions } from '../engine/compose';
 import type { CollageLayout } from '../domain/collage/CollageMath';
+import { alignPair, type GreyPicture, type PairAlignment } from '../domain/panorama/alignPair';
 import { panoramaLayout } from '../domain/panorama/panoramaLayout';
 import type { EditorHost, PictureRef, PresetRef, SavedPhoto, WatermarkRef } from '../ports/host';
 import { createStore } from '../state/createStore';
@@ -24,6 +25,8 @@ import { createPhotoEditorStore, LAYERS_OP } from './photoEditorStore';
 export const COLLAGE_SIZE = 2048;
 /** Panorama height at most (the photos' own if smaller). */
 const PANORAMA_HEIGHT = 2048;
+/** Photos are compared at this height: enough to line them up, small enough to try every shift. */
+const ALIGN_HEIGHT = 120;
 /** Each picture of a collage or panorama is read at most this long. */
 const MONTAGE_PICTURE_EDGE = 4096;
 
@@ -723,8 +726,32 @@ export function createPhotoSession(host: EditorHost) {
         drawCollage(pics.map((p) => p.bitmap), pics, layout, COLLAGE_SIZE, options)
       );
     },
+    /**
+     * RF-062: how each photo lines up with the one before it. A pair that shares too little has
+     * no value (null) and keeps what the person set by hand.
+     */
+    async alignPanorama(refs: PictureRef[]): Promise<(PairAlignment | null)[]> {
+      const greys: GreyPicture[] = [];
+      for (const ref of refs) {
+        const { bitmap } = await loadPicture(ref.uri, MONTAGE_PICTURE_EDGE);
+        const height = ALIGN_HEIGHT;
+        const width = Math.max(4, Math.round((bitmap.width * height) / bitmap.height));
+        const c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        const ctx = c.getContext('2d', { willReadFrequently: true })!;
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+        const px = ctx.getImageData(0, 0, width, height).data;
+        const data = new Uint8ClampedArray(width * height);
+        for (let i = 0; i < data.length; i += 1) data[i] = 0.3 * px[i * 4] + 0.59 * px[i * 4 + 1] + 0.11 * px[i * 4 + 2];
+        c.width = c.height = 0;
+        greys.push({ width, height, data });
+      }
+      return greys.map((g, i) => (i === 0 ? null : alignPair(greys[i - 1], g)));
+    },
     /** US-28: `refs` left to right, overlapping by `overlap` of each width, nudged by `offsetsY`. */
-    createPanorama(refs: PictureRef[], overlap: number, offsetsY: number[]) {
+    createPanorama(refs: PictureRef[], overlap: number | number[], offsetsY: number[]) {
       return makeProject(t('Panorama'), refs, (pics) => {
         const height = Math.min(PANORAMA_HEIGHT, ...pics.map((p) => p.height));
         return drawPanorama(pics.map((p) => p.bitmap), panoramaLayout(pics, height, overlap, offsetsY));

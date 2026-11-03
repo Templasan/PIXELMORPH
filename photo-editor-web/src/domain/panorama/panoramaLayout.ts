@@ -1,6 +1,6 @@
 /**
  * US-28: where each photo of a panorama goes. Photos are scaled to one height, laid left to
- * right, each overlapping the previous by `overlap` of its own width (the seam is faded across
+ * right, each overlapping the previous by `overlap` of its own width (one share, or one per photo) (the seam is faded across
  * that strip) and nudged up or down by `offsetsY` (fraction of the height) to line them up. The
  * result keeps only the height every photo covers, so nudging never leaves empty bands.
  */
@@ -16,14 +16,15 @@ export interface PanoramaRect {
 export function panoramaLayout(
   sizes: readonly { width: number; height: number }[],
   height: number,
-  overlap: number,
+  overlap: number | readonly number[],
   offsetsY: readonly number[] = []
 ): { width: number; height: number; rects: PanoramaRect[] } {
   const rects: PanoramaRect[] = [];
   let x = 0;
   sizes.forEach((s, i) => {
     const width = Math.round((s.width * height) / s.height);
-    const fade = i === 0 ? 0 : Math.round(width * overlap);
+    const share = typeof overlap === 'number' ? overlap : (overlap[i] ?? 0);
+    const fade = i === 0 ? 0 : Math.round(width * share);
     x -= fade;
     rects.push({ x, y: Math.round((offsetsY[i] ?? 0) * height), width, height, fade });
     x += width;

@@ -250,3 +250,5 @@ US-07 brought in: clone brush and liquify (push, pull, twirl), each a layer draw
 US-26 partly brought in: palette and harmonies (RF-010), crop suggestions by thirds and golden section with a non-destructive crop (RF-042), 34 ms in the browser (RNF-012). Open: scene recognition (RF-034) needs a model; converging lines are not analysed.
 
 US-27 brought in with shader filters, not a trained model: watercolour, oil and charcoal, with intensity and the compare divider. They are honest filters, so they should not be presented as AI.
+
+US-28 brought in: automatic alignment by matching the shared area (22 ms for a pair, right overlap and shift on real crops), keeping manual correction per photo.

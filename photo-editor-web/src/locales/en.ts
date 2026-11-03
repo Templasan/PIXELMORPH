@@ -289,6 +289,11 @@ const en: Record<string, string> = {
   "Aquarela": "Watercolour",
   "Óleo": "Oil",
   "Carvão": "Charcoal",
+  "Fotos alinhadas. Ajuste abaixo se notar algum erro.": "Photos aligned. Adjust below if you notice an error.",
+  "{n} par de fotos não foi alinhado: elas têm pouco em comum. Ajuste à mão.": "{n} pair of photos was not aligned: they share too little. Adjust by hand.",
+  "Não foi possível alinhar: {msg}": "Could not align: {msg}",
+  "Alinhando…": "Aligning…",
+  "Alinhar automaticamente": "Align automatically",
 };
 
 export default en;
