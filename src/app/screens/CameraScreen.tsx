@@ -40,6 +40,7 @@ import StopMotionFrameStrip from './camera/StopMotionFrameStrip';
 import AROverlay from './camera/AROverlay';
 import { ARAnchorsLayer } from './camera/ARAnchorsLayer';
 import StopMotionPanel from './camera/StopMotionPanel';
+import TimerPanel from './camera/TimerPanel';
 import ARControlPanel from './camera/ARControlPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
@@ -64,6 +65,7 @@ export default function CameraScreen({ navigation }: Props) {
   const [intensity, setIntensity] = useState(100);
   const [mode, setMode] = useState<CameraMode>('FOTO');
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(3);
   const [stopFrames, setStopFrames] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
   const [stopFps, setStopFps] = useState(6);
@@ -199,7 +201,11 @@ export default function CameraScreen({ navigation }: Props) {
             'image',
             frame,
             frame,
-            createMediaMetadata('image/jpeg', { width: 1920, height: 1080 })
+            createMediaMetadata('image/jpeg', {
+              width: 1920,
+              height: 1080,
+              frameMs: 1000 / stopFps,
+            })
           )
         )
       );
@@ -212,7 +218,7 @@ export default function CameraScreen({ navigation }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [stopFrames, busy, projects, navigation]);
+  }, [stopFrames, stopFps, busy, projects, navigation]);
 
   const takePhoto = useCallback(async () => {
     if (!cameraRef.current || busy) return;
@@ -259,7 +265,8 @@ export default function CameraScreen({ navigation }: Props) {
 
   const handleShutter = useCallback(async () => {
     if (mode === 'TEMPORIZADOR') {
-      setCountdown(3);
+      // A second press while it counts calls the photo off.
+      setCountdown((c) => (c === null ? timerSeconds : null));
     } else if (mode === 'STOP-MOTION') {
       if (!cameraRef.current || busy) return;
       setBusy(true);
@@ -278,7 +285,7 @@ export default function CameraScreen({ navigation }: Props) {
     } else {
       takePhoto();
     }
-  }, [mode, busy, toggleVideoRecording, takePhoto]);
+  }, [mode, busy, timerSeconds, toggleVideoRecording, takePhoto]);
 
   const filterPreset = FILTER_PRESETS[activeFilter];
   const filterOverlayColor = adjustmentsToOverlayColor(filterPreset.adjustments);
@@ -366,6 +373,8 @@ export default function CameraScreen({ navigation }: Props) {
         recording={recording}
         mode={mode}
       />
+
+      {mode === 'TEMPORIZADOR' && <TimerPanel seconds={timerSeconds} onChange={setTimerSeconds} />}
 
       {mode === 'STOP-MOTION' && (
         <StopMotionPanel

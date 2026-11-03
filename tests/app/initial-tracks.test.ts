@@ -13,6 +13,36 @@ function videoProject(audioGain?: number) {
 }
 
 describe('buildInitialTracks', () => {
+  it('a stop-motion plays at the rate picked in the camera', () => {
+    const frame = (i: number, frameMs?: number) =>
+      createMediaAsset(
+        `f${i}`,
+        'image',
+        `file:///${i}.jpg`,
+        `file:///${i}.jpg`,
+        createMediaMetadata('image/jpeg', { frameMs })
+      );
+    const project = {
+      ...createProject('p1', 'Stop-motion', 'video'),
+      assets: [frame(0, 100), frame(1, 100), frame(2, 100)],
+    };
+    const clips = buildInitialTracks(project).find((t) => t.id === 'img')!.clips;
+    expect(clips.map((c) => c.startMs)).toEqual([0, 100, 200]);
+    expect(clips.every((c) => c.outPointMs - c.inPointMs === 100)).toBe(true);
+  });
+
+  it('a stop-motion saved before the rate was stored keeps its old speed', () => {
+    const asset = createMediaAsset(
+      'f',
+      'image',
+      'file:///f.jpg',
+      'file:///f.jpg',
+      createMediaMetadata('image/jpeg')
+    );
+    const project = { ...createProject('p1', 'Stop-motion', 'video'), assets: [asset] };
+    expect(buildInitialTracks(project).find((t) => t.id === 'img')!.clips[0].outPointMs).toBe(200);
+  });
+
   it('a camera recording opens with its sound on A1 at the chosen gain, the video muted', () => {
     const tracks = buildInitialTracks(videoProject(1.5));
     const v1 = tracks.find((t) => t.id === 'v1')!;

@@ -7,6 +7,8 @@ export interface MediaMetadata {
   fileSizeBytes?: number;
   /** RF-018: mic gain chosen while recording (1 = as captured); the editor applies it to the audio track. */
   audioGain?: number;
+  /** RF-043: how long a stop-motion frame plays, from the rate picked in the camera. */
+  frameMs?: number;
 }
 
 export function createMediaMetadata(
@@ -25,6 +27,7 @@ export function createMediaMetadata(
     durationMs: partial?.durationMs,
     fileSizeBytes: partial?.fileSizeBytes,
     audioGain: partial?.audioGain,
+    frameMs: partial?.frameMs,
   };
 }
 
