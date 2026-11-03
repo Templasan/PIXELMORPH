@@ -5,7 +5,8 @@ import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
-import { drawScene } from '../engine/scene';
+import { drawLayer, drawScene } from '../engine/scene';
+import { createImageLayer, type EditorLayer } from '../domain/layers';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
 import { drawCollage, drawPanorama, type CollageOptions } from '../engine/compose';
@@ -14,7 +15,7 @@ import { panoramaLayout } from '../domain/panorama/panoramaLayout';
 import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../ports/host';
 import { createStore } from '../state/createStore';
 import { createHistory, replay } from './history';
-import { createPhotoEditorStore } from './photoEditorStore';
+import { createPhotoEditorStore, LAYERS_OP } from './photoEditorStore';
 
 /** Collage side (square), as the app made it, a bit larger. */
 export const COLLAGE_SIZE = 2048;
@@ -180,6 +181,10 @@ export function createPhotoSession(host: EditorHost) {
     blendPictures.set(ref.uri, p);
   }
 
+  function wantLayerPictures(layers: EditorLayer[]) {
+    for (const l of layers) if (l.image) wantBlend({ name: l.name, uri: l.image.uri });
+  }
+
   // ---- drawing on screen ----
   let screen: HTMLCanvasElement | null = null;
   let frame = 0;
@@ -218,6 +223,7 @@ export function createPhotoSession(host: EditorHost) {
       layers: st.layers,
       frameColor,
       frameGradientColor,
+      pictureOf: (uri) => blendReady.get(uri),
       stroke: { points: st.currentStroke, brush: st.brush },
     });
     if (!firstDrawn) {
@@ -247,6 +253,9 @@ export function createPhotoSession(host: EditorHost) {
   function snapshot(): SavedPhoto {
     const i = info.get();
     const st = editor.store.get();
+    // A layer step holds the whole stack twice: too heavy to save, the stack itself already is.
+    const { done, undone } = history.state.get();
+    const lasting = (op: { type: string }) => op.type !== LAYERS_OP;
     return {
       name: i.name,
       photo: i.photo!,
@@ -256,7 +265,7 @@ export function createPhotoSession(host: EditorHost) {
       overlay: i.overlay,
       frameColor: i.frameColor,
       frameGradientColor: i.frameGradientColor,
-      history: history.state.get(),
+      history: { done: done.filter(lasting), undone: undone.filter(lasting) },
     };
   }
   function scheduleSave() {
@@ -271,6 +280,7 @@ export function createPhotoSession(host: EditorHost) {
   editor.store.subscribe(() => {
     const st = editor.store.get();
     if (st.adjustments !== lastStore.adjustments || st.layers !== lastStore.layers) scheduleSave();
+    if (st.layers !== lastStore.layers) wantLayerPictures(st.layers);
     lastStore = st;
     requestDraw();
   });
@@ -345,6 +355,7 @@ export function createPhotoSession(host: EditorHost) {
         const adjustments = saved.adjustments ? base : replay(base, history.state.get().done);
         editor.hydrateAdjustments(adjustments);
         if (saved.layers) editor.hydrateLayers(saved.layers);
+        wantLayerPictures(editor.store.get().layers);
         const picture = await loadPicture(saved.previewUri ?? saved.photo.uri, PREVIEW_LONG_EDGE);
         light = picture.bitmap;
         performance.mark('pm:picture');
@@ -445,6 +456,21 @@ export function createPhotoSession(host: EditorHost) {
             opacity: (de ? a.doubleExposureOpacity : a.overlayIntensity) / 100,
           });
         }
+        // A picture that can no longer be read is left out, as the preview leaves it out.
+        const layerPictures = new Map<string, ImageBitmap>();
+        const layerEdges = new Map<string, number>();
+        for (const l of st.layers) {
+          if (!l.visible || !l.image) continue;
+          const shownW = l.image.size * size.scene.w * (w / size.photo.w);
+          const edge = Math.ceil(shownW * Math.max(1, 1 / l.image.aspect));
+          layerEdges.set(l.image.uri, Math.max(edge, layerEdges.get(l.image.uri) ?? 0));
+        }
+        for (const [uri, edge] of layerEdges) {
+          const pic = await loadPicture(uri, Math.min(edge, MONTAGE_PICTURE_EDGE)).catch(() => null);
+          if (!pic) continue;
+          bitmaps.push(pic.bitmap);
+          layerPictures.set(uri, pic.bitmap);
+        }
         gl.setSource(full, false);
         lap('uploaded');
         gl.setOutput(w, h);
@@ -468,6 +494,7 @@ export function createPhotoSession(host: EditorHost) {
           layers: st.layers,
           frameColor: i.frameColor,
           frameGradientColor: i.frameGradientColor,
+          pictureOf: (uri) => layerPictures.get(uri),
         });
         ctx.getImageData(0, 0, 1, 1); // waits for the drawing, so 'drawn' and 'encoded' split right
         lap('drawn');
@@ -565,6 +592,32 @@ export function createPhotoSession(host: EditorHost) {
         gl.dispose();
         setInfo({ busy: null });
       }
+    },
+
+    /** A picture from the gallery as a new layer on top of the stack. */
+    async addImageLayer() {
+      const ref = await host.pickPicture();
+      const size = sizeOf(editor.store.get().adjustments);
+      if (!ref || !size) return;
+      wantBlend(ref);
+      const bitmap = await blendPictures.get(ref.uri);
+      if (!bitmap) throw new Error(t('Não foi possível abrir {name}.', { name: ref.name }));
+      editor.addLayers([
+        createImageLayer(ref.name, ref.uri, bitmap.width / bitmap.height, size.scene.w / size.scene.h),
+      ]);
+    },
+    /** A layer alone on a small canvas: the layer list's thumbnail. */
+    drawThumb(canvas: HTMLCanvasElement, layer: EditorLayer) {
+      const size = sizeOf(editor.store.get().adjustments);
+      const ctx = canvas.getContext('2d');
+      if (!size || !ctx || !light) return;
+      const { w, h } = size.scene;
+      const k = Math.min(canvas.width / w, canvas.height / h);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(k, 0, 0, k, (canvas.width - w * k) / 2, (canvas.height - h * k) / 2);
+      if (layer.kind === 'background') ctx.drawImage(light, 0, 0, w, h);
+      else drawLayer(ctx, { ...layer, opacity: 100, blend: undefined }, w, h, (uri) => blendReady.get(uri));
     },
 
     /** One more picture for a collage or panorama (the gallery picker); null when cancelled. */

@@ -1,7 +1,7 @@
 import { t } from '../../i18n';
 import { useState } from 'react';
 import type { PhotoSession } from '../../application/session';
-import type { ShapeKind } from '../../domain/layers';
+import type { ShapeKind, TextAlign } from '../../domain/layers';
 import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
 import { CollageSection } from './MontagePanels';
@@ -26,6 +26,11 @@ const SHAPES: { label: string; kind: ShapeKind }[] = [
   { label: 'Linha', kind: 'line' },
   { label: 'Seta', kind: 'arrow' },
 ];
+const TEXT_ALIGNS: { label: string; align: TextAlign }[] = [
+  { label: 'Esquerda', align: 'left' },
+  { label: 'Centro', align: 'center' },
+  { label: 'Direita', align: 'right' },
+];
 const STICKERS = ['👍', '😂', '🔥', '❤️', '😮', '🎉'];
 
 /** Elementos (RF-008/044/046): text, shapes, stickers and memes, placed on the picture as layers. */
@@ -49,11 +54,12 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
       {tab === 'Texto' && (
         <>
           <div className="field">
-            <input
-              type="text"
+            <textarea
+              rows={3}
               value={draft.content}
               placeholder={t('Digite o texto')}
               onChange={(e) => editor.setTextDraft({ content: e.target.value })}
+              onBlur={() => editor.endLayers()}
             />
           </div>
           <Chips
@@ -61,6 +67,12 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
             value={draft.fontFamily}
             label={(family) => t(TEXT_FONTS.find((f) => f.family === family)?.label ?? '')}
             onPick={(fontFamily) => editor.setTextDraft({ fontFamily })}
+          />
+          <Chips
+            options={TEXT_ALIGNS.map((a) => a.align)}
+            value={draft.align}
+            label={(align) => t(TEXT_ALIGNS.find((a) => a.align === align)?.label ?? '')}
+            onPick={(align) => editor.setTextDraft({ align })}
           />
           <Swatches options={TEXT_COLORS} value={draft.color} onPick={(color) => editor.setTextDraft({ color })} />
           <div className="chips">
@@ -97,7 +109,9 @@ export function ElementsPanel({ session }: { session: PhotoSession }) {
             onPick={(kind) => editor.setShapeDraft({ kind })}
           />
           <Swatches options={TEXT_COLORS} value={shape.color} onPick={(color) => editor.setShapeDraft({ color })} />
-          <Range label={t('Espessura')} value={shape.strokeWidth} min={1} max={20} onChange={(strokeWidth) => editor.setShapeDraft({ strokeWidth })} />
+          <div onPointerUp={() => editor.endLayers()}>
+            <Range label={t('Espessura')} value={shape.strokeWidth} min={1} max={20} onChange={(strokeWidth) => editor.setShapeDraft({ strokeWidth })} />
+          </div>
           <button className="primary-btn wide" onClick={() => editor.submitShape()}>
             {editingShape ? t('APLICAR') : t('ADICIONAR AO CANVAS')}
           </button>

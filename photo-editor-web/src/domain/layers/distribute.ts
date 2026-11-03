@@ -1,15 +1,15 @@
 /**
- * "Distribuir igualmente": spaces the text and shape layers evenly along one axis. Pure, so the
+ * "Distribuir igualmente": spaces the text, shape and image layers evenly along one axis. Pure, so the
  * result depends only on the layers' positions, not on their order in the stack.
  */
 
-import type { EditorLayer } from './Layer';
+import { elementOf, patchElement, type EditorLayer } from './Layer';
 
 export type DistributeAxis = 'horizontal' | 'vertical';
 
-/** The layers that have a position to move: visible, unlocked text and shape layers. */
+/** The layers that have a position to move: visible, unlocked text, shape and image layers. */
 export function movableLayers(layers: readonly EditorLayer[]): EditorLayer[] {
-  return layers.filter((l) => (l.text || l.shape) && l.visible && !l.locked);
+  return layers.filter((l) => elementOf(l) && l.visible && !l.locked);
 }
 
 /**
@@ -21,7 +21,7 @@ export function distributeLayers(layers: EditorLayer[], axis: DistributeAxis): E
   const movable = movableLayers(layers);
   if (movable.length < 3) return layers;
   const key = axis === 'horizontal' ? 'x' : 'y';
-  const at = (l: EditorLayer) => (l.text ?? l.shape)!;
+  const at = (l: EditorLayer) => elementOf(l)!;
   // Ties on the centre are broken by id, so the outcome never depends on the array order.
   const sorted = [...movable].sort(
     (a, b) => at(a)[key] - at(b)[key] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -35,6 +35,6 @@ export function distributeLayers(layers: EditorLayer[], axis: DistributeAxis): E
   return layers.map((l) => {
     const value = target.get(l.id);
     if (value === undefined) return l;
-    return l.text ? { ...l, text: { ...l.text, [key]: value } } : { ...l, shape: { ...l.shape!, [key]: value } };
+    return patchElement(l, { [key]: value });
   });
 }

@@ -214,6 +214,23 @@ const en: Record<string, string> = {
   'Aplicado em {n} fotos.': 'Applied to {n} photos.',
   'Aplicar em 1 foto': 'Apply to 1 photo',
   'Aplicar em {n} fotos': 'Apply to {n} photos',
+  'Luz suave': 'Soft light',
+  'Escurecer': 'Darken',
+  'Clarear': 'Lighten',
+  'Diferença': 'Difference',
+  'Redimensionar': 'Resize',
+  'Imagem': 'Image',
+  'Travar camada': 'Lock layer',
+  'Destravar camada': 'Unlock layer',
+  'Arrastar para reordenar': 'Drag to reorder',
+  'Editar texto': 'Edit text',
+  'Girar': 'Rotate',
+  'Não foi possível abrir {name}.': 'Could not open {name}.',
+  'Arraste na foto para pintar na camada selecionada.': 'Drag on the photo to paint on the selected layer.',
+  'Esquerda': 'Left',
+  'Centro': 'Center',
+  'Direita': 'Right',
+  'Recortar na camada de baixo': 'Clip to the layer below',
 };
 
 export default en;

@@ -2,7 +2,15 @@ import type { Adjustments } from '../domain/adjustments';
 import { totalRotationRadOf } from '../domain/adjustments';
 import { frameRadiusPx, frameThicknessPx } from '../domain/effects/frame';
 import { lensReflectionSpots } from '../domain/effects/lighting';
-import { arrowPath, brushTip, pointsToPath, type BrushShape, type EditorLayer } from '../domain/layers';
+import {
+  arrowPath,
+  brushTip,
+  layerGroups,
+  pointsToPath,
+  type BrushShape,
+  type EditorLayer,
+  type LayerGroup,
+} from '../domain/layers';
 import type { SceneSize } from '../domain/sceneSize';
 
 /** The brush of the stroke being drawn (application's Brush). */
@@ -21,6 +29,8 @@ export interface SceneInput {
   layers: EditorLayer[];
   frameColor: string;
   frameGradientColor: string;
+  /** The decoded picture of an image layer; a layer without one yet is skipped. */
+  pictureOf?: (uri: string) => CanvasImageSource | undefined;
   /** The stroke being drawn (preview only). */
   stroke?: { points: { x: number; y: number }[]; brush: Brush };
 }
@@ -50,14 +60,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneInput) {
   ctx.restore();
 
   if (a.lightIntensity > 0) drawLight(ctx, a, scene.w, scene.h);
-  for (const layer of s.layers) {
-    if (!layer.visible) continue;
-    ctx.save();
-    ctx.globalAlpha = layer.opacity / 100;
-    if (layer.kind === 'paint') drawStrokes(ctx, layer);
-    else if (layer.kind === 'text' && layer.text) drawText(ctx, layer.text, scene.w, scene.h);
-    else if (layer.kind === 'shape' && layer.shape) drawShape(ctx, layer.shape, scene.w, scene.h);
-    ctx.restore();
+  for (const group of layerGroups(s.layers)) {
+    if (group.clipped.length) drawClipped(ctx, group, scene.w, scene.h, s.pictureOf);
+    else drawLayer(ctx, group.base, scene.w, scene.h, s.pictureOf);
   }
   if (s.stroke && s.stroke.points.length > 1) {
     const { brush, points } = s.stroke;
@@ -66,6 +71,138 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneInput) {
     ctx.restore();
   }
   if (a.frameStyle > 0) drawFrame(ctx, a, s.frameColor, s.frameGradientColor, scene.w, scene.h);
+}
+
+/**
+ * One layer at its opacity and blend. A layer made of several overlapping marks is drawn on its
+ * own canvas first, so it blends as one piece instead of mark by mark.
+ */
+export function drawLayer(
+  ctx: CanvasRenderingContext2D,
+  layer: EditorLayer,
+  w: number,
+  h: number,
+  pictureOf: SceneInput['pictureOf']
+) {
+  const blend = layer.blend ?? 'source-over';
+  const whole = layer.kind === 'image' || (layer.opacity === 100 && blend === 'source-over');
+  ctx.save();
+  ctx.globalAlpha = layer.opacity / 100;
+  ctx.globalCompositeOperation = blend;
+  if (whole) drawMarks(ctx, layer, w, h, pictureOf);
+  else {
+    const buffer = document.createElement('canvas');
+    buffer.width = ctx.canvas.width;
+    buffer.height = ctx.canvas.height;
+    const b = buffer.getContext('2d')!;
+    b.setTransform(ctx.getTransform());
+    drawMarks(b, layer, w, h, pictureOf);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(buffer, 0, 0);
+    buffer.width = buffer.height = 0;
+  }
+  ctx.restore();
+}
+
+/** A base with the layers clipped to it: they are mixed together, then join the picture as one. */
+function drawClipped(
+  ctx: CanvasRenderingContext2D,
+  { base, clipped }: LayerGroup,
+  w: number,
+  h: number,
+  pictureOf: SceneInput['pictureOf']
+) {
+  const buffers: HTMLCanvasElement[] = [];
+  const buffer = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = ctx.canvas.width;
+    canvas.height = ctx.canvas.height;
+    buffers.push(canvas);
+    const b = canvas.getContext('2d')!;
+    b.setTransform(ctx.getTransform());
+    return b;
+  };
+  const shape = buffer();
+  drawMarks(shape, base, w, h, pictureOf);
+  shape.setTransform(1, 0, 0, 1, 0, 0);
+  const group = buffer();
+  group.setTransform(1, 0, 0, 1, 0, 0);
+  group.drawImage(shape.canvas, 0, 0);
+  for (const layer of clipped) {
+    const marks = buffer();
+    drawMarks(marks, layer, w, h, pictureOf);
+    marks.setTransform(1, 0, 0, 1, 0, 0);
+    marks.globalAlpha = 1;
+    marks.globalCompositeOperation = 'destination-in';
+    marks.drawImage(shape.canvas, 0, 0);
+    group.globalAlpha = layer.opacity / 100;
+    group.globalCompositeOperation = layer.blend ?? 'source-over';
+    group.drawImage(marks.canvas, 0, 0);
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = base.opacity / 100;
+  ctx.globalCompositeOperation = base.blend ?? 'source-over';
+  ctx.drawImage(group.canvas, 0, 0);
+  ctx.restore();
+  for (const canvas of buffers) canvas.width = canvas.height = 0;
+}
+
+function drawMarks(
+  ctx: CanvasRenderingContext2D,
+  layer: EditorLayer,
+  w: number,
+  h: number,
+  pictureOf: SceneInput['pictureOf']
+) {
+  if (layer.kind === 'paint') drawStrokes(ctx, layer);
+  else if (layer.kind === 'text' && layer.text) drawText(ctx, layer.text, w, h);
+  else if (layer.kind === 'shape' && layer.shape) drawShape(ctx, layer.shape, w, h);
+  else if (layer.kind === 'image' && layer.image) {
+    const picture = pictureOf?.(layer.image.uri);
+    if (picture) drawPicture(ctx, picture, layer.image, w, h);
+  }
+}
+
+function drawPicture(
+  ctx: CanvasRenderingContext2D,
+  picture: CanvasImageSource,
+  i: NonNullable<EditorLayer['image']>,
+  w: number,
+  h: number
+) {
+  const pw = i.size * w;
+  const ph = pw / i.aspect;
+  ctx.translate(i.x * w, i.y * h);
+  ctx.rotate(((i.rotation ?? 0) * Math.PI) / 180);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(picture, -pw / 2, -ph / 2, pw, ph);
+}
+
+const LINE_HEIGHT = 1.2;
+let measurer: CanvasRenderingContext2D | null = null;
+
+/** The box a layer occupies, in scene units: its centre, size and turn. Null when it has none. */
+export function layerBox(layer: EditorLayer, w: number, h: number) {
+  if (layer.text) {
+    const t = layer.text;
+    measurer ??= document.createElement('canvas').getContext('2d')!;
+    measurer.font = `bold ${t.fontSize}px ${t.fontFamily}`;
+    const lines = t.content.split('\n');
+    const width = Math.max(t.fontSize, ...lines.map((l) => measurer!.measureText(l).width));
+    return { cx: t.x * w, cy: t.y * h, w: width, h: lines.length * t.fontSize * LINE_HEIGHT, rotation: t.rotation ?? 0 };
+  }
+  if (layer.shape) {
+    const s = layer.shape;
+    const side = s.size * w * 2;
+    const flat = s.kind === 'line' || s.kind === 'arrow';
+    return { cx: s.x * w, cy: s.y * h, w: side, h: flat ? Math.max(16, side * 0.4) : side, rotation: s.rotation ?? 0 };
+  }
+  if (layer.image) {
+    const i = layer.image;
+    return { cx: i.x * w, cy: i.y * h, w: i.size * w, h: (i.size * w) / i.aspect, rotation: i.rotation ?? 0 };
+  }
+  return null;
 }
 
 function stroke(
@@ -95,28 +232,40 @@ function drawStrokes(ctx: CanvasRenderingContext2D, layer: EditorLayer) {
 
 function drawText(ctx: CanvasRenderingContext2D, t: NonNullable<EditorLayer['text']>, w: number, h: number) {
   ctx.font = `bold ${t.fontSize}px ${t.fontFamily}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  const x = t.x * w;
-  const y = t.y * h;
-  if (t.shadow) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillText(t.content, x + 2, y + 2);
-  }
-  if (t.strokeWidth > 0) {
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = t.strokeWidth;
-    ctx.strokeStyle = t.strokeColor;
-    ctx.strokeText(t.content, x, y);
-  }
-  ctx.fillStyle = t.color;
-  ctx.fillText(t.content, x, y);
+  const align = t.align ?? 'center';
+  ctx.textAlign = align;
+  // A text saved before alignment existed has no align, and its y is the baseline of its line.
+  ctx.textBaseline = t.align ? 'middle' : 'alphabetic';
+  ctx.translate(t.x * w, t.y * h);
+  ctx.rotate(((t.rotation ?? 0) * Math.PI) / 180);
+  const lines = t.content.split('\n');
+  const lineH = t.fontSize * LINE_HEIGHT;
+  // The lines line up on an edge of the block; the block stays centred on the layer's position.
+  const half = Math.max(...lines.map((l) => ctx.measureText(l).width)) / 2;
+  const x = align === 'left' ? -half : align === 'right' ? half : 0;
+  lines.forEach((line, i) => {
+    const y = (i - (lines.length - 1) / 2) * lineH;
+    if (t.shadow) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillText(line, x + 2, y + 2);
+    }
+    if (t.strokeWidth > 0) {
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = t.strokeWidth;
+      ctx.strokeStyle = t.strokeColor;
+      ctx.strokeText(line, x, y);
+    }
+    ctx.fillStyle = t.color;
+    ctx.fillText(line, x, y);
+  });
 }
 
 function drawShape(ctx: CanvasRenderingContext2D, s: NonNullable<EditorLayer['shape']>, w: number, h: number) {
-  const cx = s.x * w;
-  const cy = s.y * h;
+  const cx = 0;
+  const cy = 0;
   const r = s.size * w;
+  ctx.translate(s.x * w, s.y * h);
+  ctx.rotate(((s.rotation ?? 0) * Math.PI) / 180);
   ctx.lineWidth = s.strokeWidth;
   ctx.strokeStyle = s.color;
   ctx.lineCap = 'round';

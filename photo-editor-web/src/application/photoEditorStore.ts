@@ -48,6 +48,8 @@ export interface PhotoEditorState {
 
 /** History op type of a preset: params hold several fields' values. */
 export const PRESET_OP = 'preset';
+/** History op type of a layer edit: params hold the whole stack before and after. */
+export const LAYERS_OP = 'layers';
 
 const SHAPE_NAMES: Record<ShapeDraft['kind'], string> = {
   circle: 'Círculo',
@@ -91,6 +93,7 @@ export function initialPhotoEditorState(): PhotoEditorState {
       strokeWidth: 2,
       entrada: 0,
       saida: 100,
+      align: 'center',
     },
     shapeDraft: { kind: 'circle', color: '#FFFFFF', strokeWidth: 4 },
   };
@@ -116,8 +119,27 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
   const set = (patch: Partial<PhotoEditorState>) => store.set((s) => ({ ...s, ...patch }));
   const setAdjustments = (patch: Record<string, number>) =>
     set({ adjustments: { ...get().adjustments, ...patch } });
-  const setLayers = (fn: (layers: EditorLayer[]) => EditorLayer[]) =>
+  /** The stack when the running drag began (see liveLayers). */
+  let layersGesture: EditorLayer[] | null = null;
+  function endLayers() {
+    const before = layersGesture;
+    layersGesture = null;
+    if (before && before !== get().layers) history.push(LAYERS_OP, before, get().layers);
+  }
+  /** A discrete layer edit: one undo step. */
+  function setLayers(fn: (layers: EditorLayer[]) => EditorLayer[]) {
+    endLayers();
+    const before = get().layers;
+    const after = fn(before);
+    if (after === before) return;
+    set({ layers: after });
+    history.push(LAYERS_OP, before, after);
+  }
+  /** A layer edit that follows a finger or a slider: one undo step when it ends (endLayers). */
+  function liveLayers(fn: (layers: EditorLayer[]) => EditorLayer[]) {
+    layersGesture ??= get().layers;
     set({ layers: fn(get().layers) });
+  }
   const selectedLayer = () => get().layers.find((l) => l.id === get().selectedLayerId);
   /** Selects a layer; a text/shape selection loads its real style into the matching form. */
   function select(selectedLayerId: string) {
@@ -134,6 +156,7 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
         strokeWidth: t.strokeWidth,
         entrada: t.entrada,
         saida: t.saida,
+        align: t.align ?? 'center',
       };
     } else if (layer?.kind === 'shape' && layer.shape) {
       const sh = layer.shape;
@@ -143,12 +166,16 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
   }
   function addLayers(added: EditorLayer[]) {
     if (added.length === 0) return;
-    set({ layers: [...get().layers, ...added] });
+    setLayers((layers) => [...layers, ...added]);
     select(added[added.length - 1].id);
   }
 
   function restore(op: ReturnType<AdjustmentsHistory['undo']>, side: 'from' | 'to') {
-    if (op?.type === PRESET_OP) setAdjustments(op.params[side] as Record<string, number>);
+    if (op?.type === LAYERS_OP) {
+      const layers = op.params[side] as EditorLayer[];
+      set({ layers });
+      select(layers.some((l) => l.id === get().selectedLayerId) ? get().selectedLayerId : 'fundo');
+    } else if (op?.type === PRESET_OP) setAdjustments(op.params[side] as Record<string, number>);
     else if (op && op.type in DEFAULT_ADJUSTMENTS)
       setAdjustments({ [op.type]: op.params[side] as number });
   }
@@ -191,7 +218,10 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       setAdjustments(patch);
       history.clearFields(fields);
     },
-    undo: () => restore(history.undo(), 'from'),
+    undo() {
+      endLayers();
+      restore(history.undo(), 'from');
+    },
     redo: () => restore(history.redo(), 'to'),
 
     // ---- tools and view ----
@@ -206,25 +236,35 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
     setCompareSplit: (compareSplit: number) => set({ compareSplit }),
     setZoom: (zoom: number) => set({ zoom }),
 
-    // ---- layers (persisted separately by layerStorage, not undo-tracked) ----
+    // ---- layers (persisted separately by layerStorage; their undo steps last one session) ----
     hydrateLayers(saved: EditorLayer[]) {
       const keep = saved.some((l) => l.id === get().selectedLayerId);
       set({ layers: saved, selectedLayerId: keep ? get().selectedLayerId : 'fundo' });
     },
     setLayers,
+    liveLayers,
+    endLayers,
     selectLayer: select,
     /** Adds layers and selects the last one added. */
     addLayers,
 
     // ---- Elementos (text, shapes, memes, stickers) ----
-    setTextDraft: (patch: Partial<TextDraft>) =>
-      set({ textDraft: { ...get().textDraft, ...patch } }),
+    /** Form edits apply live to a selected text, so it can be read on the picture while typing. */
+    setTextDraft(patch: Partial<TextDraft>) {
+      set({ textDraft: { ...get().textDraft, ...patch } });
+      const sel = selectedLayer();
+      if (sel?.kind === 'text' && !sel.locked) {
+        liveLayers((layers) =>
+          layers.map((l) => (l.id === sel.id && l.text ? { ...l, text: { ...l.text, ...patch } } : l))
+        );
+      }
+    },
     /** Form edits apply live to a selected shape, so a colour picked for it is never lost. */
     setShapeDraft(patch: Partial<ShapeDraft>) {
       set({ shapeDraft: { ...get().shapeDraft, ...patch } });
       const sel = selectedLayer();
-      if (sel?.kind === 'shape') {
-        setLayers((layers) =>
+      if (sel?.kind === 'shape' && !sel.locked) {
+        liveLayers((layers) =>
           layers.map((l) =>
             l.id === sel.id && l.shape ? { ...l, shape: { ...l.shape, ...patch } } : l
           )
@@ -237,12 +277,7 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       if (!textDraft.content.trim()) return;
       const sel = selectedLayer();
       if (sel?.kind === 'text' && sel.text) {
-        const position = { x: sel.text.x, y: sel.text.y };
-        setLayers((ls) =>
-          ls.map((l) =>
-            l.id === sel.id && l.text ? { ...l, text: { ...l.text, ...textDraft, ...position } } : l
-          )
-        );
+        endLayers(); // the form already applied it while typing
       } else {
         const n = layers.filter((l) => l.kind === 'text').length + 1;
         addLayers([createTextLayer(t('Texto {n}', { n }), textDraft.content, textDraft)]);
@@ -253,14 +288,7 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       const { shapeDraft, layers } = get();
       const sel = selectedLayer();
       if (sel?.kind === 'shape' && sel.shape) {
-        const position = { x: sel.shape.x, y: sel.shape.y };
-        setLayers((ls) =>
-          ls.map((l) =>
-            l.id === sel.id && l.shape
-              ? { ...l, shape: { ...l.shape, ...shapeDraft, ...position } }
-              : l
-          )
-        );
+        endLayers(); // the form already applied it
       } else {
         const n = layers.filter((l) => l.kind === 'shape').length + 1;
         addLayers([

@@ -245,3 +245,29 @@ describe('photo editor store — Elementos (text, shapes, memes, stickers)', () 
     expect(shapes[1].shape).toMatchObject({ kind: 'circle', color: '#00FF00' });
   });
 });
+
+describe('layer undo', () => {
+  it('a drag is one step and undo/redo bring the stack back', () => {
+    const { history } = fakeHistory();
+    const editor = createPhotoEditorStore(history);
+    const before = editor.store.get().layers;
+    editor.liveLayers((ls) => ls.map((l) => ({ ...l, opacity: 50 })));
+    editor.liveLayers((ls) => ls.map((l) => ({ ...l, opacity: 40 })));
+    editor.endLayers();
+    const after = editor.store.get().layers;
+    editor.undo();
+    expect(editor.store.get().layers).toBe(before);
+    editor.redo();
+    expect(editor.store.get().layers).toBe(after);
+  });
+
+  it('undoing the layer that was selected falls back to the background', () => {
+    const { history } = fakeHistory();
+    const editor = createPhotoEditorStore(history);
+    editor.setTextDraft({ content: 'duas\nlinhas' });
+    editor.submitText();
+    expect(editor.store.get().selectedLayerId).not.toBe('fundo');
+    editor.undo();
+    expect(editor.store.get().selectedLayerId).toBe('fundo');
+  });
+});
