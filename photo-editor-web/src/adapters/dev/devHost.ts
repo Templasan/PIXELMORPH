@@ -63,6 +63,17 @@ export function createDevHost(): EditorHost {
       }
       return ids.length;
     },
+    async listWatermarks() {
+      return JSON.parse(localStorage.getItem('pixelmorph.dev.watermarks') ?? '[]');
+    },
+    async saveWatermark(watermark) {
+      const all = await this.listWatermarks();
+      localStorage.setItem('pixelmorph.dev.watermarks', JSON.stringify([...all, watermark]));
+    },
+    async deleteWatermark(id) {
+      const all = await this.listWatermarks();
+      localStorage.setItem('pixelmorph.dev.watermarks', JSON.stringify(all.filter((w) => w.id !== id)));
+    },
     async listPresets() {
       try {
         return JSON.parse(localStorage.getItem(PRESETS_KEY) ?? '[]') as PresetRef[];

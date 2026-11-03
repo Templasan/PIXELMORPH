@@ -233,6 +233,19 @@ const es: Record<string, string> = {
   'Recortar na camada de baixo': 'Recortar en la capa inferior',
   'Aplicando {done} de {total}…': 'Aplicando {done} de {total}…',
   'Tamanho final': 'Tamaño final',
+  "QR code": "Código QR",
+  "Link ou texto": "Enlace o texto",
+  "Mova e redimensione na foto. Antes de salvar, o export confere se o código pode ser lido.": "Muévelo y redimensiónalo en la foto. Antes de guardar, la exportación comprueba que se pueda leer.",
+  "Logo da galeria": "Logo de la galería",
+  "Transparência": "Transparencia",
+  "Nome da marca": "Nombre de la marca",
+  "SALVAR COMO MARCA": "GUARDAR COMO MARCA",
+  "Selecione ou crie um texto ou logo para salvar como marca.": "Selecciona o crea un texto o logo para guardar como marca.",
+  "Excluir marca {name}": "Eliminar marca {name}",
+  "Exportar mesmo assim": "Exportar de todos modos",
+  "O QR code \"{name}\" não pode ser lido nesta foto.": "El código QR \"{name}\" no se puede leer en esta foto.",
+  "Digite um link ou texto.": "Escribe un enlace o texto.",
+  "Texto longo demais para um QR code.": "Texto demasiado largo para un código QR.",
 };
 
 export default es;

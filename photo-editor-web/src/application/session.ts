@@ -5,14 +5,16 @@ import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
-import { drawLayer, drawScene } from '../engine/scene';
-import { createImageLayer, type EditorLayer } from '../domain/layers';
+import { drawLayer, drawScene, layerBox } from '../engine/scene';
+import { createImageLayer, createLayerId, type EditorLayer } from '../domain/layers';
+import { isValidQRContent, readQr } from '../domain/QRCode';
+import { qrDataUrl } from '../engine/qr';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
 import { drawCollage, drawPanorama, type CollageOptions } from '../engine/compose';
 import type { CollageLayout } from '../domain/collage/CollageMath';
 import { panoramaLayout } from '../domain/panorama/panoramaLayout';
-import type { EditorHost, PictureRef, PresetRef, SavedPhoto } from '../ports/host';
+import type { EditorHost, PictureRef, PresetRef, SavedPhoto, WatermarkRef } from '../ports/host';
 import { createStore } from '../state/createStore';
 import { createHistory, replay } from './history';
 import { createPhotoEditorStore, LAYERS_OP } from './photoEditorStore';
@@ -32,6 +34,14 @@ const GEOMETRY = /^(rotation90|fineRotation|flipH|flipV|mirrorOpacity|persp[XY]\
 function lookOf(a: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(a).filter(([k]) => !GEOMETRY.test(k) && k in DEFAULT_ADJUSTMENTS));
 }
+
+/** A kept logo is resized to this, since it is saved inside the watermark. */
+const WATERMARK_LOGO_EDGE = 512;
+/** A QR code is read back at this size at most: enough for any scanner, and quick. */
+const QR_CHECK_EDGE = 800;
+
+/** RF-066: a QR code on the picture cannot be read, so the export stopped before saving. */
+export class QrUnreadableError extends Error {}
 
 /** 'heic': the page writes a quality-100 JPEG and the app re-encodes it (Android 9+ only). */
 export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'heic';
@@ -411,7 +421,7 @@ export function createPhotoSession(host: EditorHost) {
      * The finished picture at the photo's chosen size, with the sheet's options (social crop, target size, DPI,
      * watermark), saved through the host. Defaults to the options the sheet keeps.
      */
-    async exportImage(options: ExportOptions = exportOptions.get()): Promise<ExportResult> {
+    async exportImage(options: ExportOptions = exportOptions.get(), allowUnreadableQr = false): Promise<ExportResult> {
       const i = info.get();
       if (!i.photo) throw new Error(t('Nada para exportar.'));
       setInfo({ busy: t('Exportando…') });
@@ -494,6 +504,25 @@ export function createPhotoSession(host: EditorHost) {
           pictureOf: (uri) => layerPictures.get(uri),
         });
         ctx.getImageData(0, 0, 1, 1); // waits for the drawing, so 'drawn' and 'encoded' split right
+        if (!allowUnreadableQr) {
+          // Read from the finished picture: another layer or an effect may be what hides it.
+          for (const l of st.layers) {
+            if (!l.visible || !l.image?.qr) continue;
+            const box = layerBox(l, size.scene.w, size.scene.h)!;
+            const side = Math.max(box.w, box.h) * Math.SQRT2;
+            const scale = Math.min(1, QR_CHECK_EDGE / (side * k));
+            const check = newCanvas(Math.max(1, Math.round(side * k * scale)), Math.max(1, Math.round(side * k * scale)));
+            const cctx = check.getContext('2d', { willReadFrequently: true })!;
+            cctx.fillStyle = '#FFFFFF';
+            cctx.fillRect(0, 0, check.width, check.height);
+            cctx.scale(scale, scale);
+            cctx.drawImage(picture, -(box.cx - side / 2) * k, -(box.cy - side / 2) * k);
+            const px = cctx.getImageData(0, 0, check.width, check.height);
+            if (readQr(px.data, px.width, px.height) !== l.image.qr) {
+              throw new QrUnreadableError(t('O QR code "{name}" não pode ser lido nesta foto.', { name: l.name }));
+            }
+          }
+        }
         lap('drawn');
         let out = picture;
         if (social) {
@@ -602,6 +631,49 @@ export function createPhotoSession(host: EditorHost) {
       editor.addLayers([
         createImageLayer(ref.name, ref.uri, bitmap.width / bitmap.height, size.scene.w / size.scene.h),
       ]);
+    },
+    /** RF-066: a QR code as a picture layer, placed, sized and turned like any other. */
+    addQrLayer(content: string) {
+      const text = content.trim();
+      const size = sizeOf(editor.store.get().adjustments);
+      if (!size || !isValidQRContent(text)) throw new Error(t('Digite um link ou texto.'));
+      let uri: string;
+      try {
+        uri = qrDataUrl(text);
+      } catch {
+        throw new Error(t('Texto longo demais para um QR code.'));
+      }
+      const layer = createImageLayer(t('QR code'), uri, 1, size.scene.w / size.scene.h, 0.35);
+      layer.image!.qr = text;
+      editor.addLayers([layer]);
+    },
+    /** RF-020: kept watermarks, shared by every photo; loaded on demand. */
+    watermarks: createStore<WatermarkRef[] | null>(null),
+    async loadWatermarks() {
+      this.watermarks.set(await host.listWatermarks());
+    },
+    /** Keeps a layer as a watermark. A picture goes inside it: its file belongs to this project. */
+    async saveWatermark(name: string, layer: EditorLayer) {
+      let kept = layer;
+      if (layer.image && !layer.image.uri.startsWith('data:')) {
+        const { bitmap } = await loadPicture(layer.image.uri, WATERMARK_LOGO_EDGE);
+        const c = document.createElement('canvas');
+        c.width = bitmap.width;
+        c.height = bitmap.height;
+        c.getContext('2d')!.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        kept = { ...layer, image: { ...layer.image, uri: c.toDataURL('image/png') } };
+        c.width = c.height = 0;
+      }
+      await host.saveWatermark({ id: createLayerId(), name: name.trim(), layer: kept });
+      await this.loadWatermarks();
+    },
+    async deleteWatermark(id: string) {
+      await host.deleteWatermark(id);
+      await this.loadWatermarks();
+    },
+    applyWatermark(watermark: WatermarkRef) {
+      editor.addLayers([{ ...watermark.layer, id: createLayerId(), name: watermark.name }]);
     },
     /** A layer alone on a small canvas: the layer list's thumbnail. */
     drawThumb(canvas: HTMLCanvasElement, layer: EditorLayer) {

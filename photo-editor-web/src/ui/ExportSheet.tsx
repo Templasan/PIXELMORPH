@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import { useState } from 'react';
-import type { ExportFormat, ExportOptions, ExportResult, PhotoSession } from '../application/session';
+import { QrUnreadableError, type ExportFormat, type ExportOptions, type ExportResult, type PhotoSession } from '../application/session';
 import { SOCIAL_PRESETS, formatBytes, watermarkShadow } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
 import { Chips, Range, SizeChips } from './controls';
@@ -26,18 +26,21 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
   const o = useStore(session.exportOptions);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [qrBlocked, setQrBlocked] = useState(false);
   const busy = info.busy !== null;
   const { watermark: wm } = o;
 
   const set = (patch: Partial<ExportOptions>) => session.exportOptions.set((prev) => ({ ...prev, ...patch }));
   const setWm = (patch: Partial<ExportOptions['watermark']>) => set({ watermark: { ...wm, ...patch } });
 
-  const run = async () => {
+  const run = async (allowUnreadableQr = false) => {
     setResult(null);
     setError(null);
+    setQrBlocked(false);
     try {
-      setResult(await session.exportImage());
+      setResult(await session.exportImage(undefined, allowUnreadableQr));
     } catch (e) {
+      if (e instanceof QrUnreadableError) setQrBlocked(true);
       setError(t('Falhou: {msg}', { msg: e instanceof Error ? e.message : String(e) }));
     }
   };
@@ -150,10 +153,15 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
         <Range label={t('Tamanho')} value={wm.size} min={5} max={80} onChange={(size) => setWm({ size })} />
         <Range label={t('Rotação')} value={wm.rotation} min={-180} max={180} format={(v) => `${Math.round(v)}°`} onChange={(rotation) => setWm({ rotation })} />
 
-        <button className="primary-btn wide" disabled={busy} onClick={run}>
+        <button className="primary-btn wide" disabled={busy} onClick={() => void run()}>
           {busy ? t('Exportando…') : t('Exportar')}
         </button>
         {error && <div className="muted">{error}</div>}
+        {qrBlocked && (
+          <button className="chip" onClick={() => void run(true)}>
+            {t('Exportar mesmo assim')}
+          </button>
+        )}
         {result && (
           <div className="muted">
             {FORMATS.find((f) => f.id === result.format)!.label} · {result.width}×{result.height}

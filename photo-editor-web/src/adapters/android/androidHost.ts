@@ -1,4 +1,4 @@
-import type { BakedPhoto, EditorHost, PictureRef, PresetRef, SavedPhoto } from '../../ports/host';
+import type { BakedPhoto, EditorHost, PictureRef, PresetRef, WatermarkRef, SavedPhoto } from '../../ports/host';
 import { call } from './bridge';
 
 function toBase64(bytes: Uint8Array): string {
@@ -20,6 +20,9 @@ export function createAndroidHost(): EditorHost {
     saveProject: (project) => call<void>('saveProject', project),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
     listPresets: () => call<PresetRef[]>('listPresets'),
+    listWatermarks: () => call<WatermarkRef[]>('listWatermarks'),
+    saveWatermark: (watermark) => call<void>('saveWatermark', watermark),
+    deleteWatermark: (id) => call<void>('deleteWatermark', id),
     listPhotoProjects: () => call<{ id: string; name: string }[]>('listPhotoProjects'),
     applyLookTo: (ids, look) => call<number>('applyLookTo', ids, look),
     savePreset: (name, adjustments) => call<void>('savePreset', name, adjustments),
