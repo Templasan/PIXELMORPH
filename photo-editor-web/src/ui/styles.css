@@ -330,6 +330,19 @@ button:disabled {
   cursor: grab;
 }
 
+/* What a crop leaves out, dimmed: the picture stays whole until the export. */
+.crop-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.crop-view div {
+  position: absolute;
+  outline: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6);
+}
+
 .gizmo {
   position: absolute;
   min-width: 28px;

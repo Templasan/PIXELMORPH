@@ -13,6 +13,7 @@ import { GeometryPanel } from './panels/GeometryPanel';
 import { LayersPanel } from './panels/LayersPanel';
 import { MasksPanel } from './panels/MasksPanel';
 import { RetouchPanel } from './panels/RetouchPanel';
+import { SuggestionsPanel } from './panels/SuggestionsPanel';
 import { PresetsPanel } from './panels/PresetsPanel';
 import { PanoramaPanel } from './panels/MontagePanels';
 
@@ -25,6 +26,7 @@ const TOOLS = [
   { id: 'efeitos', icon: 'zap', label: 'Efeitos' },
   { id: 'elementos', icon: 'type', label: 'Elementos' },
   { id: 'presets', icon: 'copy', label: 'Presets' },
+  { id: 'sugestoes', icon: 'info', label: 'Sugestões' },
   { id: 'panorama', icon: 'image', label: 'Panorama' },
 ] as const;
 
@@ -36,6 +38,8 @@ export function App({ session }: { session: PhotoSession }) {
   const { editor } = session;
   const info = useStore(session.info);
   const outputLongEdge = useStore(session.editor.store, (s) => s.adjustments.outputLongEdge);
+  const cropW = useStore(session.editor.store, (s) => s.adjustments.cropW);
+  const cropH = useStore(session.editor.store, (s) => s.adjustments.cropH);
   const history = useStore(session.history);
   const tool = useStore(editor.store, (s) => s.activeTool);
   const compare = useStore(editor.store, (s) => s.compareMode);
@@ -68,6 +72,7 @@ export function App({ session }: { session: PhotoSession }) {
   else if (tool === 'efeitos') panel = <EffectsPanel session={session} lightEdit={lightEdit} onLightEdit={setLightEdit} />;
   else if (tool === 'elementos') panel = <ElementsPanel session={session} />;
   else if (tool === 'presets') panel = <PresetsPanel session={session} />;
+  else if (tool === 'sugestoes') panel = <SuggestionsPanel session={session} />;
   else if (tool === 'panorama') panel = <PanoramaPanel session={session} />;
 
   // Touch shortcut (3-finger double tap): the next tool, as the toolbar order goes.
@@ -79,7 +84,8 @@ export function App({ session }: { session: PhotoSession }) {
   const p = info.photo;
   // What the export will write, when the photo's size was changed.
   const scaled = p?.width && p.height ? scaleToFit(p.width, p.height, outputLongEdge || null) : null;
-  const finalSize = scaled && p && scaled.width !== p.width ? scaled : null;
+  const final = scaled && { width: Math.round(scaled.width * cropW), height: Math.round(scaled.height * cropH) };
+  const finalSize = final && p && (final.width !== p.width || final.height !== p.height) ? final : null;
   return (
     <div className="editor">
       <header className="topbar">
