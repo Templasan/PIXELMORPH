@@ -254,3 +254,5 @@ US-27 brought in with shader filters, not a trained model: watercolour, oil and 
 US-28 brought in: automatic alignment by matching the shared area (22 ms for a pair, right overlap and shift on real crops), keeping manual correction per photo.
 
 US-24 partly brought in: remove a painted or circled object, filled from nearby texture, as a layer (RF-055). Open: automatic subject cutout (RF-004) needs a model.
+
+US-29 partly brought in: an animated thumbnail of the best moments, chosen by detail and scene change (RF-030). Open: captions from speech (RF-069) need a model.
