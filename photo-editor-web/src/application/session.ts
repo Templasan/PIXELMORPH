@@ -8,6 +8,7 @@ import { t } from '../i18n';
 import { drawLayer, drawScene, layerBox } from '../engine/scene';
 import { createImageLayer, createLayerId, type EditorLayer } from '../domain/layers';
 import { isValidQRContent, readQr } from '../domain/QRCode';
+import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
 import { qrDataUrl } from '../engine/qr';
 import { drawWatermark } from '../engine/watermark';
 import { loadPicture } from '../engine/picture';
@@ -30,11 +31,13 @@ const MONTAGE_PICTURE_EDGE = 4096;
 const PREVIEW_LONG_EDGE = 2048;
 
 /** Geometry belongs to one photo; presets carry everything else. */
-const GEOMETRY = /^(rotation90|fineRotation|flipH|flipV|mirrorOpacity|persp[XY]\d)$/;
+const GEOMETRY = /^(rotation90|fineRotation|flipH|flipV|mirrorOpacity|persp[XY]\d|crop[XYWH])$/;
 function lookOf(a: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(a).filter(([k]) => !GEOMETRY.test(k) && k in DEFAULT_ADJUSTMENTS));
 }
 
+/** US-26 reads the picture at this size: plenty for colours and composition. */
+const ANALYSIS_EDGE = 96;
 /** A kept logo is resized to this, since it is saved inside the watermark. */
 const WATERMARK_LOGO_EDGE = 512;
 /** A QR code is read back at this size at most: enough for any scanner, and quick. */
@@ -524,13 +527,18 @@ export function createPhotoSession(host: EditorHost) {
           }
         }
         lap('drawn');
-        let out = picture;
+        const cropped = a.cropW < 1 || a.cropH < 1;
+        const kept = cropped
+          ? newCanvas(Math.max(1, Math.round(picture.width * a.cropW)), Math.max(1, Math.round(picture.height * a.cropH)))
+          : picture;
+        if (cropped) kept.getContext('2d')!.drawImage(picture, -a.cropX * picture.width, -a.cropY * picture.height);
+        let out = kept;
         if (social) {
           out = newCanvas(social.width, social.height);
           const octx = out.getContext('2d')!;
           octx.imageSmoothingQuality = 'high';
-          const r = coverFitRect(picture.width, picture.height, social.width, social.height);
-          octx.drawImage(picture, r.x, r.y, r.width, r.height);
+          const r = coverFitRect(kept.width, kept.height, social.width, social.height);
+          octx.drawImage(kept, r.x, r.y, r.width, r.height);
         }
         const wm = options.watermark;
         if (wm.text.trim()) {
@@ -631,6 +639,24 @@ export function createPhotoSession(host: EditorHost) {
       editor.addLayers([
         createImageLayer(ref.name, ref.uri, bitmap.width / bitmap.height, size.scene.w / size.scene.h),
       ]);
+    },
+    /** US-26: what the picture on screen suggests. Fast enough to run when the panel opens. */
+    analyzePicture() {
+      if (!preview) return null;
+      const size = sizeOf(editor.store.get().adjustments);
+      const k = ANALYSIS_EDGE / Math.max(preview.canvas.width, preview.canvas.height);
+      const c = document.createElement('canvas');
+      c.width = Math.max(4, Math.round(preview.canvas.width * k));
+      c.height = Math.max(4, Math.round(preview.canvas.height * k));
+      const ctx = c.getContext('2d', { willReadFrequently: true })!;
+      ctx.drawImage(preview.canvas, 0, 0, c.width, c.height);
+      const { data } = ctx.getImageData(0, 0, c.width, c.height);
+      const result = {
+        palette: dominantColors(data),
+        crops: size ? suggestCrops(saliencyMap(data, c.width, c.height), c.width, c.height, size.scene.w / size.scene.h) : [],
+      };
+      c.width = c.height = 0;
+      return result;
     },
     /** RF-066: a QR code as a picture layer, placed, sized and turned like any other. */
     addQrLayer(content: string) {

@@ -246,3 +246,5 @@ US-32 brought in: QR code layers checked as readable before saving, and text or 
 US-06 brought in: masks as layers (painted, by colour, linear, radial, selective focus), each changing brightness, contrast, saturation and blur of what is under it.
 
 US-07 brought in: clone brush and liquify (push, pull, twirl), each a layer drawn in the scene path.
+
+US-26 partly brought in: palette and harmonies (RF-010), crop suggestions by thirds and golden section with a non-destructive crop (RF-042), 34 ms in the browser (RNF-012). Open: scene recognition (RF-034) needs a model; converging lines are not analysed.

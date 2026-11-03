@@ -78,11 +78,20 @@ export interface Adjustments {
   doubleExposureOpacity: number;
   /** RF-015: longest edge of the finished picture in px; 0 keeps the photo's size. */
   outputLongEdge: number;
+  /** The part of the finished picture that is kept, normalized; 0, 0, 1, 1 keeps it all. */
+  cropX: number;
+  cropY: number;
+  cropW: number;
+  cropH: number;
   [key: string]: number;
 }
 
 export const DEFAULT_ADJUSTMENTS: Adjustments = {
   outputLongEdge: 0,
+  cropX: 0,
+  cropY: 0,
+  cropW: 1,
+  cropH: 1,
   temperatura: 0,
   tint: 0,
   matiz: 0,

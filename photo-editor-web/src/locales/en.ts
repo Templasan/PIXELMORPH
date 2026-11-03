@@ -273,6 +273,17 @@ const en: Record<string, string> = {
   "Arraste o ponto até o que quer copiar e pinte onde quer a cópia.": "Drag the point to what you want to copy, then paint where the copy goes.",
   "Continue pintando: a cópia segue o seu dedo.": "Keep painting: the copy follows your finger.",
   "Arraste na foto para deformar.": "Drag on the photo to bend it.",
+  "Sugestões": "Suggestions",
+  "Paleta da foto": "Photo palette",
+  "Complementar": "Complementary",
+  "Análoga": "Analogous",
+  "Tríade": "Triad",
+  "A cor tocada vira a cor do pincel e do texto.": "The colour you tap becomes the brush and text colour.",
+  "Sugestões de corte": "Crop suggestions",
+  "Nenhuma sugestão para esta foto.": "No suggestions for this photo.",
+  "Terços": "Thirds",
+  "Proporção áurea": "Golden ratio",
+  "Sem corte": "No crop",
 };
 
 export default en;

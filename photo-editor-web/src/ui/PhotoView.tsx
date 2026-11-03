@@ -366,6 +366,18 @@ export function PhotoView({
         style={{ width: cssW, height: cssH, transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))` }}
       >
         <canvas ref={canvasRef} style={{ width: cssW, height: cssH }} />
+        {(a.cropW < 1 || a.cropH < 1) && (
+          <div className="crop-view">
+            <div
+              style={{
+                left: `${a.cropX * 100}%`,
+                top: `${a.cropY * 100}%`,
+                width: `${a.cropW * 100}%`,
+                height: `${a.cropH * 100}%`,
+              }}
+            />
+          </div>
+        )}
         <div className={`photo-input${painting ? ' painting' : ''}`} {...paint}>
           {handles}
         </div>
