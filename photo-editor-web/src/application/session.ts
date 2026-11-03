@@ -1,7 +1,9 @@
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
 import { SCENE_W, sceneSizeOf, type SceneSize } from '../domain/sceneSize';
 import { coverFitRect, scaleToFit, searchQualityForTargetSize, SOCIAL_PRESETS } from '../domain/export/exportMath';
-import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
+import { setJpegDpi, setPngDpi, setPngIcc } from '../domain/export/exportBytes';
+import { adobeRgbProfile, proofCmyk, setJpegIcc, srgbToAdobeRgb, type ExportColorSpace } from '../domain/export/colorSpace';
+import { encodePsd, opaqueBounds, type PsdLayer } from '../domain/export/psd';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
@@ -55,7 +57,7 @@ const QR_CHECK_EDGE = 800;
 export class QrUnreadableError extends Error {}
 
 /** 'heic': the page writes a quality-100 JPEG and the app re-encodes it (Android 9+ only). */
-export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'heic';
+export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'heic' | 'psd';
 
 /** The export sheet's choices; they live in the session, so they survive closing the sheet. */
 export interface ExportOptions {
@@ -69,6 +71,10 @@ export interface ExportOptions {
   targetMB: number;
   /** Written into JPEG and PNG files. */
   dpi: number;
+  /** RF-051: JPEG, PNG and WebP; Adobe RGB only in JPEG and PNG, which can carry its profile. */
+  colorSpace: ExportColorSpace;
+  /** RF-073: the finished picture as it would print. */
+  proofCmyk: boolean;
   /** Export only: never drawn on the preview. An empty text means no watermark. */
   watermark: { text: string; position: number; opacity: number; size: number; rotation: number };
 }
@@ -80,6 +86,8 @@ export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   targetOn: false,
   targetMB: 2,
   dpi: 300,
+  colorSpace: 'srgb',
+  proofCmyk: false,
   watermark: { text: '', position: 8, opacity: 60, size: 20, rotation: 0 },
 };
 
@@ -111,6 +119,84 @@ export interface SessionInfo {
   busy: string | null;
   /** HEIC export is offered (the host can encode it). */
   canHeic: boolean;
+}
+
+async function deflated(bytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream('deflate'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/**
+ * RF-040: the picture as a Photoshop file. Text, shapes, paint and pictures stay separate layers,
+ * rasterized. What works on the pixels below (colour adjustments, masks, retouch, painted looks)
+ * has no equivalent to write, so it goes into a bottom layer with everything under it.
+ */
+function psdOf(
+  picture: HTMLCanvasElement,
+  layers: EditorLayer[],
+  s: {
+    photo: CanvasImageSource;
+    size: SceneSize;
+    a: Adjustments;
+    k: number;
+    frameColor: string;
+    frameGradientColor: string;
+    pictureOf: (uri: string) => CanvasImageSource | undefined;
+    dpi: number;
+  }
+): Uint8Array {
+  const { w, h } = s.size.scene;
+  const lastBaked = layers.reduce((last, l, i) => (l.visible && (l.local || l.warp || l.art) ? i : last), -1);
+  const pixelsOf = (paint: (ctx: CanvasRenderingContext2D) => void) => {
+    const c = document.createElement('canvas');
+    c.width = picture.width;
+    c.height = picture.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
+    ctx.setTransform(s.k, 0, 0, s.k, 0, 0);
+    paint(ctx);
+    const { data } = ctx.getImageData(0, 0, c.width, c.height);
+    c.width = c.height = 0;
+    return data;
+  };
+  const out: PsdLayer[] = [];
+  const add = (name: string, rgba: Uint8ClampedArray, l?: EditorLayer) => {
+    const box = opaqueBounds(rgba, picture.width, picture.height);
+    if (!box) return;
+    const cut = new Uint8ClampedArray(box.width * box.height * 4);
+    for (let y = 0; y < box.height; y += 1) {
+      const from = ((y + box.top) * picture.width + box.left) * 4;
+      cut.set(rgba.subarray(from, from + box.width * 4), y * box.width * 4);
+    }
+    out.push({
+      name,
+      ...box,
+      rgba: cut,
+      opacity: Math.round(((l?.opacity ?? 100) / 100) * 255),
+      blend: l?.blend ?? 'source-over',
+      clip: !!l?.clip,
+      visible: l?.visible ?? true,
+    });
+  };
+  add(
+    t('Fundo'),
+    pixelsOf((ctx) =>
+      drawScene(ctx, {
+        photo: s.photo,
+        size: s.size,
+        adjustments: s.a,
+        layers: layers.slice(0, lastBaked + 1),
+        frameColor: s.frameColor,
+        frameGradientColor: s.frameGradientColor,
+        pictureOf: s.pictureOf,
+      })
+    )
+  );
+  for (const l of layers.slice(lastBaked + 1)) {
+    if (l.kind === 'background' || l.kind === 'adjustments') continue;
+    add(l.name, pixelsOf((ctx) => drawLayer(ctx, { ...l, opacity: 100, blend: undefined, visible: true }, w, h, s.pictureOf)), l);
+  }
+  const composite = picture.getContext('2d')!.getImageData(0, 0, picture.width, picture.height).data;
+  return encodePsd(picture.width, picture.height, out, composite, s.dpi);
 }
 
 /**
@@ -553,6 +639,30 @@ export function createPhotoSession(host: EditorHost) {
           drawWatermark(out.getContext('2d')!, out.width, out.height, { ...wm, text: wm.text.trim(), opacity: wm.opacity / 100 });
         }
         const { format } = options;
+        if (format === 'psd') {
+          // shortcut: the crop, social frame and watermark are export-time looks a PSD leaves to the editor that opens it.
+          const bytes = psdOf(picture, st.layers.filter((l) => !l.local?.remove), { photo, size, a, k, frameColor: i.frameColor, frameGradientColor: i.frameGradientColor, pictureOf: (uri) => layerPictures.get(uri), dpi: options.dpi });
+          const sink = host.exportSink();
+          await sink.start(`pixelmorph_${Date.now()}.psd`);
+          await sink.write(0, bytes);
+          const where = await sink.finish();
+          lap('saved');
+          return { where, format, width: picture.width, height: picture.height, bytes: bytes.length, quality: null, overTarget: false };
+        }
+        const adobe = options.colorSpace === 'adobe-rgb' && (format === 'jpeg' || format === 'png');
+        if (options.proofCmyk || adobe) {
+          const octx = out.getContext('2d', { willReadFrequently: true })!;
+          const image = octx.getImageData(0, 0, out.width, out.height);
+          if (options.proofCmyk) proofCmyk(image.data);
+          if (adobe) srgbToAdobeRgb(image.data);
+          octx.putImageData(image, 0, 0);
+        }
+        if (options.colorSpace === 'display-p3' && format !== 'heic') {
+          // Same colours, tagged and stored as Display P3: the browser converts and embeds the profile.
+          const wide = newCanvas(out.width, out.height);
+          wide.getContext('2d', { colorSpace: 'display-p3' })!.drawImage(out, 0, 0);
+          out = wide;
+        }
         const heic = format === 'heic';
         const type = heic ? 'image/jpeg' : `image/${format}`;
         const targetOn = options.targetOn && (format === 'jpeg' || format === 'webp');
@@ -567,6 +677,8 @@ export function createPhotoSession(host: EditorHost) {
         let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
         if (format === 'jpeg') bytes = setJpegDpi(bytes, options.dpi);
         if (format === 'png') bytes = setPngDpi(bytes, options.dpi);
+        if (adobe && format === 'jpeg') bytes = setJpegIcc(bytes, adobeRgbProfile());
+        if (adobe && format === 'png') bytes = setPngIcc(bytes, await deflated(adobeRgbProfile()));
         const sink = host.exportSink();
         await sink.start(
           `pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`,

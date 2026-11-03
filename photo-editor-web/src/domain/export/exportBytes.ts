@@ -162,3 +162,39 @@ export function readPngPhys(png: Uint8Array): { x: number; y: number; unit: numb
   }
   return null;
 }
+
+/**
+ * RF-051: puts an ICC profile in a PNG (iCCP chunk, right after IHDR), dropping colour chunks that
+ * would contradict it. `deflated` is the profile as zlib data, which the caller compresses.
+ */
+export function setPngIcc(png: Uint8Array, deflated: Uint8Array): Uint8Array {
+  const name = [0x49, 0x43, 0x43, 0x00, 0x00]; // "ICC", its end, compression method 0
+  const type = [0x69, 0x43, 0x43, 0x50]; // iCCP
+  const body = new Uint8Array(type.length + name.length + deflated.length);
+  body.set(type);
+  body.set(name, type.length);
+  body.set(deflated, type.length + name.length);
+  const crc = crc32(body);
+  const chunk = new Uint8Array(8 + name.length + deflated.length + 4);
+  const size = name.length + deflated.length;
+  chunk.set([(size >>> 24) & 255, (size >> 16) & 255, (size >> 8) & 255, size & 255]);
+  chunk.set(body, 4);
+  chunk.set([(crc >>> 24) & 255, (crc >> 16) & 255, (crc >> 8) & 255, crc & 255], 4 + body.length);
+  const parts: Uint8Array[] = [png.subarray(0, 8)];
+  let at = 8;
+  while (at < png.length) {
+    const length = ((png[at] << 24) | (png[at + 1] << 16) | (png[at + 2] << 8) | png[at + 3]) >>> 0;
+    const tag = String.fromCharCode(png[at + 4], png[at + 5], png[at + 6], png[at + 7]);
+    const end = at + 12 + length;
+    if (tag !== 'sRGB' && tag !== 'iCCP' && tag !== 'gAMA' && tag !== 'cHRM') parts.push(png.subarray(at, end));
+    if (tag === 'IHDR') parts.push(chunk);
+    at = end;
+  }
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let w = 0;
+  for (const p of parts) {
+    out.set(p, w);
+    w += p.length;
+  }
+  return out;
+}

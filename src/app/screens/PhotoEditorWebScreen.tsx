@@ -6,6 +6,7 @@ import { useI18n } from '@core/i18n';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import * as Sharing from 'expo-sharing';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { LocalHistoryRepository, type Operation } from '@core/history';
@@ -277,6 +278,11 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           } finally {
             await FileSystem.deleteAsync(jpeg, { idempotent: true });
           }
+        }
+        // The gallery only takes pictures and videos: a Photoshop file goes where the person sends it.
+        if (uri.endsWith('.psd')) {
+          await Sharing.shareAsync(uri, { mimeType: 'image/vnd.adobe.photoshop' });
+          return 'Arquivo PSD pronto.';
         }
         const permission = await MediaLibrary.requestPermissionsAsync(true); // write only: saving needs no read access
         if (!permission.granted) return 'Pronto, mas sem permissão para salvar na galeria.';
