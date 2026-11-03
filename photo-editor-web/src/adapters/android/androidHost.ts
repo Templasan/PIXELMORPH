@@ -20,6 +20,7 @@ export function createAndroidHost(): EditorHost {
     saveProject: (project) => call<void>('saveProject', project),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
     listPresets: () => call<PresetRef[]>('listPresets'),
+    segmentSubject: (uri) => call<PictureRef>('segmentSubject', uri),
     listWatermarks: () => call<WatermarkRef[]>('listWatermarks'),
     saveWatermark: (watermark) => call<void>('saveWatermark', watermark),
     deleteWatermark: (id) => call<void>('deleteWatermark', id),

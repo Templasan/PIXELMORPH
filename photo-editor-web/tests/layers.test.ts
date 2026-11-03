@@ -1,6 +1,7 @@
 import {
   arrowPath,
   createArtLayer,
+  createCutoutLayer,
   createImageLayer,
   createPaintLayer,
   createShapeLayer,
@@ -260,5 +261,13 @@ describe('artistic filters', () => {
     expect(l.kind).toBe('art');
     expect(l.art).toBe('oil');
     expect(l.opacity).toBe(100);
+  });
+});
+
+describe('background cutout', () => {
+  it('is a layer holding its mask, with a transparent background to start', () => {
+    const l = createCutoutLayer('Fundo removido', 'file:///m.png');
+    expect(l.kind).toBe('cutout');
+    expect(l.cutout).toEqual({ maskUri: 'file:///m.png' });
   });
 });

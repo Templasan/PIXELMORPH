@@ -317,6 +317,19 @@ const es: Record<string, string> = {
   "Arraste o ponto na foto até o que deve ficar nítido.": "Arrastra el punto en la foto hasta lo que debe quedar nítido.",
   "Pronto! A foto é sua para continuar editando.": "¡Listo! La foto es tuya para seguir editando.",
   "Sair do tutorial": "Salir del tutorial",
+  "Recortar fundo": "Recortar fondo",
+  "Fundo removido": "Fondo eliminado",
+  "Recorte": "Recorte",
+  "Fundo novo": "Fondo nuevo",
+  "Transparente": "Transparente",
+  "Imagem da galeria": "Imagen de la galería",
+  "Para manter a transparência, exporte em PNG ou WebP. Apagar esta camada traz o fundo de volta.": "Para mantener la transparencia, exporta en PNG o WebP. Eliminar esta capa recupera el fondo.",
+  "Recortar o fundo só funciona no app.": "Recortar el fondo solo funciona en la app.",
+  "Procurando o objeto principal…": "Buscando el objeto principal…",
+  "Não encontrei um objeto principal nesta foto.": "No encontré un objeto principal en esta foto.",
+  "Este aparelho não tem o Google Play Services, necessário para recortar o fundo.": "Este dispositivo no tiene Google Play Services, necesario para recortar el fondo.",
+  "Não foi possível baixar o modelo. Confira a internet e tente de novo.": "No se pudo descargar el modelo. Revisa la conexión e inténtalo de nuevo.",
+  "Não foi possível recortar o fundo: {msg}": "No se pudo recortar el fondo: {msg}",
 };
 
 export default es;
