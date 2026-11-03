@@ -26,6 +26,8 @@ const SLOP = 12;
 const HOLD_MS = 400;
 /** A second tap within this (ms) makes a double tap. */
 const DOUBLE_MS = 350;
+/** Liquify takes a sample each time the finger has moved this far (scene units). */
+const WARP_STEP = 3;
 
 /**
  * The picture, fitted to the space it gets, zoomed and panned. Over it: painting (Camadas with a
@@ -55,7 +57,12 @@ export function PhotoView({
   const st = useStore(editor.store);
   const size = info.size && session.size();
   const selected = st.layers.find((l) => l.id === st.selectedLayerId);
-  const local = st.activeTool === 'mascaras' && selected?.local && !selected.locked ? selected.local : null;
+  const local =
+    (st.activeTool === 'mascaras' || st.activeTool === 'retoque') && selected?.local && !selected.locked
+      ? selected.local
+      : null;
+  const warping = st.activeTool === 'retoque' && !!selected?.warp && !selected.locked;
+  const warpLast = useRef<Pt | null>(null);
   const painting =
     (st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked) || local?.mask === 'brush';
   const movable =
@@ -65,7 +72,7 @@ export function PhotoView({
     !selected.locked &&
     !!elementOf(selected);
   // A tool that takes one finger (painting, compare divider, a handle) keeps one-finger drags.
-  const oneFingerTool = painting || st.compareMode || mode !== 'none' || movable || !!local;
+  const oneFingerTool = painting || warping || st.compareMode || mode !== 'none' || movable || !!local;
 
   useLayoutEffect(() => {
     const el = boxRef.current!;
@@ -234,18 +241,38 @@ export function PhotoView({
   // A second finger means a pinch or a tap shortcut, not paint.
   const paint = {
     onPointerDown(e: ReactPointerEvent) {
+      if (warping && touches.current.size <= 1) {
+        (e.target as Element).setPointerCapture(e.pointerId);
+        warpLast.current = toScene(e);
+        return;
+      }
       if (!painting || touches.current.size > 1) return;
       (e.target as Element).setPointerCapture(e.pointerId);
       const p = toScene(e);
       editor.appendStrokePoint(p.x, p.y, e.pointerType === 'pen' ? e.pressure : undefined);
     },
     onPointerMove(e: ReactPointerEvent) {
+      const last = warpLast.current;
+      if (warping && last && touches.current.size <= 1) {
+        const p = toScene(e);
+        if (Math.hypot(p.x - last.x, p.y - last.y) < WARP_STEP) return;
+        warpLast.current = p;
+        const { mode, radius, strength } = editor.store.get().warpBrush;
+        const round = (v: number) => Math.round(v * 10) / 10;
+        const sample = { x: round(p.x), y: round(p.y), dx: round(p.x - last.x), dy: round(p.y - last.y), radius, strength, mode };
+        editor.liveLayers((ls) => ls.map((l) => (l.id === selected!.id ? { ...l, warp: [...(l.warp ?? []), sample] } : l)));
+        return;
+      }
       if (!painting || !(e.buttons & 1) || touches.current.size > 1) return;
       const p = toScene(e);
       editor.appendStrokePoint(p.x, p.y, e.pointerType === 'pen' ? e.pressure : undefined);
     },
     onPointerUp() {
-      if (painting) editor.commitStroke();
+      if (warpLast.current) {
+        warpLast.current = null;
+        editor.endLayers();
+      }
+      if (painting) editor.commitStroke({ w: sw, h: sh });
     },
   };
 
@@ -305,8 +332,8 @@ export function PhotoView({
         adjustments={() => editor.store.get().adjustments}
       />
     );
-  } else if (local && local.mask !== 'brush') {
-    // The picked colour, the centre, or a point on the gradient's line.
+  } else if (local && (local.mask !== 'brush' || (local.clone && local.strokes.length === 0))) {
+    // The picked colour, the centre, a point on the gradient's line, or what a clone copies from.
     handles.push(
       <Handle
         key={selected!.id}

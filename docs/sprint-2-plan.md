@@ -244,3 +244,5 @@ US-02 brought in: the Presets screen now lists the real saved presets, with dele
 US-32 brought in: QR code layers checked as readable before saving, and text or logo watermarks kept for other photos. The older export-only watermark stays.
 
 US-06 brought in: masks as layers (painted, by colour, linear, radial, selective focus), each changing brightness, contrast, saturation and blur of what is under it.
+
+US-07 brought in: clone brush and liquify (push, pull, twirl), each a layer drawn in the scene path.

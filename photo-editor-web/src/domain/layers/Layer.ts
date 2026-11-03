@@ -7,7 +7,8 @@
 
 import { t } from '../../i18n';
 import type { LocalAdjust } from './LocalAdjust';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local';
+import type { WarpSample } from './Warp';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify';
 
 /** How the lines of a text line up with each other. */
 export type TextAlign = 'left' | 'center' | 'right';
@@ -135,6 +136,7 @@ export interface EditorLayer {
   shape?: ShapeElement; // only present (and meaningful) for kind === 'shape'
   image?: ImageElement; // only present (and meaningful) for kind === 'image'
   local?: LocalAdjust; // only present (and meaningful) for kind === 'local'
+  warp?: WarpSample[]; // only present (and meaningful) for kind === 'liquify'
 }
 
 let strokeCounter = 0;
@@ -234,6 +236,10 @@ export function createShapeLayer(
 
 export function createLocalLayer(name: string, local: LocalAdjust): EditorLayer {
   return { id: createLayerId(), name, kind: 'local', visible: true, opacity: 100, locked: false, local };
+}
+
+export function createLiquifyLayer(name: string): EditorLayer {
+  return { id: createLayerId(), name, kind: 'liquify', visible: true, opacity: 100, locked: false, warp: [] };
 }
 
 /** A picture layer filling at most `fill` of a canvas of `canvasAspect` (width / height). */

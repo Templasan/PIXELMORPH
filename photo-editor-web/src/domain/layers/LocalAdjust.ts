@@ -29,6 +29,10 @@ export interface LocalAdjust {
   saturation: number;
   /** Scene units. */
   blur: number;
+  /** RF-022: copies from another part of the picture; (x, y) is the point to copy from. */
+  clone?: boolean;
+  /** Set by the first stroke: from each painted point to where it copies from, in scene units. */
+  offset?: { dx: number; dy: number };
 }
 
 export function createLocalAdjust(mask: LocalMaskKind): LocalAdjust {
@@ -52,6 +56,11 @@ export function createLocalAdjust(mask: LocalMaskKind): LocalAdjust {
 /** RF-045: everything but the point around (x, y) goes gradually out of focus. */
 export function createFocusAdjust(): LocalAdjust {
   return { ...createLocalAdjust('radial'), invert: true, blur: 6, radius: 0.25, feather: 0.6 };
+}
+
+/** RF-022: a clone brush; what its first stroke starts on takes the copy from (x, y). */
+export function createCloneAdjust(): LocalAdjust {
+  return { ...createLocalAdjust('brush'), clone: true };
 }
 
 /** The canvas filter of the changes; `k` is device pixels per scene unit. */

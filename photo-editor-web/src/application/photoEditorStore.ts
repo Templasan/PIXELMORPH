@@ -12,6 +12,7 @@ import {
   type EditorLayer,
   type ShapeDraft,
   type TextDraft,
+  type WarpMode,
 } from '../domain/layers';
 
 /** The undo log the store records adjustment edits into (core/history's usePersistedHistory). */
@@ -39,6 +40,8 @@ export interface PhotoEditorState {
   layers: EditorLayer[];
   selectedLayerId: string;
   brush: Brush;
+  /** The liquify brush. */
+  warpBrush: { mode: WarpMode; radius: number; strength: number };
   /** Points of the stroke being drawn right now (canvas space). */
   currentStroke: { x: number; y: number }[];
   /** Elementos forms; they survive closing the drawer and follow the selected layer. */
@@ -83,6 +86,7 @@ export function initialPhotoEditorState(): PhotoEditorState {
     layers: defaultLayers(),
     selectedLayerId: 'fundo',
     brush: { color: '#E5484D', size: 8, shape: 'round', opacity: 100 },
+    warpBrush: { mode: 'push', radius: 40, strength: 0.5 },
     currentStroke: [],
     textDraft: {
       content: '',
@@ -324,12 +328,17 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
 
     // ---- painting ----
     setBrush: (patch: Partial<Brush>) => set({ brush: { ...get().brush, ...patch } }),
+    setWarpBrush: (patch: Partial<PhotoEditorState['warpBrush']>) =>
+      set({ warpBrush: { ...get().warpBrush, ...patch } }),
     appendStrokePoint(x: number, y: number, pressure?: number) {
       if (pressure) pressures.push(pressure);
       set({ currentStroke: [...get().currentStroke, { x, y }] });
     },
-    /** Ends the stroke: appended to the selected layer as one vector stroke (if it has 2+ points). */
-    commitStroke() {
+    /**
+     * Ends the stroke: appended to the selected layer as one vector stroke (if it has 2+ points).
+     * `scene` is the picture's size: a clone's first stroke sets the distance to what it copies.
+     */
+    commitStroke(scene?: { w: number; h: number }) {
       const { currentStroke: pts, brush, selectedLayerId } = get();
       if (pts.length > 1) {
         const stroke = {
@@ -345,7 +354,18 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
             l.id !== selectedLayerId
               ? l
               : l.local
-                ? { ...l, local: { ...l.local, strokes: [...l.local.strokes, stroke] } }
+                ? {
+                    ...l,
+                    local: {
+                      ...l.local,
+                      strokes: [...l.local.strokes, stroke],
+                      offset:
+                        l.local.offset ??
+                        (l.local.clone && scene
+                          ? { dx: l.local.x * scene.w - pts[0].x, dy: l.local.y * scene.h - pts[0].y }
+                          : undefined),
+                    },
+                  }
                 : { ...l, strokes: [...(l.strokes ?? []), stroke] }
           )
         );
