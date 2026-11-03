@@ -238,3 +238,5 @@ editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when t
 Sprint 3 stories brought in, in order: US-20 (window border added; window move and resize came with the layers). Next candidates: US-22, US-02, US-32.
 
 US-22 brought in: timer length (3, 5, 10 s) with cancel, stop-motion plays at the picked rate. Frames show in a strip, not the grid the story words it as.
+
+US-02 brought in: the Presets screen now lists the real saved presets, with delete; batch apply shows progress. Open: RF-015 also asks for batch resizing, which has no meaning yet in non-destructive projects (owner to decide).

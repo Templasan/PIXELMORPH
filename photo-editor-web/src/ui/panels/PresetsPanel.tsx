@@ -51,18 +51,26 @@ function BatchSection({ session }: { session: PhotoSession }) {
   const [chosen, setChosen] = useState<string[]>([]);
   const [source, setSource] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
   const start = () => {
     setOpen(true);
     session.listPhotoProjects().then(setProjects, (e) => setMessage(String(e?.message ?? e)));
   };
-  const apply = () =>
-    session
-      .applyLookTo(chosen, presets.find((p) => p.id === source) ?? null)
+  const apply = () => {
+    const total = chosen.length;
+    setApplying(true);
+    setMessage(t('Aplicando {done} de {total}…', { done: 0, total }));
+    return session
+      .applyLookTo(chosen, presets.find((p) => p.id === source) ?? null, (done) =>
+        setMessage(t('Aplicando {done} de {total}…', { done, total }))
+      )
       .then((n) => {
         setMessage(t(n === 1 ? 'Aplicado em 1 foto.' : 'Aplicado em {n} fotos.', { n }));
         setChosen([]);
       })
-      .catch((e) => setMessage(t('Não foi possível aplicar: {msg}', { msg: e?.message ?? e })));
+      .catch((e) => setMessage(t('Não foi possível aplicar: {msg}', { msg: e?.message ?? e })))
+      .finally(() => setApplying(false));
+  };
   if (!open)
     return (
       <button className="chip" onClick={start}>
@@ -100,7 +108,7 @@ function BatchSection({ session }: { session: PhotoSession }) {
           ))}
         </div>
       )}
-      <button className="primary-btn wide" disabled={chosen.length === 0} onClick={apply}>
+      <button className="primary-btn wide" disabled={chosen.length === 0 || applying} onClick={apply}>
         {t(chosen.length === 1 ? 'Aplicar em 1 foto' : 'Aplicar em {n} fotos', { n: chosen.length })}
       </button>
       {message && <div className="muted">{message}</div>}
