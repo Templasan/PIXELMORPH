@@ -121,6 +121,20 @@ export function drawLayer(
   ctx.restore();
 }
 
+const CLOSED_SHARE = 0.25;
+
+/** A stroke ending near where it began circles an area, and the inside counts too. */
+export function isClosedStroke(path: string): boolean {
+  const points = [...path.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]) }));
+  if (points.length < 8) return false;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const first = points[0];
+  const last = points[points.length - 1];
+  return Math.hypot(first.x - last.x, first.y - last.y) < span * CLOSED_SHARE;
+}
+
 /** The colour mask is worked out at this size: its edges are soft anyway, and it runs per frame. */
 const COLOR_MASK_EDGE = 512;
 
@@ -156,6 +170,20 @@ function drawColorMask(mask: CanvasRenderingContext2D, source: HTMLCanvasElement
 function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number, h: number) {
   const l = layer.local!;
   if (l.mask === 'brush' && l.strokes.length === 0) return;
+  if (l.remove) {
+    // Only shows what is marked: the removal happens when it is applied.
+    ctx.save();
+    for (const s of l.strokes) {
+      ctx.globalAlpha = 0.55;
+      const path = new Path2D(s.path);
+      stroke(ctx, path, '#E5484D', s.width, s.shape, 1);
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#E5484D';
+      if (isClosedStroke(s.path)) ctx.fill(path);
+    }
+    ctx.restore();
+    return;
+  }
   if (l.clone && !l.offset) return;
   const transform = ctx.getTransform();
   const k = Math.hypot(transform.a, transform.b);

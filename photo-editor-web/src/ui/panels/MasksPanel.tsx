@@ -25,7 +25,7 @@ export function MasksPanel({ session }: { session: PhotoSession }) {
   const layers = useStore(editor.store, (s) => s.layers);
   const selectedId = useStore(editor.store, (s) => s.selectedLayerId);
   const brush = useStore(editor.store, (s) => s.brush);
-  const masks = layers.filter((l) => l.local && !l.local.clone);
+  const masks = layers.filter((l) => l.local && !l.local.clone && !l.local.remove);
   const selected = masks.find((l) => l.id === selectedId);
   const local = selected?.local;
   const set = (patch: Partial<LocalAdjust>) =>

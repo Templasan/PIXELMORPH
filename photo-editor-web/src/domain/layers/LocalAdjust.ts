@@ -33,6 +33,8 @@ export interface LocalAdjust {
   clone?: boolean;
   /** Set by the first stroke: from each painted point to where it copies from, in scene units. */
   offset?: { dx: number; dy: number };
+  /** RF-055: marks what to remove; drawn only while editing, until it is applied. */
+  remove?: boolean;
 }
 
 export function createLocalAdjust(mask: LocalMaskKind): LocalAdjust {
@@ -61,6 +63,11 @@ export function createFocusAdjust(): LocalAdjust {
 /** RF-022: a clone brush; what its first stroke starts on takes the copy from (x, y). */
 export function createCloneAdjust(): LocalAdjust {
   return { ...createLocalAdjust('brush'), clone: true };
+}
+
+/** RF-055: an area to remove, painted or circled. */
+export function createRemoveAdjust(): LocalAdjust {
+  return { ...createLocalAdjust('brush'), remove: true };
 }
 
 /** The canvas filter of the changes; `k` is device pixels per scene unit. */

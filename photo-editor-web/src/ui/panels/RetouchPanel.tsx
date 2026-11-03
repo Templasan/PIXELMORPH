@@ -1,6 +1,6 @@
 import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
-import { createCloneAdjust, createLiquifyLayer, createLocalLayer, type WarpMode } from '../../domain/layers';
+import { createCloneAdjust, createLiquifyLayer, createLocalLayer, createRemoveAdjust, type WarpMode } from '../../domain/layers';
 import { useStore } from '../../state/useStore';
 import { Chips, Range } from '../controls';
 
@@ -17,7 +17,7 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
   const selectedId = useStore(editor.store, (s) => s.selectedLayerId);
   const brush = useStore(editor.store, (s) => s.brush);
   const warp = useStore(editor.store, (s) => s.warpBrush);
-  const tools = layers.filter((l) => l.warp || l.local?.clone);
+  const tools = layers.filter((l) => l.warp || l.local?.clone || l.local?.remove);
   const selected = tools.find((l) => l.id === selectedId);
   const count = (prefix: string) => t(prefix, { n: tools.length + 1 });
 
@@ -26,6 +26,9 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
       <div className="chips">
         <button className="chip" onClick={() => editor.addLayers([createLocalLayer(count('Clonagem {n}'), createCloneAdjust())])}>
           + {t('Clonar')}
+        </button>
+        <button className="chip" onClick={() => editor.addLayers([createLocalLayer(t('Remover objeto'), createRemoveAdjust())])}>
+          + {t('Remover objeto')}
         </button>
         <button className="chip" onClick={() => editor.addLayers([createLiquifyLayer(count('Liquify {n}'))])}>
           + {t('Liquify')}
@@ -41,7 +44,16 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
         </div>
       )}
       {!selected && <div className="muted">{t('Clone ou deforme partes da foto sem alterar o original.')}</div>}
-      {selected?.local && (
+      {selected?.local?.remove && (
+        <>
+          <Range label={t('Tamanho do pincel')} value={brush.size} min={2} max={80} step={2} format={(v) => `${v}px`} onChange={(size) => editor.setBrush({ size })} />
+          <div className="muted">{t('Pinte ou circule o que quer tirar da foto.')}</div>
+          <button className="primary-btn wide" disabled={selected.local.strokes.length === 0} onClick={() => session.removeMarked(selected.id)}>
+            {t('REMOVER')}
+          </button>
+        </>
+      )}
+      {selected?.local?.clone && (
         <>
           <Range label={t('Tamanho do pincel')} value={brush.size} min={2} max={80} step={2} format={(v) => `${v}px`} onChange={(size) => editor.setBrush({ size })} />
           <div className="muted">

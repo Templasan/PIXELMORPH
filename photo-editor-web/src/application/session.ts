@@ -5,7 +5,8 @@ import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
-import { drawLayer, drawScene, layerBox } from '../engine/scene';
+import { drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
+import { fillHole } from '../domain/fillHole';
 import { createImageLayer, createLayerId, type EditorLayer } from '../domain/layers';
 import { isValidQRContent, readQr } from '../domain/QRCode';
 import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
@@ -39,6 +40,10 @@ function lookOf(a: Record<string, number>): Record<string, number> {
   return Object.fromEntries(Object.entries(a).filter(([k]) => !GEOMETRY.test(k) && k in DEFAULT_ADJUSTMENTS));
 }
 
+/** RF-055 works at this size at most around the area: the filling is soft enough, and it stays quick. */
+const REMOVE_EDGE = 384;
+/** Known picture kept around the area, in scene units, for the filling to read from. */
+const REMOVE_MARGIN = 40;
 /** US-26 reads the picture at this size: plenty for colours and composition. */
 const ANALYSIS_EDGE = 96;
 /** A kept logo is resized to this, since it is saved inside the watermark. */
@@ -504,7 +509,7 @@ export function createPhotoSession(host: EditorHost) {
           photo,
           size,
           adjustments: a,
-          layers: st.layers,
+          layers: st.layers.filter((l) => !l.local?.remove),
           frameColor: i.frameColor,
           frameGradientColor: i.frameGradientColor,
           pictureOf: (uri) => layerPictures.get(uri),
@@ -642,6 +647,108 @@ export function createPhotoSession(host: EditorHost) {
       editor.addLayers([
         createImageLayer(ref.name, ref.uri, bitmap.width / bitmap.height, size.scene.w / size.scene.h),
       ]);
+    },
+    /**
+     * RF-055: replaces a marked area with what surrounds it. The result is a picture layer over
+     * that spot, so the photo stays untouched and the removal can be undone or hidden.
+     */
+    removeMarked(layerId: string) {
+      const st = editor.store.get();
+      const index = st.layers.findIndex((l) => l.id === layerId);
+      const marked = st.layers[index];
+      const size = sizeOf(st.adjustments);
+      if (!marked?.local?.remove || !marked.local.strokes.length || !size || !preview) return;
+      const paths = marked.local.strokes.map((s) => ({ s, path: new Path2D(s.path) }));
+
+      // Find the area's bounds from its pixels: strokes have width, and a circle has an inside.
+      const { w: sw, h: sh } = size.scene;
+      const probe = document.createElement('canvas');
+      probe.width = Math.round(sw);
+      probe.height = Math.round(sh);
+      const pctx = probe.getContext('2d', { willReadFrequently: true })!;
+      const paint = (ctx: CanvasRenderingContext2D) => {
+        ctx.strokeStyle = ctx.fillStyle = '#fff';
+        ctx.lineCap = ctx.lineJoin = 'round';
+        for (const { s, path } of paths) {
+          ctx.lineWidth = s.width;
+          ctx.stroke(path);
+          if (isClosedStroke(s.path)) ctx.fill(path);
+        }
+      };
+      paint(pctx);
+      const seen = pctx.getImageData(0, 0, probe.width, probe.height).data;
+      let x0 = probe.width;
+      let y0 = probe.height;
+      let x1 = 0;
+      let y1 = 0;
+      for (let y = 0; y < probe.height; y += 1) {
+        for (let x = 0; x < probe.width; x += 1) {
+          if (seen[(y * probe.width + x) * 4 + 3] > 0) {
+            x0 = Math.min(x0, x);
+            y0 = Math.min(y0, y);
+            x1 = Math.max(x1, x + 1);
+            y1 = Math.max(y1, y + 1);
+          }
+        }
+      }
+      probe.width = probe.height = 0;
+      if (x1 <= x0) return;
+      const left = Math.max(0, x0 - REMOVE_MARGIN);
+      const top = Math.max(0, y0 - REMOVE_MARGIN);
+      const right = Math.min(sw, x1 + REMOVE_MARGIN);
+      const bottom = Math.min(sh, y1 + REMOVE_MARGIN);
+      const unit = Math.min(preview.canvas.width / size.photo.w, REMOVE_EDGE / Math.max(right - left, bottom - top));
+      const width = Math.max(1, Math.round((right - left) * unit));
+      const height = Math.max(1, Math.round((bottom - top) * unit));
+
+      // What is under the mark right now: the photo with its effects and the layers below.
+      const area = document.createElement('canvas');
+      area.width = width;
+      area.height = height;
+      const ctx = area.getContext('2d', { willReadFrequently: true })!;
+      ctx.setTransform(unit, 0, 0, unit, -left * unit, -top * unit);
+      const { frameColor, frameGradientColor } = info.get();
+      drawScene(ctx, {
+        photo: preview.canvas,
+        size,
+        adjustments: st.adjustments,
+        layers: st.layers.slice(0, index),
+        frameColor,
+        frameGradientColor,
+        pictureOf: (uri) => blendReady.get(uri),
+      });
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const image = ctx.getImageData(0, 0, width, height);
+
+      const maskCanvas = document.createElement('canvas');
+      maskCanvas.width = width;
+      maskCanvas.height = height;
+      const mctx = maskCanvas.getContext('2d', { willReadFrequently: true })!;
+      mctx.setTransform(unit, 0, 0, unit, -left * unit, -top * unit);
+      paint(mctx);
+      const alpha = mctx.getImageData(0, 0, width, height).data;
+      const hole = new Uint8Array(width * height);
+      for (let i = 0; i < hole.length; i += 1) hole[i] = alpha[i * 4 + 3] > 0 ? 1 : 0;
+      fillHole(image.data, width, height, hole);
+      ctx.putImageData(image, 0, 0);
+
+      // Only the filled part goes in the layer, with a soft edge so it melts into the photo.
+      const patch = document.createElement('canvas');
+      patch.width = width;
+      patch.height = height;
+      const out = patch.getContext('2d')!;
+      out.filter = 'blur(1.5px)';
+      out.drawImage(maskCanvas, 0, 0);
+      out.filter = 'none';
+      out.globalCompositeOperation = 'source-in';
+      out.drawImage(area, 0, 0);
+      const uri = patch.toDataURL('image/webp', 0.92);
+      area.width = area.height = maskCanvas.width = maskCanvas.height = patch.width = patch.height = 0;
+
+      const layer = createImageLayer(t('Objeto removido'), uri, width / height, sw / sh);
+      layer.image = { ...layer.image!, x: (left + right) / 2 / sw, y: (top + bottom) / 2 / sh, size: (right - left) / sw };
+      editor.setLayers((ls) => ls.map((l) => (l.id === layerId ? layer : l)));
+      editor.selectLayer('fundo');
     },
     /** US-26: what the picture on screen suggests. Fast enough to run when the panel opens. */
     analyzePicture() {
