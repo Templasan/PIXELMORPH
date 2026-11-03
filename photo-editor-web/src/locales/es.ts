@@ -246,6 +246,22 @@ const es: Record<string, string> = {
   "O QR code \"{name}\" não pode ser lido nesta foto.": "El código QR \"{name}\" no se puede leer en esta foto.",
   "Digite um link ou texto.": "Escribe un enlace o texto.",
   "Texto longo demais para um QR code.": "Texto demasiado largo para un código QR.",
+  "Máscaras": "Máscaras",
+  "Máscara": "Máscara",
+  "Pincel": "Pincel",
+  "Por cor": "Por color",
+  "Linear": "Lineal",
+  "Radial": "Radial",
+  "Foco": "Foco",
+  "Crie uma máscara para mudar só parte da foto.": "Crea una máscara para cambiar solo parte de la foto.",
+  "Tamanho do pincel": "Tamaño del pincel",
+  "Pinte na foto a área que muda.": "Pinta en la foto el área que cambia.",
+  "Arraste o ponto na foto até a cor que muda.": "Arrastra el punto en la foto hasta el color que cambia.",
+  "Ângulo": "Ángulo",
+  "Suavidade": "Suavidad",
+  "Contraste": "Contraste",
+  "Desfoque": "Desenfoque",
+  "Inverter": "Invertir",
 };
 
 export default es;

@@ -55,7 +55,9 @@ export function PhotoView({
   const st = useStore(editor.store);
   const size = info.size && session.size();
   const selected = st.layers.find((l) => l.id === st.selectedLayerId);
-  const painting = st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked;
+  const local = st.activeTool === 'mascaras' && selected?.local && !selected.locked ? selected.local : null;
+  const painting =
+    (st.activeTool === 'camadas' && selected?.kind === 'paint' && !selected.locked) || local?.mask === 'brush';
   const movable =
     (st.activeTool === 'elementos' || st.activeTool === 'camadas') &&
     !!selected &&
@@ -63,7 +65,7 @@ export function PhotoView({
     !selected.locked &&
     !!elementOf(selected);
   // A tool that takes one finger (painting, compare divider, a handle) keeps one-finger drags.
-  const oneFingerTool = painting || st.compareMode || mode !== 'none' || movable;
+  const oneFingerTool = painting || st.compareMode || mode !== 'none' || movable || !!local;
 
   useLayoutEffect(() => {
     const el = boxRef.current!;
@@ -300,6 +302,22 @@ export function PhotoView({
           editor.commitField('lightX', now.lightX, from.lightX);
           editor.commitField('lightY', now.lightY, from.lightY);
         }}
+        adjustments={() => editor.store.get().adjustments}
+      />
+    );
+  } else if (local && local.mask !== 'brush') {
+    // The picked colour, the centre, or a point on the gradient's line.
+    handles.push(
+      <Handle
+        key={selected!.id}
+        x={local.x}
+        y={local.y}
+        onMove={(nx, ny) =>
+          editor.liveLayers((ls) =>
+            ls.map((l) => (l.id === selected!.id && l.local ? { ...l, local: { ...l.local, x: nx, y: ny } } : l))
+          )
+        }
+        onEnd={() => editor.endLayers()}
         adjustments={() => editor.store.get().adjustments}
       />
     );

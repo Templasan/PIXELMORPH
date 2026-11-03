@@ -6,7 +6,8 @@
  */
 
 import { t } from '../../i18n';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image';
+import type { LocalAdjust } from './LocalAdjust';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local';
 
 /** How the lines of a text line up with each other. */
 export type TextAlign = 'left' | 'center' | 'right';
@@ -133,6 +134,7 @@ export interface EditorLayer {
   text?: TextElement; // only present (and meaningful) for kind === 'text'
   shape?: ShapeElement; // only present (and meaningful) for kind === 'shape'
   image?: ImageElement; // only present (and meaningful) for kind === 'image'
+  local?: LocalAdjust; // only present (and meaningful) for kind === 'local'
 }
 
 let strokeCounter = 0;
@@ -228,6 +230,10 @@ export function createShapeLayer(
       strokeWidth: options.strokeWidth ?? 4,
     },
   };
+}
+
+export function createLocalLayer(name: string, local: LocalAdjust): EditorLayer {
+  return { id: createLayerId(), name, kind: 'local', visible: true, opacity: 100, locked: false, local };
 }
 
 /** A picture layer filling at most `fill` of a canvas of `canvasAspect` (width / height). */

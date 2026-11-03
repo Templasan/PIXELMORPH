@@ -242,3 +242,5 @@ US-22 brought in: timer length (3, 5, 10 s) with cancel, stop-motion plays at th
 US-02 brought in: the Presets screen now lists the real saved presets, with delete; batch apply shows progress. The final size is now a setting of the photo (RF-015, as the owner proposed): shown in the top bar, applied by the export, undoable and carried by a batch.
 
 US-32 brought in: QR code layers checked as readable before saving, and text or logo watermarks kept for other photos. The older export-only watermark stays.
+
+US-06 brought in: masks as layers (painted, by colour, linear, radial, selective focus), each changing brightness, contrast, saturation and blur of what is under it.
