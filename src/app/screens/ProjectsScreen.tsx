@@ -27,6 +27,7 @@ import { errorLogger } from '@core/reliability';
 import {
   ProjectGroupRow,
   ProjectHero,
+  PROJECT_ROW_HEIGHT,
   ProjectRow,
   ProjectTile,
   type ProjectLayout,
@@ -439,6 +440,7 @@ export default function ProjectsScreen({ navigation }: Props) {
           style={styles.body}
           contentContainerStyle={styles.pageEnd}
           showsVerticalScrollIndicator={false}
+          overScrollMode="never"
           refreshControl={refreshControl}
         >
           {hero && (
@@ -527,7 +529,14 @@ export default function ProjectsScreen({ navigation }: Props) {
               extraData={selected}
               keyExtractor={(p) => p.id}
               renderItem={renderRow}
+              // Fixed heights: measuring rows while flinging made the list jump.
+              getItemLayout={(_, index) => ({
+                length: PROJECT_ROW_HEIGHT,
+                offset: PROJECT_ROW_HEIGHT * index,
+                index,
+              })}
               showsVerticalScrollIndicator={false}
+              overScrollMode="never"
               initialNumToRender={10}
               maxToRenderPerBatch={8}
               windowSize={7}
@@ -546,6 +555,7 @@ export default function ProjectsScreen({ navigation }: Props) {
               numColumns={3}
               contentContainerStyle={styles.tileGrid}
               showsVerticalScrollIndicator={false}
+              overScrollMode="never"
               initialNumToRender={18}
               maxToRenderPerBatch={12}
               windowSize={7}

@@ -29,6 +29,9 @@ interface ItemProps {
 
 const BADGE_BACKGROUND = 'rgba(0,0,0,0.7)';
 const COVER_CANDIDATES = 8;
+export const PROJECT_ROW_HEIGHT = 92;
+/** Past this, the three lines of a row no longer fit its fixed height. */
+const ROW_MAX_FONT_SCALE = 1.2;
 
 function useDueLabel(project: Project): string | null {
   const { t } = useI18n();
@@ -104,14 +107,14 @@ export const ProjectRow = memo(function ProjectRow({
         {multiSelect && <Check isSelected={isSelected} />}
       </View>
       <View style={styles.rowText}>
-        <Text style={styles.rowName} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={ROW_MAX_FONT_SCALE} style={styles.rowName} numberOfLines={1}>
           {project.name}
         </Text>
-        <Text style={styles.rowMeta} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={ROW_MAX_FONT_SCALE} style={styles.rowMeta} numberOfLines={1}>
           {dateFormatter.format(project.updatedAt)} · {formatTypeLabel(project)} · {size}
         </Text>
         {due && (
-          <Text style={styles.rowDue} numberOfLines={1}>
+          <Text maxFontSizeMultiplier={ROW_MAX_FONT_SCALE} style={styles.rowDue} numberOfLines={1}>
             {due}
           </Text>
         )}
@@ -290,7 +293,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    minHeight: 92,
+    height: PROJECT_ROW_HEIGHT,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
