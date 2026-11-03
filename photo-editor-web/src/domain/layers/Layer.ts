@@ -8,7 +8,16 @@
 import { t } from '../../i18n';
 import type { LocalAdjust } from './LocalAdjust';
 import type { WarpSample } from './Warp';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify' | 'art';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify' | 'art' | 'cutout';
+
+/** RF-004: everything under the layer stays only inside the subject; behind it, this shows. */
+export interface Cutout {
+  /** A picture of the photo's shape, whose opaque part is the subject. */
+  maskUri: string;
+  /** Behind the subject; with neither, it is transparent. */
+  backColor?: string;
+  backUri?: string;
+}
 
 /** RF-050: painted looks, made by filters on the picture; opacity is their intensity. */
 export type ArtStyle = 'watercolor' | 'oil' | 'charcoal';
@@ -147,6 +156,7 @@ export interface EditorLayer {
   local?: LocalAdjust; // only present (and meaningful) for kind === 'local'
   warp?: WarpSample[]; // only present (and meaningful) for kind === 'liquify'
   art?: ArtStyle; // only present (and meaningful) for kind === 'art'
+  cutout?: Cutout; // only present (and meaningful) for kind === 'cutout'
 }
 
 let strokeCounter = 0;
@@ -246,6 +256,10 @@ export function createShapeLayer(
 
 export function createLocalLayer(name: string, local: LocalAdjust): EditorLayer {
   return { id: createLayerId(), name, kind: 'local', visible: true, opacity: 100, locked: false, local };
+}
+
+export function createCutoutLayer(name: string, maskUri: string): EditorLayer {
+  return { id: createLayerId(), name, kind: 'cutout', visible: true, opacity: 100, locked: false, cutout: { maskUri } };
 }
 
 export function createArtLayer(name: string, art: ArtStyle): EditorLayer {

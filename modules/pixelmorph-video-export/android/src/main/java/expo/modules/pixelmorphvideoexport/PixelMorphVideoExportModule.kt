@@ -199,6 +199,15 @@ class PixelMorphVideoExportModule : Module() {
       }.start()
     }
 
+    AsyncFunction("segmentSubject") { inputUri: String, outputPath: String, promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null) {
+        promise.reject("NO_CONTEXT", "The app is not ready.", null)
+        return@AsyncFunction
+      }
+      SubjectCutout.run(context, inputUri, outputPath, promise)
+    }
+
     Function("cancel") {
       main.post {
         current?.cancel()

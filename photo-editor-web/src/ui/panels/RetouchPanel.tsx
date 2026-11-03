@@ -1,8 +1,11 @@
 import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
 import { createCloneAdjust, createLiquifyLayer, createLocalLayer, createRemoveAdjust, type WarpMode } from '../../domain/layers';
+import { useState } from 'react';
 import { useStore } from '../../state/useStore';
-import { Chips, Range } from '../controls';
+import { Chips, Range, Swatches } from '../controls';
+
+const BACK_COLORS = ['#FFFFFF', '#000000', '#E5484D', '#F5D90A', '#30A46C', '#3B82F6'];
 
 const MODES: { id: WarpMode; label: string }[] = [
   { id: 'push', label: 'Empurrar' },
@@ -17,13 +20,27 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
   const selectedId = useStore(editor.store, (s) => s.selectedLayerId);
   const brush = useStore(editor.store, (s) => s.brush);
   const warp = useStore(editor.store, (s) => s.warpBrush);
-  const tools = layers.filter((l) => l.warp || l.local?.clone || l.local?.remove);
+  const tools = layers.filter((l) => l.warp || l.local?.clone || l.local?.remove || l.cutout);
+  const [error, setError] = useState<string | null>(null);
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  const setBack = (id: string, back: { backColor?: string }) =>
+    editor.setLayers((ls) => ls.map((l) => (l.id === id && l.cutout ? { ...l, cutout: { maskUri: l.cutout.maskUri, ...back } } : l)));
   const selected = tools.find((l) => l.id === selectedId);
   const count = (prefix: string) => t(prefix, { n: tools.length + 1 });
 
   return (
     <>
       <div className="chips">
+        <button
+          className="chip"
+          disabled={layers.some((l) => l.cutout)}
+          onClick={() => {
+            setError(null);
+            session.removeBackground().catch(fail);
+          }}
+        >
+          + {t('Recortar fundo')}
+        </button>
         <button className="chip" onClick={() => editor.addLayers([createLocalLayer(count('Clonagem {n}'), createCloneAdjust())])}>
           + {t('Clonar')}
         </button>
@@ -42,6 +59,22 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
             </button>
           ))}
         </div>
+      )}
+      {error && <div className="muted">{error}</div>}
+      {selected?.cutout && (
+        <>
+          <div className="sub">{t('Fundo novo')}</div>
+          <div className="chips">
+            <button className={`chip${!selected.cutout.backColor && !selected.cutout.backUri ? ' on' : ''}`} onClick={() => setBack(selected.id, {})}>
+              {t('Transparente')}
+            </button>
+            <button className={`chip${selected.cutout.backUri ? ' on' : ''}`} onClick={() => session.pickCutoutBack(selected.id).catch(fail)}>
+              {t('Imagem da galeria')}
+            </button>
+          </div>
+          <Swatches options={BACK_COLORS} value={selected.cutout.backColor ?? ''} onPick={(backColor) => setBack(selected.id, { backColor })} />
+          <div className="muted">{t('Para manter a transparência, exporte em PNG ou WebP. Apagar esta camada traz o fundo de volta.')}</div>
+        </>
       )}
       {!selected && <div className="muted">{t('Clone ou deforme partes da foto sem alterar o original.')}</div>}
       {selected?.local?.remove && (

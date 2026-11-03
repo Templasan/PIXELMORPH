@@ -27,7 +27,11 @@ import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
-import { encodeHeic, heicSupported } from '../../../modules/pixelmorph-video-export/src';
+import {
+  encodeHeic,
+  heicSupported,
+  segmentSubject,
+} from '../../../modules/pixelmorph-video-export/src';
 import { lightCopyOf } from './photo-editor/lightCopy';
 import { presetStep } from './photo-editor/batchPreset';
 import { dateFormatter } from './projects/projectFormat';
@@ -183,6 +187,18 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           await historyRepo.save(id, { past: [...past, presetStep(past, look)], future: [] });
         }
         return ids.length;
+      },
+
+      /** RF-004: the file stays in the project's folder, so it goes when the project goes. */
+      async segmentSubject(uri: string): Promise<PictureRef> {
+        const cut = await segmentSubject(
+          uri,
+          `${FileSystem.documentDirectory}media/${projectId}/cutout_${Date.now()}.png`.replace(
+            /^file:\/\//,
+            ''
+          )
+        );
+        return { name: 'Recorte', uri: cut.uri };
       },
 
       listWatermarks,

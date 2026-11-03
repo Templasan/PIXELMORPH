@@ -9,7 +9,7 @@ import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
 import { drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
 import { fillHole } from '../domain/fillHole';
-import { createImageLayer, createLayerId, type EditorLayer } from '../domain/layers';
+import { createCutoutLayer, createImageLayer, createLayerId, isFixedLayer, type EditorLayer } from '../domain/layers';
 import { isValidQRContent, readQr } from '../domain/QRCode';
 import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
 import { detectStereoscopicFromDimensions, detectStereoscopicFromUri, eyeRects } from '../domain/stereoscopic/StereoscopicDetection';
@@ -53,6 +53,15 @@ const ANALYSIS_EDGE = 96;
 const WATERMARK_LOGO_EDGE = 512;
 /** A QR code is read back at this size at most: enough for any scanner, and quick. */
 const QR_CHECK_EDGE = 800;
+
+/** What went wrong finding the subject, from the native module's error codes. */
+function cutoutErrorText(e: unknown): string {
+  const text = e instanceof Error ? e.message : String(e);
+  if (/NO_SUBJECT|No subject/.test(text)) return t('Não encontrei um objeto principal nesta foto.');
+  if (/NO_PLAY_SERVICES|Play services is not/.test(text)) return t('Este aparelho não tem o Google Play Services, necessário para recortar o fundo.');
+  if (/MODEL_DOWNLOAD/.test(text)) return t('Não foi possível baixar o modelo. Confira a internet e tente de novo.');
+  return t('Não foi possível recortar o fundo: {msg}', { msg: text });
+}
 
 /** RF-066: a QR code on the picture cannot be read, so the export stopped before saving. */
 export class QrUnreadableError extends Error {}
@@ -252,6 +261,8 @@ export function createPhotoSession(host: EditorHost) {
   const setInfo = (patch: Partial<SessionInfo>) => info.set((s) => ({ ...s, ...patch }));
 
   let preview: PhotoGl | null = null;
+  /** The upright copy of the photo on file: what is read to find its subject. */
+  let lightUri = '';
   /** The photo as the screen shows it (the light copy). */
   let light: ImageBitmap | null = null;
   const blendPictures = new Map<string, Promise<ImageBitmap | null>>();
@@ -287,7 +298,11 @@ export function createPhotoSession(host: EditorHost) {
   }
 
   function wantLayerPictures(layers: EditorLayer[]) {
-    for (const l of layers) if (l.image) wantBlend({ name: l.name, uri: l.image.uri });
+    for (const l of layers) {
+      if (l.image) wantBlend({ name: l.name, uri: l.image.uri });
+      if (l.cutout) wantBlend({ name: l.name, uri: l.cutout.maskUri });
+      if (l.cutout?.backUri) wantBlend({ name: l.name, uri: l.cutout.backUri });
+    }
   }
 
   // ---- drawing on screen ----
@@ -461,7 +476,8 @@ export function createPhotoSession(host: EditorHost) {
         editor.hydrateAdjustments(adjustments);
         if (saved.layers) editor.hydrateLayers(saved.layers);
         wantLayerPictures(editor.store.get().layers);
-        const picture = await loadPicture(saved.previewUri ?? saved.photo.uri, PREVIEW_LONG_EDGE);
+        lightUri = saved.previewUri ?? saved.photo.uri;
+        const picture = await loadPicture(lightUri, PREVIEW_LONG_EDGE);
         light = picture.bitmap;
         performance.mark('pm:picture');
         // Without a light copy the original was decoded: what it really is beats the project's
@@ -569,6 +585,12 @@ export function createPhotoSession(host: EditorHost) {
           const shownW = l.image.size * size.scene.w * (w / size.photo.w);
           const edge = Math.ceil(shownW * Math.max(1, 1 / l.image.aspect));
           layerEdges.set(l.image.uri, Math.max(edge, layerEdges.get(l.image.uri) ?? 0));
+        }
+        // A mask's edge must be as sharp as the picture it cuts.
+        for (const l of st.layers) {
+          if (!l.visible || !l.cutout) continue;
+          layerEdges.set(l.cutout.maskUri, Math.max(w, h));
+          if (l.cutout.backUri) layerEdges.set(l.cutout.backUri, Math.max(w, h));
         }
         for (const [uri, edge] of layerEdges) {
           const pic = await loadPicture(uri, Math.min(edge, MONTAGE_PICTURE_EDGE)).catch(() => null);
@@ -760,6 +782,38 @@ export function createPhotoSession(host: EditorHost) {
       editor.addLayers([
         createImageLayer(ref.name, ref.uri, bitmap.width / bitmap.height, size.scene.w / size.scene.h),
       ]);
+    },
+    /**
+     * RF-004: hides everything but the photo's main subject. It is a layer right above the photo's
+     * colour adjustments, so they still apply, and deleting it brings the background back.
+     */
+    async removeBackground() {
+      if (!host.segmentSubject) throw new Error(t('Recortar o fundo só funciona no app.'));
+      setInfo({ busy: t('Procurando o objeto principal…') });
+      try {
+        const cut = await host.segmentSubject(lightUri);
+        wantBlend(cut);
+        await blendPictures.get(cut.uri);
+        const layer = createCutoutLayer(t('Fundo removido'), cut.uri);
+        const { layers } = editor.store.get();
+        const after = layers.filter(isFixedLayer).length;
+        editor.setLayers((ls) => [...ls.slice(0, after), layer, ...ls.slice(after)]);
+        editor.selectLayer(layer.id);
+      } catch (e) {
+        throw new Error(cutoutErrorText(e));
+      } finally {
+        setInfo({ busy: null });
+      }
+    },
+    /** RF-004: a picture from the gallery behind the subject. */
+    async pickCutoutBack(id: string) {
+      const ref = await host.pickPicture();
+      if (!ref) return;
+      wantBlend(ref);
+      await blendPictures.get(ref.uri);
+      editor.setLayers((ls) =>
+        ls.map((l) => (l.id === id && l.cutout ? { ...l, cutout: { maskUri: l.cutout.maskUri, backUri: ref.uri } } : l))
+      );
     },
     /**
      * RF-055: replaces a marked area with what surrounds it. The result is a picture layer over

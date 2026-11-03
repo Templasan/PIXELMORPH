@@ -11,10 +11,12 @@ import {
   localFilter,
   pointsToPath,
   type BrushShape,
+  type Cutout,
   type EditorLayer,
   type LayerGroup,
 } from '../domain/layers';
 import type { SceneSize } from '../domain/sceneSize';
+import { coverFitRect } from '../domain/export/exportMath';
 import { drawArt } from './artGl';
 import { drawWarp } from './warpGl';
 
@@ -66,7 +68,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneInput) {
 
   if (a.lightIntensity > 0) drawLight(ctx, a, scene.w, scene.h);
   for (const group of layerGroups(s.layers)) {
-    if (group.clipped.length) drawClipped(ctx, group, scene.w, scene.h, s.pictureOf);
+    if (group.base.cutout) drawCutout(ctx, group.base.cutout, s, group.base.opacity / 100);
+    else if (group.clipped.length) drawClipped(ctx, group, scene.w, scene.h, s.pictureOf);
     else drawLayer(ctx, group.base, scene.w, scene.h, s.pictureOf);
   }
   if (s.stroke && s.stroke.points.length > 1) {
@@ -233,6 +236,52 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
   ctx.restore();
   mask.canvas.width = mask.canvas.height = 0;
   changed.canvas.width = changed.canvas.height = 0;
+}
+
+/**
+ * RF-004: keeps what is under this layer only inside the subject, with the new background behind
+ * it. The mask turns with the photo. A perspective correction would not line up with it.
+ */
+function drawCutout(ctx: CanvasRenderingContext2D, c: Cutout, s: SceneInput, opacity: number) {
+  const mask = s.pictureOf?.(c.maskUri);
+  if (!mask || opacity <= 0) return;
+  const { scene, photo } = s.size;
+  // What the subject leaves out is the whole picture without it, at the layer's strength.
+  const keep = document.createElement('canvas');
+  keep.width = ctx.canvas.width;
+  keep.height = ctx.canvas.height;
+  const k = keep.getContext('2d')!;
+  k.setTransform(ctx.getTransform());
+  k.translate(scene.w / 2, scene.h / 2);
+  k.rotate(totalRotationRadOf(s.adjustments));
+  k.drawImage(mask, -photo.w / 2, -photo.h / 2, photo.w, photo.h);
+  if (opacity < 1) {
+    // A weaker layer keeps some of the old background.
+    k.setTransform(1, 0, 0, 1, 0, 0);
+    k.globalCompositeOperation = 'destination-over';
+    k.globalAlpha = 1 - opacity;
+    k.fillRect(0, 0, keep.width, keep.height);
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(keep, 0, 0);
+  ctx.restore();
+  keep.width = keep.height = 0;
+
+  const back = c.backUri ? s.pictureOf?.(c.backUri) : undefined;
+  if (!back && !c.backColor) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-over';
+  if (back) {
+    const b = back as ImageBitmap;
+    const r = coverFitRect(b.width, b.height, scene.w, scene.h);
+    ctx.drawImage(back, r.x, r.y, r.width, r.height);
+  } else {
+    ctx.fillStyle = c.backColor!;
+    ctx.fillRect(0, 0, scene.w, scene.h);
+  }
+  ctx.restore();
 }
 
 /** A base with the layers clipped to it: they are mixed together, then join the picture as one. */

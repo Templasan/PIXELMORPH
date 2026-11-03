@@ -57,6 +57,7 @@ interface NativeModule {
     timeMs: number,
     maxWidth: number
   ): Promise<{ uri: string; width: number; height: number }>;
+  segmentSubject(inputUri: string, outputPath: string): Promise<{ uri: string; width: number; height: number }>;
   probeRotation(uri: string): Promise<number | null>;
   probeVideo(
     uri: string
@@ -90,6 +91,11 @@ export function cancelVideoExport(): void {
 }
 
 /** Exact frame of a video at `timeMs` (not just the nearest keyframe), as a cached JPEG. */
+/** RF-004: a PNG of a photo's main subject, transparent elsewhere. Rejects with a code when it cannot. */
+export function segmentSubject(inputUri: string, outputPath: string) {
+  return native.segmentSubject(inputUri, outputPath);
+}
+
 export function extractFrame(
   uri: string,
   timeMs: number,

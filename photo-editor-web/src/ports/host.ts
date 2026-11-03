@@ -76,6 +76,8 @@ export interface EditorHost {
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
   listPresets(): Promise<PresetRef[]>;
+  /** RF-004: the main subject of a picture, transparent elsewhere. Only the app can do this. */
+  segmentSubject?(uri: string): Promise<PictureRef>;
   listWatermarks(): Promise<WatermarkRef[]>;
   saveWatermark(watermark: WatermarkRef): Promise<void>;
   deleteWatermark(id: string): Promise<void>;
