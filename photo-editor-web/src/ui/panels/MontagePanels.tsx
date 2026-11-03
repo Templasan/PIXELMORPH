@@ -184,12 +184,42 @@ function Stepper({ label, value, onChange }: { label: string; value: number; onC
 /** Panorama (US-28): photos left to right with a faded overlap; the result opens as a new project. */
 export function PanoramaPanel({ session }: { session: PhotoSession }) {
   const busy = useStore(session.info, (i) => i.busy !== null);
-  const [items, setItems] = useState<{ ref: PictureRef; offsetY: number }[]>([]);
-  const [overlap, setOverlap] = useState(15);
+  const [items, setItems] = useState<{ ref: PictureRef; offsetY: number; overlap: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [aligning, setAligning] = useState(false);
   const add = async () => {
     const ref = await session.pickPicture();
-    if (ref) setItems((list) => [...list, { ref, offsetY: 0 }]);
+    if (ref) setItems((list) => [...list, { ref, offsetY: 0, overlap: 15 }]);
+  };
+  const patch = (i: number, change: Partial<(typeof items)[number]>) =>
+    setItems((list) => list.map((it, k) => (k === i ? { ...it, ...change } : it)));
+  const align = async () => {
+    setAligning(true);
+    setNote(null);
+    setError(null);
+    try {
+      const pairs = await session.alignPanorama(items.map((it) => it.ref));
+      // Each shift is from the photo before; the layout wants each photo's place from the first.
+      let y = 0;
+      setItems((list) =>
+        list.map((it, i) => {
+          const pair = pairs[i];
+          y += pair ? pair.offsetY * 100 : it.offsetY - (list[i - 1]?.offsetY ?? 0);
+          return i === 0 ? it : { ...it, offsetY: y, overlap: pair ? pair.overlap * 100 : it.overlap };
+        })
+      );
+      const missed = pairs.slice(1).filter((p) => !p).length;
+      setNote(
+        missed === 0
+          ? t('Fotos alinhadas. Ajuste abaixo se notar algum erro.')
+          : t('{n} par de fotos não foi alinhado: elas têm pouco em comum. Ajuste à mão.', { n: missed })
+      );
+    } catch (e) {
+      setError(t('Não foi possível alinhar: {msg}', { msg: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setAligning(false);
+    }
   };
   return (
     <>
@@ -211,15 +241,21 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
               min={-20}
               max={20}
               format={(v) => `${Math.round(v)}%`}
-              onChange={(offsetY) => setItems((list) => list.map((it, k) => (k === i ? { ...it, offsetY } : it)))}
+              onChange={(offsetY) => patch(i, { offsetY })}
             />
+          )}
+          {i > 0 && (
+            <Range label={t('Sobreposição')} value={item.overlap} min={0} max={60} format={(v) => `${Math.round(v)}%`} onChange={(overlap) => patch(i, { overlap })} />
           )}
         </div>
       ))}
       <button className="chip" onClick={() => void add()}>
         + {t('Adicionar foto')}
       </button>
-      <Range label={t('Sobreposição')} value={overlap} min={0} max={50} format={(v) => `${Math.round(v)}%`} onChange={setOverlap} />
+      <button className="chip" disabled={items.length < 2 || aligning} onClick={() => void align()}>
+        {aligning ? t('Alinhando…') : t('Alinhar automaticamente')}
+      </button>
+      {note && <div className="muted">{note}</div>}
       <button
         className="primary-btn wide"
         disabled={busy || items.length < 2}
@@ -227,7 +263,7 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
           session
             .createPanorama(
               items.map((it) => it.ref),
-              overlap / 100,
+              items.map((it) => it.overlap / 100),
               items.map((it) => it.offsetY / 100)
             )
             .catch((e) => setError(t('Não foi possível criar o panorama: {msg}', { msg: e?.message ?? e })))
