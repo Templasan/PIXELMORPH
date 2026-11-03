@@ -179,7 +179,12 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
       const layers = op.params[side] as EditorLayer[];
       set({ layers });
       select(layers.some((l) => l.id === get().selectedLayerId) ? get().selectedLayerId : 'fundo');
-    } else if (op?.type === PRESET_OP) setAdjustments(op.params[side] as Record<string, number>);
+    } else if (op?.type === PRESET_OP) {
+      // A step made by the app may not know a newer field: undoing it goes back to neutral.
+      const to = op.params.to as Record<string, number>;
+      const neutral = Object.fromEntries(Object.keys(to).map((k) => [k, DEFAULT_ADJUSTMENTS[k]]));
+      setAdjustments({ ...neutral, ...(op.params[side] as Record<string, number>) });
+    }
     else if (op && op.type in DEFAULT_ADJUSTMENTS)
       setAdjustments({ [op.type]: op.params[side] as number });
   }
