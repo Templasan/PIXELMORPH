@@ -137,6 +137,12 @@ button:disabled {
   color: var(--ok);
 }
 
+.preview .badge.frozen {
+  top: 36px;
+  left: 8px;
+  right: auto;
+}
+
 .preview .toast {
   position: absolute;
   left: 12px;
@@ -209,6 +215,8 @@ button:disabled {
 .ruler {
   height: 24px;
   position: relative;
+  z-index: 3;
+  background: var(--faixa);
   border-bottom: 1px solid var(--linha);
 }
 
@@ -358,9 +366,116 @@ button:disabled {
   border-color: var(--acento);
 }
 
+.track-add {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 24px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  color: var(--icone);
+  background: var(--faixa);
+}
+
+.track-header.on {
+  color: var(--texto);
+  background: var(--barra);
+}
+
+.clip-box {
+  position: absolute;
+  min-width: 24px;
+  min-height: 24px;
+  outline: 1.5px solid var(--acento);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+  cursor: move;
+}
+
+.clip-knob {
+  position: absolute;
+  right: -12px;
+  bottom: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: rgba(0, 0, 0, 0.5);
+  touch-action: none;
+  cursor: nwse-resize;
+}
+
+.clip-knob.rotate {
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  top: -34px;
+  margin-left: -12px;
+  cursor: grab;
+}
+
+.layer-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--linha);
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--linha);
+}
+
+.layer-row:last-child {
+  border-bottom: 0;
+}
+
+.layer-row.on {
+  background: var(--faixa);
+}
+
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layer-name .muted {
+  margin: 0;
+  font-size: 11px;
+}
+
+.layer-name.dim {
+  opacity: 0.45;
+}
+
+.row-btn {
+  flex: none;
+  width: 34px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--icone);
+}
+
+.row-btn.off {
+  color: var(--linha);
+}
+
 .track-headers {
   position: absolute;
   top: 24px;
+  bottom: 0;
+  overflow: hidden;
   left: 0;
   width: 44px;
   z-index: 4;
@@ -613,5 +728,6 @@ button:disabled {
   /* The timeline takes the room the preview leaves, never less than its tracks need. */
   .timeline {
     flex: 1 0 auto;
+    height: auto !important;
   }
 }

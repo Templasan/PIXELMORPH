@@ -8,6 +8,28 @@ import type { ClipText } from './textCaption';
 
 export type TrackKind = 'video' | 'image' | 'text' | 'audio';
 
+/** How a layer mixes with what is under it; each id is a canvas composite operation. */
+export type TrackBlend =
+  | 'source-over'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'soft-light'
+  | 'darken'
+  | 'lighten'
+  | 'difference';
+
+export const TRACK_BLENDS: readonly { id: TrackBlend; name: string }[] = [
+  { id: 'source-over', name: 'Normal' },
+  { id: 'multiply', name: 'Multiplicar' },
+  { id: 'screen', name: 'Tela' },
+  { id: 'overlay', name: 'Sobrepor' },
+  { id: 'soft-light', name: 'Luz suave' },
+  { id: 'darken', name: 'Escurecer' },
+  { id: 'lighten', name: 'Clarear' },
+  { id: 'difference', name: 'Diferença' },
+];
+
 export interface TransitionSpec {
   type: 'fade' | 'slide' | 'zoom' | 'wipe';
   durationMs: number;
@@ -33,7 +55,7 @@ export interface Clip {
   holdMs?: number;
   /** RF-013: a point color correction (brightness, -100..100) applied to this clip only. */
   colorCorrection?: number;
-  /** RF-078: clockwise rotation of the frame in degrees — 0, 90, 180 or 270. Defaults to 0. */
+  /** RF-078: clockwise rotation of the frame in degrees, any angle in 0..360. Defaults to 0. */
   rotation?: number;
   /** RF-049: playback rate — 0.25 (4x slow-mo) .. 4 (4x fast-forward). Defaults to 1. */
   speed?: number;
@@ -53,8 +75,14 @@ export interface Clip {
   sphericalRoll?: number; // -180 to 180
   /** Fill the frame (or its PiP box), cropping, instead of fitting inside it. */
   fill?: boolean;
-  /** RF-008: a clip on a text track is a text over the video. */
+  /** RF-008: a clip with a text is a text over what is below it. */
   text?: ClipText;
+  /** A still picture; without this field the track's kind says (older projects). */
+  image?: boolean;
+  /** 0..100, defaults to 100. */
+  opacity?: number;
+  /** This clip's own mix; without it, its track's. */
+  blend?: TrackBlend;
 }
 
 export interface Track {
@@ -64,6 +92,16 @@ export interface Track {
   visible: boolean;
   locked: boolean;
   clips: Clip[];
+  /** 0..100, defaults to 100: the whole layer, on top of each clip's own. */
+  opacity?: number;
+  blend?: TrackBlend;
+}
+
+/** What a clip is: any picture may sit on any track that is not for sound. */
+export function clipMedia(track: Pick<Track, 'kind'>, clip: Clip): TrackKind {
+  if (track.kind === 'audio') return 'audio';
+  if (clip.text) return 'text';
+  return (clip.image ?? track.kind === 'image') ? 'image' : 'video';
 }
 
 export function clipDurationMs(clip: Clip): number {

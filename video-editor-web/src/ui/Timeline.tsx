@@ -1,7 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { clipDurationMs, clipEndMs, type Clip, type Track } from '../domain/Track';
-import { moveClip, rippleMove, rippleTrim, trimClipIn, trimClipOut } from '../domain/timeline';
+import { clipDurationMs, clipEndMs, clipMedia, createTrackId, type Clip, type Track } from '../domain/Track';
+import {
+  addPictureTrack,
+  moveClip,
+  moveClipToTrack,
+  rippleMove,
+  rippleTrim,
+  shiftTrack,
+  trimClipIn,
+  trimClipOut,
+} from '../domain/timeline';
 import { formatTimecode } from '../domain/frameMath';
+import { displayOrder } from './trackOrder';
 import type { EditorSession } from '../application/session';
 import { useStore } from '../state/useStore';
 import { Icon } from './Icon';
@@ -9,7 +19,9 @@ import { ClipStrip } from './ClipStrip';
 import { t } from '../i18n';
 
 const RULER_H = 24;
-const ROW_H: Record<Track['kind'], number> = { video: 56, image: 48, text: 40, audio: 44 };
+const ROW_H: Record<Track['kind'], number> = { video: 48, image: 48, text: 48, audio: 40 };
+/** Past this share of the screen the tracks scroll instead of pushing the preview away. */
+const MAX_HEIGHT_SHARE = 0.36;
 /** Dragging a clip or an edge this close to a side scrolls the timeline (px from the edge). */
 const EDGE_PX = 36;
 /** Auto-scroll speed at the very edge, in timeline ms per second of holding. */
@@ -21,24 +33,27 @@ const TAP_SLOP_PX = 6;
 /** Clip edges and the playhead pull a dragged edge within this distance. */
 const SNAP_PX = 8;
 
-/** Rows top to bottom: texts, then media from the top layer down, then sound. */
-export function displayOrder(tracks: readonly Track[]): Track[] {
-  const media = tracks.filter((t) => t.kind === 'video' || t.kind === 'image');
-  return [
-    ...tracks.filter((t) => t.kind === 'text'),
-    ...[...media].reverse(),
-    ...tracks.filter((t) => t.kind === 'audio'),
-  ];
-}
-
 function tickStepMs(pps: number): number {
   const steps = [100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
   return steps.find((s) => (s / 1000) * pps >= 70) ?? 60000;
 }
 
 type Drag =
-  | { kind: 'scrub'; x0: number; t0: number; moved: boolean }
-  | { kind: 'move'; x0: number; t0: number; trackId: string; clip: Clip; moved: boolean; selected: boolean }
+  | { kind: 'scrub'; x0: number; y0: number; t0: number; moved: boolean }
+  | { kind: 'scroll'; y0: number; top0: number }
+  | { kind: 'header'; y0: number; trackId: string; moved: boolean }
+  | {
+      kind: 'move';
+      x0: number;
+      y0: number;
+      t0: number;
+      trackId: string;
+      clip: Clip;
+      moved: boolean;
+      selected: boolean;
+      /** The track a drag above the top row creates (the same one for the whole drag). */
+      newTrackId: string;
+    }
   | { kind: 'trim'; x0: number; t0: number; trackId: string; clip: Clip; side: 'in' | 'out' }
   | { kind: 'pinch'; d0: number; pps0: number };
 
@@ -49,13 +64,17 @@ type Drag =
 export function Timeline({
   session,
   onTransition,
+  onTrack,
 }: {
   session: EditorSession;
   onTransition: (clipId: string) => void;
+  onTrack: () => void;
 }) {
   const { editor } = session;
   const tracks = useStore(editor.store, (s) => s.tracks);
   const selectedId = useStore(editor.store, (s) => s.selectedClipId);
+  const activeTrackId = useStore(editor.store, (s) => s.activeTrackId);
+  const [scrollTop, setScrollTop] = useState(0);
   const [pps, setPps] = useState(80); // pixels per second
   const [width, setWidth] = useState(360);
   const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
@@ -71,6 +90,9 @@ export function Timeline({
   const durationMs = useMemo(() => session.durationMs(), [tracks, session]);
   const height = RULER_H + rows.reduce((h, t) => h + ROW_H[t.kind], 0);
   const center = width / 2;
+  const viewHeight = Math.min(height, Math.max(RULER_H + 2 * ROW_H.video, window.innerHeight * MAX_HEIGHT_SHARE));
+  const maxScroll = height - viewHeight;
+  const top = Math.min(scrollTop, maxScroll);
 
   useLayoutEffect(() => {
     const el = rootRef.current!;
@@ -115,9 +137,22 @@ export function Timeline({
     return best;
   };
 
+  /** The row under a screen height: its track, 'above' over the ruler, null past the last row. */
+  const rowAt = (clientY: number): Track | 'above' | null => {
+    const rect = rootRef.current!.getBoundingClientRect();
+    let y = clientY - rect.top - RULER_H + top;
+    if (clientY - rect.top < RULER_H) return 'above';
+    for (const row of rows) {
+      if (y < ROW_H[row.kind]) return row;
+      y -= ROW_H[row.kind];
+    }
+    return null;
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     try {
-      (e.target as Element).setPointerCapture?.(e.pointerId);
+      // On the timeline, not the clip: a clip changing track is a new element under the finger.
+      rootRef.current!.setPointerCapture?.(e.pointerId);
     } catch {
       // not a live pointer (synthetic event): the drag still works without capture
     }
@@ -129,6 +164,11 @@ export function Timeline({
       return;
     }
     session.pause();
+    const header = (e.target as HTMLElement).closest<HTMLElement>('[data-header]');
+    if (header) {
+      drag.current = { kind: 'header', y0: e.clientY, trackId: header.dataset.header!, moved: false };
+      return;
+    }
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-clip]');
     const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-handle]');
     if (target) {
@@ -149,6 +189,8 @@ export function Timeline({
       drag.current = {
         kind: 'move',
         x0: e.clientX,
+        y0: e.clientY,
+        newTrackId: createTrackId(),
         t0: session.time.get(),
         trackId,
         clip,
@@ -157,7 +199,7 @@ export function Timeline({
       };
       return;
     }
-    drag.current = { kind: 'scrub', x0: e.clientX, t0: session.time.get(), moved: false };
+    drag.current = { kind: 'scrub', x0: e.clientX, y0: e.clientY, t0: session.time.get(), moved: false };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -170,27 +212,50 @@ export function Timeline({
       setPps(Math.max(MIN_PPS, Math.min(MAX_PPS, d.pps0 * ((Math.abs(a - b) || 1) / d.d0))));
       return;
     }
+    if (d.kind === 'scroll') {
+      setScrollTop(Math.max(0, Math.min(maxScroll, d.top0 - (e.clientY - d.y0))));
+      return;
+    }
+    if (d.kind === 'header') {
+      const row = rowAt(e.clientY);
+      if (Math.abs(e.clientY - d.y0) > TAP_SLOP_PX) d.moved = true;
+      if (!d.moved || row === null) return;
+      // The rows run top to bottom and the stack bottom to top, so a row up is a step up.
+      const over = row === 'above' ? 0 : rows.indexOf(row);
+      // Live edits start from the snapshot, so the steps count from where the track was there.
+      editor.live((before) =>
+        shiftTrack(before, d.trackId, displayOrder(before).findIndex((r) => r.id === d.trackId) - over)
+      );
+      return;
+    }
     lastX.current = e.clientX;
+    lastY.current = e.clientY;
     const dx = e.clientX - d.x0;
     const dms = (dx / ppsRef.current) * 1000;
     if (d.kind === 'scrub' || (d.kind === 'move' && !d.selected)) {
+      // Mostly vertical, with rows out of sight: the rows scroll.
+      const dy = e.clientY - d.y0;
+      if (!d.moved && maxScroll > 0 && Math.abs(dy) > TAP_SLOP_PX && Math.abs(dy) > Math.abs(dx)) {
+        drag.current = { kind: 'scroll', y0: e.clientY, top0: top };
+        return;
+      }
       // Dragging an unselected clip scrolls the timeline like the background does.
       if (Math.abs(dx) > TAP_SLOP_PX) d.moved = true;
       if (!d.moved) return;
-      if (d.kind === 'move') drag.current = { kind: 'scrub', x0: d.x0, t0: d.t0, moved: true };
+      if (d.kind === 'move') drag.current = { kind: 'scrub', x0: d.x0, y0: d.y0, t0: d.t0, moved: true };
       session.seek(Math.max(0, Math.min(durationMs, d.t0 - dms)));
       return;
     }
     if (d.kind === 'move') {
-      if (Math.abs(dx) > TAP_SLOP_PX) d.moved = true;
+      if (Math.abs(dx) > TAP_SLOP_PX || Math.abs(e.clientY - d.y0) > TAP_SLOP_PX) d.moved = true;
       if (!d.moved) return;
     }
-    applyEdit(e.clientX);
+    applyEdit(e.clientX, e.clientY);
     startEdgeScroll();
   };
 
   /** Applies a move/trim drag for the finger at `clientX`, counting how far the view scrolled. */
-  const applyEdit = (clientX: number) => {
+  const applyEdit = (clientX: number, clientY: number) => {
     const d = drag.current;
     if (!d || (d.kind !== 'move' && d.kind !== 'trim')) return;
     const dms = ((clientX - d.x0) / ppsRef.current) * 1000 + (session.time.get() - d.t0);
@@ -202,9 +267,18 @@ export function Timeline({
         start !== d.clip.startMs + dms ? start : end - clipDurationMs(d.clip);
       // Ripple on: dropping over other clips reorders them; off: the clip moves into free space.
       const reorder = editor.store.get().rippleMode;
-      editor.live((before) =>
-        (reorder ? rippleMove : moveClip)(before, d.trackId, d.clip.id, desired)
-      );
+      // Over another row the clip changes layer; above the top row it starts a new one.
+      const row = rowAt(clientY);
+      const sound = tracks.find((t) => t.id === d.trackId)?.kind === 'audio';
+      editor.live((before) => {
+        if (row === 'above' && !sound)
+          return moveClipToTrack(addPictureTrack(before, d.newTrackId), d.trackId, d.newTrackId, d.clip.id, desired);
+        if (row && row !== 'above' && row.id !== d.trackId && row.id !== d.newTrackId) {
+          const moved = moveClipToTrack(before, d.trackId, row.id, d.clip.id, desired);
+          if (moved !== before) return moved;
+        }
+        return (reorder ? rippleMove : moveClip)(before, d.trackId, d.clip.id, desired);
+      });
       return;
     }
     // trim (with Ripple on, the clip keeps its start and the clips after it follow)
@@ -231,6 +305,7 @@ export function Timeline({
 
   // Holding a dragged clip or edge near a side scrolls the timeline under it.
   const lastX = useRef(0);
+  const lastY = useRef(0);
   const edgeRaf = useRef(0);
   const startEdgeScroll = () => {
     if (edgeRaf.current) return;
@@ -248,7 +323,7 @@ export function Timeline({
       if (push !== 0) {
         const t = session.time.get() + push * EDGE_SPEED_MS * ((now - prev) / 1000);
         session.seek(Math.max(0, Math.min(durationMs + 10_000, t)));
-        applyEdit(lastX.current);
+        applyEdit(lastX.current, lastY.current);
       }
       prev = now;
       edgeRaf.current = requestAnimationFrame(step);
@@ -261,7 +336,15 @@ export function Timeline({
     const d = drag.current;
     if (pointers.current.size > 0) return;
     drag.current = null;
-    if (!d) return;
+    if (!d || d.kind === 'scroll') return;
+    if (d.kind === 'header') {
+      if (d.moved) editor.endGesture();
+      else {
+        editor.setActiveTrack(d.trackId);
+        onTrack();
+      }
+      return;
+    }
     if (d.kind === 'move' && !d.moved) {
       editor.toggleSelect(d.clip.id);
       return;
@@ -299,14 +382,14 @@ export function Timeline({
     <div
       ref={rootRef}
       className="timeline"
-      style={{ minHeight: height }}
+      style={{ height: viewHeight, minHeight: viewHeight }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onWheel={onWheel}
     >
-      <div ref={contentRef} className="content" style={{ width: contentWidth, height }}>
+      <div ref={contentRef} className="content" style={{ width: contentWidth, height: viewHeight }}>
         <div className="ruler" style={{ width: contentWidth }}>
           {ticks.map((t) => (
             <div key={t} className="tick" style={{ left: (t / 1000) * pps }}>
@@ -318,18 +401,20 @@ export function Timeline({
           <div
             key={track.id}
             className={`track-row${track.visible ? '' : ' hidden-track'}`}
-            style={{ position: 'absolute', top: rowTops[i], height: ROW_H[track.kind], width: contentWidth }}
+            style={{ position: 'absolute', top: rowTops[i] - top, height: ROW_H[track.kind], width: contentWidth }}
           >
             {[...track.clips]
               .sort((a, b) => a.startMs - b.startMs)
               .map((clip, k, sorted) => {
+                const media = clipMedia(track, clip);
                 const left = (clip.startMs / 1000) * pps;
                 const w = Math.max(4, (clipDurationMs(clip) / 1000) * pps);
                 const selected = clip.id === selectedId;
                 const prev = sorted[k - 1];
                 const adjacent =
-                  (track.kind === 'video' || track.kind === 'image') &&
+                  (media === 'video' || media === 'image') &&
                   prev &&
+                  !prev.text &&
                   Math.abs(clipEndMs(prev) - clip.startMs) < 1;
                 return (
                   <div key={clip.id}>
@@ -337,12 +422,12 @@ export function Timeline({
                       data-clip={clip.id}
                       data-track={track.id}
                       className={`clip${selected ? ' selected' : ''}`}
-                      style={{ left, width: w, background: session.colorOf(track.kind) }}
+                      style={{ left, width: w, background: session.colorOf(media) }}
                     >
                       <div className="clip-body">
                         <ClipStrip
                           clip={clip}
-                          kind={track.kind}
+                          kind={media}
                           width={w}
                           height={ROW_H[track.kind] - 8}
                           pps={pps}
@@ -376,9 +461,23 @@ export function Timeline({
           </div>
         ))}
       </div>
+      <button
+        className="track-add"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => editor.commit((before) => addPictureTrack(before))}
+        aria-label={t('Nova faixa')}
+      >
+        <Icon name="plus" size={14} />
+      </button>
       <div className="track-headers">
+        <div style={{ transform: `translateY(${-top}px)` }}>
         {rows.map((track) => (
-          <div key={track.id} className="track-header" style={{ height: ROW_H[track.kind] }}>
+          <div
+            key={track.id}
+            data-header={track.id}
+            className={`track-header${track.id === activeTrackId ? ' on' : ''}`}
+            style={{ height: ROW_H[track.kind] }}
+          >
             <span>{track.name}</span>
             <button
               onPointerDown={(e) => e.stopPropagation()}
@@ -389,6 +488,7 @@ export function Timeline({
             </button>
           </div>
         ))}
+        </div>
       </div>
       <div className="playhead" style={{ left: center }} />
       <div className="zoom-hint">

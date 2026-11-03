@@ -9,10 +9,13 @@ const TITLES = { video: 'Adicionar vídeo', image: 'Adicionar foto', audio: 'Adi
 export function MediaPanel({
   session,
   kind,
+  stack,
   onClose,
 }: {
   session: EditorSession;
   kind: MediaItem['kind'];
+  /** Adds on a new track on top of the stack. */
+  stack?: boolean;
   onClose: () => void;
 }) {
   const [items, setItems] = useState<MediaItem[] | null>(null);
@@ -43,7 +46,7 @@ export function MediaPanel({
             className="media-item"
             onClick={() => {
               onClose();
-              void session.addMedia(m);
+              void session.addMedia(m, stack);
             }}
           >
             {m.name}

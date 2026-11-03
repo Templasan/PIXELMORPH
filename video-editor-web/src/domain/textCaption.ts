@@ -26,6 +26,9 @@ export const TEXT_ANIMATIONS: readonly { id: TextAnimation; label: string }[] = 
   { id: 'typewriter', label: 'Máquina de escrever' },
 ];
 
+/** How the lines of a text line up with each other. */
+export type TextAlign = 'left' | 'center' | 'right';
+
 export interface ClipText {
   content: string;
   fontFamily: string;
@@ -41,6 +44,10 @@ export interface ClipText {
   strokeWidth: number;
   animIn: { type: TextAnimation; ms: number };
   animOut: { type: TextAnimation; ms: number };
+  /** Defaults to 'center'. */
+  align?: TextAlign;
+  /** Degrees, defaults to 0. */
+  rotation?: number;
 }
 
 export const DEFAULT_TEXT: ClipText = {

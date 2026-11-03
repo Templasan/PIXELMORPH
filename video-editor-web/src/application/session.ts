@@ -4,6 +4,7 @@ import {
   clipEndMs,
   createClip,
   createClipId,
+  clipMedia,
   type Clip,
   type Track,
 } from '../domain/Track';
@@ -20,7 +21,7 @@ import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
 import { createHistory } from './history';
 import { createVideoEditorStore } from './videoEditorStore';
-import { mainTrack, placeAtPlayhead } from './placement';
+import { freeStart, mainTrack, newLayer, placeAtPlayhead } from './placement';
 import { timelapseClips } from '../domain/timelapse';
 import type { TransitionType } from '../domain/transitions';
 
@@ -44,12 +45,7 @@ export function defaultTracks(): Track[] {
     locked: false,
     clips: [],
   });
-  return [
-    makeTrack('v1', 'V1', 'video'),
-    makeTrack('img', 'IMG', 'image'),
-    makeTrack('txt', 'TXT', 'text'),
-    makeTrack('a1', 'A1', 'audio'),
-  ];
+  return [makeTrack('v1', 'V1', 'video'), makeTrack('a1', 'A1', 'audio')];
 }
 
 /**
@@ -69,6 +65,10 @@ export function createEditorSession(host: EditorHost) {
   // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
   const previews = new MediaPreviews(pool, () => playing.get());
   const format = createStore<ProjectFormat>('16:9');
+  /** Video layers holding their frame while playing (see liveLayerKeys). */
+  const frozenLayers = createStore(0);
+  /** Counts drawn frames: what the preview's handles follow. */
+  const drawn = createStore(0);
   let player: Player | null = null;
   /** Diagnostics: set to [] to record every played frame (see tools/check in the dev console). */
   let trace: FrameInfo[] | null = null;
@@ -83,7 +83,7 @@ export function createEditorSession(host: EditorHost) {
   const askPreviewSources = (tracks: Track[]) =>
     host.wantPreviewSources?.([
       ...new Set(
-        tracks.filter((t) => t.kind === 'video').flatMap((t) => t.clips.map((c) => c.sourceUri))
+        tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri))
       ),
     ]);
   /** How many video files the preview reads from a light copy (shown as a badge). */
@@ -131,7 +131,9 @@ export function createEditorSession(host: EditorHost) {
     }
     // A new project takes the shape of its first video (a phone video is usually 9:16).
     if (!saved?.format) {
-      const first = editor.store.get().tracks.find((t) => t.kind === 'video')?.clips[0];
+      const first = editor.store
+        .get()
+        .tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video'))[0];
       if (first) {
         const p = await probeMedia(pool, first.sourceUri).catch(() => null);
         if (p && p.width && p.height) format.set(p.height > p.width ? '9:16' : p.width === p.height ? '1:1' : '16:9');
@@ -150,6 +152,8 @@ export function createEditorSession(host: EditorHost) {
         onTime: (ms) => time.set(ms),
         onPlaying: (p) => playing.set(p),
         onError: (m) => error.set(m),
+        onDrawn: () => drawn.set(drawn.get() + 1),
+        onFrozenLayers: (count) => frozenLayers.set(count),
         onFrame: (f) => trace?.push(f),
       },
       compose(editor.store.get().tracks)
@@ -164,7 +168,12 @@ export function createEditorSession(host: EditorHost) {
 
   const durationMs = () => compositionDurationMs(editor.store.get().tracks);
 
-  async function addMedia(item: MediaItem) {
+  /**
+   * Adds a file. With `stack` it goes at the playhead on a new track on top of everything. On the
+   * active track it goes at the playhead (or the first room after it). Otherwise a video follows
+   * the end of the main track, and pictures and sound go where the playhead is.
+   */
+  async function addMedia(item: MediaItem, stack = false) {
     busy.set(t('Abrindo {name}…', { name: item.name }));
     try {
       const kind: Track['kind'] = item.kind;
@@ -176,19 +185,32 @@ export function createEditorSession(host: EditorHost) {
       }
       const at = time.get();
       editor.commit((before) => {
-        // Video goes at the end of the main track; pictures and sound where the playhead is.
-        const { tracks, trackId } =
-          kind === 'video' ? mainTrack(before) : placeAtPlayhead(before, kind, at, durationMs);
+        const active = before.find((t) => t.id === editor.store.get().activeTrackId && !t.locked);
+        const useActive = !!active && (active.kind === 'audio') === (kind === 'audio');
+        const { tracks, trackId } = stack
+          ? newLayer(before)
+          : useActive
+            ? { tracks: before, trackId: active.id }
+            : kind === 'video'
+              ? mainTrack(before)
+              : placeAtPlayhead(before, kind, at, durationMs);
         const track = tracks.find((t) => t.id === trackId)!;
         const startMs =
-          kind === 'video' ? track.clips.reduce((m, c) => Math.max(m, clipEndMs(c)), 0) : at;
-        const clip = createClip({
-          name: item.name,
-          sourceUri: item.uri,
-          color: KIND_COLORS[kind],
-          startMs,
-          sourceDurationMs,
-        });
+          stack || useActive
+            ? freeStart(track, at, durationMs)
+            : kind === 'video'
+              ? track.clips.reduce((m, c) => Math.max(m, clipEndMs(c)), 0)
+              : at;
+        const clip: Clip = {
+          ...createClip({
+            name: item.name,
+            sourceUri: item.uri,
+            color: KIND_COLORS[kind],
+            startMs,
+            sourceDurationMs,
+          }),
+          image: kind === 'image',
+        };
         return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t));
       });
     } catch (e) {
@@ -210,17 +232,17 @@ export function createEditorSession(host: EditorHost) {
         stepMs,
         color: KIND_COLORS.image,
         transition: opts.transition,
-      });
+      }).map((c) => ({ ...c, image: true }));
       return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, ...clips] } : t));
     });
   }
 
-  function addText() {
+  function addText(stack = false) {
     const at = time.get();
     const durationMs = 3000;
     let id = '';
     editor.commit((before) => {
-      const { tracks, trackId } = placeAtPlayhead(before, 'text', at, durationMs);
+      const { tracks, trackId } = stack ? newLayer(before) : placeAtPlayhead(before, 'text', at, durationMs);
       const clip: Clip = {
         ...createClip({
           name: t('Texto'),
@@ -235,12 +257,14 @@ export function createEditorSession(host: EditorHost) {
       return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t));
     });
     editor.store.set((s) => ({ ...s, selectedClipId: id }));
+    // Past its fade-in, or the new text is invisible where it was just added.
+    player?.seek(at + DEFAULT_TEXT.animIn.ms);
   }
 
   function deleteSelected() {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
-    if (!found) return;
+    if (!found || found.track.locked) return;
     const ripple = editor.store.get().rippleMode;
     editor.commit((t) =>
       ripple
@@ -254,7 +278,7 @@ export function createEditorSession(host: EditorHost) {
   function duplicateSelected() {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
-    if (!found) return;
+    if (!found || found.track.locked) return;
     // Right after the original; the clips after it on the track make room (the copy is inserted).
     const end = clipEndMs(found.clip);
     const length = clipDurationMs(found.clip);
@@ -310,6 +334,10 @@ export function createEditorSession(host: EditorHost) {
     previews,
     previewCopies,
     format,
+    drawn,
+    frozenLayers,
+    /** Where a clip was last drawn, in frame pixels. */
+    boxOf: (clipId: string) => player?.boxes.get(clipId) ?? null,
     startTrace: () => (trace = []),
     stopTrace: () => {
       const t = trace ?? [];

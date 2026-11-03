@@ -1,6 +1,6 @@
-import { clipDurationMs, clipEndMs, type Clip, type Track } from './Track';
+import { clipDurationMs, clipEndMs, clipMedia, type Clip, type Track, type TrackBlend } from './Track';
 import { clampTransitionMs, effectiveMode, transitionTransforms } from './transitions';
-import { captionAt, type ClipText } from './textCaption';
+import { captionAt, type TextAlign } from './textCaption';
 import type { AudioSpan } from './webScene';
 
 /**
@@ -8,8 +8,8 @@ import type { AudioSpan } from './webScene';
  * live preview, seeks and the export (they all call `opsAt`), so they cannot disagree. Pure.
  *
  * Rules:
- *  - Every visible video/image track is a layer; a track later in the list is drawn above an
- *    earlier one. Text tracks are drawn above all media. Audio tracks draw nothing.
+ *  - Every visible track that is not for sound is a layer, whatever it holds (videos, pictures,
+ *    texts); a track later in the list is drawn above an earlier one. Sound tracks draw nothing.
  *  - A clip shows from its start (inclusive) to its end (exclusive). Empty time on the bottom
  *    media track is black; on upper tracks it is transparent (the layers below show through).
  *  - A clip covers the frame (fitted inside, keeping its shape) unless it has a PiP box. A `cover`
@@ -17,6 +17,7 @@ import type { AudioSpan } from './webScene';
  *  - A transition into a clip plays during the clip's first `durationMs`, only when the previous
  *    clip on the same track ends where this one starts. The outgoing clip keeps playing during it
  *    (it reads past its out point while the source has frames, then holds its last frame).
+ *  - A layer's look is its track's opacity times its clip's; its clip's blend, else its track's.
  *  - Sound: every visible video clip's own audio plus every audio-track clip, all mixed.
  *  - The video lasts until its last picture (video, photo or text) ends; sound past it is cut.
  */
@@ -26,6 +27,13 @@ export interface Rect {
   y: number;
   w: number;
   h: number;
+}
+
+/** Where a clip landed in the frame, before a text's turn (`rotation`) about its centre. */
+export interface Box extends Rect {
+  rotation: number;
+  /** Height / width of the whole turned picture, cropped parts included; none for a text. */
+  aspect?: number;
 }
 
 export interface MediaOp {
@@ -52,12 +60,15 @@ export interface MediaOp {
   rotationDeg: number;
   /** Canvas brightness factor (1 = unchanged), from the clip's colour correction. */
   brightness: number;
+  blend: TrackBlend;
 }
 
 export interface CaptionOp {
   kind: 'caption';
   clipId: string;
   text: string;
+  /** All of the text, while `text` may be what a typewriter has shown so far. */
+  content: string;
   cx: number;
   cy: number;
   offsetY: number;
@@ -69,22 +80,21 @@ export interface CaptionOp {
   shadow: boolean;
   scale: number;
   opacity: number;
+  blend: TrackBlend;
+  align: TextAlign;
+  rotationDeg: number;
 }
 
 export type CompositionOp = { kind: 'clear'; color: string } | MediaOp | CaptionOp;
 
 interface MediaLayer {
   trackId: string;
-  image: boolean;
+  kind: Track['kind'];
+  /** 0..1 */
+  opacity: number;
+  blend: TrackBlend;
   /** Sorted by start. */
   clips: Clip[];
-}
-
-interface CaptionClip {
-  clipId: string;
-  text: ClipText;
-  startMs: number;
-  durationMs: number;
 }
 
 export interface Composition {
@@ -94,7 +104,6 @@ export interface Composition {
   cover: boolean;
   durationMs: number;
   layers: MediaLayer[];
-  captions: CaptionClip[];
   audio: AudioSpan[];
 }
 
@@ -133,23 +142,15 @@ export function buildComposition(
   const map = opts.mapUri ?? ((u: string) => u);
   const visible = tracks.filter((t) => t.visible);
   const layers: MediaLayer[] = visible
-    .filter((t) => t.kind === 'video' || t.kind === 'image')
+    .filter((t) => t.kind !== 'audio')
     .map((t) => ({
       trackId: t.id,
-      image: t.kind === 'image',
+      kind: t.kind,
+      opacity: (t.opacity ?? 100) / 100,
+      blend: t.blend ?? 'source-over',
       clips: [...t.clips]
         .sort((a, b) => a.startMs - b.startMs)
         .map((c) => ({ ...c, sourceUri: map(c.sourceUri) })),
-    }));
-  const captions: CaptionClip[] = visible
-    .filter((t) => t.kind === 'text')
-    .flatMap((t) => t.clips)
-    .filter((c) => c.text)
-    .map((c) => ({
-      clipId: c.id,
-      text: c.text!,
-      startMs: c.startMs,
-      durationMs: clipDurationMs(c),
     }));
   return {
     width: opts.width ?? 1920,
@@ -157,7 +158,6 @@ export function buildComposition(
     cover: opts.cover ?? false,
     durationMs: compositionDurationMs(tracks),
     layers,
-    captions,
     // Sound is read from the originals: a proxy may have none or a different codec.
     audio: audioSpans(visible),
   };
@@ -166,9 +166,9 @@ export function buildComposition(
 function audioSpans(tracks: readonly Track[]): AudioSpan[] {
   const spans: AudioSpan[] = [];
   for (const t of tracks) {
-    if (t.kind !== 'video' && t.kind !== 'audio') continue;
     for (const c of t.clips) {
-      if (c.frozen) continue;
+      const media = clipMedia(t, c);
+      if (c.frozen || (media !== 'video' && media !== 'audio')) continue;
       const volume = (c.volume ?? 100) / 100;
       const outputMs = clipDurationMs(c);
       if (volume <= 0 || outputMs <= 0) continue;
@@ -224,7 +224,7 @@ function mediaOp(
   transform: { opacity: number; translateX: number; scale: number }
 ): MediaOp {
   const cc = clip.colorCorrection ?? 0;
-  const image = layer.image;
+  const image = clipMedia(layer, clip) === 'image';
   return {
     kind: image ? 'image' : 'video',
     key: `${layer.trackId}:${clip.id}`,
@@ -235,11 +235,12 @@ function mediaOp(
     rect: rectOf(clip, c.width, c.height),
     fit: c.cover || clip.fill ? 'cover' : 'contain',
     window: !!clip.pipSize,
-    opacity: transform.opacity,
+    opacity: transform.opacity * layer.opacity * ((clip.opacity ?? 100) / 100),
     translateX: transform.translateX,
     scale: transform.scale,
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
+    blend: clip.blend ?? layer.blend,
   };
 }
 
@@ -260,9 +261,29 @@ export function opsAt(c: Composition, t: number): CompositionOp[] {
     const i = clipAt(layer.clips, t);
     if (i < 0) continue;
     const clip = layer.clips[i];
+    if (clip.text) {
+      const st = captionAt(clip.text, clip.startMs, clipDurationMs(clip), t, c.width, c.height);
+      if (!st) continue;
+      ops.push({
+        kind: 'caption',
+        clipId: clip.id,
+        ...st,
+        opacity: st.opacity * layer.opacity * ((clip.opacity ?? 100) / 100),
+        content: clip.text.content,
+        fontFamily: clip.text.fontFamily,
+        color: clip.text.color,
+        strokeColor: clip.text.strokeColor,
+        strokePx: clip.text.strokeWidth * st.fontPx,
+        shadow: clip.text.shadow,
+        blend: clip.blend ?? layer.blend,
+        align: clip.text.align ?? 'center',
+        rotationDeg: clip.text.rotation ?? 0,
+      });
+      continue;
+    }
     const prev = layer.clips[i - 1];
     const spec = clip.transitionIn;
-    if (spec && prev && Math.abs(clipEndMs(prev) - clip.startMs) < 1) {
+    if (spec && prev && !prev.text && Math.abs(clipEndMs(prev) - clip.startMs) < 1) {
       const d = clampTransitionMs(spec.durationMs, clipDurationMs(prev), clipDurationMs(clip));
       if (d > 0 && t < clip.startMs + d) {
         const mode = effectiveMode(spec.type, spec.mode);
@@ -273,20 +294,6 @@ export function opsAt(c: Composition, t: number): CompositionOp[] {
       }
     }
     ops.push(mediaOp(c, layer, clip, t, 'in', NO_TRANSFORM));
-  }
-  for (const cap of c.captions) {
-    const st = captionAt(cap.text, cap.startMs, cap.durationMs, t, c.width, c.height);
-    if (!st) continue;
-    ops.push({
-      kind: 'caption',
-      clipId: cap.clipId,
-      ...st,
-      fontFamily: cap.text.fontFamily,
-      color: cap.text.color,
-      strokeColor: cap.text.strokeColor,
-      strokePx: cap.text.strokeWidth * st.fontPx,
-      shadow: cap.text.shadow,
-    });
   }
   return ops;
 }
@@ -309,4 +316,23 @@ export function mediaAround(c: Composition, t: number, aheadMs: number): MediaOp
     }
   }
   return [...seen.values()];
+}
+
+/** Video layers a device decodes at once while playing, by its memory (a coarse bucket, in GB). */
+export function liveLayerCap(deviceMemoryGb: number | undefined): number {
+  if (deviceMemoryGb === undefined) return 4;
+  return deviceMemoryGb <= 3 ? 2 : deviceMemoryGb <= 6 ? 4 : 8;
+}
+
+/**
+ * The video layers that keep decoding while playing when there are more than `cap`: the biggest
+ * on screen (a frozen background shows most), the upper one on a tie. The others hold their frame
+ * until the playback stops. Only the preview does this: the export always decodes every layer.
+ */
+export function liveLayerKeys(ops: readonly CompositionOp[], cap: number): Set<string> {
+  const videos = ops.filter((o): o is MediaOp => o.kind === 'video');
+  const ranked = videos
+    .map((op, i) => ({ op, i }))
+    .sort((a, b) => b.op.rect.w * b.op.rect.h - a.op.rect.w * a.op.rect.h || b.i - a.i);
+  return new Set(ranked.slice(0, cap).map(({ op }) => op.key));
 }
