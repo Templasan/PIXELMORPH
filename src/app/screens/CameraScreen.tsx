@@ -41,6 +41,8 @@ import AROverlay from './camera/AROverlay';
 import { ARAnchorsLayer } from './camera/ARAnchorsLayer';
 import StopMotionPanel from './camera/StopMotionPanel';
 import TimerPanel from './camera/TimerPanel';
+import { LocalHistoryRepository } from '@core/history';
+import { presetStep } from './photo-editor/batchPreset';
 import ARControlPanel from './camera/ARControlPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
@@ -158,7 +160,13 @@ export default function CameraScreen({ navigation }: Props) {
   }, [countdown]);
 
   const openInEditor = useCallback(
-    async (uri: string, kind: 'image' | 'video', width: number, height: number) => {
+    async (
+      uri: string,
+      kind: 'image' | 'video',
+      width: number,
+      height: number,
+      look?: Record<string, number>
+    ) => {
       const probed = await probeFileMetadata(uri, kind);
       // Camera videos are stored sideways with a rotation tag; keep the upright size.
       const rotation = kind === 'video' ? await probeVideoRotation(uri).catch(() => null) : null;
@@ -181,6 +189,13 @@ export default function CameraScreen({ navigation }: Props) {
           ),
         ]
       );
+      // The filter seen while shooting becomes the photo's first edit: it can be changed or undone.
+      if (look && Object.keys(look).length > 0) {
+        await new LocalHistoryRepository().save(project.id, {
+          past: [presetStep([], look)],
+          future: [],
+        });
+      }
       navigation.navigate(kind === 'video' ? 'VideoEditor' : 'PhotoEditor', {
         projectId: project.id,
       });
@@ -227,14 +242,20 @@ export default function CameraScreen({ navigation }: Props) {
       const photo = await cameraRef.current.takePictureAsync();
       if (!photo) return;
       setLastCaptureUri(photo.uri);
-      await openInEditor(photo.uri, 'image', photo.width, photo.height);
+      const k = intensity / 100;
+      const look = Object.fromEntries(
+        Object.entries(FILTER_PRESETS[activeFilter].adjustments)
+          .filter(([, value]) => value !== 0)
+          .map(([field, value]) => [field, (value as number) * k])
+      );
+      await openInEditor(photo.uri, 'image', photo.width, photo.height, look);
     } catch (error) {
       errorLogger.log(error, 'CameraScreen.takePhoto');
       Alert.alert('Não foi possível capturar a foto', 'Tente novamente.');
     } finally {
       setBusy(false);
     }
-  }, [busy, openInEditor]);
+  }, [busy, openInEditor, activeFilter, intensity]);
 
   const toggleVideoRecording = useCallback(async () => {
     if (!cameraRef.current) return;
