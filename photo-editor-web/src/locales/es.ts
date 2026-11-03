@@ -300,6 +300,11 @@ const es: Record<string, string> = {
   "REMOVER": "ELIMINAR",
   "Espaço de cor": "Espacio de color",
   "Simular impressão CMYK": "Simular impresión CMYK",
+  "Ver em 3D": "Ver en 3D",
+  "Incline o aparelho": "Inclina el dispositivo",
+  "Movimento automático": "Movimiento automático",
+  "Continuar": "Continuar",
+  "Pausar": "Pausar",
 };
 
 export default es;

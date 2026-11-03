@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { PhotoSession } from '../application/session';
 import { scaleToFit } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
+import { StereoViewer } from './StereoViewer';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { PhotoView, type ViewMode } from './PhotoView';
@@ -38,6 +39,7 @@ export function App({ session }: { session: PhotoSession }) {
   const { editor } = session;
   const info = useStore(session.info);
   const outputLongEdge = useStore(session.editor.store, (s) => s.adjustments.outputLongEdge);
+  const [viewing3d, setViewing3d] = useState(false);
   const cropW = useStore(session.editor.store, (s) => s.adjustments.cropW);
   const cropH = useStore(session.editor.store, (s) => s.adjustments.cropH);
   const history = useStore(session.history);
@@ -82,6 +84,7 @@ export function App({ session }: { session: PhotoSession }) {
   };
 
   const p = info.photo;
+  const stereo = info.status === 'ready' && !!session.stereoViews();
   // What the export will write, when the photo's size was changed.
   const scaled = p?.width && p.height ? scaleToFit(p.width, p.height, outputLongEdge || null) : null;
   const final = scaled && { width: Math.round(scaled.width * cropW), height: Math.round(scaled.height * cropH) };
@@ -112,7 +115,14 @@ export function App({ session }: { session: PhotoSession }) {
           {finalSize ? ` → ${finalSize.width} × ${finalSize.height}` : ''}
           {p?.format ? ` · ${p.format}` : ''}
         </span>
-        <span>{p?.sizeBytes ? formatBytes(p.sizeBytes) : ''}</span>
+        <span>
+          {stereo && (
+            <button className="chip" onClick={() => setViewing3d(true)}>
+              {t('Ver em 3D')}
+            </button>
+          )}{' '}
+          {p?.sizeBytes ? formatBytes(p.sizeBytes) : ''}
+        </span>
       </div>
       <PhotoView
         session={session}
@@ -139,6 +149,7 @@ export function App({ session }: { session: PhotoSession }) {
       </nav>
       {info.busy && <div className="toast">{info.busy}</div>}
       {exporting && <ExportSheet session={session} onClose={() => setExporting(false)} />}
+      {viewing3d && <StereoViewer session={session} onClose={() => setViewing3d(false)} />}
     </div>
   );
 }

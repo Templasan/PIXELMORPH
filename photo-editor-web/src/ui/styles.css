@@ -330,6 +330,28 @@ button:disabled {
   cursor: grab;
 }
 
+.stereo-view {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+.stereo-view canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.stereo-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px calc(8px + var(--safe-bottom));
+  background: var(--barra);
+}
+
 /* What a crop leaves out, dimmed: the picture stays whole until the export. */
 .crop-view {
   position: absolute;
