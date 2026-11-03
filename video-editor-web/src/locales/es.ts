@@ -150,6 +150,11 @@ const es: Record<string, string> = {
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Capas detenidas en la vista previa: {n}. El video final las reproduce todas.',
   Borda: 'Borde',
   "Miniatura com os melhores momentos": "Miniatura con los mejores momentos",
+  "Vídeo 360": "Vídeo 360",
+  "Recorte plano": "Recorte plano",
+  "Inclinação": "Inclinación",
+  "Campo de visão": "Campo de visión",
+  "Girar mantém a imagem 360 no arquivo final, mas o arquivo não leva a marcação que avisa os players de que é 360.": "Girar mantiene la imagen 360 en el archivo final, pero el archivo no lleva la marca que avisa a los reproductores de que es 360.",
 };
 
 export default es;

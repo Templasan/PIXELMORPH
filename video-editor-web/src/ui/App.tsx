@@ -273,6 +273,7 @@ function Toolbar({
       )}
       {media && <Tool icon="sun" label={t('Cor')} onClick={() => onTool('color')} />}
       {media && <Tool icon="maximize" label={t('Posição')} onClick={() => onTool('position')} />}
+      {kind === 'video' && <Tool icon="rotate" label={t('Vídeo 360')} onClick={() => onTool('sphere')} />}
       {media && <Tool icon="rotate" label={t('Girar')} onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
       {kind === 'video' && (
         <Tool icon="freeze" label={t('Congelar')} disabled={!inside} onClick={() => editor.freeze(time)} />

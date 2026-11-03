@@ -262,3 +262,5 @@ US-31 brought in: PSD with separate rasterized layers (checked with psd-tools; n
 US-13 brought in: a viewer for side-by-side and over-under photos, following the device tilt (or moving by itself), with pause and exit. Detection is by file name and shape, so it is offered, never forced; MPO files are not read. Tilt checked with simulated events.
 
 US-36 brought in: the Tutorials screen now opens a sample photo (drawn by a script, nothing licensed from others) in the editor, with steps that move on when each is done and can be left at any time. Photo editor only, three tutorials. Replaces the fake screen.
+
+US-19 brought in: a clip can be marked 360 and turned, or cut flat to one angle (preview and export). Open: the exported file has the 360 picture but not the metadata that tells players it is 360. Tested with a synthetic 2:1 clip, not a real 360 camera file.

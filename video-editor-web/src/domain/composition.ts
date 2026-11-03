@@ -1,6 +1,7 @@
 import { clipDurationMs, clipEndMs, clipMedia, type Clip, type Track, type TrackBlend } from './Track';
 import { clampTransitionMs, effectiveMode, transitionTransforms } from './transitions';
 import { captionAt, type TextAlign } from './textCaption';
+import type { SphereView } from './sphere';
 import type { AudioSpan } from './webScene';
 
 /**
@@ -61,6 +62,8 @@ export interface MediaOp {
   /** Canvas brightness factor (1 = unchanged), from the clip's colour correction. */
   brightness: number;
   blend: TrackBlend;
+  /** RF-021: the picture is a 360 video seen from here; null for an ordinary one. */
+  sphere: SphereView | null;
   /** A window's border, in frame pixels; null when it has none. */
   border: { color: string; px: number } | null;
 }
@@ -243,6 +246,15 @@ function mediaOp(
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
     blend: clip.blend ?? layer.blend,
+    sphere: clip.spherical
+      ? {
+          yaw: clip.sphericalYaw ?? 0,
+          pitch: clip.sphericalPitch ?? 0,
+          roll: clip.sphericalRoll ?? 0,
+          flat: !!clip.sphericalFlat,
+          fov: clip.sphericalFov ?? 90,
+        }
+      : null,
     border:
       clip.pipSize && clip.pipBorder?.width
         ? { color: clip.pipBorder.color, px: (clip.pipBorder.width / 100) * Math.min(c.width, c.height) }

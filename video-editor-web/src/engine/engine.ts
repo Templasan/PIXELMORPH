@@ -803,7 +803,7 @@ export class Engine {
     const endMs = job ? scene.durationMs : Math.min(scene.durationMs, EXPORT_MAX_MS);
     const total = Math.floor((endMs / 1000) * FPS);
     const canvas = job ? new OffscreenCanvas(scene.width, scene.height) : this.canvas;
-    const ctx = job ? canvas.getContext('2d', { alpha: false })! : this.ctx;
+    const ctx = job ? (canvas as OffscreenCanvas).getContext('2d', { alpha: false })! : this.ctx;
     const bitrate = job?.bitrate ?? 10_000_000;
     const t0 = performance.now();
     await this.host.startExport();
