@@ -54,3 +54,11 @@ describe('a long session', () => {
     expect(state.get().done).toHaveLength(200);
   });
 });
+
+describe('the size of the finished picture', () => {
+  it('is an edit like any other: a batch step carries it and reopening keeps it', () => {
+    const { log, state } = createHistory();
+    log.push('preset', { outputLongEdge: 0 }, { outputLongEdge: 1280, exposure: 10 });
+    expect(replay({ outputLongEdge: 0, exposure: 0 }, state.get().done)).toEqual({ outputLongEdge: 1280, exposure: 10 });
+  });
+});

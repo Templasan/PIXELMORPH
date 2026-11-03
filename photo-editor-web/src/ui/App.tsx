@@ -1,6 +1,7 @@
 import { t } from '../i18n';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { PhotoSession } from '../application/session';
+import { scaleToFit } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
@@ -30,6 +31,7 @@ function formatBytes(n: number): string {
 export function App({ session }: { session: PhotoSession }) {
   const { editor } = session;
   const info = useStore(session.info);
+  const outputLongEdge = useStore(session.editor.store, (s) => s.adjustments.outputLongEdge);
   const history = useStore(session.history);
   const tool = useStore(editor.store, (s) => s.activeTool);
   const compare = useStore(editor.store, (s) => s.compareMode);
@@ -69,6 +71,9 @@ export function App({ session }: { session: PhotoSession }) {
   };
 
   const p = info.photo;
+  // What the export will write, when the photo's size was changed.
+  const scaled = p?.width && p.height ? scaleToFit(p.width, p.height, outputLongEdge || null) : null;
+  const finalSize = scaled && p && scaled.width !== p.width ? scaled : null;
   return (
     <div className="editor">
       <header className="topbar">
@@ -92,6 +97,7 @@ export function App({ session }: { session: PhotoSession }) {
       <div className="tech">
         <span>
           {p?.width && p.height ? `${p.width} × ${p.height}` : '…'}
+          {finalSize ? ` → ${finalSize.width} × ${finalSize.height}` : ''}
           {p?.format ? ` · ${p.format}` : ''}
         </span>
         <span>{p?.sizeBytes ? formatBytes(p.sizeBytes) : ''}</span>

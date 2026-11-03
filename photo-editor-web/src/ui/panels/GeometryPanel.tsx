@@ -2,7 +2,7 @@ import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
 import { DEFAULT_ADJUSTMENTS, PERSPECTIVE_FIELDS } from '../../domain/adjustments';
 import { useStore } from '../../state/useStore';
-import { Chips, commit, FieldSlider } from '../controls';
+import { Chips, commit, FieldSlider, SizeChips } from '../controls';
 
 const TURNS = [0, 90, 180, 270] as const;
 
@@ -33,6 +33,8 @@ export function GeometryPanel({
       </div>
       <FieldSlider session={session} field="fineRotation" label={t('Rotação')} min={-45} max={45} step={0.5} format={(v) => `${v}°`} />
       <FieldSlider session={session} field="mirrorOpacity" label={t('Opac. espelho')} min={0} max={100} />
+      <div className="sub">{t('Tamanho final')}</div>
+      <SizeChips session={session} />
       <div className="chips">
         <button className={`chip${perspective ? ' on' : ''}`} onClick={() => onPerspective(!perspective)}>
           {perspective ? t('Editando perspectiva') : t('Corrigir perspectiva')}
