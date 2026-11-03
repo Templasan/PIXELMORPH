@@ -152,6 +152,11 @@ const en: Record<string, string> = {
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Layers paused in the preview: {n}. The final video plays them all.',
   Borda: 'Border',
   "Miniatura com os melhores momentos": "Thumbnail of the best moments",
+  "Vídeo 360": "360 video",
+  "Recorte plano": "Flat cut",
+  "Inclinação": "Tilt",
+  "Campo de visão": "Field of view",
+  "Girar mantém a imagem 360 no arquivo final, mas o arquivo não leva a marcação que avisa os players de que é 360.": "Turning keeps the 360 picture in the final file, but the file does not carry the tag that tells players it is 360.",
 };
 
 export default en;

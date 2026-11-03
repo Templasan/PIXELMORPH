@@ -16,13 +16,14 @@ import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
 import { t } from '../../i18n';
 
-export type ClipTool = 'speed' | 'volume' | 'color' | 'position' | 'text';
+export type ClipTool = 'speed' | 'volume' | 'color' | 'position' | 'text' | 'sphere';
 
 const TITLES: Record<ClipTool, string> = {
   speed: 'Velocidade',
   volume: 'Volume',
   color: 'Cor',
   position: 'Posição e tamanho',
+  sphere: 'Vídeo 360',
   text: 'Texto',
 };
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4];
@@ -166,10 +167,48 @@ export function ClipPanel({
         <PositionTool session={session} clip={clip} live={live} commit={commit} />
       )}
 
+      {tool === 'sphere' && <SphereTool session={session} clip={clip} commit={commit} live={live} />}
+
       {tool === 'text' && clip.text && (
         <TextTool session={session} text={clip.text} />
       )}
     </section>
+  );
+}
+
+/** RF-021: a 360 video's view, either the whole sphere turned or a flat cut of one angle. */
+function SphereTool({
+  session,
+  clip,
+  commit,
+  live,
+}: {
+  session: EditorSession;
+  clip: Clip;
+  commit: (p: Partial<Clip>) => void;
+  live: (p: Partial<Clip>) => void;
+}) {
+  const degrees = (v: number) => `${Math.round(v)}°`;
+  return (
+    <>
+      <Chips
+        options={['Normal', 'Vídeo 360', 'Recorte plano']}
+        value={!clip.spherical ? 'Normal' : clip.sphericalFlat ? 'Recorte plano' : 'Vídeo 360'}
+        label={(v) => t(v)}
+        onPick={(v) => commit({ spherical: v !== 'Normal', sphericalFlat: v === 'Recorte plano' })}
+      />
+      {clip.spherical && (
+        <>
+          <Slider session={session} label={t('Horizontal')} value={clip.sphericalYaw ?? 0} min={-180} max={180} format={degrees} onLive={(v) => live({ sphericalYaw: v })} />
+          <Slider session={session} label={t('Vertical')} value={clip.sphericalPitch ?? 0} min={-90} max={90} format={degrees} onLive={(v) => live({ sphericalPitch: v })} />
+          <Slider session={session} label={t('Inclinação')} value={clip.sphericalRoll ?? 0} min={-180} max={180} format={degrees} onLive={(v) => live({ sphericalRoll: v })} />
+          {clip.sphericalFlat && (
+            <Slider session={session} label={t('Campo de visão')} value={clip.sphericalFov ?? 90} min={30} max={120} format={degrees} onLive={(v) => live({ sphericalFov: v })} />
+          )}
+        </>
+      )}
+      <p className="muted">{t('Girar mantém a imagem 360 no arquivo final, mas o arquivo não leva a marcação que avisa os players de que é 360.')}</p>
+    </>
   );
 }
 

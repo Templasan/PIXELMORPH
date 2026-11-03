@@ -75,6 +75,12 @@ export interface Clip {
   sphericalPitch?: number; // -90 to 90
   sphericalYaw?: number; // -180 to 180
   sphericalRoll?: number; // -180 to 180
+  /** RF-021: this clip is a 360 video, with its view. */
+  spherical?: boolean;
+  /** A flat cut of one angle, like an ordinary clip, instead of the whole sphere. */
+  sphericalFlat?: boolean;
+  /** The flat cut's horizontal field of view, in degrees. */
+  sphericalFov?: number;
   /** Fill the frame (or its PiP box), cropping, instead of fitting inside it. */
   fill?: boolean;
   /** RF-008: a clip with a text is a text over what is below it. */

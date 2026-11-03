@@ -1,5 +1,6 @@
 import type { VideoSample } from 'mediabunny';
 import type { Box, CompositionOp, MediaOp } from '../domain/composition';
+import { renderSphere } from './sphereGl';
 
 export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -38,7 +39,29 @@ export function drawFrame(
   }
 }
 
-function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap): Box | null {
+/** RF-021: the video's picture seen from the clip's view, on a canvas of the shape it will show at. */
+function sphereFrame(op: MediaOp, frame: VideoSample | ImageBitmap): OffscreenCanvas | null {
+  const sample = 'displayWidth' in frame ? frame : null;
+  const sw = sample ? sample.displayWidth : (frame as ImageBitmap).width;
+  const sh = sample ? sample.displayHeight : (frame as ImageBitmap).height;
+  if (!sw || !sh) return null;
+  sphereSource ??= new OffscreenCanvas(sw, sh);
+  if (sphereSource.width !== sw || sphereSource.height !== sh) {
+    sphereSource.width = sw;
+    sphereSource.height = sh;
+  }
+  const source = sphereSource.getContext('2d')!;
+  if (sample) sample.draw(source, 0, 0, sw, sh);
+  else source.drawImage(frame as ImageBitmap, 0, 0, sw, sh);
+  const flat = op.sphere!.flat;
+  const width = flat ? Math.max(2, Math.round(op.rect.w)) : sw;
+  const height = flat ? Math.max(2, Math.round(op.rect.w * (9 / 16))) : sh;
+  return renderSphere(sphereSource, width, height, op.sphere!);
+}
+let sphereSource: OffscreenCanvas | null = null;
+
+function drawMedia(ctx: Ctx2D, op: MediaOp, original: VideoSample | ImageBitmap): Box | null {
+  const frame = (op.sphere && sphereFrame(op, original)) || original;
   const sample = 'displayWidth' in frame ? frame : null;
   const sw = sample ? sample.displayWidth : (frame as ImageBitmap).width;
   const sh = sample ? sample.displayHeight : (frame as ImageBitmap).height;
@@ -62,7 +85,7 @@ function drawMedia(ctx: Ctx2D, op: MediaOp, frame: VideoSample | ImageBitmap): B
   ctx.scale(op.scale, op.scale);
   ctx.rotate(turn);
   if (sample) sample.draw(ctx, -w / 2, -h / 2, w, h);
-  else ctx.drawImage(frame as ImageBitmap, -w / 2, -h / 2, w, h);
+  else ctx.drawImage(frame as ImageBitmap | OffscreenCanvas, -w / 2, -h / 2, w, h);
   if (op.border) {
     // Inside the picture's edge: the box would cut half of a centred line.
     const px = op.border.px / op.scale;
