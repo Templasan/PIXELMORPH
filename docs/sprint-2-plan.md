@@ -236,3 +236,5 @@ editor), `agent-a8e35341c622da6aa` (photo export / HEIC). Delete or reuse when t
 - Sprint 3 stories are brought into this sprint to get ahead. The owner intends to publish on Google Play after the college work, so no choice may block that (see `docs/melhorias/08-produto-e-lancamento.md`).
 
 Sprint 3 stories brought in, in order: US-20 (window border added; window move and resize came with the layers). Next candidates: US-22, US-02, US-32.
+
+US-22 brought in: timer length (3, 5, 10 s) with cancel, stop-motion plays at the picked rate. Frames show in a strip, not the grid the story words it as.

@@ -47,6 +47,8 @@ export interface PlayerEvents {
 
 /** Clips starting this soon get their decoder opened and positioned before they show. */
 const PREPARE_AHEAD_MS = 1500;
+/** Pictures decoded ahead at most: a fast stop-motion would push the next ones out of the cache. */
+const PICTURES_AHEAD = 8;
 /** A layer whose frame is late keeps the previous picture on screen for at most this long. */
 const MAX_HOLD_MS = 400;
 /** Decoders of clips that left the window are closed this often while playing. */
@@ -307,7 +309,9 @@ export class Player {
 
   /** Opens and positions the decoders of clips about to show, once per clip and playhead jump. */
   private prepareAround(t: number) {
+    let pictures = 0;
     for (const op of mediaAround(this.comp, t, PREPARE_AHEAD_MS)) {
+      if (op.kind === 'image' && ++pictures > PICTURES_AHEAD) continue;
       if (this.primed.has(op.key)) continue;
       this.primed.add(op.key);
       if (op.kind === 'image') {

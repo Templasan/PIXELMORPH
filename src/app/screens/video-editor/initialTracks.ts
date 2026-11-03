@@ -17,7 +17,6 @@ export const TRACK_COLORS: Record<Track['kind'], string> = {
 export function buildInitialTracks(project: Project | null): Track[] {
   // A video project made only of photos (stop-motion) opens as an image sequence, not with a
   // JPEG on the video track (the player showed black and the exporter rejected the file).
-  // shortcut: fixed 200 ms per frame; the fps picked in the camera is not stored yet (US-22).
   const assets = project?.assets ?? [];
   if (assets.length > 0 && assets.every((a) => a.type === 'image')) {
     const frames = buildTimelapseTrack(
@@ -25,9 +24,17 @@ export function buildInitialTracks(project: Project | null): Track[] {
       MIN_CLIP_DURATION_MS,
       TRACK_COLORS.image
     );
+    // The rate picked in the camera; a frame may be shorter than a clip a person could trim to.
+    const frameMs = assets[0].metadata.frameMs ?? MIN_CLIP_DURATION_MS;
+    const clips = frames.clips.map((c, i) => ({
+      ...c,
+      startMs: i * frameMs,
+      outPointMs: frameMs,
+      sourceDurationMs: frameMs,
+    }));
     return [
       { id: 'v1', name: 'V1', kind: 'video', visible: true, locked: false, clips: [] },
-      { ...frames, id: 'img', name: 'V2' },
+      { ...frames, id: 'img', name: 'V2', clips },
       { id: 'a1', name: 'A1', kind: 'audio', visible: true, locked: false, clips: [] },
     ];
   }
