@@ -2,6 +2,7 @@ import { t } from '../i18n';
 import { useRef, type ReactNode } from 'react';
 import type { PhotoSession } from '../application/session';
 import { DEFAULT_ADJUSTMENTS } from '../domain/adjustments';
+import { SIZE_PRESETS } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
 
 /**
@@ -142,6 +143,32 @@ export function Swatches({
 }
 
 /** Commits a discrete change of one field (a chip, a toggle) as one undo entry. */
+/** RF-015: the finished picture's size. It belongs to the photo: it can be undone and sent in a batch. */
+export function SizeChips({
+  session,
+  active = true,
+  onPick,
+}: {
+  session: PhotoSession;
+  /** False while something else (a social crop) decides the size. */
+  active?: boolean;
+  onPick?: () => void;
+}) {
+  const longEdge = useStore(session.editor.store, (s) => s.adjustments.outputLongEdge);
+  const nameOf = (edge: number) => SIZE_PRESETS.find((p) => (p.maxLongEdge ?? 0) === edge)?.name ?? null;
+  return (
+    <Chips
+      options={SIZE_PRESETS.map((p) => p.name)}
+      value={active ? nameOf(longEdge) : null}
+      label={(name) => t(name)}
+      onPick={(name) => {
+        commit(session, 'outputLongEdge', SIZE_PRESETS.find((p) => p.name === name)?.maxLongEdge ?? 0);
+        onPick?.();
+      }}
+    />
+  );
+}
+
 export function commit(session: PhotoSession, field: string, value: number) {
   const before = session.editor.store.get().adjustments[field];
   session.editor.commitField(field, value, before);

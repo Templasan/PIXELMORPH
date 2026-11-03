@@ -1,6 +1,6 @@
 import { DEFAULT_ADJUSTMENTS, type Adjustments } from '../domain/adjustments';
 import { SCENE_W, sceneSizeOf, type SceneSize } from '../domain/sceneSize';
-import { coverFitRect, scaleToFit, searchQualityForTargetSize, SIZE_PRESETS, SOCIAL_PRESETS } from '../domain/export/exportMath';
+import { coverFitRect, scaleToFit, searchQualityForTargetSize, SOCIAL_PRESETS } from '../domain/export/exportMath';
 import { setJpegDpi, setPngDpi } from '../domain/export/exportBytes';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
@@ -41,8 +41,6 @@ export interface ExportOptions {
   format: ExportFormat;
   /** 10..100, used unless the target size chooses it. */
   quality: number;
-  /** A SIZE_PRESETS name ('Original' keeps the size); ignored while a social preset is on. */
-  sizePreset: string;
   /** A SOCIAL_PRESETS name: the picture is cover-cropped to that frame. */
   social: string | null;
   /** Smart compression: the highest quality whose file fits `targetMB` (JPEG and WebP only). */
@@ -57,7 +55,6 @@ export interface ExportOptions {
 export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   format: 'jpeg',
   quality: 85,
-  sizePreset: 'Original',
   social: null,
   targetOn: false,
   targetMB: 2,
@@ -411,7 +408,7 @@ export function createPhotoSession(host: EditorHost) {
     },
 
     /**
-     * The finished picture with the sheet's options (size, social crop, target size, DPI,
+     * The finished picture at the photo's chosen size, with the sheet's options (social crop, target size, DPI,
      * watermark), saved through the host. Defaults to the options the sheet keeps.
      */
     async exportImage(options: ExportOptions = exportOptions.get()): Promise<ExportResult> {
@@ -439,7 +436,7 @@ export function createPhotoSession(host: EditorHost) {
         lap('decoded');
         // A social frame is cover-cropped from the full render; a size preset renders smaller.
         const social = SOCIAL_PRESETS.find((p) => p.name === options.social);
-        const longEdge = SIZE_PRESETS.find((p) => p.name === options.sizePreset)?.maxLongEdge ?? null;
+        const longEdge = a.outputLongEdge || null;
         const fit = social ? { width: full.width, height: full.height } : scaleToFit(full.width, full.height, longEdge);
         const w = fit.width;
         const h = fit.height;

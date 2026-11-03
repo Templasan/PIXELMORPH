@@ -1,9 +1,9 @@
 import { t } from '../i18n';
 import { useState } from 'react';
 import type { ExportFormat, ExportOptions, ExportResult, PhotoSession } from '../application/session';
-import { SIZE_PRESETS, SOCIAL_PRESETS, formatBytes, watermarkShadow } from '../domain/export/exportMath';
+import { SOCIAL_PRESETS, formatBytes, watermarkShadow } from '../domain/export/exportMath';
 import { useStore } from '../state/useStore';
-import { Chips, Range } from './controls';
+import { Chips, Range, SizeChips } from './controls';
 
 const FORMATS: { id: ExportFormat; label: string }[] = [
   { id: 'jpeg', label: 'JPEG' },
@@ -100,11 +100,7 @@ export function ExportSheet({ session, onClose }: { session: PhotoSession; onClo
         )}
 
         <div className="sub">{t('Tamanho')}</div>
-        <Chips
-          options={SIZE_PRESETS.map((s) => s.name)}
-          value={o.social ? null : o.sizePreset}
-          onPick={(sizePreset) => set({ sizePreset, social: null })}
-        />
+        <SizeChips session={session} active={!o.social} onPick={() => set({ social: null })} />
 
         <div className="sub">{t('Redes sociais (recorte)')}</div>
         <Chips

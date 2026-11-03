@@ -76,10 +76,13 @@ export interface Adjustments {
   // Efeitos — Dupla exposição (RF-075).
   doubleExposureBlend: number;
   doubleExposureOpacity: number;
+  /** RF-015: longest edge of the finished picture in px; 0 keeps the photo's size. */
+  outputLongEdge: number;
   [key: string]: number;
 }
 
 export const DEFAULT_ADJUSTMENTS: Adjustments = {
+  outputLongEdge: 0,
   temperatura: 0,
   tint: 0,
   matiz: 0,
