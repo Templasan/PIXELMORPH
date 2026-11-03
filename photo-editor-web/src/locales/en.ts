@@ -231,6 +231,7 @@ const en: Record<string, string> = {
   'Centro': 'Center',
   'Direita': 'Right',
   'Recortar na camada de baixo': 'Clip to the layer below',
+  'Aplicando {done} de {total}…': 'Applying {done} of {total}…',
 };
 
 export default en;

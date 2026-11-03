@@ -289,6 +289,9 @@ const es: Record<string, string> = {
   'Aprender fazendo': 'Aprender haciendo',
   'Dúvidas e suporte': 'Dudas y soporte',
   '{n} selecionado': '{n} seleccionado',
+  'Excluir preset?': '¿Eliminar preset?',
+  'Excluir preset {name}': 'Eliminar preset {name}',
+  'Excluir': 'Eliminar',
 };
 
 export default es;

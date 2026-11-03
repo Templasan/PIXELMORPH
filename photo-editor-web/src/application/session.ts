@@ -648,8 +648,14 @@ export function createPhotoSession(host: EditorHost) {
     },
     listPhotoProjects: () => host.listPhotoProjects(),
     /** US-02 batch edit: this photo's look (or a preset's) applied to other photo projects. */
-    applyLookTo(ids: string[], preset: PresetRef | null) {
-      return host.applyLookTo(ids, lookOf(preset ? preset.adjustments : editor.store.get().adjustments));
+    async applyLookTo(ids: string[], preset: PresetRef | null, onProgress?: (done: number) => void) {
+      const look = lookOf(preset ? preset.adjustments : editor.store.get().adjustments);
+      let done = 0;
+      for (const id of ids) {
+        done += await host.applyLookTo([id], look);
+        onProgress?.(done);
+      }
+      return done;
     },
     applyPreset(preset: PresetRef) {
       editor.applyPreset(lookOf(preset.adjustments));

@@ -1,6 +1,7 @@
 import { AsyncStoragePresetsRepository } from './infrastructure/AsyncStoragePresetsRepository';
 import {
   createSavePresetUseCase,
+  createDeletePresetUseCase,
   createListPresetsUseCase,
   createApplyBrushStrokeUseCase,
   createColorMaskUseCase,
@@ -23,6 +24,7 @@ export * from './infrastructure';
 type PhotoEditorModule = {
   savePreset: ReturnType<typeof createSavePresetUseCase>;
   listPresets: ReturnType<typeof createListPresetsUseCase>;
+  deletePreset: ReturnType<typeof createDeletePresetUseCase>;
   applyBrushStroke: ReturnType<typeof createApplyBrushStrokeUseCase>;
   createColorMask: ReturnType<typeof createColorMaskUseCase>;
   createFocusMask: ReturnType<typeof createFocusMaskUseCase>;
@@ -50,6 +52,7 @@ export function createPhotoEditorModule(): PhotoEditorModule {
   photoEditorModule = {
     savePreset: createSavePresetUseCase(presetsRepo),
     listPresets: createListPresetsUseCase(presetsRepo),
+    deletePreset: createDeletePresetUseCase(presetsRepo),
     applyBrushStroke: createApplyBrushStrokeUseCase(),
     createColorMask: createColorMaskUseCase(),
     createFocusMask: createFocusMaskUseCase(),

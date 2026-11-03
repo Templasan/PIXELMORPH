@@ -231,6 +231,7 @@ const es: Record<string, string> = {
   'Centro': 'Centro',
   'Direita': 'Derecha',
   'Recortar na camada de baixo': 'Recortar en la capa inferior',
+  'Aplicando {done} de {total}…': 'Aplicando {done} de {total}…',
 };
 
 export default es;
