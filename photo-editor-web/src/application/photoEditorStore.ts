@@ -342,7 +342,11 @@ export function createPhotoEditorStore(history: AdjustmentsHistory) {
         };
         setLayers((layers) =>
           layers.map((l) =>
-            l.id === selectedLayerId ? { ...l, strokes: [...(l.strokes ?? []), stroke] } : l
+            l.id !== selectedLayerId
+              ? l
+              : l.local
+                ? { ...l, local: { ...l.local, strokes: [...l.local.strokes, stroke] } }
+                : { ...l, strokes: [...(l.strokes ?? []), stroke] }
           )
         );
       }

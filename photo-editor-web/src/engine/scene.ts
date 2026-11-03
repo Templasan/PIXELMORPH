@@ -5,7 +5,10 @@ import { lensReflectionSpots } from '../domain/effects/lighting';
 import {
   arrowPath,
   brushTip,
+  colorMaskAlpha,
   layerGroups,
+  linearMaskEnds,
+  localFilter,
   pointsToPath,
   type BrushShape,
   type EditorLayer,
@@ -84,6 +87,10 @@ export function drawLayer(
   h: number,
   pictureOf: SceneInput['pictureOf']
 ) {
+  if (layer.local) {
+    drawLocal(ctx, layer, w, h);
+    return;
+  }
   const blend = layer.blend ?? 'source-over';
   const whole = layer.kind === 'image' || (layer.opacity === 100 && blend === 'source-over');
   ctx.save();
@@ -102,6 +109,91 @@ export function drawLayer(
     buffer.width = buffer.height = 0;
   }
   ctx.restore();
+}
+
+/** The colour mask is worked out at this size: its edges are soft anyway, and it runs per frame. */
+const COLOR_MASK_EDGE = 512;
+
+function pixelCanvas(ctx: CanvasRenderingContext2D, width = ctx.canvas.width, height = ctx.canvas.height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas.getContext('2d', { willReadFrequently: width !== ctx.canvas.width })!;
+}
+
+function drawColorMask(mask: CanvasRenderingContext2D, source: HTMLCanvasElement, l: NonNullable<EditorLayer['local']>) {
+  const k = Math.min(1, COLOR_MASK_EDGE / Math.max(source.width, source.height));
+  const small = pixelCanvas(mask, Math.max(1, Math.round(source.width * k)), Math.max(1, Math.round(source.height * k)));
+  small.drawImage(source, 0, 0, small.canvas.width, small.canvas.height);
+  const image = small.getImageData(0, 0, small.canvas.width, small.canvas.height);
+  const d = image.data;
+  const at = (Math.min(small.canvas.height - 1, Math.floor(l.y * small.canvas.height)) * small.canvas.width +
+    Math.min(small.canvas.width - 1, Math.floor(l.x * small.canvas.width))) * 4;
+  const target = [d[at], d[at + 1], d[at + 2]] as const;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i + 3] = 255 * colorMaskAlpha(d[i], d[i + 1], d[i + 2], target, l.tolerance);
+  }
+  small.putImageData(image, 0, 0);
+  mask.save();
+  mask.setTransform(1, 0, 0, 1, 0, 0);
+  mask.imageSmoothingQuality = 'high';
+  mask.drawImage(small.canvas, 0, 0, mask.canvas.width, mask.canvas.height);
+  mask.restore();
+  small.canvas.width = small.canvas.height = 0;
+}
+
+/** US-06: what is under the layer, changed, and let through only where the mask says. */
+function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number, h: number) {
+  const l = layer.local!;
+  if (l.mask === 'brush' && l.strokes.length === 0) return;
+  const transform = ctx.getTransform();
+  const k = Math.hypot(transform.a, transform.b);
+
+  const mask = pixelCanvas(ctx);
+  mask.setTransform(transform);
+  if (l.mask === 'brush') {
+    // A hard edge would show where the change stops.
+    mask.filter = `blur(${1.5 * k}px)`;
+    for (const s of l.strokes) {
+      mask.globalAlpha = 1;
+      stroke(mask, new Path2D(s.path), '#fff', s.width, s.shape, s.opacity);
+    }
+    mask.filter = 'none';
+  } else if (l.mask === 'color') {
+    drawColorMask(mask, ctx.canvas, l);
+  } else {
+    let g: CanvasGradient;
+    if (l.mask === 'linear') {
+      const { from, to } = linearMaskEnds(l, w, h);
+      g = mask.createLinearGradient(from.x, from.y, to.x, to.y);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,1)');
+    } else {
+      const r = Math.max(1, l.radius * w);
+      g = mask.createRadialGradient(l.x * w, l.y * h, 0, l.x * w, l.y * h, r);
+      g.addColorStop(Math.min(0.99, 1 - l.feather), 'rgba(255,255,255,1)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+    }
+    mask.globalAlpha = 1;
+    mask.fillStyle = g;
+    mask.fillRect(0, 0, w, h);
+  }
+
+  const changed = pixelCanvas(ctx);
+  changed.filter = localFilter(l, k);
+  changed.drawImage(ctx.canvas, 0, 0);
+  changed.filter = 'none';
+  changed.globalCompositeOperation = l.invert ? 'destination-out' : 'destination-in';
+  changed.drawImage(mask.canvas, 0, 0);
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = layer.opacity / 100;
+  ctx.globalCompositeOperation = layer.blend ?? 'source-over';
+  ctx.drawImage(changed.canvas, 0, 0);
+  ctx.restore();
+  mask.canvas.width = mask.canvas.height = 0;
+  changed.canvas.width = changed.canvas.height = 0;
 }
 
 /** A base with the layers clipped to it: they are mixed together, then join the picture as one. */
