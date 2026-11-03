@@ -262,6 +262,17 @@ const es: Record<string, string> = {
   "Contraste": "Contraste",
   "Desfoque": "Desenfoque",
   "Inverter": "Invertir",
+  "Retoque": "Retoque",
+  "Clonar": "Clonar",
+  "Liquify": "Licuar",
+  "Clonagem {n}": "Clonado {n}",
+  "Liquify {n}": "Licuar {n}",
+  "Empurrar": "Empujar",
+  "Puxar": "Tirar",
+  "Clone ou deforme partes da foto sem alterar o original.": "Clona o deforma partes de la foto sin cambiar el original.",
+  "Arraste o ponto até o que quer copiar e pinte onde quer a cópia.": "Arrastra el punto a lo que quieres copiar y pinta donde va la copia.",
+  "Continue pintando: a cópia segue o seu dedo.": "Sigue pintando: la copia sigue tu dedo.",
+  "Arraste na foto para deformar.": "Arrastra en la foto para deformar.",
 };
 
 export default es;

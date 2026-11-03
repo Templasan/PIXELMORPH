@@ -12,6 +12,7 @@ import { ElementsPanel } from './panels/ElementsPanel';
 import { GeometryPanel } from './panels/GeometryPanel';
 import { LayersPanel } from './panels/LayersPanel';
 import { MasksPanel } from './panels/MasksPanel';
+import { RetouchPanel } from './panels/RetouchPanel';
 import { PresetsPanel } from './panels/PresetsPanel';
 import { PanoramaPanel } from './panels/MontagePanels';
 
@@ -20,6 +21,7 @@ const TOOLS = [
   { id: 'geometria', icon: 'crop', label: 'Geometria' },
   { id: 'camadas', icon: 'layers', label: 'Camadas' },
   { id: 'mascaras', icon: 'sun', label: 'Máscaras' },
+  { id: 'retoque', icon: 'ripple', label: 'Retoque' },
   { id: 'efeitos', icon: 'zap', label: 'Efeitos' },
   { id: 'elementos', icon: 'type', label: 'Elementos' },
   { id: 'presets', icon: 'copy', label: 'Presets' },
@@ -62,6 +64,7 @@ export function App({ session }: { session: PhotoSession }) {
     panel = <GeometryPanel session={session} perspective={perspective} onPerspective={setPerspective} />;
   else if (tool === 'camadas') panel = <LayersPanel session={session} />;
   else if (tool === 'mascaras') panel = <MasksPanel session={session} />;
+  else if (tool === 'retoque') panel = <RetouchPanel session={session} />;
   else if (tool === 'efeitos') panel = <EffectsPanel session={session} lightEdit={lightEdit} onLightEdit={setLightEdit} />;
   else if (tool === 'elementos') panel = <ElementsPanel session={session} />;
   else if (tool === 'presets') panel = <PresetsPanel session={session} />;

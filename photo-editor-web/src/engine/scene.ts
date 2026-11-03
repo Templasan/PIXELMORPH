@@ -15,6 +15,7 @@ import {
   type LayerGroup,
 } from '../domain/layers';
 import type { SceneSize } from '../domain/sceneSize';
+import { drawWarp } from './warpGl';
 
 /** The brush of the stroke being drawn (application's Brush). */
 interface Brush {
@@ -91,6 +92,10 @@ export function drawLayer(
     drawLocal(ctx, layer, w, h);
     return;
   }
+  if (layer.warp) {
+    drawWarp(ctx, layer.warp, w, h, layer.opacity / 100);
+    return;
+  }
   const blend = layer.blend ?? 'source-over';
   const whole = layer.kind === 'image' || (layer.opacity === 100 && blend === 'source-over');
   ctx.save();
@@ -146,6 +151,7 @@ function drawColorMask(mask: CanvasRenderingContext2D, source: HTMLCanvasElement
 function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number, h: number) {
   const l = layer.local!;
   if (l.mask === 'brush' && l.strokes.length === 0) return;
+  if (l.clone && !l.offset) return;
   const transform = ctx.getTransform();
   const k = Math.hypot(transform.a, transform.b);
 
@@ -153,7 +159,7 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
   mask.setTransform(transform);
   if (l.mask === 'brush') {
     // A hard edge would show where the change stops.
-    mask.filter = `blur(${1.5 * k}px)`;
+    mask.filter = `blur(${(l.clone ? 3 : 1.5) * k}px)`;
     for (const s of l.strokes) {
       mask.globalAlpha = 1;
       stroke(mask, new Path2D(s.path), '#fff', s.width, s.shape, s.opacity);
@@ -181,7 +187,7 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
 
   const changed = pixelCanvas(ctx);
   changed.filter = localFilter(l, k);
-  changed.drawImage(ctx.canvas, 0, 0);
+  changed.drawImage(ctx.canvas, l.offset ? -l.offset.dx * k : 0, l.offset ? -l.offset.dy * k : 0);
   changed.filter = 'none';
   changed.globalCompositeOperation = l.invert ? 'destination-out' : 'destination-in';
   changed.drawImage(mask.canvas, 0, 0);
