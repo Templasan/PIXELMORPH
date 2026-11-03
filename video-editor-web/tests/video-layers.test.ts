@@ -121,3 +121,17 @@ describe('video layers decoded while playing', () => {
     expect(liveLayerCap(undefined)).toBe(4);
   });
 });
+
+describe('a window border (RF-065)', () => {
+  const borderOf = (extra: Partial<Clip>) => {
+    const c = buildComposition([track('v1', 'video', [clip('a', 0, extra)])], { width: 1000, height: 500 });
+    return (opsAt(c, 100)[1] as MediaOp).border;
+  };
+  const pip = { pipPosition: { x: 0, y: 0 }, pipSize: { width: 0.5, height: 0.5 } };
+
+  it('is sized by the frame short side and needs a window and a width', () => {
+    expect(borderOf({ ...pip, pipBorder: { color: '#fff', width: 2 } })).toEqual({ color: '#fff', px: 10 });
+    expect(borderOf({ ...pip, pipBorder: { color: '#fff', width: 0 } })).toBeNull();
+    expect(borderOf({ pipBorder: { color: '#fff', width: 2 } })).toBeNull();
+  });
+});

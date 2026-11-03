@@ -150,6 +150,7 @@ const en: Record<string, string> = {
   'Mesclagem': 'Blend',
   'Da faixa': 'From the track',
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Layers paused in the preview: {n}. The final video plays them all.',
+  Borda: 'Border',
 };
 
 export default en;

@@ -67,6 +67,8 @@ export interface Clip {
   /** RF-065: picture-in-picture overlay positioning and sizing. */
   pipPosition?: { x: number; y: number }; // 0..1 relative to canvas
   pipSize?: { width: number; height: number }; // 0..1 relative to canvas
+  /** RF-065: a window's border; width in % of the frame's short side, 0 or absent = none. */
+  pipBorder?: { color: string; width: number };
   /** RF-009: video stabilization via sensor smoothing. */
   stabilization?: boolean;
   /** RF-021: 360° video orientation (pitch, yaw, roll in degrees). */

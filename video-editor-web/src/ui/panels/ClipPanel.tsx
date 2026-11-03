@@ -283,6 +283,22 @@ function PositionTool({
           <Slider session={session} label={t('Tamanho')} value={size.width * 100} min={10} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, pos.y, v / 100)} />
           <Slider session={session} label={t('Horizontal')} value={pos.x * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(v / 100, pos.y, size.width)} />
           <Slider session={session} label={t('Vertical')} value={pos.y * 100} min={0} max={100} format={(v) => `${Math.round(v)}%`} onLive={(v) => setBox(pos.x, v / 100, size.width)} />
+          <Slider
+            session={session}
+            label={t('Borda')}
+            value={clip.pipBorder?.width ?? 0}
+            min={0}
+            max={5}
+            step={0.25}
+            format={(v) => `${v.toFixed(2)}%`}
+            onLive={(v) => live({ pipBorder: { color: clip.pipBorder?.color ?? '#ffffff', width: v } })}
+          />
+          <Chips
+            options={TEXT_COLORS}
+            value={clip.pipBorder?.color ?? '#ffffff'}
+            label={(c) => <span style={{ display: 'inline-block', width: 16, height: 16, background: c, border: '1px solid #555' }} />}
+            onPick={(color) => commit({ pipBorder: { color, width: clip.pipBorder?.width || 1 } })}
+          />
         </>
       )}
     </>
