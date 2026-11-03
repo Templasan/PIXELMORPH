@@ -151,6 +151,7 @@ const en: Record<string, string> = {
   'Da faixa': 'From the track',
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Layers paused in the preview: {n}. The final video plays them all.',
   Borda: 'Border',
+  "Miniatura com os melhores momentos": "Thumbnail of the best moments",
 };
 
 export default en;

@@ -32,6 +32,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   const [gifSize, setGifSize] = useState(360);
   const [gifFps, setGifFps] = useState<number>(10);
   const [gifColors, setGifColors] = useState<number>(128);
+  const [highlights, setHighlights] = useState(false);
   // Off by default until the analysis cost is under 10% of the export (README, RNF-013).
   const [smart, setSmart] = useState(false);
   const [state, setState] = useState<State>({ phase: 'idle' });
@@ -52,7 +53,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
         frame: size,
         bitrate: OUTPUTS[out].bitrate,
         adaptive: kind === 'mp4' && smart,
-        gif: kind === 'gif' ? { fps: gifFps, maxColors: gifColors } : undefined,
+        gif: kind === 'gif' ? { fps: gifFps, maxColors: gifColors, highlights } : undefined,
         onProgress: (pct) => setState({ phase: 'running', pct }),
         isCancelled: () => cancelled.current,
       });
@@ -96,6 +97,11 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
                   {s}p
                 </button>
               ))}
+            </div>
+            <div className="chips">
+              <button className={`chip${highlights ? ' on' : ''}`} disabled={running} onClick={() => setHighlights(!highlights)}>
+                {t('Miniatura com os melhores momentos')}
+              </button>
             </div>
             <div className="chips">
               {GIF_FPS_OPTIONS.map((f) => (

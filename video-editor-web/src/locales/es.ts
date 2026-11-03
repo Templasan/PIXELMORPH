@@ -149,6 +149,7 @@ const es: Record<string, string> = {
   'Da faixa': 'De la pista',
   'Camadas paradas na prévia: {n}. O vídeo final toca todas.': 'Capas detenidas en la vista previa: {n}. El video final las reproduce todas.',
   Borda: 'Borde',
+  "Miniatura com os melhores momentos": "Miniatura con los mejores momentos",
 };
 
 export default es;

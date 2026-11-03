@@ -308,7 +308,7 @@ export function createEditorSession(host: EditorHost) {
     bitrate: number;
     /** RNF-013: lower the mp4 bitrate for a simple clip. */
     adaptive?: boolean;
-    gif?: { fps: number; maxColors: number };
+    gif?: { fps: number; maxColors: number; highlights?: boolean };
     onProgress: (pct: number) => void;
     isCancelled: () => boolean;
   }): Promise<ExportOutcome> {

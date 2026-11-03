@@ -13,6 +13,7 @@ import {
 import { opsAt, type Composition, type MediaOp } from '../domain/composition';
 import { GifPalette, GifWriter, gifDelayCs } from '../domain/gifEncoder';
 import { GIF_MAX_DURATION_MS } from '../domain/gifPlan';
+import { frameFeatures, pickHighlights, type FrameFeatures } from '../domain/highlights';
 import { adaptiveBitrate, complexityOf, frameStats, type FrameStats } from '../domain/sceneComplexity';
 import type { ExportSink } from '../ports/host';
 import { mixWindow } from './audio';
@@ -40,7 +41,8 @@ export interface ExportRequest {
   bitrate: number;
   /** RNF-013: lower the mp4 bitrate for a simple clip (see sceneComplexity.ts). */
   adaptive?: boolean;
-  gif?: { fps: number; maxColors: number };
+  /** `highlights`: an animated thumbnail of the best moments instead of the timeline itself. */
+  gif?: { fps: number; maxColors: number; highlights?: boolean };
   sink: ExportSink;
   onProgress(percent: number): void;
   isCancelled(): boolean;
@@ -250,6 +252,49 @@ async function readComplexity(
   return stats;
 }
 
+/** RF-030: frames looked at across the video to find its best moments. */
+const THUMBNAIL_SAMPLES = 32;
+const THUMBNAIL_FRAMES = 8;
+const THUMBNAIL_FRAME_CS = 45;
+
+async function thumbnailGif(
+  req: ExportRequest,
+  frameAt: (t: number) => Promise<void>,
+  ctx: OffscreenCanvasRenderingContext2D
+): Promise<ExportOutcome> {
+  const { comp, sink } = req;
+  const timeOf = (s: number) => ((s + 0.5) * comp.durationMs) / THUMBNAIL_SAMPLES;
+  const pixelsAt = async (t: number) => {
+    if (req.isCancelled()) throw new Error('CANCELLED');
+    await frameAt(t);
+    return ctx.getImageData(0, 0, comp.width, comp.height).data;
+  };
+  const features: FrameFeatures[] = [];
+  for (let s = 0; s < THUMBNAIL_SAMPLES; s += 1) {
+    features.push(frameFeatures(await pixelsAt(timeOf(s)), comp.width, comp.height));
+    req.onProgress(Math.round(((s + 1) / THUMBNAIL_SAMPLES) * 80));
+  }
+  const picked = pickHighlights(features, THUMBNAIL_FRAMES);
+  const palette = new GifPalette();
+  for (const s of picked) palette.addSample(await pixelsAt(timeOf(s)));
+  palette.build(req.gif!.maxColors);
+  const writer = new GifWriter(comp.width, comp.height, palette);
+  for (const s of picked) writer.addFrame(await pixelsAt(timeOf(s)), THUMBNAIL_FRAME_CS);
+  const bytes = writer.finish();
+  await sink.start(exportName('gif'));
+  await sink.write(0, bytes);
+  const path = await sink.finish();
+  req.onProgress(100);
+  return {
+    path,
+    bytes: bytes.length,
+    durationMs: picked.length * THUMBNAIL_FRAME_CS * 10,
+    frameCount: picked.length,
+    truncated: false,
+    silent: [],
+  };
+}
+
 async function gif(
   req: ExportRequest,
   frameAt: (t: number) => Promise<void>,
@@ -264,6 +309,7 @@ async function gif(
     await frameAt((f * 1000) / fps);
     return ctx.getImageData(0, 0, comp.width, comp.height).data;
   };
+  if (req.gif!.highlights) return thumbnailGif(req, frameAt, ctx);
   const palette = new GifPalette();
   const samples = Math.min(total, GIF_PALETTE_SAMPLES);
   for (let s = 0; s < samples; s += 1) {
