@@ -294,6 +294,10 @@ const en: Record<string, string> = {
   "Não foi possível alinhar: {msg}": "Could not align: {msg}",
   "Alinhando…": "Aligning…",
   "Alinhar automaticamente": "Align automatically",
+  "Objeto removido": "Object removed",
+  "Remover objeto": "Remove object",
+  "Pinte ou circule o que quer tirar da foto.": "Paint or circle what you want out of the photo.",
+  "REMOVER": "REMOVE",
 };
 
 export default en;

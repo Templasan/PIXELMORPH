@@ -252,3 +252,5 @@ US-26 partly brought in: palette and harmonies (RF-010), crop suggestions by thi
 US-27 brought in with shader filters, not a trained model: watercolour, oil and charcoal, with intensity and the compare divider. They are honest filters, so they should not be presented as AI.
 
 US-28 brought in: automatic alignment by matching the shared area (22 ms for a pair, right overlap and shift on real crops), keeping manual correction per photo.
+
+US-24 partly brought in: remove a painted or circled object, filled from nearby texture, as a layer (RF-055). Open: automatic subject cutout (RF-004) needs a model.

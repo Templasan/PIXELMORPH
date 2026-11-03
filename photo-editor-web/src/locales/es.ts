@@ -294,6 +294,10 @@ const es: Record<string, string> = {
   "Não foi possível alinhar: {msg}": "No se pudo alinear: {msg}",
   "Alinhando…": "Alineando…",
   "Alinhar automaticamente": "Alinear automáticamente",
+  "Objeto removido": "Objeto eliminado",
+  "Remover objeto": "Eliminar objeto",
+  "Pinte ou circule o que quer tirar da foto.": "Pinta o rodea lo que quieres quitar de la foto.",
+  "REMOVER": "ELIMINAR",
 };
 
 export default es;
