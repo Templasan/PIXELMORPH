@@ -26,9 +26,12 @@ import { correctionsOf, type MotionSample } from '../domain/stabilize';
 import { motionPathOf, setMotionPath } from '../engine/motion';
 
 const BACKGROUND_WAITS_AFTER_JUMP_MS = 1500;
+/** Reading a copy in progress again takes seconds, as the page reads it whole. */
+const PARTIAL_READ_EVERY_MS = 20_000;
 const FACE_STEP_MS = 500;
 const FACE_MAX_SAMPLES = 240;
 import { frameSize } from '../domain/format';
+import { pastPartialCopy, readableMs, type PartialCopy } from '../domain/partialCopy';
 import { playerErrorText, UNDECODABLE_TEXT } from '../domain/playerError';
 import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
@@ -105,8 +108,11 @@ export function createEditorSession(host: EditorHost) {
   // A file the page cannot decode waits for its copy. Any other builds the reserve meanwhile, so dragging
   // is instant during the wait: on a Samsung A11 that cost the copy about 5% of its time at most.
   let originalUndecodable = false;
+  /** Copies still being written, for files the page cannot read itself. */
+  let partial: Record<string, PartialCopy> = {};
   const previewBusy = () =>
     playing.get() ||
+    Object.keys(partial).length > 0 ||
     (preparing.get() !== null && originalUndecodable) ||
     performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
   const previews = new MediaPreviews(pool, previewBusy, (uri) => previewMap[uri] ?? uri);
@@ -122,6 +128,8 @@ export function createEditorSession(host: EditorHost) {
 
   // Preview copies (host-made proxies): original → copy; the export never uses them.
   let previewMap: Record<string, string> = {};
+  let finishedCopies: Record<string, string> = {};
+  let partialReadAt = 0;
   const compose = (tracks: Track[]) =>
     buildComposition(tracks, {
       ...frameSize(format.get(), previewShortEdge(deviceMemory)),
@@ -136,13 +144,37 @@ export function createEditorSession(host: EditorHost) {
   const wantScrubFrames = (tracks: Track[]) =>
     scrubFrames.want([
       ...new Set(
-        tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video' && !c.frozen).map((c) => previewMap[c.sourceUri] ?? c.sourceUri))
+        tracks.flatMap((t) =>
+          t.clips.filter((c) => clipMedia(t, c) === 'video' && !c.frozen && !partial[c.sourceUri]).map((c) => previewMap[c.sourceUri] ?? c.sourceUri)
+        )
       ),
     ]);
   /** How many video files the preview reads from a light copy (shown as a badge). */
   const previewCopies = createStore(0);
+  /** Reads a copy in progress again: whole, so not on every step, and never under a playing picture. */
+  const readPartialCopies = () => {
+    const waiting = Object.keys(partial).length > 0 && performance.now() - partialReadAt < PARTIAL_READ_EVERY_MS;
+    if (playing.get() || waiting) return;
+    const tracks = editor.store.get().tracks;
+    const next = { ...finishedCopies };
+    for (const [uri, copy] of Object.entries(partial)) {
+      const clip = tracks.flatMap((t) => t.clips).find((c) => c.sourceUri === uri);
+      // Each name is new to the media pool, which then opens the file again and sees what it gained.
+      if (clip && readableMs(clip.sourceDurationMs, copy.progress) > 0) next[uri] = `${copy.file}#${copy.progress}`;
+    }
+    if (JSON.stringify(next) === JSON.stringify(previewMap)) return;
+    partialReadAt = performance.now();
+    previewMap = next;
+    player?.setComposition(compose(tracks));
+  };
+  host.onPreviewPartial?.((next) => {
+    partial = next;
+    readPartialCopies();
+  });
   host.onPreviewSources?.((map) => {
-    previewMap = map;
+    finishedCopies = map;
+    partialReadAt = 0;
+    previewMap = { ...previewMap, ...map };
     previewCopies.set(Object.keys(map).length);
     // A copy that just arrived replaces the file that could not be decoded: its message is stale.
     if (error.get() === t(UNDECODABLE_TEXT)) error.set(null);
@@ -217,7 +249,13 @@ export function createEditorSession(host: EditorHost) {
       canvas,
       pool,
       {
-        onTime: (ms) => time.set(ms),
+        onTime: (ms) => {
+          time.set(ms);
+          // Past what the copy has reached there is no picture yet: stop instead of running over it.
+          if (playing.get() && Object.keys(partial).length > 0 && pastPartialCopy(editor.store.get().tracks, ms, partial)) {
+            player?.pause();
+          }
+        },
         onPlaying: (p) => playing.set(p),
         onError: (m) => {
           const text = playerErrorText(m, preparing.get() !== null);

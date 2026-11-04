@@ -38,6 +38,7 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.InAppFragmentedMp4Muxer
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
@@ -306,6 +307,7 @@ class PixelMorphVideoExportModule : Module() {
     var finished = false
     val transformer = Transformer.Builder(context)
       .setAssetLoaderFactory(DefaultAssetLoaderFactory(context, decoderFactory, Clock.DEFAULT, null))
+      .apply { if (options.fragmented) setMuxerFactory(InAppFragmentedMp4Muxer.Factory()) }
       .setVideoMimeType(MimeTypes.VIDEO_H264)
       .setAudioMimeType(MimeTypes.AUDIO_AAC)
       .setEncoderFactory(encoderFactory)

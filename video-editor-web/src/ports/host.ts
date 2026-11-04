@@ -74,6 +74,8 @@ export interface EditorHost {
   /** `low`: a low-end phone, which should get the lightest copies. */
   wantPreviewSources?(uris: string[], low?: boolean): void;
   onPreviewSources?(listener: (map: Record<string, string>) => void): void;
+  /** Copies still being written, which can already be read up to `progress` percent. */
+  onPreviewPartial?(listener: (partial: Record<string, { file: string; progress: number }>) => void): void;
   /** Progress of the copies still being made (0..100), or null when all are ready. */
   onPreviewPreparing?(listener: (progress: number | null) => void): void;
   /** Export fallback: 1080p copies of these files, original → copy for those that got one (progress 0..100). */
