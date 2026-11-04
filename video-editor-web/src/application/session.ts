@@ -28,6 +28,8 @@ import { motionPathOf, setMotionPath } from '../engine/motion';
 const BACKGROUND_WAITS_AFTER_JUMP_MS = 1500;
 /** Reading a copy in progress again takes seconds, as the page reads it whole. */
 const PARTIAL_READ_EVERY_MS = 20_000;
+const DECODE_RETRY_AFTER_MS = 2000;
+const DECODE_RETRY_EVERY_MS = 10_000;
 const FACE_STEP_MS = 500;
 const FACE_MAX_SAMPLES = 240;
 import { frameSize } from '../domain/format';
@@ -108,6 +110,7 @@ export function createEditorSession(host: EditorHost) {
   // A file the page cannot decode waits for its copy. Any other builds the reserve meanwhile, so dragging
   // is instant during the wait: on a Samsung A11 that cost the copy about 5% of its time at most.
   let originalUndecodable = false;
+  let decodeRetriedAt = -Infinity;
   /** Copies still being written, for files the page cannot read itself. */
   let partial: Record<string, PartialCopy> = {};
   const previewBusy = () =>
@@ -259,8 +262,16 @@ export function createEditorSession(host: EditorHost) {
         onPlaying: (p) => playing.set(p),
         onError: (m) => {
           const text = playerErrorText(m, preparing.get() !== null);
-          if (text !== null) error.set(text);
-          else originalUndecodable = true;
+          if (text === null) {
+            originalUndecodable = true;
+            return;
+          }
+          error.set(text);
+          // The hardware decoder may only be busy for a moment, and a paused picture would never try again.
+          if (text === t(UNDECODABLE_TEXT) && performance.now() - decodeRetriedAt > DECODE_RETRY_EVERY_MS) {
+            decodeRetriedAt = performance.now();
+            setTimeout(() => void player?.seekAndWait(time.get()), DECODE_RETRY_AFTER_MS);
+          }
         },
         onDrawn: () => {
           drawn.set(drawn.get() + 1);
