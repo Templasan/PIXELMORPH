@@ -191,4 +191,4 @@ Ordem combinada: (1) reserva durante a cópia, em arquivos que a página decodif
 
 Medidas finais: cópia de 1080p de 30 min em cerca de 12 min 40 s, com o app aberto até o fim; de 2 min em 68 s. 4K de 1 min em 244 a 256 s. Vídeo tipo câmera de 60 s: importa em 7 s; durante a cópia, arrastar 0,1 ms e quadro exato de 180 a 991 ms; o app em segundo plano por 25 s não matou a cópia; depois dela, 107 a 154 ms; exportação em 1080×1920 em 211 s.
 
-Pendente: se o sistema matar o app, a cópia recomeça do zero. Várias camadas de 4K ao mesmo tempo não foram testadas, e cada uma usa uma cópia de 1080p; o hardware decodifica o equivalente a duas a 30 quadros/s. O dono precisa ouvir se os estalos sumiram.
+Pendente: se o sistema matar o app, a cópia recomeça do zero. Várias camadas de 4K ao mesmo tempo não foram testadas, e cada uma usa uma cópia de 1080p; o hardware decodifica o equivalente a duas a 30 quadros/s. Estalo ao dar play ou pausa: resolvido e confirmado de ouvido pelo dono no A11. O fade de 12 ms sozinho não bastou; o som parou ao manter a saída de áudio ligada durante a pausa, por 30 s.
