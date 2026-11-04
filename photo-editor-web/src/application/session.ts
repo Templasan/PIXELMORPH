@@ -4,7 +4,7 @@ import { coverFitRect, scaleToFit, searchQualityForTargetSize, SOCIAL_PRESETS } 
 import { setJpegDpi, setPngDpi, setPngIcc } from '../domain/export/exportBytes';
 import { adobeRgbProfile, proofCmyk, setJpegIcc, srgbToAdobeRgb, type ExportColorSpace } from '../domain/export/colorSpace';
 import { encodePsd, opaqueBounds, type PsdLayer } from '../domain/export/psd';
-import { dataUrlBytes, dataUrlToBlob } from '../domain/export/dataUrl';
+import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
 import { drawCutoutMask, localParts, drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
@@ -507,7 +507,7 @@ export function createPhotoSession(host: EditorHost) {
       }
       canvas = draw(pics);
       const done = canvas;
-      const blob = dataUrlToBlob(done.toDataURL('image/jpeg', 0.9));
+      const blob = await new Promise<Blob | null>((r) => done.toBlob(r, 'image/jpeg', 0.9));
       if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
       const sink = host.newProject(name, canvas.width, canvas.height);
       await sink.start(`${name.toLowerCase()}_${Date.now()}.jpg`);
@@ -770,7 +770,7 @@ export function createPhotoSession(host: EditorHost) {
         const quality = targetOn
           ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
           : options.quality;
-        const blob = dataUrlToBlob(out.toDataURL(type, heic ? 1 : quality / 100));
+        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, heic ? 1 : quality / 100));
         if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
         lap('encoded');
         let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
@@ -826,7 +826,7 @@ export function createPhotoSession(host: EditorHost) {
         gl.setOutput(full.width, full.height);
         gl.render({ adjustments: only, adjustmentsVisible: true, units: size.photo, blends: [] });
         const pixels = gl.picture();
-        const blob = dataUrlToBlob(pixels.toDataURL('image/jpeg', 0.92));
+        const blob = await new Promise<Blob | null>((r) => pixels.toBlob(r, 'image/jpeg', 0.92));
         if (pixels !== gl.canvas) pixels.width = pixels.height = 0;
         if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
         const sink = host.photoSink();

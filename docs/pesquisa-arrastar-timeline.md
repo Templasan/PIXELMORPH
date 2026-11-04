@@ -119,7 +119,9 @@ O celular é pessoal do dono: instalar por cima pode, apagar nada dele, não abr
 
 ## Exportar foto
 
-No emulador, com uma foto de 13 MP, `toBlob` levava cerca de 4,2 s em JPEG e em PNG, até numa imagem lisa, e `toDataURL` 0,13 s com o mesmo tamanho de arquivo. Provavelmente o Blink faz o `toBlob` nos intervalos ociosos da página; a causa exata não foi lida no código dele. A exportação agora usa `toDataURL`: JPEG total de 4,8 s para 0,8 s, e o perfil Display P3 continua no arquivo. O restante é escrever pela ponte em base64: 0,4 s no JPEG e 3,5 s num PNG de 31 MB. Falta medir no A11, que levava de 12 a 23 s. O `toDataURL` roda na thread principal, então a tela para durante a codificação.
+Foto de 13 MP. Trocar `toBlob` por `toDataURL` foi testado e desfeito: no emulador deu 4,2 s contra 0,13 s, mas no A11 `toBlob` levou 1,25 s com a tela travada 0,5 s, e `toDataURL` 1,45 s com 1,4 s travada. **Número de emulador não decide isso.**
+
+No A11, exportação de 12 s: abrir a foto 2,4 s, GPU 0,4 s, desenhar a cena 2,5 s, codificar 1,8 s, salvar de 4,6 a 8,3 s. A galeria e a ponte, medidas à parte com uma imagem do mesmo tamanho, levam menos de 0,6 s, então a causa da etapa de salvar ainda está aberta. Um `dex2oat` de outro app usava de 3 a 5 núcleos durante essas medições, o que infla os números.
 
 ## Trocar abas no editor de fotos
 
