@@ -354,6 +354,7 @@ const en: Record<string, string> = {
   "Animais": "Animals",
   "Urbano": "Urban",
   "Linhas de convergência": "Converging lines",
+  "Foto original": "Original photo",
 };
 
 export default en;

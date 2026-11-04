@@ -164,6 +164,8 @@ function psdOf(
   layers: EditorLayer[],
   s: {
     photo: CanvasImageSource;
+    /** The same photo without its colour work. */
+    original: CanvasImageSource;
     size: SceneSize;
     a: Adjustments;
     k: number;
@@ -224,10 +226,18 @@ function psdOf(
   // Each of these is a whole picture in memory: past the limit, the earliest ones are merged.
   const kept = effects.slice(-MAX_PSD_EFFECT_LAYERS);
   const from = cutAt >= 0 && effects.length <= MAX_PSD_EFFECT_LAYERS ? cutAt + 1 : (kept[0] ?? cutAt + 1);
-  add(t('Fundo'), pixelsOf(through(cutAt >= 0 ? cutAt : from)));
+  const baseEnd = cutAt >= 0 ? cutAt : from;
+  const basePixels = pixelsOf(through(baseEnd));
+  // Colour work has no Photoshop equivalent to map onto, so it is a layer that can be switched off.
+  const onlyPhoto = layers.slice(0, baseEnd).every((l) => l.kind === 'background' || l.kind === 'adjustments');
+  const plainPixels = onlyPhoto ? pixelsOf((ctx) => drawScene(ctx, { ...scene, photo: s.original })) : null;
+  const coloured = !!plainPixels && plainPixels.some((v, i) => v !== basePixels[i]);
+  if (coloured) add(t('Foto original'), plainPixels);
+  add(coloured ? t('Ajustes') : t('Fundo'), basePixels);
   if (cutAt >= 0) {
     const { cutout } = layers[cutAt];
-    if (out.length) out[out.length - 1].mask = pixelsOf((ctx) => drawCutoutMask(ctx, cutout!, scene));
+    const mask = pixelsOf((ctx) => drawCutoutMask(ctx, cutout!, scene));
+    for (const base of out) base.mask = mask;
     if (from > cutAt + 1) add(t('Efeitos'), pixelsOf(through(from)));
   }
   layers.slice(from).forEach((l, offset) => {
@@ -724,7 +734,13 @@ export function createPhotoSession(host: EditorHost) {
         const { format } = options;
         if (format === 'psd') {
           // shortcut: the crop, social frame and watermark are export-time looks a PSD leaves to the editor that opens it.
-          const bytes = psdOf(picture, st.layers.filter((l) => !l.local?.remove), { photo, size, a, k, frameColor: i.frameColor, frameGradientColor: i.frameGradientColor, pictureOf: (uri) => layerPictures.get(uri), dpi: options.dpi });
+          // The GPU's canvas is about to be drawn again, so what it holds now is copied first.
+          const adjusted = newCanvas(photo.width, photo.height);
+          adjusted.getContext('2d')!.drawImage(photo, 0, 0);
+          gl.render({ adjustments: a, adjustmentsVisible: false, units: size.photo, blends });
+          const original = gl.picture();
+          if (original !== gl.canvas) canvases.push(original);
+          const bytes = psdOf(picture, st.layers.filter((l) => !l.local?.remove), { photo: adjusted, original, size, a, k, frameColor: i.frameColor, frameGradientColor: i.frameGradientColor, pictureOf: (uri) => layerPictures.get(uri), dpi: options.dpi });
           const sink = host.exportSink();
           await sink.start(`pixelmorph_${Date.now()}.psd`);
           await sink.write(0, bytes);
