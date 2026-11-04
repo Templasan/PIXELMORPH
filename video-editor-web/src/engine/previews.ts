@@ -31,7 +31,9 @@ export class MediaPreviews {
 
   constructor(
     private readonly pool: MediaPool,
-    private readonly busy: () => boolean
+    private readonly busy: () => boolean,
+    /** The file to read thumbnails from: a heavy original's light copy, once there is one. */
+    private readonly fileOf: (uri: string) => string = (uri) => uri
   ) {}
 
   subscribe(cb: () => void) {
@@ -122,12 +124,13 @@ export class MediaPreviews {
 
   private async makeThumbs(uri: string) {
     const set = this.wanted.get(uri);
+    const file = this.fileOf(uri);
     if (!set?.size) return;
     const times = [...set].sort((a, b) => a - b);
     set.clear();
     await this.pool
-      .withPinned(uri, async () => {
-        const track = await (await this.pool.input(uri)).getPrimaryVideoTrack();
+      .withPinned(file, async () => {
+        const track = await (await this.pool.input(file)).getPrimaryVideoTrack();
         if (!track) return;
         const sink = new CanvasSink(track, { height: THUMB_H, fit: 'contain' });
         let i = 0;

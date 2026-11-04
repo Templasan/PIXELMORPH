@@ -80,8 +80,10 @@ export function createEditorSession(host: EditorHost) {
   // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
   // Background decoding waits while the person plays or moves the playhead: their frames come first.
   let lastJumpAt = 0;
-  const previewBusy = () => playing.get() || performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
-  const previews = new MediaPreviews(pool, previewBusy);
+  // Also waits for a copy being made: decoding the heavy original now would only slow that down.
+  const previewBusy = () =>
+    playing.get() || preparing.get() !== null || performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
+  const previews = new MediaPreviews(pool, previewBusy, (uri) => previewMap[uri] ?? uri);
   const scrubFrames = new ScrubFrames(pool, previewBusy, scrubBudget(isLowEndDevice(deviceMemory)));
   const format = createStore<ProjectFormat>('16:9');
   /** Video layers holding their frame while playing (see liveLayerKeys). */
