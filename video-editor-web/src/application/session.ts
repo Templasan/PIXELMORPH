@@ -1,4 +1,5 @@
-import { buildComposition, compositionDurationMs } from '../domain/composition';
+import { buildComposition, compositionDurationMs, type Composition } from '../domain/composition';
+import { shouldRetryWithCopies } from '../domain/exportRetry';
 import { setStabilization,
   clipDurationMs,
   clipEndMs,
@@ -59,6 +60,27 @@ export function defaultTracks(): Track[] {
     clips: [],
   });
   return [makeTrack('v1', 'V1', 'video'), makeTrack('a1', 'A1', 'audio')];
+}
+
+/** Resolves with `work`, or with null as soon as `isCancelled` says so (the work itself is not stopped). */
+function untilCancelled<T>(work: Promise<T>, isCancelled: () => boolean): Promise<T | null> {
+  return new Promise((resolve, reject) => {
+    const timer = setInterval(() => {
+      if (!isCancelled()) return;
+      clearInterval(timer);
+      resolve(null);
+    }, 250);
+    work.then(
+      (value) => {
+        clearInterval(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearInterval(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 /**
@@ -421,18 +443,39 @@ export function createEditorSession(host: EditorHost) {
     isCancelled: () => boolean;
   }): Promise<ExportOutcome> {
     player?.pause();
-    const comp = buildComposition(editor.store.get().tracks, opts.frame);
-    try {
-      return await exportComposition(pool, {
+    const tracks = editor.store.get().tracks;
+    const render = (comp: Composition, onProgress: (pct: number) => void) =>
+      exportComposition(pool, {
         comp,
         bitrate: opts.bitrate,
         adaptive: opts.adaptive,
         spherical: opts.spherical,
         gif: opts.gif,
         sink: host.exportSink(),
-        onProgress: opts.onProgress,
+        onProgress,
         isCancelled: opts.isCancelled,
       });
+    try {
+      try {
+        return await render(buildComposition(tracks, opts.frame), opts.onProgress);
+      } catch (e) {
+        const message = String((e as Error)?.message ?? e);
+        if (!shouldRetryWithCopies(message, opts.isCancelled(), !!host.exportCopies)) throw e;
+        // This device cannot decode a source: export once more from 1080p copies of the video files.
+        const uris = [
+          ...new Set(tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri))),
+        ];
+        const copies = await untilCancelled(
+          host.exportCopies!(uris, (pct) => opts.onProgress(pct / 2)).catch((): Record<string, string> => ({})),
+          opts.isCancelled
+        );
+        if (copies === null) throw new Error('CANCELLED');
+        if (Object.keys(copies).length === 0) throw e;
+        return await render(
+          buildComposition(tracks, { ...opts.frame, mapUri: (u) => copies[u] ?? u }),
+          (pct) => opts.onProgress(50 + pct / 2)
+        );
+      }
     } finally {
       player?.setComposition(compose(editor.store.get().tracks));
     }

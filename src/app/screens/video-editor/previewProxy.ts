@@ -299,6 +299,41 @@ export function sourcesReadiness(
   return { ready: preparing === 0, progress: preparing ? sum / preparing : 0 };
 }
 
+/**
+ * Export fallback: queues the 1080p copy of each source, then resolves once every copy is finished,
+ * failed or not needed. The map holds only the copies that are ready (original uri → copy uri).
+ */
+export async function awaitExportCopies(
+  uris: string[],
+  onProgress: (pct: number) => void
+): Promise<Record<string, string>> {
+  const keys = uris.map((uri) => proxyKey(uri, '1080'));
+  await Promise.all(uris.map((uri) => requestSourceProxy(uri, '1080')));
+  return new Promise((resolve) => {
+    const check = (): boolean => {
+      const state = proxyStore.get();
+      const readiness = sourcesReadiness(state, keys);
+      if (!readiness.ready) {
+        onProgress(readiness.progress);
+        return false;
+      }
+      unsubscribe();
+      onProgress(100);
+      const map: Record<string, string> = {};
+      uris.forEach((uri, i) => {
+        const entry = state[keys[i]];
+        if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
+      });
+      resolve(map);
+      return true;
+    };
+    const unsubscribe = proxyStore.subscribe(() => {
+      check();
+    });
+    check();
+  });
+}
+
 /** Editor gate: whether the sources' preview copies are ready, and how far along they are. */
 export function useSourcesReady(uris: readonly string[]): SourcesReadiness {
   return useStore(proxyStore, (state) => sourcesReadiness(state, uris), shallowEqual);

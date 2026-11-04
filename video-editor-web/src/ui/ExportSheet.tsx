@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { EditorSession } from '../application/session';
 import { frameSize } from '../domain/format';
 import { presetFrame, SOCIAL_PRESETS } from '../domain/exportPreset';
+import { playerErrorText } from '../domain/playerError';
 import { formatTimecode } from '../domain/frameMath';
 import { GIF_COLOR_OPTIONS, GIF_FPS_OPTIONS, GIF_MAX_DURATION_MS } from '../domain/gifPlan';
 import type { ExportOutcome } from '../engine/exporter';
@@ -70,7 +71,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
       setState({ phase: 'done', out: result, tookMs: performance.now() - t0 });
     } catch (e) {
       const message = String((e as Error)?.message ?? e);
-      setState(message === 'CANCELLED' ? { phase: 'idle' } : { phase: 'error', message });
+      setState(message === 'CANCELLED' ? { phase: 'idle' } : { phase: 'error', message: playerErrorText(message, false) ?? message });
     }
   };
 
