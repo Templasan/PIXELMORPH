@@ -7,6 +7,8 @@ const LEAD_S = 0.15;
 /** The live mixer decodes at most this far ahead of what is playing. */
 const AHEAD_S = 2;
 const OUT_RATE = 48_000;
+/** Sound starting or stopping dead is an audible tick, so it fades over this. Too short to hear as a fade. */
+const FADE_S = 0.012;
 /** Sound blocks of the live mixer. Fades ramp across a block, so they stay smooth. */
 const LIVE_BLOCK_S = 0.5;
 
@@ -25,7 +27,7 @@ async function scheduleSpan(
   fromMs: number,
   toMs: number,
   whenOf: (ms: number) => number,
-  live: { alive: () => boolean; track?: Set<AudioBufferSourceNode> } | null
+  live: { alive: () => boolean; track?: Set<AudioBufferSourceNode>; output: AudioNode } | null
 ): Promise<void> {
   const track = await input.getPrimaryAudioTrack();
   if (!track) return; // a silent clip (e.g. a screen recording)
@@ -67,7 +69,7 @@ async function scheduleSpan(
     } else {
       gain.gain.value = spanGainAt(span, outOf(timestamp + (offset + end) / 2));
     }
-    node.connect(gain).connect(ctx.destination);
+    node.connect(gain).connect(live?.output ?? ctx.destination);
     node.start(at, offset, end - offset);
     if (live?.track) {
       live.track.add(node);
@@ -82,6 +84,7 @@ async function scheduleSpan(
  */
 export class AudioMixer {
   private ctx: AudioContext | null = null;
+  private master: GainNode | null = null;
   private epoch = 0;
   private nodes = new Set<AudioBufferSourceNode>();
   private anchor: { ctxS: number; ms: number } | null = null;
@@ -113,7 +116,11 @@ export class AudioMixer {
     const ctx = this.ctx;
     const anchor = { ctxS: ctx.currentTime + LEAD_S, ms: fromMs };
     this.anchor = anchor;
-    const live = { alive: () => my === this.epoch, track: this.nodes };
+    this.master ??= new GainNode(ctx, { gain: 0 });
+    this.master.connect(ctx.destination);
+    this.master.gain.setValueAtTime(0, anchor.ctxS);
+    this.master.gain.linearRampToValueAtTime(1, anchor.ctxS + FADE_S);
+    const live = { alive: () => my === this.epoch, track: this.nodes, output: this.master };
     const whenOf = (ms: number) => anchor.ctxS + (ms - anchor.ms) / 1000;
     for (const span of spans) {
       if (span.startMs + span.outputMs <= fromMs || span.startMs >= toMs) continue;
@@ -126,15 +133,26 @@ export class AudioMixer {
   /** Silences and releases the audio device (an open context keeps it running, costing battery). */
   stop() {
     this.halt();
-    if (this.ctx?.state === 'running') void this.ctx.suspend().catch(() => {});
+    const my = this.epoch;
+    // After the fade, unless playing started again meanwhile.
+    setTimeout(() => {
+      if (my === this.epoch && this.ctx?.state === 'running') void this.ctx.suspend().catch(() => {});
+    }, FADE_S * 3000);
   }
 
   private halt() {
     this.epoch += 1;
     this.anchor = null;
+    const now = this.ctx?.currentTime ?? 0;
+    const gain = this.master?.gain;
+    if (gain) {
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(gain.value, now);
+      gain.linearRampToValueAtTime(0, now + FADE_S);
+    }
     for (const node of this.nodes) {
       try {
-        node.stop();
+        node.stop(now + FADE_S);
       } catch {
         // not started yet
       }
@@ -146,6 +164,7 @@ export class AudioMixer {
     this.stop();
     void this.ctx?.close().catch(() => {});
     this.ctx = null;
+    this.master = null;
   }
 }
 
