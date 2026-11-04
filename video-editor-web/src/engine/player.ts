@@ -74,6 +74,8 @@ export class Player {
   private stillWanted: number | null = null;
   private stillRun: Promise<void> | null = null;
   private primed = new Set<string>();
+  /** The moment whose exact frame a still draw last put on screen. */
+  private stillShownAt: number | null = null;
   private heldSince = 0;
   /** While playing, time never goes back: the wall clock leads until the sound starts, then the
    * sound's clock (which starts a little later, at its own anchor) takes over without a step back. */
@@ -120,6 +122,7 @@ export class Player {
     comp: Composition
   ) {
     this.comp = comp;
+    this.stillShownAt = null;
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.audio = new AudioMixer((uri) => pool.input(uri));
     this.resize();
@@ -146,6 +149,7 @@ export class Player {
   /** A new timeline: keeps the playhead (clamped) and shows the new frame. */
   setComposition(comp: Composition) {
     this.comp = comp;
+    this.stillShownAt = null;
     this.lastSig = '';
     this.resize();
     this.primed.clear();
@@ -174,8 +178,9 @@ export class Player {
     if (this.t >= this.endMs() - 1) this.setTime(this.loop?.startMs ?? 0);
     this.playing = true;
     this.events.onPlaying(true);
-    // Start on an exact, complete frame (and decoders warmed at it) instead of a black one.
-    await this.drawStill(this.t);
+    // Start on an exact, complete frame instead of a black one, but if that frame is already on
+    // screen, decoding it again only delays the start by a few hundred ms on a slow phone.
+    if (this.stillShownAt !== this.t) await this.drawStill(this.t);
     if (!this.playing) return;
     this.anchorAt(this.t);
     this.raf = requestAnimationFrame(this.tick);
@@ -225,6 +230,7 @@ export class Player {
 
   private tick = (now: number) => {
     if (!this.playing) return;
+    this.stillShownAt = null;
     let t = Math.max(this.floor, this.audio.timeMs() ?? this.wall.t + (now - this.wall.at));
     this.floor = t;
     const end = this.endMs();
@@ -369,6 +375,7 @@ export class Player {
         );
         // A newer request arrived while decoding: draw that one instead of a stale frame.
         if (this.stillWanted !== null) continue;
+        this.stillShownAt = ops.length > 0 ? t : null;
         drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null, this.boxes);
         this.events.onDrawn?.();
       }
