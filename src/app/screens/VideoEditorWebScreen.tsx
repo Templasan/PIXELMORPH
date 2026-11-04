@@ -108,12 +108,8 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
       if (full?.status === 'running' && full.partialUri) {
         partial[uri] = { file: full.partialUri, progress: Math.floor(full.progress) };
       }
-      // The export keeps the 1080p copy. Made from it, the lightest one takes the hardware decoder.
-      const fullUri = full?.status === 'ready' ? full.uri : undefined;
-      if (fullUri && !state[proxyKey(fullUri, '540')]) void requestSourceProxy(fullUri, '540');
-      const fromFull = fullUri ? state[proxyKey(fullUri, '540')] : undefined;
       const light = lowEnd.current
-        ? [fromFull, state[proxyKey(uri, '540')], full].find((e) => e?.status === 'ready')
+        ? [state[proxyKey(uri, '540')], full].find((e) => e?.status === 'ready')
         : undefined;
       const entry = light ?? state[uri];
       if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
