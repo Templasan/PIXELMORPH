@@ -26,6 +26,14 @@ const media = (ops: ReturnType<typeof opsAt>) =>
   ops.filter((o): o is MediaOp => o.kind === 'video' || o.kind === 'image');
 
 describe('composition', () => {
+  it('reads the mapped file but takes stabilization from the original recording', () => {
+    const tracks = [track('v', 'video', [clip('a', 0, 5000, { stabilization: true })])];
+    const comp = buildComposition(tracks, { mapUri: () => 'copy.mp4' });
+    const [op] = media(opsAt(comp, 100));
+    expect(op.uri).toBe('copy.mp4');
+    expect(op.stabilizedBy).toBe('a.mp4');
+  });
+
   it('draws every visible media track as a layer, later tracks above', () => {
     const a = clip('a', 0, 5000);
     const b = clip('b', 1000, 2000);

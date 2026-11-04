@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { errorLogger } from '@core/reliability';
 import {
+  awaitExportCopies,
   pauseProxiesForExport,
   proxyDimensions,
   proxyPathOf,
@@ -378,5 +379,44 @@ describe('sourcesReadiness', () => {
       ready: false,
       progress: 20,
     });
+  });
+});
+
+describe('awaitExportCopies', () => {
+  test('waits for the 1080p copies and maps only the sources that got one', async () => {
+    probeVideo.mockImplementation(async (uri: string) =>
+      uri.includes('/ac/')
+        ? { width: 3840, height: 2160, rotation: 0, durationMs: 5000 }
+        : { width: 1280, height: 720, rotation: 0, durationMs: 5000 }
+    );
+    const job = deferred();
+    exportVideo.mockReturnValueOnce(job.promise);
+    const progress: number[] = [];
+    let settled = false;
+    const done = awaitExportCopies(
+      ['file:///docs/media/ac/a.mp4', 'file:///docs/media/ad/small.mp4'],
+      (pct) => progress.push(pct)
+    );
+    done.then(() => (settled = true));
+    await flush();
+
+    expect(exportVideo).toHaveBeenCalledTimes(1);
+    expect(exportVideo.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ width: 1920, height: 1080, bitrate: 10_000_000 })
+    );
+    expect(settled).toBe(false);
+
+    job.resolve();
+    await expect(done).resolves.toEqual({
+      'file:///docs/media/ac/a.mp4': 'file:///docs/media/ac/a.proxy1080.mp4',
+    });
+    expect(progress[progress.length - 1]).toBe(100);
+  });
+
+  test('resolves at once with an empty map when no source needs a copy', async () => {
+    probeVideo.mockResolvedValue({ width: 1280, height: 720, rotation: 0, durationMs: 5000 });
+    const copies = await awaitExportCopies(['file:///docs/media/ae/small.mp4'], () => {});
+    expect(copies).toEqual({});
+    expect(exportVideo).not.toHaveBeenCalled();
   });
 });

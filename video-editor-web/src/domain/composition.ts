@@ -97,6 +97,8 @@ export interface CaptionOp {
 
 export type CompositionOp = { kind: 'clear'; color: string } | MediaOp | CaptionOp;
 
+type LayerClip = Clip & { originalUri: string };
+
 interface MediaLayer {
   trackId: string;
   kind: Track['kind'];
@@ -104,7 +106,7 @@ interface MediaLayer {
   opacity: number;
   blend: TrackBlend;
   /** Sorted by start. */
-  clips: Clip[];
+  clips: LayerClip[];
 }
 
 export interface Composition {
@@ -160,7 +162,7 @@ export function buildComposition(
       blend: t.blend ?? 'source-over',
       clips: [...t.clips]
         .sort((a, b) => a.startMs - b.startMs)
-        .map((c) => ({ ...c, sourceUri: map(c.sourceUri) })),
+        .map((c) => ({ ...c, sourceUri: map(c.sourceUri), originalUri: c.sourceUri })),
     }));
   return {
     width: opts.width ?? 1920,
@@ -228,7 +230,7 @@ function rectOf(clip: Clip, w: number, h: number): Rect {
 function mediaOp(
   c: Composition,
   layer: MediaLayer,
-  clip: Clip,
+  clip: LayerClip,
   t: number,
   role: 'in' | 'out',
   transform: { opacity: number; translateX: number; scale: number }
@@ -251,7 +253,8 @@ function mediaOp(
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
     blend: clip.blend ?? layer.blend,
-    stabilizedBy: clip.stabilization && !image && !clip.spherical ? clip.sourceUri : null,
+    // The motion belongs to the original recording, not to the light copy being read.
+    stabilizedBy: clip.stabilization && !image && !clip.spherical ? clip.originalUri : null,
     faces: clip.faces?.length && !image && !clip.spherical ? clip.faces : null,
     sphere: clip.spherical
       ? {

@@ -32,7 +32,12 @@ import { useEditorRecovery } from './useEditorRecovery';
 import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
-import { proxyStore, requestSourceProxy, sourcesReadiness } from './video-editor/previewProxy';
+import {
+  awaitExportCopies,
+  proxyStore,
+  requestSourceProxy,
+  sourcesReadiness,
+} from './video-editor/previewProxy';
 import { proxyKey } from './video-editor/previewTier';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
@@ -246,6 +251,14 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
         for (const uri of uris) void requestSourceProxy(uri, low ? '540' : '720');
         pushProxies();
       },
+
+      /** Export fallback: the page waits for these 1080p copies, and gets their progress as events. */
+      exportCopies: (uris: string[]) =>
+        awaitExportCopies(uris, (pct) => {
+          webRef.current?.injectJavaScript(
+            `window.__pmEvent && window.__pmEvent({type:'exportCopiesProgress',progress:${Math.round(pct)}});true;`
+          );
+        }),
     }),
     [files, navigation, projectId, projects, timelineFile, pushProxies]
   );

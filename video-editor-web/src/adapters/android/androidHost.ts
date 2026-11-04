@@ -27,6 +27,8 @@ export function createAndroidHost(): EditorHost {
   onEvent('speechProgress', (e) => speechListener?.(e as unknown as SpeechProgress));
   let facesListener: ((percent: number) => void) | null = null;
   onEvent('faceProgress', (e) => facesListener?.(e.percent as number));
+  let copiesListener: ((pct: number) => void) | null = null;
+  onEvent('exportCopiesProgress', (e) => copiesListener?.(e.progress as number));
   return {
     readMotion: (uri) => call<string | null>('readMotion', uri),
     async sampleFaces(uri, inMs, outMs, stepMs, onProgress) {
@@ -88,6 +90,14 @@ export function createAndroidHost(): EditorHost {
     },
     onPreviewPreparing(listener) {
       onEvent('previewPreparing', (e) => listener(e.progress as number | null));
+    },
+    async exportCopies(uris, onProgress) {
+      copiesListener = onProgress;
+      try {
+        return await call<Record<string, string>>('exportCopies', uris);
+      } finally {
+        copiesListener = null;
+      }
     },
   };
 }

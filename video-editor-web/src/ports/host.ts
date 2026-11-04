@@ -76,4 +76,6 @@ export interface EditorHost {
   onPreviewSources?(listener: (map: Record<string, string>) => void): void;
   /** Progress of the copies still being made (0..100), or null when all are ready. */
   onPreviewPreparing?(listener: (progress: number | null) => void): void;
+  /** Export fallback: 1080p copies of these files, original → copy for those that got one (progress 0..100). */
+  exportCopies?(uris: string[], onProgress: (pct: number) => void): Promise<Record<string, string>>;
 }
