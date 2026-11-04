@@ -186,6 +186,9 @@ const en: Record<string, string> = {
   "Realçar os olhos": "Brighten eyes",
   "Tom": "Tone",
   "Remover": "Remove",
+  "Estabilizar": "Stabilize",
+  "Estabilizado": "Stabilized",
+  "Este vídeo não tem dados de movimento: só os gravados na câmera do app têm.": "This video has no motion data: only those recorded with the app's camera do.",
 };
 
 export default en;

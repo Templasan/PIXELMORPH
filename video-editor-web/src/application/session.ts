@@ -1,5 +1,5 @@
 import { buildComposition, compositionDurationMs } from '../domain/composition';
-import {
+import { setStabilization,
   clipDurationMs,
   clipEndMs,
   createClip,
@@ -18,6 +18,8 @@ import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat, SpeechProgress } from '../ports/host';
 import { captionClips } from './speechCaptions';
 import { trackFaces } from '../domain/faceTrack';
+import { correctionsOf, type MotionSample } from '../domain/stabilize';
+import { motionPathOf, setMotionPath } from '../engine/motion';
 
 const FACE_STEP_MS = 500;
 const FACE_MAX_SAMPLES = 240;
@@ -132,6 +134,9 @@ export function createEditorSession(host: EditorHost) {
       projectName.set(saved.name);
       if (saved.format) format.set(saved.format);
       editor.hydrate(saved.tracks);
+      for (const clip of saved.tracks.flatMap((track) => track.clips)) {
+        if (clip.stabilization) await loadMotion(clip.sourceUri);
+      }
       undoLog.restore(saved.history as Parameters<typeof undoLog.restore>[0]);
     }
     // A new project takes the shape of its first video (a phone video is usually 9:16).
@@ -281,6 +286,36 @@ export function createEditorSession(host: EditorHost) {
     return captions.length;
   }
 
+  /** RF-009: reads and works out a recording's correction, once. False when it has no motion. */
+  async function loadMotion(uri: string): Promise<boolean> {
+    if (motionPathOf(uri)) return true;
+    const saved = await host.readMotion?.(uri).catch(() => null);
+    if (!saved) return false;
+    let samples: MotionSample[];
+    try {
+      samples = JSON.parse(saved) as MotionSample[];
+    } catch {
+      return false;
+    }
+    const path = correctionsOf(samples);
+    if (path.length === 0) return false;
+    setMotionPath(uri, path);
+    return true;
+  }
+
+  /** RF-009: on and off at any time after recording; the file itself never changes. */
+  async function setClipSteady(clipId: string, on: boolean) {
+    const found = findClip(editor.store.get().tracks, clipId);
+    if (!found) return;
+    if (on && !(await loadMotion(found.clip.sourceUri))) {
+      error.set(t('Este vídeo não tem dados de movimento: só os gravados na câmera do app têm.'));
+      return;
+    }
+    editor.commit((before) =>
+      before.map((track) => ({ ...track, clips: track.clips.map((c) => (c.id === clipId ? setStabilization(c, on) : c)) }))
+    );
+  }
+
   /** RF-016: finds and follows the faces in a clip. Their settings are then the clip's own. */
   async function findClipFaces(clipId: string, onProgress: (percent: number) => void): Promise<number> {
     const found = findClip(editor.store.get().tracks, clipId);
@@ -386,6 +421,7 @@ export function createEditorSession(host: EditorHost) {
     exportVideo,
     generateCaptions,
     findClipFaces,
+    setClipSteady,
     canFindFaces: !!host.sampleFaces,
     cancelFaces: () => host.cancelFaces?.(),
     speechModelReady: () => host.speechModelReady?.() ?? Promise.resolve(null),

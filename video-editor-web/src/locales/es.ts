@@ -184,6 +184,9 @@ const es: Record<string, string> = {
   "Realçar os olhos": "Realzar los ojos",
   "Tom": "Tono",
   "Remover": "Quitar",
+  "Estabilizar": "Estabilizar",
+  "Estabilizado": "Estabilizado",
+  "Este vídeo não tem dados de movimento: só os gravados na câmera do app têm.": "Este vídeo no tiene datos de movimiento: solo los grabados con la cámara de la app.",
 };
 
 export default es;

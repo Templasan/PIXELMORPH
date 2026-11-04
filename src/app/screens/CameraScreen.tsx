@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import { motionFileOf, startMotionRecording } from './camera/motionRecorder';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -165,7 +167,8 @@ export default function CameraScreen({ navigation }: Props) {
       kind: 'image' | 'video',
       width: number,
       height: number,
-      look?: Record<string, number>
+      look?: Record<string, number>,
+      motion?: string | null
     ) => {
       const probed = await probeFileMetadata(uri, kind);
       // Camera videos are stored sideways with a rotation tag; keep the upright size.
@@ -189,6 +192,13 @@ export default function CameraScreen({ navigation }: Props) {
           ),
         ]
       );
+      // RF-009: a video without its motion still works, it just cannot be steadied later.
+      const stored = project.assets[0]?.workingUri || project.assets[0]?.originalUri;
+      if (motion && stored) {
+        await FileSystem.writeAsStringAsync(motionFileOf(stored), motion).catch((error) =>
+          errorLogger.log(error, 'CameraScreen.saveMotion')
+        );
+      }
       // The filter seen while shooting becomes the photo's first edit: it can be changed or undone.
       if (look && Object.keys(look).length > 0) {
         await new LocalHistoryRepository().save(project.id, {
@@ -270,12 +280,16 @@ export default function CameraScreen({ navigation }: Props) {
     setRecording(true);
     setBusy(true);
     try {
-      const video = await cameraRef.current.recordAsync();
+      const motion = startMotionRecording();
+      let recorded: string | null = null;
+      const video = await cameraRef.current.recordAsync().finally(() => {
+        recorded = motion.stop();
+      });
       setRecording(false);
       setBusy(false);
       if (!video) return;
       setLastCaptureUri(video.uri);
-      await openInEditor(video.uri, 'video', 1920, 1080);
+      await openInEditor(video.uri, 'video', 1920, 1080, undefined, recorded);
     } catch (error) {
       setRecording(false);
       setBusy(false);

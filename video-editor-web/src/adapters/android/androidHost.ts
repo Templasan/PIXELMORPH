@@ -28,6 +28,7 @@ export function createAndroidHost(): EditorHost {
   let facesListener: ((percent: number) => void) | null = null;
   onEvent('faceProgress', (e) => facesListener?.(e.percent as number));
   return {
+    readMotion: (uri) => call<string | null>('readMotion', uri),
     async sampleFaces(uri, inMs, outMs, stepMs, onProgress) {
       facesListener = onProgress;
       try {
