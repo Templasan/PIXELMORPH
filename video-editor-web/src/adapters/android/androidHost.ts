@@ -86,5 +86,8 @@ export function createAndroidHost(): EditorHost {
     onPreviewSources(listener) {
       onEvent('previewSources', (e) => listener(e.map as Record<string, string>));
     },
+    onPreviewPreparing(listener) {
+      onEvent('previewPreparing', (e) => listener(e.progress as number | null));
+    },
   };
 }

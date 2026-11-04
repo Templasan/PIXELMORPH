@@ -18,6 +18,8 @@ export class Feed {
   late = 0;
   dropped = 0;
   restarts = 0;
+  /** A decode error on the live path, which cannot throw there: the player reads it and stops. */
+  failure: unknown = null;
 
   constructor(
     readonly layer: string,
@@ -33,6 +35,7 @@ export class Feed {
 
   async restart(sec: number): Promise<void> {
     this.restarts += 1;
+    this.failure = null;
     const my = ++this.epoch;
     // The frame on screen stays until the new position's first frame replaces it: closing it
     // here made the layer vanish for a frame or two at every restart (play, jump, clip start).
@@ -92,6 +95,10 @@ export class Feed {
       if (r.done) this.done = true;
       else this.q.push(r.value);
     });
+    // The live path never awaits pend, so it hears a failure here; `at` still rethrows it.
+    pend.catch((e) => {
+      if (my === this.epoch) this.failure = e;
+    });
     this.pend = pend;
   }
 
@@ -99,9 +106,13 @@ export class Feed {
   tick(sec: number): VideoSample | null {
     if (this.busy) return this.cur;
     if (this.needsRestart(sec)) {
-      this.busy = this.restart(sec).finally(() => {
-        this.busy = null;
-      });
+      this.busy = this.restart(sec)
+        .catch((e) => {
+          this.failure = e;
+        })
+        .finally(() => {
+          this.busy = null;
+        });
       return this.cur;
     }
     let moved = 0;

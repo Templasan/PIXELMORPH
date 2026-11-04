@@ -32,7 +32,7 @@ import { useEditorRecovery } from './useEditorRecovery';
 import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
-import { proxyStore, requestSourceProxy } from './video-editor/previewProxy';
+import { proxyStore, requestSourceProxy, sourcesReadiness } from './video-editor/previewProxy';
 import { proxyKey } from './video-editor/previewTier';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
@@ -75,8 +75,22 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   const wanted = useRef<string[]>([]);
   const lowEnd = useRef(false);
   const lastMap = useRef('');
+  const lastPreparing = useRef<number | null | undefined>(undefined);
   const pushProxies = useCallback(() => {
     const state = proxyStore.get();
+    // How far the copies the page will read are: it shows a badge until they are ready.
+    // Still 'checking' says nothing yet: most files need no copy, and the badge would just flash.
+    const keys = wanted.current
+      .map((uri) => (lowEnd.current ? proxyKey(uri, '540') : proxyKey(uri, '720')))
+      .filter((key) => state[key]?.status === 'pending' || state[key]?.status === 'running');
+    const readiness = sourcesReadiness(state, keys);
+    const preparing = readiness.ready ? null : Math.round(readiness.progress);
+    if (preparing !== lastPreparing.current) {
+      lastPreparing.current = preparing;
+      webRef.current?.injectJavaScript(
+        `window.__pmEvent && window.__pmEvent({type:'previewPreparing',progress:${preparing}});true;`
+      );
+    }
     const map: Record<string, string> = {};
     for (const uri of wanted.current) {
       // A low-end phone takes the lightest copy once there is one, and the usual one until then.

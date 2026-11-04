@@ -301,6 +301,7 @@ export class Player {
     const c0 = performance.now();
     this.prepareAround(t);
     const ops = opsAt(this.comp, t);
+    if (this.liveDecodeFailed(ops)) return;
     const c1 = performance.now();
     const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
     const late: string[] = [];
@@ -349,6 +350,20 @@ export class Player {
     }
     this.raf = requestAnimationFrame(this.tick);
   };
+
+  /** A live decoder failed: reports its error (once) and stops, so the clock does not run over black. */
+  private liveDecodeFailed(ops: ReturnType<typeof opsAt>): boolean {
+    for (const op of ops) {
+      if (op.kind !== 'video') continue;
+      const feed = this.pool.liveFeed(op.key, op.uri);
+      if (!feed?.failure) continue;
+      const e = feed.failure;
+      feed.failure = null;
+      this.fail(e);
+      return true;
+    }
+    return false;
+  }
 
   private setFrozen(count: number) {
     if (count === this.frozen) return;
@@ -453,6 +468,9 @@ export class Player {
 
   private fail(e: unknown) {
     this.events.onError(String((e as Error)?.message ?? e));
+    // Playing over a picture that cannot decode would run the clock over black. pause() clears
+    // `playing` before it draws the still, so a failure while drawing it does not pause again.
+    if (this.playing) this.pause();
   }
 
   /** Stops this player; the media pool belongs to the session and stays open. */
