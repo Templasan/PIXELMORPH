@@ -184,7 +184,7 @@ describe('requestProxy queue', () => {
 });
 
 describe('540p proxy (Baixa tier)', () => {
-  test('is 960x540 with 1 s keyframes, next to the source, tracked under its own key', async () => {
+  test('is 960x540 with keyframes three times a second, next to the source, tracked under its own key', async () => {
     expect(proxyDimensions(3840, 2160, '540')).toEqual({ width: 960, height: 540 });
     expect(proxyDimensions(1080, 1920, '540')).toEqual({ width: 540, height: 960 });
     expect(proxyDimensions(960, 540, '540')).toBeNull();
@@ -199,7 +199,7 @@ describe('540p proxy (Baixa tier)', () => {
         width: 960,
         height: 540,
         bitrate: 3_000_000,
-        keyFrameIntervalSeconds: 1,
+        keyFrameIntervalSeconds: 1 / 3,
         outputPath: '/docs/media/q/q.proxy540.mp4.tmp.mp4',
       }),
       expect.any(Function)

@@ -11,12 +11,12 @@ Lido e conferido em 2026-11-04. Nada daqui foi implementado ainda. Só foram lid
 | 3 | react-native-webview: `webviewDebuggingEnabled` deve ficar desligado em produção; `allowUniversalAccessFromFileURLs` e `allowFileAccessFromFileURLs` são para deixar desligados se não forem necessários | Tudo ligado, sempre. A depuração nós usamos nos testes | Antes de publicar |
 | 4 | Mediabunny: `StreamSource` é apelido obsoleto de `CustomSource` | Trocado por `CustomSource` | Feito |
 | 5 | Mediabunny: `computeDuration` pode fazer bem mais trabalho; `getDurationFromMetadata` dá uma duração aproximada sem varrer o arquivo | Trocado na reserva de quadros. `previews.ts` e `probe.ts` seguem com `computeDuration`, porque ali a duração exata importa | Feito |
-| 6 | Mediabunny: leitura parcial do arquivo mantém a memória baixa, e `BlobSource` guarda só um cache de 8 MiB | Nós carregamos o arquivo inteiro num Blob antes (`fetchBlob`, em XHR). Não sabemos quanto disso fica em RAM no WebView: **pode ser parte do alto uso de memória, a medir** | **Média, medir antes** |
+| 6 | Mediabunny: leitura parcial do arquivo mantém a memória baixa, e `BlobSource` guarda só um cache de 8 MiB | Carregamos o arquivo inteiro num Blob antes (`fetchBlob`, em XHR). **Medido no A11: um Blob de 164 MB não aumentou a RAM**, e essa suspeita caiu. Custa tempo: 9,8 s para ler esse arquivo, o que pesa ao abrir vídeo grande sem cópia leve | Não é memória |
 
 ## Ideias que a documentação traz para testar
 
 - **Mediabunny, `samplesAtTimestamps` com lista assíncrona:** um único decodificador atende vários instantes e nunca decodifica o mesmo pacote duas vezes, se os instantes estiverem em ordem. Pode ajudar no arraste para a frente, em vez de `getSample` a cada salto. Para voltar, não ajuda.
-- **WebCodecs, `optimizeForLatency`:** "minimiza quantos pedaços precisam ser decodificados antes de sair um quadro". É uma dica, não garantia. A Mediabunny aceita em `VideoSampleSink`. Pode encurtar o quadro exato. Medir.
+- **WebCodecs, `optimizeForLatency`:** testado no A11, sem ganho. Fica de fora.
 - **Chrome, Worker e `OffscreenCanvas`:** recomenda levar os quadros para fora da thread principal. Tocando, a nossa fica 37% ociosa, então não é prioridade.
 - **Mediabunny, `CanvasSink` com `poolSize`:** reaproveita canvases. Nas miniaturas não serve, porque guardamos cada uma. Só valeria em usos passageiros.
 
