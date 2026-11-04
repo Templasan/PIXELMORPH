@@ -116,3 +116,7 @@ O celular é pessoal do dono: instalar por cima pode, apagar nada dele, não abr
 - WebAV: [mp4-clip.ts](https://github.com/WebAV-Tech/WebAV/blob/main/packages/av-cliper/src/clips/mp4-clip.ts)
 - [Fórum da Qualcomm sobre scrubbing no Android](https://developer.qualcomm.com/forum/qdn-forums/mobile-technologies/multimedia-optimization-hexagon-sdk/video/27161) (2013, relato de uma pessoa)
 - [Artigo sobre motor de edição mobile](https://dev.to/beefedai/memory-safe-mobile-video-editing-engine-timeline-design-optimizations-4em0) (fonte secundária, não verificada)
+
+## Exportar foto
+
+No emulador, com uma foto de 13 MP, `toBlob` levava cerca de 4,2 s em JPEG e em PNG, até numa imagem lisa, e `toDataURL` 0,13 s com o mesmo tamanho de arquivo. Provavelmente o Blink faz o `toBlob` nos intervalos ociosos da página; a causa exata não foi lida no código dele. A exportação agora usa `toDataURL`: JPEG total de 4,8 s para 0,8 s, e o perfil Display P3 continua no arquivo. O restante é escrever pela ponte em base64: 0,4 s no JPEG e 3,5 s num PNG de 31 MB. Falta medir no A11, que levava de 12 a 23 s. O `toDataURL` roda na thread principal, então a tela para durante a codificação.
