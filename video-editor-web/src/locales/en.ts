@@ -188,7 +188,7 @@ const en: Record<string, string> = {
   "Remover": "Remove",
   "Estabilizar": "Stabilize",
   "Estabilizado": "Stabilized",
-  "Este vídeo não tem dados de movimento: só os gravados na câmera do app têm.": "This video has no motion data: only those recorded with the app's camera do.",
+  "Este vídeo não tem dados de movimento: só os gravados na câmera do app, em aparelho com giroscópio, têm.": "This video has no motion data: only those recorded with the app's camera, on a phone with a gyroscope, do.",
 };
 
 export default en;

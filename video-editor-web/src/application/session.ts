@@ -308,7 +308,7 @@ export function createEditorSession(host: EditorHost) {
     const found = findClip(editor.store.get().tracks, clipId);
     if (!found) return;
     if (on && !(await loadMotion(found.clip.sourceUri))) {
-      error.set(t('Este vídeo não tem dados de movimento: só os gravados na câmera do app têm.'));
+      error.set(t('Este vídeo não tem dados de movimento: só os gravados na câmera do app, em aparelho com giroscópio, têm.'));
       return;
     }
     editor.commit((before) =>
