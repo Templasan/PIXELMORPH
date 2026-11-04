@@ -94,7 +94,8 @@ export class AudioMixer {
   async start(spans: readonly AudioSpan[], fromMs: number, toMs: number): Promise<void> {
     this.halt();
     const my = this.epoch;
-    this.ctx ??= new AudioContext({ latencyHint: 'playback' });
+    // 'balanced': 'playback' asks for a long buffer, which an editor feels as a late start.
+    this.ctx ??= new AudioContext({ latencyHint: 'balanced' });
     if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
     if (my !== this.epoch) return;
     const ctx = this.ctx;
