@@ -10,6 +10,8 @@ licences declared in `package.json` / `package-lock.json`.
 | ML Kit Subject Segmentation (Google Play services) | 16.0.0-beta1 | Google APIs Terms of Service | https://developers.google.com/ml-kit/terms |
 | ML Kit Image Labeling (Google Play services) | 16.0.8 | Google APIs Terms of Service | https://developers.google.com/ml-kit/terms |
 | ML Kit Face Detection (Google Play services) | 17.1.0 | Google APIs Terms of Service | https://developers.google.com/ml-kit/terms |
+| whisper.cpp and ggml (copied, CPU parts only, in modules/pixelmorph-video-export/android/src/main/cpp) | 1.9.5 | MIT | https://github.com/ggml-org/whisper.cpp |
+| Whisper tiny model, ggml format (downloaded on request, not in the APK) | ggml-tiny.bin | MIT | https://huggingface.co/ggerganov/whisper.cpp |
 | mediabunny | 1.61.0 | MPL-2.0 (used unmodified, from npm) | https://github.com/Vanilagy/mediabunny | Demux / WebCodecs decode / encode / MP4 mux inside the WebView |
 | react-native-webview | 13.16.1 | MIT | https://github.com/react-native-webview/react-native-webview | The WebView that hosts the Expo DOM component |
 | react-dom | 19.2.3 | MIT | https://github.com/facebook/react | Required by Expo DOM components (web bundle) |

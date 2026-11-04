@@ -4,6 +4,7 @@ import { selectedClipOf } from '../application/videoEditorStore';
 import { clipMedia } from '../domain/Track';
 import { stepFrameMs } from '../domain/frameMath';
 import { useStore } from '../state/useStore';
+import { CaptionsSheet } from './CaptionsSheet';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
 import { ClipPanel, type ClipTool } from './panels/ClipPanel';
@@ -40,6 +41,7 @@ export function App({ session }: { session: EditorSession }) {
   const selection = useStore(editor.store, (s) => selectedClipOf(s));
   const [panel, setPanel] = useState<Panel>({ kind: startsWithTimelapse() ? 'timelapse' : 'none' });
   const [exporting, setExporting] = useState(false);
+  const [captionsFor, setCaptionsFor] = useState<string | null>(null);
   /** The system picker where the host has one (the app); the file list otherwise (dev). */
   const addMedia = (media: 'video' | 'image' | 'audio', stack = false) =>
     session.host.pickIsFinal
@@ -127,9 +129,11 @@ export function App({ session }: { session: EditorSession }) {
           onLayers={() => setPanel({ kind: 'layers' })}
           onMedia={(media) => addMedia(media)}
           onTool={(tool) => setPanel({ kind: 'clip', tool })}
+          onCaptions={setCaptionsFor}
         />
       )}
       {exporting && <ExportSheet session={session} onClose={() => setExporting(false)} />}
+      {captionsFor && <CaptionsSheet session={session} clipId={captionsFor} onClose={() => setCaptionsFor(null)} />}
     </div>
   );
 }
@@ -234,6 +238,7 @@ function Toolbar({
   onLayers,
   onMedia,
   onTool,
+  onCaptions,
 }: {
   session: EditorSession;
   onFormat: () => void;
@@ -241,6 +246,7 @@ function Toolbar({
   onLayers: () => void;
   onMedia: (kind: 'video' | 'image' | 'audio') => void;
   onTool: (tool: ClipTool) => void;
+  onCaptions: (clipId: string) => void;
 }) {
   const { editor } = session;
   const selection = useStore(editor.store, (s) => selectedClipOf(s));
@@ -277,6 +283,9 @@ function Toolbar({
       {media && <Tool icon="rotate" label={t('Girar')} onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
       {kind === 'video' && (
         <Tool icon="freeze" label={t('Congelar')} disabled={!inside} onClick={() => editor.freeze(time)} />
+      )}
+      {(kind === 'video' || kind === 'audio') && !clip.frozen && (
+        <Tool icon="type" label={t('Legendas')} onClick={() => onCaptions(clip.id)} />
       )}
       <Tool icon="copy" label={t('Duplicar')} onClick={() => session.duplicateSelected()} />
       <Tool icon="trash" label={t('Excluir')} danger onClick={() => session.deleteSelected()} />

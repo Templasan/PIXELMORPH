@@ -13,6 +13,18 @@ export interface DetectedFace {
   mouthBottom: { x: number; y: number } | null;
 }
 
+/** Times count from the in-point asked for. */
+export interface SpeechSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+export interface SpeechProgress {
+  stage: 'model' | 'audio' | 'speech';
+  percent: number;
+}
+
 export interface ExportClip {
   uri: string;
   kind: 'video' | 'image';
@@ -71,6 +83,9 @@ interface NativeModule {
     maxWidth: number
   ): Promise<{ uri: string; width: number; height: number }>;
   segmentSubject(inputUri: string, outputPath: string): Promise<{ uri: string; width: number; height: number }>;
+  speechModelReady(): boolean;
+  transcribeSpeech(uri: string, inMs: number, outMs: number): Promise<SpeechSegment[]>;
+  cancelSpeech(): void;
   labelImage(uri: string): Promise<{ text: string; confidence: number }[]>;
   detectFaces(uri: string): Promise<DetectedFace[]>;
   probeRotation(uri: string): Promise<number | null>;
@@ -86,6 +101,7 @@ interface NativeModule {
     quality: number
   ): Promise<{ sizeBytes: number }>;
   addListener(event: 'onProgress', listener: (e: { progress: number }) => void): { remove(): void };
+  addListener(event: 'onSpeechProgress', listener: (e: SpeechProgress) => void): { remove(): void };
 }
 
 const native = requireNativeModule<NativeModule>('PixelMorphVideoExport');
@@ -106,6 +122,26 @@ export function cancelVideoExport(): void {
 }
 
 /** Exact frame of a video at `timeMs` (not just the nearest keyframe), as a cached JPEG. */
+/** RF-069: true once the speech model is on the device. */
+export function speechModelReady(): boolean {
+  return native.speechModelReady();
+}
+
+/** RF-069: what is said in a stretch of a file, heard on the device; fetches the model if needed. */
+export function transcribeSpeech(
+  uri: string,
+  inMs: number,
+  outMs: number,
+  onProgress: (progress: SpeechProgress) => void
+): Promise<SpeechSegment[]> {
+  const subscription = native.addListener('onSpeechProgress', onProgress);
+  return native.transcribeSpeech(uri, inMs, outMs).finally(() => subscription.remove());
+}
+
+export function cancelSpeech(): void {
+  native.cancelSpeech();
+}
+
 /** RF-034: what a photo shows, read on the device. */
 export function labelImage(uri: string) {
   return native.labelImage(uri);

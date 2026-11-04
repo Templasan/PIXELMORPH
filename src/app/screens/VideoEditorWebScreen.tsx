@@ -19,6 +19,11 @@ import {
   pickMultipleImagesFromGallery,
   probeVideoDurationMs,
 } from '@modules/device-media';
+import {
+  cancelSpeech,
+  speechModelReady,
+  transcribeSpeech,
+} from '../../../modules/pixelmorph-video-export/src';
 import { useAppModules } from '../hooks';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
@@ -81,6 +86,15 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
 
   const handlers = useMemo<Record<string, (...args: never[]) => Promise<unknown>>>(
     () => ({
+      speechModelReady: async () => speechModelReady(),
+      transcribeSpeech: (uri: string, inMs: number, outMs: number) =>
+        transcribeSpeech(uri, inMs, outMs, (progress) => {
+          webRef.current?.injectJavaScript(
+            `window.__pmEvent && window.__pmEvent(${JSON.stringify({ type: 'speechProgress', ...progress })});true;`
+          );
+        }),
+      cancelSpeech: async () => cancelSpeech(),
+
       async pickMedia(kind: 'video' | 'image' | 'audio', multiple = false) {
         if (kind === 'audio') {
           const picked = await pickAudioFromDevice();

@@ -11,6 +11,17 @@ android {
   defaultConfig {
     versionCode 1
     versionName '1.0.0'
+    // RF-069: whisper.cpp. 16 KB pages because Google Play asks for them.
+    ndk { abiFilters 'arm64-v8a', 'x86_64' }
+    externalNativeBuild {
+      cmake { arguments '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON' }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path 'src/main/cpp/CMakeLists.txt'
+      version '3.22.1'
+    }
   }
 }
 
