@@ -32,6 +32,7 @@ import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { proxyStore, requestSourceProxy } from './video-editor/previewProxy';
+import { proxyKey } from './video-editor/previewTier';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -70,12 +71,15 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   // (now and whenever another one is ready). The export keeps reading the originals.
   const facesCancelled = useRef(false);
   const wanted = useRef<string[]>([]);
+  const lowEnd = useRef(false);
   const lastMap = useRef('');
   const pushProxies = useCallback(() => {
     const state = proxyStore.get();
     const map: Record<string, string> = {};
     for (const uri of wanted.current) {
-      const entry = state[uri];
+      // A low-end phone takes the lightest copy once there is one, and the usual one until then.
+      const light = lowEnd.current ? state[proxyKey(uri, '540')] : undefined;
+      const entry = light?.status === 'ready' ? light : state[uri];
       if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
     }
     const json = JSON.stringify(map);
@@ -220,9 +224,10 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
         navigation.goBack();
       },
 
-      async wantPreviewSources(uris: string[]) {
+      async wantPreviewSources(uris: string[], low = false) {
         wanted.current = uris;
-        for (const uri of uris) void requestSourceProxy(uri);
+        lowEnd.current = low;
+        for (const uri of uris) void requestSourceProxy(uri, low ? '540' : '720');
         pushProxies();
       },
     }),

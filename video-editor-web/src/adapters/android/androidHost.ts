@@ -80,8 +80,8 @@ export function createAndroidHost(): EditorHost {
     close() {
       void call('close');
     },
-    wantPreviewSources(uris) {
-      void call('wantPreviewSources', uris).catch(() => {});
+    wantPreviewSources(uris, low) {
+      void call('wantPreviewSources', uris, low ?? false).catch(() => {});
     },
     onPreviewSources(listener) {
       onEvent('previewSources', (e) => listener(e.map as Record<string, string>));

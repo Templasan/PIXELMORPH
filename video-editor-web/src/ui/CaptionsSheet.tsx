@@ -20,6 +20,15 @@ const STAGES: Record<SpeechProgress['stage'], string> = {
 /** RF-069: asks before the one download, and shows the work, which can take a while. */
 export function CaptionsSheet({ session, clipId, onClose }: { session: EditorSession; clipId: string; onClose: () => void }) {
   const [phase, setPhase] = useState<Phase>({ name: 'checking' });
+  const [elapsed, setElapsed] = useState(0);
+  const minutes = session.speechMinutes(clipId);
+  const isRunning = phase.name === 'running';
+  useEffect(() => {
+    if (!isRunning) return;
+    const began = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - began) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [isRunning]);
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +67,7 @@ export function CaptionsSheet({ session, clipId, onClose }: { session: EditorSes
                 ? t('Na primeira vez o app baixa o modelo de fala (75 MB). O som do vídeo é ouvido no aparelho e não é enviado.')
                 : t('O som do vídeo é ouvido no aparelho e não é enviado.')}
             </p>
+            {minutes !== null && <p className="muted">{t('Neste aparelho pode levar cerca de {n} min.', { n: minutes })}</p>}
             <div className="chips">
               <button className="chip on" onClick={() => void start()}>
                 {phase.download ? t('Baixar e gerar') : t('Gerar')}
@@ -72,6 +82,9 @@ export function CaptionsSheet({ session, clipId, onClose }: { session: EditorSes
           <>
             <p className="muted">
               {phase.progress ? t(STAGES[phase.progress.stage], { n: phase.progress.percent }) : t('Preparando…')}
+            </p>
+            <p className="muted">
+              {t('Tempo: {time}', { time: `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}` })}
             </p>
             <div className="chips">
               <button className="chip" onClick={() => session.cancelSpeech()}>

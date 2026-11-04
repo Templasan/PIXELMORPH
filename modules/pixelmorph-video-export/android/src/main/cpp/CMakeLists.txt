@@ -11,6 +11,11 @@ if(ANDROID_ABI STREQUAL "x86_64")
     set(${flag} ON CACHE BOOL "" FORCE)
   endforeach()
 endif()
+if(ANDROID_ABI STREQUAL "armeabi-v7a")
+  # Half-size floats and fused multiply-add, which the model leans on. Every Android 32-bit phone of
+  # recent years has them; a much older core without them would stop with an illegal instruction.
+  add_compile_options(-mfpu=neon-vfpv4)
+endif()
 # shortcut: arm64 builds for the baseline every phone has, with no fp16 or dotprod; a variant
 # picked at run time would be faster on newer phones, if captions prove slow on a real one.
 add_subdirectory(whisper.cpp/ggml)
