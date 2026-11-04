@@ -89,7 +89,7 @@ export class ScrubFrames {
         const shape = portrait ? { width: this.budget.shortEdge } : { height: this.budget.shortEdge };
         const scale = this.budget.shortEdge / Math.min(track.displayWidth, track.displayHeight);
         const frameBytes = frameBytesOf(track.displayWidth * scale, track.displayHeight * scale);
-        const times = scrubTimes(await track.computeDuration(), frameBytes, this.budget.bytes);
+        const times = scrubTimes((await track.getDurationFromMetadata()) ?? (await track.computeDuration()), frameBytes, this.budget.bytes);
         const reserve = this.reserves.get(uri) ?? { times, frames: [], bytes: 0 };
         this.reserves.set(uri, reserve);
         const sink = new CanvasSink(track, { ...shape, fit: 'contain' });

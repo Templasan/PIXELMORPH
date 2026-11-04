@@ -28,6 +28,7 @@ import {
   type DetectedFace,
 } from '../../../modules/pixelmorph-video-export/src';
 import { useAppModules } from '../hooks';
+import { useEditorRecovery } from './useEditorRecovery';
 import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
@@ -59,6 +60,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
   const webRef = useRef<WebView>(null);
+  const { editorKey, onRenderProcessGone } = useEditorRecovery(navigation.goBack);
   const files = useMemo(createFileHost, []);
   // Edits made with the old editor live in its undo log: the first open replays them.
   const history = usePersistedHistory(projectId ?? 'unsaved-video-session');
@@ -274,7 +276,9 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <WebView
+        key={editorKey}
         ref={webRef}
+        onRenderProcessGone={onRenderProcessGone}
         source={{ uri: EDITOR_URL }}
         originWhitelist={['*']}
         allowFileAccess
