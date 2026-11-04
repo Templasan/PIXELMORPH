@@ -118,12 +118,12 @@ const MIN_KEPT = 0.6;
 
 export interface CropSuggestion extends Crop {
   aspect: string;
-  rule: 'Terços' | 'Proporção áurea';
+  rule: 'Terços' | 'Proporção áurea' | 'Linhas de convergência';
 }
 
 /**
  * RF-042: crops that put what draws the eye on the thirds or the golden section, best first, one
- * per aspect. Converging lines are not analysed. Nothing is suggested for a picture with no detail.
+ * per aspect. Nothing is suggested for a picture with no detail.
  */
 export function suggestCrops(saliency: Float32Array, w: number, h: number, pictureAspect: number): CropSuggestion[] {
   const total = saliency.reduce((sum, v) => sum + v, 0);
@@ -174,4 +174,89 @@ export function suggestCrops(saliency: Float32Array, w: number, h: number, pictu
     }
   }
   return [...best.values()].sort((a, b) => a.score - b.score).map((b) => b.crop);
+}
+
+/** Weaker edges than this are texture, not lines. */
+const MIN_EDGE = 120;
+/** Lines this close to level or upright are frames and horizons: they do not lead anywhere. */
+const SKIP_NEAR_AXIS = (8 * Math.PI) / 180;
+const VP_GRID = 32;
+/** How near a line must pass to a grid point to count for it, in grid cells: the point may be off-centre. */
+const VP_REACH = 0.75;
+const ANGLE_BINS = 12;
+/** A real meeting point takes this share of the slanted edges, from this many different directions. */
+const MIN_VP_SHARE = 0.2;
+const MIN_VP_DIRECTIONS = 3;
+
+/**
+ * RF-042: where the picture's lines meet, if they do, normalized to the picture. Each strong slanted
+ * edge votes for the points its line passes through; lines from several directions must agree.
+ */
+export function vanishingPoint(rgba: Uint8ClampedArray, w: number, h: number): { x: number; y: number } | null {
+  const luma = new Float32Array(w * h);
+  for (let i = 0; i < luma.length; i += 1) {
+    luma[i] = 0.3 * rgba[i * 4] + 0.59 * rgba[i * 4 + 1] + 0.11 * rgba[i * 4 + 2];
+  }
+  const edges: { x: number; y: number; dx: number; dy: number; angle: number }[] = [];
+  for (let y = 1; y < h - 1; y += 1) {
+    for (let x = 1; x < w - 1; x += 1) {
+      const i = y * w + x;
+      // Sobel: the wider look gives a truer direction, and direction is all these votes rest on.
+      const gx = luma[i - w + 1] + 2 * luma[i + 1] + luma[i + w + 1] - luma[i - w - 1] - 2 * luma[i - 1] - luma[i + w - 1];
+      const gy = luma[i + w - 1] + 2 * luma[i + w] + luma[i + w + 1] - luma[i - w - 1] - 2 * luma[i - w] - luma[i - w + 1];
+      const size = Math.hypot(gx, gy);
+      if (size < MIN_EDGE) continue;
+      // The line runs across the gradient.
+      const dx = -gy / size;
+      const dy = gx / size;
+      const angle = ((Math.atan2(dy, dx) % Math.PI) + Math.PI) % Math.PI;
+      const fromAxis = Math.min(angle, Math.abs(angle - Math.PI / 2), Math.PI - angle);
+      if (fromAxis < SKIP_NEAR_AXIS) continue;
+      edges.push({ x, y, dx, dy, angle });
+    }
+  }
+  if (edges.length < (w * h) / 200) return null;
+  const reach = (VP_REACH * Math.max(w, h)) / VP_GRID;
+  let best: { x: number; y: number; votes: number; directions: number } | null = null;
+  for (let row = 0; row < VP_GRID; row += 1) {
+    for (let col = 0; col < VP_GRID; col += 1) {
+      const px = ((col + 0.5) / VP_GRID) * w;
+      const py = ((row + 0.5) / VP_GRID) * h;
+      const bins = new Array<number>(ANGLE_BINS).fill(0);
+      let votes = 0;
+      for (const e of edges) {
+        if (Math.abs((px - e.x) * e.dy - (py - e.y) * e.dx) > reach) continue;
+        votes += 1;
+        bins[Math.min(ANGLE_BINS - 1, Math.floor((e.angle / Math.PI) * ANGLE_BINS))] += 1;
+      }
+      if (best && votes <= best.votes) continue;
+      best = { x: px / w, y: py / h, votes, directions: bins.filter((b) => b >= votes * 0.08 && b > 0).length };
+    }
+  }
+  if (!best || best.votes < edges.length * MIN_VP_SHARE || best.directions < MIN_VP_DIRECTIONS) return null;
+  return { x: best.x, y: best.y };
+}
+
+/** RF-042: the crop that puts where the lines meet on a third, with the rule for it. */
+export function convergenceCrop(point: { x: number; y: number }, pictureAspect: number): CropSuggestion | null {
+  let best: { crop: CropSuggestion; off: number } | null = null;
+  for (const aspect of ASPECTS) {
+    for (const scale of SCALES) {
+      const relative = aspect.ratio / pictureAspect;
+      const cw = (relative >= 1 ? 1 : relative) * scale;
+      const ch = (relative >= 1 ? 1 / relative : 1) * scale;
+      for (const tx of THIRDS) {
+        for (const ty of THIRDS) {
+          const x = Math.max(0, Math.min(1 - cw, point.x - tx * cw));
+          const y = Math.max(0, Math.min(1 - ch, point.y - ty * ch));
+          const off = Math.hypot((point.x - x) / cw - tx, (point.y - y) / ch - ty);
+          // Ties keep the larger crop: the first scale tried.
+          if (!best || off < best.off - 1e-3) {
+            best = { off, crop: { x, y, w: cw, h: ch, aspect: aspect.name, rule: 'Linhas de convergência' } };
+          }
+        }
+      }
+    }
+  }
+  return best && best.off < 0.05 ? best.crop : null;
 }

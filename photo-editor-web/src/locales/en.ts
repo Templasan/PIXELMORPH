@@ -353,6 +353,7 @@ const en: Record<string, string> = {
   "Comida": "Food",
   "Animais": "Animals",
   "Urbano": "Urban",
+  "Linhas de convergência": "Converging lines",
 };
 
 export default en;

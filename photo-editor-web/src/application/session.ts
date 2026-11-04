@@ -23,7 +23,7 @@ import {
 } from '../domain/layers';
 import { sceneOf } from '../domain/scene';
 import { isValidQRContent, readQr } from '../domain/QRCode';
-import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
+import { dominantColors, saliencyMap, suggestCrops, convergenceCrop, vanishingPoint } from '../domain/suggestions';
 import { detectStereoscopicFromDimensions, detectStereoscopicFromUri, eyeRects } from '../domain/stereoscopic/StereoscopicDetection';
 import { qrDataUrl } from '../engine/qr';
 import { drawWatermark } from '../engine/watermark';
@@ -1003,13 +1003,18 @@ export function createPhotoSession(host: EditorHost) {
       c.width = Math.max(4, Math.round(preview.canvas.width * k));
       c.height = Math.max(4, Math.round(preview.canvas.height * k));
       const ctx = c.getContext('2d', { willReadFrequently: true })!;
+      // The quick default skips pixels at this reduction, and thin lines come out broken.
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(preview.canvas, 0, 0, c.width, c.height);
       const { data } = ctx.getImageData(0, 0, c.width, c.height);
+      const point = size ? vanishingPoint(data, c.width, c.height) : null;
+      const leading = point && size ? convergenceCrop(point, size.scene.w / size.scene.h) : null;
       const result = {
         palette: dominantColors(data),
         crops: size ? suggestCrops(saliencyMap(data, c.width, c.height), c.width, c.height, size.scene.w / size.scene.h) : [],
       };
       c.width = c.height = 0;
+      if (leading) result.crops = [leading, ...result.crops];
       return result;
     },
     /** RF-066: a QR code as a picture layer, placed, sized and turned like any other. */
