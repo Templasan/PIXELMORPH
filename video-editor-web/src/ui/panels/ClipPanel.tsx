@@ -16,7 +16,7 @@ import { useStore } from '../../state/useStore';
 import { Icon } from '../Icon';
 import { t } from '../../i18n';
 
-export type ClipTool = 'speed' | 'volume' | 'color' | 'position' | 'text' | 'sphere';
+export type ClipTool = 'speed' | 'volume' | 'color' | 'position' | 'text' | 'sphere' | 'faces';
 
 const TITLES: Record<ClipTool, string> = {
   speed: 'Velocidade',
@@ -24,6 +24,7 @@ const TITLES: Record<ClipTool, string> = {
   color: 'Cor',
   position: 'Posição e tamanho',
   sphere: 'Vídeo 360',
+  faces: 'Rostos',
   text: 'Texto',
 };
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4];
@@ -168,6 +169,7 @@ export function ClipPanel({
       )}
 
       {tool === 'sphere' && <SphereTool session={session} clip={clip} commit={commit} live={live} />}
+      {tool === 'faces' && <FacesTool session={session} clip={clip} commit={commit} live={live} />}
 
       {tool === 'text' && clip.text && (
         <TextTool session={session} text={clip.text} />
@@ -177,6 +179,81 @@ export function ClipPanel({
 }
 
 /** RF-021: a 360 video's view, either the whole sphere turned or a flat cut of one angle. */
+/** RF-016: finds the clip's faces, then each one has its own settings. */
+function FacesTool({
+  session,
+  clip,
+  commit,
+  live,
+}: {
+  session: EditorSession;
+  clip: Clip;
+  commit: (p: Partial<Clip>) => void;
+  live: (p: Partial<Clip>) => void;
+}) {
+  const [percent, setPercent] = useState<number | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [picked, setPicked] = useState(0);
+  const faces = clip.faces ?? [];
+  const face = faces.find((f) => f.id === picked) ?? faces[0];
+  const search = async () => {
+    setMessage(null);
+    setPercent(0);
+    try {
+      const found = await session.findClipFaces(clip.id, setPercent);
+      if (found === 0) setMessage(t('Nenhum rosto encontrado neste clipe.'));
+    } catch (e) {
+      const code = String((e as Error)?.message ?? e);
+      if (code !== 'CANCELLED') setMessage(t('Não foi possível procurar rostos.'));
+    } finally {
+      setPercent(null);
+    }
+  };
+  const set = (patch: Partial<NonNullable<Clip['faces']>[number]>) =>
+    live({ faces: faces.map((f) => (f.id === face.id ? { ...f, ...patch } : f)) });
+  if (percent !== null) {
+    return (
+      <div className="chips">
+        <span className="muted">{t('Procurando rostos… {n}%', { n: percent })}</span>
+        <button className="chip" onClick={() => session.cancelFaces()}>
+          {t('Cancelar')}
+        </button>
+      </div>
+    );
+  }
+  if (!face) {
+    return (
+      <>
+        {message && <p className="muted">{message}</p>}
+        {!session.canFindFaces && <p className="muted">{t('Procurar rostos só funciona no app.')}</p>}
+        <div className="chips">
+          <button className="chip" disabled={!session.canFindFaces} onClick={() => void search()}>
+            {t('Procurar rostos')}
+          </button>
+        </div>
+      </>
+    );
+  }
+  const percentText = (v: number) => `${Math.round(v)}%`;
+  return (
+    <>
+      <div className="chips">
+        {faces.map((f) => (
+          <button key={f.id} className={`chip${f.id === face.id ? ' on' : ''}`} onClick={() => setPicked(f.id)}>
+            {t('Rosto {n}', { n: f.id + 1 })}
+          </button>
+        ))}
+        <button className="chip" onClick={() => commit({ faces: undefined })}>
+          {t('Remover')}
+        </button>
+      </div>
+      <Slider session={session} label={t('Suavizar a pele')} value={face.smooth} min={0} max={100} format={percentText} onLive={(smooth) => set({ smooth })} />
+      <Slider session={session} label={t('Realçar os olhos')} value={face.eyes} min={0} max={100} format={percentText} onLive={(eyes) => set({ eyes })} />
+      <Slider session={session} label={t('Tom')} value={face.tone} min={-100} max={100} onLive={(tone) => set({ tone })} />
+    </>
+  );
+}
+
 function SphereTool({
   session,
   clip,

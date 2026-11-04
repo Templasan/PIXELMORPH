@@ -2,6 +2,7 @@ import { clipDurationMs, clipEndMs, clipMedia, type Clip, type Track, type Track
 import { clampTransitionMs, effectiveMode, transitionTransforms } from './transitions';
 import { captionAt, type TextAlign } from './textCaption';
 import type { SphereView } from './sphere';
+import type { FaceTrack } from './faceTrack';
 import type { AudioSpan } from './webScene';
 
 /**
@@ -64,6 +65,8 @@ export interface MediaOp {
   blend: TrackBlend;
   /** RF-021: the picture is a 360 video seen from here; null for an ordinary one. */
   sphere: SphereView | null;
+  /** RF-016: the faces to retouch; null for a clip with none. */
+  faces: FaceTrack[] | null;
   /** A window's border, in frame pixels; null when it has none. */
   border: { color: string; px: number } | null;
 }
@@ -246,6 +249,7 @@ function mediaOp(
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
     blend: clip.blend ?? layer.blend,
+    faces: clip.faces?.length && !image && !clip.spherical ? clip.faces : null,
     sphere: clip.spherical
       ? {
           yaw: clip.sphericalYaw ?? 0,

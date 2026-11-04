@@ -1,3 +1,4 @@
+import type { FaceSample } from '../../domain/faceTrack';
 import type { EditorHost, MediaItem, SavedProject, SpeechProgress, SpeechSegment } from '../../ports/host';
 import { call, onEvent } from './bridge';
 
@@ -24,7 +25,20 @@ const STREAM_ABOVE_BYTES = 1024 * 1024 * 1024;
 export function createAndroidHost(): EditorHost {
   let speechListener: ((p: SpeechProgress) => void) | null = null;
   onEvent('speechProgress', (e) => speechListener?.(e as unknown as SpeechProgress));
+  let facesListener: ((percent: number) => void) | null = null;
+  onEvent('faceProgress', (e) => facesListener?.(e.percent as number));
   return {
+    async sampleFaces(uri, inMs, outMs, stepMs, onProgress) {
+      facesListener = onProgress;
+      try {
+        return await call<FaceSample[]>('sampleFaces', uri, inMs, outMs, stepMs);
+      } finally {
+        facesListener = null;
+      }
+    },
+    cancelFaces() {
+      void call('cancelFaces').catch(() => {});
+    },
     speechModelReady: () => call<boolean>('speechModelReady'),
     async transcribeSpeech(uri, inMs, outMs, onProgress) {
       speechListener = onProgress;

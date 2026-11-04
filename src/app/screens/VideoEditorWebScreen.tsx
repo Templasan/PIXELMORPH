@@ -21,8 +21,11 @@ import {
 } from '@modules/device-media';
 import {
   cancelSpeech,
+  detectFaces,
+  extractFrame,
   speechModelReady,
   transcribeSpeech,
+  type DetectedFace,
 } from '../../../modules/pixelmorph-video-export/src';
 import { useAppModules } from '../hooks';
 import { buildInitialTracks } from './video-editor/initialTracks';
@@ -33,6 +36,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
 /** The web editor, built by `npm run build:app` in video-editor-web into the APK's assets. */
 const EDITOR_URL = 'file:///android_asset/video-editor/index.html';
+/** RF-016: enough to find a face, and quick to read. */
+const FACE_FRAME_WIDTH = 720;
 
 interface SavedProject {
   name: string;
@@ -62,6 +67,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
 
   // Preview copies: the editor names its video files; finished 720p proxies are pushed to it
   // (now and whenever another one is ready). The export keeps reading the originals.
+  const facesCancelled = useRef(false);
   const wanted = useRef<string[]>([]);
   const lastMap = useRef('');
   const pushProxies = useCallback(() => {
@@ -86,6 +92,29 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
 
   const handlers = useMemo<Record<string, (...args: never[]) => Promise<unknown>>>(
     () => ({
+      async sampleFaces(uri: string, inMs: number, outMs: number, stepMs: number) {
+        facesCancelled.current = false;
+        const samples: { ms: number; faces: DetectedFace[] }[] = [];
+        const total = Math.max(1, Math.ceil((outMs - inMs) / stepMs));
+        for (let i = 0; i < total; i += 1) {
+          if (facesCancelled.current) throw new Error('CANCELLED');
+          const ms = inMs + i * stepMs;
+          const frame = await extractFrame(uri, Math.round(ms), FACE_FRAME_WIDTH);
+          try {
+            samples.push({ ms, faces: await detectFaces(frame.uri) });
+          } finally {
+            await FileSystem.deleteAsync(frame.uri, { idempotent: true }).catch(() => {});
+          }
+          const percent = Math.round(((i + 1) / total) * 100);
+          webRef.current?.injectJavaScript(
+            `window.__pmEvent && window.__pmEvent({type:'faceProgress',percent:${percent}});true;`
+          );
+        }
+        return samples;
+      },
+      cancelFaces: async () => {
+        facesCancelled.current = true;
+      },
       speechModelReady: async () => speechModelReady(),
       transcribeSpeech: (uri: string, inMs: number, outMs: number) =>
         transcribeSpeech(uri, inMs, outMs, (progress) => {

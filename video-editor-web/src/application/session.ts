@@ -17,6 +17,10 @@ import { MediaPreviews } from '../engine/previews';
 import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat, SpeechProgress } from '../ports/host';
 import { captionClips } from './speechCaptions';
+import { trackFaces } from '../domain/faceTrack';
+
+const FACE_STEP_MS = 500;
+const FACE_MAX_SAMPLES = 240;
 import { frameSize } from '../domain/format';
 import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
@@ -277,6 +281,23 @@ export function createEditorSession(host: EditorHost) {
     return captions.length;
   }
 
+  /** RF-016: finds and follows the faces in a clip. Their settings are then the clip's own. */
+  async function findClipFaces(clipId: string, onProgress: (percent: number) => void): Promise<number> {
+    const found = findClip(editor.store.get().tracks, clipId);
+    if (!found || !host.sampleFaces) throw new Error('FAILED');
+    const { clip } = found;
+    // A long clip is sampled more thinly, so the search keeps to about a minute's work.
+    const stepMs = Math.max(FACE_STEP_MS, (clip.outPointMs - clip.inPointMs) / FACE_MAX_SAMPLES);
+    const samples = await host.sampleFaces(clip.sourceUri, clip.inPointMs, clip.outPointMs, stepMs, onProgress);
+    const faces = trackFaces(samples, stepMs);
+    if (faces.length) {
+      editor.commit((before) =>
+        before.map((t) => ({ ...t, clips: t.clips.map((c) => (c.id === clipId ? { ...c, faces } : c)) }))
+      );
+    }
+    return faces.length;
+  }
+
   function deleteSelected() {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
@@ -364,6 +385,9 @@ export function createEditorSession(host: EditorHost) {
     },
     exportVideo,
     generateCaptions,
+    findClipFaces,
+    canFindFaces: !!host.sampleFaces,
+    cancelFaces: () => host.cancelFaces?.(),
     speechModelReady: () => host.speechModelReady?.() ?? Promise.resolve(null),
     cancelSpeech: () => host.cancelSpeech?.(),
     duplicateSelected,

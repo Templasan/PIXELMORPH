@@ -175,6 +175,17 @@ const en: Record<string, string> = {
   "O clipe passa de 30 minutos. Divida antes de gerar as legendas.": "The clip is over 30 minutes. Split it before generating captions.",
   "Este aparelho não consegue gerar legendas.": "This device cannot generate captions.",
   "Não foi possível gerar as legendas.": "Could not generate the captions.",
+  "Rostos": "Faces",
+  "Nenhum rosto encontrado neste clipe.": "No faces found in this clip.",
+  "Não foi possível procurar rostos.": "Could not look for faces.",
+  "Procurando rostos… {n}%": "Looking for faces… {n}%",
+  "Procurar rostos só funciona no app.": "Looking for faces only works in the app.",
+  "Procurar rostos": "Look for faces",
+  "Rosto {n}": "Face {n}",
+  "Suavizar a pele": "Smooth skin",
+  "Realçar os olhos": "Brighten eyes",
+  "Tom": "Tone",
+  "Remover": "Remove",
 };
 
 export default en;
