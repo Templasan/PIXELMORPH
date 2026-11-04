@@ -324,6 +324,7 @@ export function createEditorSession(host: EditorHost) {
     bitrate: number;
     /** RNF-013: lower the mp4 bitrate for a simple clip. */
     adaptive?: boolean;
+    spherical?: boolean;
     gif?: { fps: number; maxColors: number; highlights?: boolean };
     onProgress: (pct: number) => void;
     isCancelled: () => boolean;
@@ -335,6 +336,7 @@ export function createEditorSession(host: EditorHost) {
         comp,
         bitrate: opts.bitrate,
         adaptive: opts.adaptive,
+        spherical: opts.spherical,
         gif: opts.gif,
         sink: host.exportSink(),
         onProgress: opts.onProgress,

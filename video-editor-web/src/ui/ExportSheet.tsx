@@ -17,6 +17,11 @@ const OUTPUTS: { label: string; bitrate: number; frame: (format: ProjectFormat) 
   { label: '1080p', bitrate: 8_000_000, frame: (f) => ({ ...frameSize(f, 1080), cover: false }) },
   ...SOCIAL_PRESETS.map((p) => ({ label: p.label, bitrate: p.bitrate, frame: (f: ProjectFormat) => presetFrame(p, f) })),
 ];
+/**
+ * RF-021: the whole 360 picture, 2:1, marked so players open it as 360.
+ * shortcut: 1920x960 is what the encoder's H.264 level allows; 4K needs a higher level and a phone test.
+ */
+const SPHERE_OUTPUT = { label: '360°', bitrate: 12_000_000, frame: () => ({ width: 1920, height: 960, cover: true }) };
 const GIF_SIZES = [240, 360, 480];
 
 type State =
@@ -29,6 +34,10 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   const format = useStore(session.format);
   const [kind, setKind] = useState<'mp4' | 'gif'>('mp4');
   const [out, setOut] = useState(1);
+  const has360 = useStore(session.editor.store, (e) =>
+    e.tracks.some((track) => track.clips.some((c) => c.spherical && !c.sphericalFlat))
+  );
+  const outputs = has360 ? [...OUTPUTS, SPHERE_OUTPUT] : OUTPUTS;
   const [gifSize, setGifSize] = useState(360);
   const [gifFps, setGifFps] = useState<number>(10);
   const [gifColors, setGifColors] = useState<number>(128);
@@ -38,7 +47,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
   const [state, setState] = useState<State>({ phase: 'idle' });
   const cancelled = useRef(false);
   const duration = session.durationMs();
-  const size: Frame = kind === 'mp4' ? OUTPUTS[out].frame(format) : { ...frameSize(format, gifSize), cover: false };
+  const size: Frame = kind === 'mp4' ? outputs[out].frame(format) : { ...frameSize(format, gifSize), cover: false };
 
   const start = async () => {
     if (duration <= 0) {
@@ -51,7 +60,8 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
     try {
       const result = await session.exportVideo({
         frame: size,
-        bitrate: OUTPUTS[out].bitrate,
+        bitrate: outputs[out].bitrate,
+        spherical: kind === 'mp4' && outputs[out] === SPHERE_OUTPUT,
         adaptive: kind === 'mp4' && smart,
         gif: kind === 'gif' ? { fps: gifFps, maxColors: gifColors, highlights } : undefined,
         onProgress: (pct) => setState({ phase: 'running', pct }),
@@ -83,7 +93,7 @@ export function ExportSheet({ session, onClose }: { session: EditorSession; onCl
         </div>
         {kind === 'mp4' ? (
           <div className="chips">
-            {OUTPUTS.map((o, i) => (
+            {outputs.map((o, i) => (
               <button key={o.label} className={`chip${out === i ? ' on' : ''}`} disabled={running} onClick={() => setOut(i)}>
                 {o.label}
               </button>

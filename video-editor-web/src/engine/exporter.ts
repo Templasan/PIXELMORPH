@@ -10,6 +10,7 @@ import {
   type StreamTargetChunk,
   type VideoSample,
 } from 'mediabunny';
+import { withSphericalMetadata } from '../domain/sphericalMetadata';
 import { opsAt, type Composition, type MediaOp } from '../domain/composition';
 import { GifPalette, GifWriter, gifDelayCs } from '../domain/gifEncoder';
 import { GIF_MAX_DURATION_MS } from '../domain/gifPlan';
@@ -41,6 +42,8 @@ export interface ExportRequest {
   bitrate: number;
   /** RNF-013: lower the mp4 bitrate for a simple clip (see sceneComplexity.ts). */
   adaptive?: boolean;
+  /** RF-021: the file is a whole 360 picture, and should say so to players. */
+  spherical?: boolean;
   /** `highlights`: an animated thumbnail of the best moments instead of the timeline itself. */
   gif?: { fps: number; maxColors: number; highlights?: boolean };
   sink: ExportSink;
@@ -110,8 +113,13 @@ async function mp4(
       writes = writes.then(() => sink.write(chunk.position, data));
     },
   });
+  let moov: { data: Uint8Array; position: number } | null = null;
   const output = new Output({
-    format: new Mp4OutputFormat(),
+    format: new Mp4OutputFormat({
+      onMoov: (data, position) => {
+        moov = { data: data.slice(), position };
+      },
+    }),
     target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
   });
   const hw = await VideoEncoder.isConfigSupported({
@@ -180,6 +188,12 @@ async function mp4(
   }
   await audioUpTo(endMs);
   await output.finalize();
+  if (req.spherical && moov) {
+    const { data, position } = moov as { data: Uint8Array; position: number };
+    const tagged = withSphericalMetadata(data);
+    writes = writes.then(() => sink.write(position, tagged));
+    bytes = Math.max(bytes, position + tagged.length);
+  }
   await writes;
   const path = await sink.finish();
   req.onProgress(100);
