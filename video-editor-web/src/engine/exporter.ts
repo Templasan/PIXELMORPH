@@ -10,6 +10,7 @@ import {
   type StreamTargetChunk,
   type VideoSample,
 } from 'mediabunny';
+import { encodeShapeFor } from '../domain/encodeShape';
 import { withSphericalMetadata } from '../domain/sphericalMetadata';
 import { opsAt, type Composition, type MediaOp } from '../domain/composition';
 import { GifPalette, GifWriter, gifDelayCs } from '../domain/gifEncoder';
@@ -122,10 +123,17 @@ async function mp4(
     }),
     target: new StreamTarget(writable, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
   });
+  const accepts = (width: number, height: number) =>
+    VideoEncoder.isConfigSupported({ codec: 'avc1.640028', width, height, bitrate }).then(
+      (r) => !!r.supported,
+      () => false
+    );
+  const shape = await encodeShapeFor(comp.width, comp.height, accepts);
+  if (!shape) throw new Error(t('Este aparelho não exporta neste tamanho. Escolha um menor.'));
   const hw = await VideoEncoder.isConfigSupported({
     codec: 'avc1.640028',
-    width: comp.width,
-    height: comp.height,
+    width: shape.width,
+    height: shape.height,
     bitrate,
     hardwareAcceleration: 'prefer-hardware',
   }).then(
@@ -138,8 +146,8 @@ async function mp4(
     !!smart &&
     (await VideoEncoder.isConfigSupported({
       codec: 'avc1.640028',
-      width: comp.width,
-      height: comp.height,
+      width: shape.width,
+      height: shape.height,
       bitrate,
       bitrateMode: 'variable',
       hardwareAcceleration: 'prefer-hardware',
@@ -148,13 +156,17 @@ async function mp4(
       () => false
     ));
   const rate = vbr ? { quality: new Quality({ bitrate, bitrateMode: 'variable' }) } : { bitrate };
-  const video = new CanvasSource(canvas, {
+  // Lying down: turned a quarter counter-clockwise, and the tag turns it back on every player.
+  const lying = shape.rotation ? new OffscreenCanvas(shape.width, shape.height) : null;
+  const lyingCtx = lying?.getContext('2d');
+  lyingCtx?.setTransform(0, -1, 1, 0, 0, shape.height);
+  const video = new CanvasSource(lying ?? canvas, {
     codec: 'avc',
     ...rate,
     keyFrameInterval: 1,
     hardwareAcceleration: hw ? 'prefer-hardware' : 'no-preference',
   });
-  output.addVideoTrack(video, { frameRate: FPS });
+  output.addVideoTrack(video, { frameRate: FPS, rotation: shape.rotation });
   const codec = !comp.audio.length
     ? null
     : (await canEncodeAudio('aac'))
@@ -183,6 +195,7 @@ async function mp4(
     const t = (f * 1000) / FPS;
     await audioUpTo(t + 1);
     await frameAt(t);
+    lyingCtx?.drawImage(canvas, 0, 0);
     await video.add(f / FPS, 1 / FPS);
     if (f % 10 === 0) req.onProgress(Math.round((f / total) * 100));
   }

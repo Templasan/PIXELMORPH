@@ -191,6 +191,7 @@ const en: Record<string, string> = {
   "Este vídeo não tem dados de movimento: só os gravados na câmera do app, em aparelho com giroscópio, têm.": "This video has no motion data: only those recorded with the app's camera, on a phone with a gyroscope, do.",
   "Neste aparelho pode levar cerca de {n} min.": "On this device it may take about {n} min.",
   "Tempo: {time}": "Time: {time}",
+  "Este aparelho não exporta neste tamanho. Escolha um menor.": "This device cannot export at this size. Choose a smaller one.",
 };
 
 export default en;
