@@ -120,3 +120,7 @@ O celular é pessoal do dono: instalar por cima pode, apagar nada dele, não abr
 ## Exportar foto
 
 No emulador, com uma foto de 13 MP, `toBlob` levava cerca de 4,2 s em JPEG e em PNG, até numa imagem lisa, e `toDataURL` 0,13 s com o mesmo tamanho de arquivo. Provavelmente o Blink faz o `toBlob` nos intervalos ociosos da página; a causa exata não foi lida no código dele. A exportação agora usa `toDataURL`: JPEG total de 4,8 s para 0,8 s, e o perfil Display P3 continua no arquivo. O restante é escrever pela ponte em base64: 0,4 s no JPEG e 3,5 s num PNG de 31 MB. Falta medir no A11, que levava de 12 a 23 s. O `toDataURL` roda na thread principal, então a tela para durante a codificação.
+
+## Trocar abas no editor de fotos
+
+Sem causa demonstrada, nada mudou. No emulador, cada aba desenha em cerca de 32 ms (dois quadros) e o clique custa até 1 ms de JavaScript. A exceção é Sugestões, com 54 a 133 ms e tarefas longas de cerca de 120 ms; a análise da foto no painel é a suspeita, sem confirmação. O A11 marcou de 44 a 50% de quadros atrasados com `gfxinfo`, mas em poucos quadros (16 a 18), e esse número pode não representar o desenho dentro do WebView. Medir no A11 pelo mesmo caminho do emulador antes de mexer.
