@@ -43,6 +43,10 @@ describe('red eye', () => {
     expect(isRedEyePixel(210, 150, 130)).toBe(false);
     expect(isRedEyePixel(50, 10, 10)).toBe(false);
     expect(isRedEyePixel(20, 20, 20)).toBe(false);
+    // Warm or tanned skin, and lips, which once counted as red eye on a real portrait.
+    expect(isRedEyePixel(200, 110, 90)).toBe(false);
+    expect(isRedEyePixel(180, 90, 60)).toBe(false);
+    expect(isRedEyePixel(170, 70, 70)).toBe(false);
   });
 
   it('takes the red out and leaves the rest', () => {

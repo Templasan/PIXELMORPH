@@ -15,6 +15,7 @@ import {
   createImageLayer,
   createLayerId,
   faceRetouchOf,
+  RED_EYE_RADIUS,
   isFixedLayer,
   redEyeShare,
   type DetectedFace,
@@ -66,7 +67,7 @@ const WATERMARK_LOGO_EDGE = 512;
 const QR_CHECK_EDGE = 800;
 
 /** This share of red-eye pixels around an eye switches the fix on by itself. */
-const RED_EYE_SHARE = 0.015;
+const RED_EYE_SHARE = 0.05;
 
 /** What went wrong finding the subject, from the native module's error codes. */
 function cutoutErrorText(e: unknown): string {
@@ -840,7 +841,7 @@ export function createPhotoSession(host: EditorHost) {
         const hasRedEye = (f: DetectedFace) =>
           [f.leftEye, f.rightEye].some((e) => {
             if (!e || !light) return false;
-            const r = Math.max(2, Math.round(f.w * light.width * 0.1));
+            const r = Math.max(2, Math.round(f.w * light.width * RED_EYE_RADIUS));
             area.width = area.height = r * 2;
             actx.drawImage(light, e.x * light.width - r, e.y * light.height - r, r * 2, r * 2, 0, 0, r * 2, r * 2);
             return redEyeShare(actx.getImageData(0, 0, r * 2, r * 2).data) > RED_EYE_SHARE;
