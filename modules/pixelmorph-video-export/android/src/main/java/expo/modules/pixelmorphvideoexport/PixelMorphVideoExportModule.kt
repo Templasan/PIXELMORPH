@@ -61,7 +61,7 @@ class PixelMorphVideoExportModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("PixelMorphVideoExport")
 
-    Events("onProgress")
+    Events("onProgress", "onSpeechProgress")
 
     AsyncFunction("exportVideo") { options: ExportOptions, promise: Promise ->
       main.post {
@@ -206,6 +206,25 @@ class PixelMorphVideoExportModule : Module() {
         return@AsyncFunction
       }
       SubjectCutout.run(context, inputUri, outputPath, promise)
+    }
+
+    Function("speechModelReady") {
+      appContext.reactContext?.let { SpeechCaptions.modelReady(it) } ?: false
+    }
+
+    AsyncFunction("transcribeSpeech") { uri: String, inMs: Double, outMs: Double, promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null) {
+        promise.reject("NO_CONTEXT", "NO_CONTEXT", null)
+        return@AsyncFunction
+      }
+      SpeechCaptions.run(context, uri, inMs.toLong(), outMs.toLong(), { stage, percent ->
+        sendEvent("onSpeechProgress", mapOf("stage" to stage, "percent" to percent))
+      }, promise)
+    }
+
+    Function("cancelSpeech") {
+      SpeechCaptions.cancel()
     }
 
     AsyncFunction("labelImage") { uri: String, promise: Promise ->

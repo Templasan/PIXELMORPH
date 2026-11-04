@@ -9,6 +9,18 @@ export interface MediaItem {
   kind: 'video' | 'image' | 'audio';
 }
 
+/** Times count from the in-point asked for. */
+export interface SpeechSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+
+export interface SpeechProgress {
+  stage: 'model' | 'audio' | 'speech';
+  percent: number;
+}
+
 export type ProjectFormat = '16:9' | '9:16' | '1:1' | '4:3';
 
 export interface SavedProject {
@@ -49,6 +61,10 @@ export interface EditorHost {
    * video files it shows; the host answers, now and whenever more are ready, with
    * original → copy. Hosts without copies leave these out.
    */
+  /** RF-069: only the app can do this. */
+  speechModelReady?(): Promise<boolean>;
+  transcribeSpeech?(uri: string, inMs: number, outMs: number, onProgress: (p: SpeechProgress) => void): Promise<SpeechSegment[]>;
+  cancelSpeech?(): void;
   wantPreviewSources?(uris: string[]): void;
   onPreviewSources?(listener: (map: Record<string, string>) => void): void;
 }

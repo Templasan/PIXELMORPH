@@ -1,4 +1,4 @@
-import type { EditorHost, MediaItem, SavedProject } from '../../ports/host';
+import type { EditorHost, MediaItem, SavedProject, SpeechProgress, SpeechSegment } from '../../ports/host';
 import { call, onEvent } from './bridge';
 
 function toBase64(bytes: Uint8Array): string {
@@ -22,7 +22,21 @@ const STREAM_ABOVE_BYTES = 1024 * 1024 * 1024;
  * the app (its gallery picker, project store, file reader and export to the gallery).
  */
 export function createAndroidHost(): EditorHost {
+  let speechListener: ((p: SpeechProgress) => void) | null = null;
+  onEvent('speechProgress', (e) => speechListener?.(e as unknown as SpeechProgress));
   return {
+    speechModelReady: () => call<boolean>('speechModelReady'),
+    async transcribeSpeech(uri, inMs, outMs, onProgress) {
+      speechListener = onProgress;
+      try {
+        return await call<SpeechSegment[]>('transcribeSpeech', uri, inMs, outMs);
+      } finally {
+        speechListener = null;
+      }
+    },
+    cancelSpeech() {
+      void call('cancelSpeech').catch(() => {});
+    },
     pickMedia: (kind, multiple) => call<MediaItem[]>('pickMedia', kind, multiple ?? false),
     pickIsFinal: true,
     loadProject: () => call<SavedProject | null>('loadProject'),

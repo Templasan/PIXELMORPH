@@ -15,7 +15,8 @@ import { t } from '../i18n';
 import { Player, type FrameInfo } from '../engine/player';
 import { MediaPreviews } from '../engine/previews';
 import { probeMedia } from '../engine/probe';
-import type { EditorHost, MediaItem, ProjectFormat } from '../ports/host';
+import type { EditorHost, MediaItem, ProjectFormat, SpeechProgress } from '../ports/host';
+import { captionClips } from './speechCaptions';
 import { frameSize } from '../domain/format';
 import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
@@ -261,6 +262,21 @@ export function createEditorSession(host: EditorHost) {
     player?.seek(at + DEFAULT_TEXT.animIn.ms);
   }
 
+  /** RF-069: what is said in a clip becomes text clips on a new layer, undone in one step. */
+  async function generateCaptions(clipId: string, onProgress: (p: SpeechProgress) => void): Promise<number> {
+    const found = findClip(editor.store.get().tracks, clipId);
+    if (!found || !host.transcribeSpeech) throw new Error('FAILED');
+    const { clip } = found;
+    const segments = await host.transcribeSpeech(clip.sourceUri, clip.inPointMs, clip.outPointMs, onProgress);
+    const captions = captionClips(segments, clip, KIND_COLORS.text);
+    if (captions.length === 0) return 0;
+    editor.commit((before) => {
+      const { tracks, trackId } = newLayer(before);
+      return tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, ...captions] } : t));
+    });
+    return captions.length;
+  }
+
   function deleteSelected() {
     const { selectedClipId, tracks } = editor.store.get();
     const found = selectedClipId ? findClip(tracks, selectedClipId) : null;
@@ -345,6 +361,9 @@ export function createEditorSession(host: EditorHost) {
       return t;
     },
     exportVideo,
+    generateCaptions,
+    speechModelReady: () => host.speechModelReady?.() ?? Promise.resolve(null),
+    cancelSpeech: () => host.cancelSpeech?.(),
     duplicateSelected,
     editor,
     historyState,
