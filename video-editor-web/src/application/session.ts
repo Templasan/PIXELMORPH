@@ -102,9 +102,13 @@ export function createEditorSession(host: EditorHost) {
   // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
   // Background decoding waits while the person plays or moves the playhead: their frames come first.
   let lastJumpAt = 0;
-  // Also waits for a copy being made: decoding the heavy original now would only slow that down.
+  // A file the page cannot decode waits for its copy. Any other builds the reserve meanwhile, so dragging
+  // is instant during the wait: on a Samsung A11 that cost the copy about 5% of its time at most.
+  let originalUndecodable = false;
   const previewBusy = () =>
-    playing.get() || preparing.get() !== null || performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
+    playing.get() ||
+    (preparing.get() !== null && originalUndecodable) ||
+    performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
   const previews = new MediaPreviews(pool, previewBusy, (uri) => previewMap[uri] ?? uri);
   const scrubFrames = new ScrubFrames(pool, previewBusy, scrubBudget(isLowEndDevice(deviceMemory)));
   const format = createStore<ProjectFormat>('16:9');
@@ -148,6 +152,7 @@ export function createEditorSession(host: EditorHost) {
   });
   host.onPreviewPreparing?.((progress) => {
     preparing.set(progress);
+    if (progress === null) originalUndecodable = false;
     // The draw can fail just before this first word: the badge now explains it.
     if (progress !== null && error.get() === t(UNDECODABLE_TEXT)) error.set(null);
   });
@@ -217,6 +222,7 @@ export function createEditorSession(host: EditorHost) {
         onError: (m) => {
           const text = playerErrorText(m, preparing.get() !== null);
           if (text !== null) error.set(text);
+          else originalUndecodable = true;
         },
         onDrawn: () => drawn.set(drawn.get() + 1),
         onFrozenLayers: (count) => frozenLayers.set(count),

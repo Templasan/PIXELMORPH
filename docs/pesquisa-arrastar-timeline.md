@@ -151,3 +151,24 @@ Em todas: arrastar custa cerca de 1 ms por salto, velocidade 1,00 ou 0,99, sem e
 - **`optimizeForLatency`: testado, sem ganho.** 317 a 385 ms contra 315, e 222 a 227 contra 219. Fica de fora.
 - **Durante os saltos exatos sem cópia leve apareceu "Decoding error."** Esse teste não passa por `session.seek`, então a reserva não se afasta. Pelo uso real com a cópia, em 3 rodadas, nenhum erro.
 - **Ainda não testado:** a cópia nova gerada de verdade pelo app. As da tabela foram feitas com ffmpeg, com os mesmos parâmetros.
+
+## Cópia leve gerada pelo próprio app, no A11 (2026-11-04)
+
+Antes o hardware só aceitava até 1920×1440 e o Media3 não tentava software: a cópia de 4K falhava na hora, sem aviso. Agora usa `setEnableDecoderFallback(true)`.
+
+| Vídeo | Cópia pronta em | Arrastar | Quadro exato | Tocar |
+|---|---|---|---|---|
+| 1080p em pé, 120 s | 71 s | 0,5 ms | 209 ms (340 a 560 ms com a reserva em andamento; 3,4 s no primeiro salto ao abrir) | 0,99, começa em 0,5 a 0,6 s |
+| 4K, 60 s | 244 a 256 s | 1,2 ms | 231 ms | 0,98 a 0,99, começa em 0,5 s |
+
+A cópia do app empatou com a do ffmpeg (209 contra 216 ms), com quadro completo a cada 10.
+
+Tocar logo depois de arrastar, 3 camadas, celular a 38,5 °C: começa em 0,8 a 1,0 s, velocidade 0,91 a 0,98, pior travada 50 a 117 ms. Ainda abaixo da meta em início e velocidade.
+
+Achados: miniaturas liam o original mesmo com cópia pronta, o que tirava o decodificador de hardware da prévia (erro -12). Agora leem a cópia. A página não decodifica 4K no A11, então a exportação falhava: agora refaz a partir de uma cópia 1080p, que é o máximo do codificador desse celular. A estabilização sumia com cópia em uso, porque buscava o movimento pelo arquivo da cópia.
+
+## Ideia do dono para vídeos longos: picotar com prévia em blur
+
+Mostrar na hora um blur do vídeo inteiro (a reserva já é isso), gerar a cópia em pedaços, começando por onde a pessoa está, e trocar o blur pela imagem boa conforme chegam. Ganha espera e não perder tudo se o sistema matar o app; não ganha tempo total, porque o A11 recusa mais decodificadores de hardware. O custo é a prévia saber qual arquivo cobre cada instante.
+
+Ordem combinada: (1) reserva durante a cópia, em arquivos que a página decodifica; (2) testar um vídeo de 30 minutos no A11. Projeção sem medir: 18 min de cópia em 1080p; (3) só então os pedaços, se a espera incomodar ou o app morrer no meio.
