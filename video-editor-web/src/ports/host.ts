@@ -62,6 +62,8 @@ export interface EditorHost {
    * video files it shows; the host answers, now and whenever more are ready, with
    * original → copy. Hosts without copies leave these out.
    */
+  /** RF-009: the motion recorded with this file, as saved by the camera; null when it has none. */
+  readMotion?(uri: string): Promise<string | null>;
   /** RF-016: faces in frames sampled from a stretch of a file. Only the app can do this. */
   sampleFaces?(uri: string, inMs: number, outMs: number, stepMs: number, onProgress: (percent: number) => void): Promise<FaceSample[]>;
   cancelFaces?(): void;

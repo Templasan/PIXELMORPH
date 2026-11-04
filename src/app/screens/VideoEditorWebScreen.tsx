@@ -28,6 +28,7 @@ import {
   type DetectedFace,
 } from '../../../modules/pixelmorph-video-export/src';
 import { useAppModules } from '../hooks';
+import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { proxyStore, requestSourceProxy } from './video-editor/previewProxy';
@@ -92,6 +93,8 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
 
   const handlers = useMemo<Record<string, (...args: never[]) => Promise<unknown>>>(
     () => ({
+      readMotion: (uri: string) =>
+        FileSystem.readAsStringAsync(motionFileOf(uri)).catch(() => null),
       async sampleFaces(uri: string, inMs: number, outMs: number, stepMs: number) {
         facesCancelled.current = false;
         const samples: { ms: number; faces: DetectedFace[] }[] = [];

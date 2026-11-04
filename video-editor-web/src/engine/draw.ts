@@ -1,3 +1,5 @@
+import { correctionAt, fitCorrection, STABLE_ZOOM } from '../domain/stabilize';
+import { motionPathOf } from './motion';
 import { poseAt } from '../domain/faceTrack';
 import type { VideoSample } from 'mediabunny';
 import type { Box, CompositionOp, MediaOp } from '../domain/composition';
@@ -186,8 +188,25 @@ function drawMedia(ctx: Ctx2D, op: MediaOp, original: VideoSample | ImageBitmap)
   ctx.translate(rect.x + rect.w / 2 + op.translateX, rect.y + rect.h / 2);
   ctx.scale(op.scale, op.scale);
   ctx.rotate(turn);
+  const motion = op.stabilizedBy ? motionPathOf(op.stabilizedBy) : null;
+  // The frame's own time: the one decoded can be a frame off the moment asked for, and at this
+  // scale that frame is several pixels of shake.
+  const frameMs = 'displayWidth' in original ? original.timestamp * 1000 : op.sourceTimeMs;
+  const steady = motion && correctionAt(motion, frameMs);
+  ctx.save();
+  if (steady) {
+    // The picture is enlarged and moved inside its own edges, so none of them ever shows.
+    const c = fitCorrection(steady, w, h);
+    ctx.beginPath();
+    ctx.rect(-w / 2, -h / 2, w, h);
+    ctx.clip();
+    ctx.translate(c.dx, c.dy);
+    ctx.rotate(c.rot);
+    ctx.scale(STABLE_ZOOM, STABLE_ZOOM);
+  }
   if (sample) sample.draw(ctx, -w / 2, -h / 2, w, h);
   else ctx.drawImage(frame as ImageBitmap | OffscreenCanvas, -w / 2, -h / 2, w, h);
+  ctx.restore();
   if (op.border) {
     // Inside the picture's edge: the box would cut half of a centred line.
     const px = op.border.px / op.scale;

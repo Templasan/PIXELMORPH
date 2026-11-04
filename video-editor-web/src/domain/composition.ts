@@ -65,6 +65,8 @@ export interface MediaOp {
   blend: TrackBlend;
   /** RF-021: the picture is a 360 video seen from here; null for an ordinary one. */
   sphere: SphereView | null;
+  /** RF-009: the file whose recorded motion steadies this picture; null when it is not steadied. */
+  stabilizedBy: string | null;
   /** RF-016: the faces to retouch; null for a clip with none. */
   faces: FaceTrack[] | null;
   /** A window's border, in frame pixels; null when it has none. */
@@ -249,6 +251,7 @@ function mediaOp(
     rotationDeg: clip.rotation ?? 0,
     brightness: 1 + Math.max(-100, Math.min(100, cc)) / 200,
     blend: clip.blend ?? layer.blend,
+    stabilizedBy: clip.stabilization && !image && !clip.spherical ? clip.sourceUri : null,
     faces: clip.faces?.length && !image && !clip.spherical ? clip.faces : null,
     sphere: clip.spherical
       ? {

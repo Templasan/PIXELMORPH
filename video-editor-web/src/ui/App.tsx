@@ -281,6 +281,13 @@ function Toolbar({
       {media && <Tool icon="maximize" label={t('Posição')} onClick={() => onTool('position')} />}
       {kind === 'video' && <Tool icon="rotate" label={t('Vídeo 360')} onClick={() => onTool('sphere')} />}
       {kind === 'video' && !clip.frozen && <Tool icon="sun" label={t('Rostos')} onClick={() => onTool('faces')} />}
+      {kind === 'video' && !clip.frozen && !clip.spherical && (
+        <Tool
+          icon="maximize"
+          label={clip.stabilization ? t('Estabilizado') : t('Estabilizar')}
+          onClick={() => void session.setClipSteady(clip.id, !clip.stabilization)}
+        />
+      )}
       {media && <Tool icon="rotate" label={t('Girar')} onClick={() => editor.commitClip((c) => ({ ...c, rotation: (((c.rotation ?? 0) + 90) % 360) }))} />}
       {kind === 'video' && (
         <Tool icon="freeze" label={t('Congelar')} disabled={!inside} onClick={() => editor.freeze(time)} />
