@@ -208,6 +208,18 @@ class PixelMorphVideoExportModule : Module() {
       SubjectCutout.run(context, inputUri, outputPath, promise)
     }
 
+    AsyncFunction("labelImage") { uri: String, promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null) promise.reject("NO_CONTEXT", "The app is not ready.", null)
+      else SceneAndFaces.labels(context, uri, promise)
+    }
+
+    AsyncFunction("detectFaces") { uri: String, promise: Promise ->
+      val context = appContext.reactContext
+      if (context == null) promise.reject("NO_CONTEXT", "The app is not ready.", null)
+      else SceneAndFaces.faces(context, uri, promise)
+    }
+
     Function("cancel") {
       main.post {
         current?.cancel()

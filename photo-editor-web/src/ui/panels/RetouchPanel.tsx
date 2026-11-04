@@ -1,10 +1,12 @@
 import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
-import { createCloneAdjust, createLiquifyLayer, createLocalLayer, createRemoveAdjust, type WarpMode } from '../../domain/layers';
+import { createCloneAdjust, createLiquifyLayer, createLocalLayer, createRemoveAdjust, type FaceRetouch, type WarpMode } from '../../domain/layers';
 import { useState } from 'react';
 import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
 
+/** Scene units: clearly out of focus, without hiding what the background is. */
+const PORTRAIT_BLUR = 7;
 const BACK_COLORS = ['#FFFFFF', '#000000', '#E5484D', '#F5D90A', '#30A46C', '#3B82F6'];
 
 const MODES: { id: WarpMode; label: string }[] = [
@@ -20,7 +22,9 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
   const selectedId = useStore(editor.store, (s) => s.selectedLayerId);
   const brush = useStore(editor.store, (s) => s.brush);
   const warp = useStore(editor.store, (s) => s.warpBrush);
-  const tools = layers.filter((l) => l.warp || l.local?.clone || l.local?.remove || l.cutout);
+  const tools = layers.filter((l) => l.warp || l.local?.clone || l.local?.remove || l.cutout || l.face);
+  const setFace = (id: string, patch: Partial<FaceRetouch>) =>
+    editor.liveLayers((ls) => ls.map((l) => (l.id === id && l.face ? { ...l, face: { ...l.face, ...patch } } : l)));
   const [error, setError] = useState<string | null>(null);
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const setBack = (id: string, back: { backColor?: string }) =>
@@ -40,6 +44,26 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
           }}
         >
           + {t('Recortar fundo')}
+        </button>
+        <button
+          className="chip"
+          disabled={layers.some((l) => l.cutout)}
+          onClick={() => {
+            setError(null);
+            session.removeBackground(PORTRAIT_BLUR).catch(fail);
+          }}
+        >
+          + {t('Efeito retrato')}
+        </button>
+        <button
+          className="chip"
+          disabled={layers.some((l) => l.face)}
+          onClick={() => {
+            setError(null);
+            session.retouchFaces().catch(fail);
+          }}
+        >
+          + {t('Retocar rostos')}
         </button>
         <button className="chip" onClick={() => editor.addLayers([createLocalLayer(count('Clonagem {n}'), createCloneAdjust())])}>
           + {t('Clonar')}
@@ -61,7 +85,35 @@ export function RetouchPanel({ session }: { session: PhotoSession }) {
         </div>
       )}
       {error && <div className="muted">{error}</div>}
-      {selected?.cutout && (
+      {selected?.face && (
+        <div onPointerUp={() => editor.endLayers()} onKeyUp={() => editor.endLayers()}>
+          <Range label={t('Suavizar a pele')} value={selected.face.smooth} min={0} max={100} format={(v) => `${v}%`} onChange={(smooth) => setFace(selected.id, { smooth })} />
+          <Range label={t('Realçar os olhos')} value={selected.face.eyes} min={0} max={100} format={(v) => `${v}%`} onChange={(eyes) => setFace(selected.id, { eyes })} />
+          <Range label={t('Tom')} value={selected.face.tone} min={-100} max={100} onChange={(tone) => setFace(selected.id, { tone })} />
+          <div className="chips">
+            <button className={`chip${selected.face.redEye ? ' on' : ''}`} onClick={() => editor.setLayers((ls) => ls.map((l) => (l.id === selected.id && l.face ? { ...l, face: { ...l.face, redEye: !l.face.redEye } } : l)))}>
+              {t('Olhos vermelhos')}
+            </button>
+            <button className={`chip${selected.face.blemishes ? ' on' : ''}`} onClick={() => editor.setLayers((ls) => ls.map((l) => (l.id === selected.id && l.face ? { ...l, face: { ...l.face, blemishes: !l.face.blemishes } } : l)))}>
+              {t('Imperfeições')}
+            </button>
+          </div>
+        </div>
+      )}
+      {selected?.cutout?.backBlur !== undefined && (
+        <div onPointerUp={() => editor.endLayers()} onKeyUp={() => editor.endLayers()}>
+          <Range
+            label={t('Desfoque do fundo')}
+            value={selected.cutout.backBlur}
+            min={1}
+            max={30}
+            onChange={(backBlur) =>
+              editor.liveLayers((ls) => ls.map((l) => (l.id === selected.id && l.cutout ? { ...l, cutout: { ...l.cutout, backBlur } } : l)))
+            }
+          />
+        </div>
+      )}
+      {selected?.cutout && selected.cutout.backBlur === undefined && (
         <>
           <div className="sub">{t('Fundo novo')}</div>
           <div className="chips">

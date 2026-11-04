@@ -25,4 +25,7 @@ dependencies {
   // RF-004: finds the main subject on the device. Its model comes through Google Play services.
   implementation "com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1"
   implementation "com.google.android.gms:play-services-base:18.5.0"
+  // RF-034 and RF-016: what a photo shows, and where its faces are. Same delivery as above.
+  implementation "com.google.android.gms:play-services-mlkit-image-labeling:16.0.8"
+  implementation "com.google.android.gms:play-services-mlkit-face-detection:17.1.0"
 }

@@ -11,8 +11,11 @@ import {
   localFilter,
   pointsToPath,
   type BrushShape,
+  blemishAlpha,
+  fixRedEyePixels,
   type Cutout,
   type EditorLayer,
+  type FaceRetouch,
   type LayerGroup,
 } from '../domain/layers';
 import type { SceneSize } from '../domain/sceneSize';
@@ -68,7 +71,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneInput) {
 
   if (a.lightIntensity > 0) drawLight(ctx, a, scene.w, scene.h);
   for (const group of layerGroups(s.layers)) {
-    if (group.base.cutout) drawCutout(ctx, group.base.cutout, s, group.base.opacity / 100);
+    if (group.base.face) drawFace(ctx, group.base.face, s, group.base.opacity / 100);
+    else if (group.base.cutout) drawCutout(ctx, group.base.cutout, s, group.base.opacity / 100);
     else if (group.clipped.length) drawClipped(ctx, group, scene.w, scene.h, s.pictureOf);
     else drawLayer(ctx, group.base, scene.w, scene.h, s.pictureOf);
   }
@@ -238,6 +242,160 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
   changed.canvas.width = changed.canvas.height = 0;
 }
 
+/** Readback for spot fixes stays this small: skin spots are soft, and this runs on every redraw. */
+const FACE_WORK_EDGE = 320;
+
+/**
+ * US-25: one face's retouch on what is under the layer. The face turns with the photo. The mask is
+ * an ellipse inside the face's box with the eyes and mouth left out, so they stay sharp.
+ */
+function drawFace(ctx: CanvasRenderingContext2D, f: FaceRetouch, s: SceneInput, opacity: number) {
+  const { scene, photo } = s.size;
+  const base = ctx.getTransform();
+  const k = Math.hypot(base.a, base.b);
+  const turn = totalRotationRadOf(s.adjustments);
+  const place = (c: CanvasRenderingContext2D) => {
+    c.setTransform(base);
+    c.translate(scene.w / 2, scene.h / 2);
+    c.rotate(turn);
+    c.translate(-photo.w / 2, -photo.h / 2);
+    c.scale(photo.w, photo.h);
+  };
+  const layer = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = ctx.canvas.width;
+    canvas.height = ctx.canvas.height;
+    return canvas.getContext('2d')!;
+  };
+  const free = (...cs: CanvasRenderingContext2D[]) => {
+    for (const c of cs) c.canvas.width = c.canvas.height = 0;
+  };
+  const faceW = f.w * photo.w;
+  const eyeRadius = faceW * 0.13;
+  const ellipse = (c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) => {
+    c.beginPath();
+    c.ellipse(x, y, rx / photo.w, ry / photo.h, 0, 0, Math.PI * 2);
+    c.fill();
+  };
+  const eyesOf = (c: CanvasRenderingContext2D) => {
+    for (const e of [f.leftEye, f.rightEye]) if (e) ellipse(c, e.x, e.y, eyeRadius, eyeRadius * 0.62);
+  };
+  const paste = (from: CanvasRenderingContext2D, operation: GlobalCompositeOperation = 'source-over', alpha = opacity) => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.globalCompositeOperation = operation;
+    ctx.drawImage(from.canvas, 0, 0);
+    ctx.restore();
+  };
+
+  // Skin: the face's oval, soft at the edge, without the eyes and the mouth.
+  const skin = layer();
+  place(skin);
+  skin.filter = `blur(${faceW * 0.04 * k}px)`;
+  skin.fillStyle = '#fff';
+  ellipse(skin, f.x + f.w / 2, f.y + f.h / 2, (f.w * photo.w) / 2, (f.h * photo.h) / 2);
+  skin.globalCompositeOperation = 'destination-out';
+  eyesOf(skin);
+  if (f.mouth) ellipse(skin, f.mouth.x, f.mouth.y, f.mouth.w * photo.w * 0.65, f.mouth.w * photo.w * 0.4);
+  skin.filter = 'none';
+
+  const blurredCopy = (px: number) => {
+    const c = layer();
+    c.filter = `blur(${px}px)`;
+    c.drawImage(ctx.canvas, 0, 0);
+    c.filter = 'none';
+    return c;
+  };
+
+  if (f.blemishes) {
+    // Small dark spots only, at a working size: the fix is a soft patch, not a sharp edit.
+    const scale = Math.min(1, FACE_WORK_EDGE / Math.max(1, faceW * k));
+    const canvasOf = (src: CanvasImageSource) => {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(ctx.canvas.width * scale));
+      c.height = Math.max(1, Math.round(ctx.canvas.height * scale));
+      const x = c.getContext('2d', { willReadFrequently: true })!;
+      x.drawImage(src, 0, 0, c.width, c.height);
+      return x;
+    };
+    const near = blurredCopy(faceW * 0.03 * k);
+    const sharpSmall = canvasOf(ctx.canvas);
+    const nearSmall = canvasOf(near.canvas);
+    const w = sharpSmall.canvas.width;
+    const h = sharpSmall.canvas.height;
+    const alpha = blemishAlpha(sharpSmall.getImageData(0, 0, w, h).data, nearSmall.getImageData(0, 0, w, h).data);
+    const spots = nearSmall.getImageData(0, 0, w, h);
+    for (let p = 0; p < alpha.length; p += 1) spots.data[p * 4 + 3] = alpha[p];
+    nearSmall.putImageData(spots, 0, 0);
+    const patch = layer();
+    patch.filter = `blur(${(0.6 / scale).toFixed(2)}px)`;
+    patch.drawImage(nearSmall.canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
+    patch.filter = 'none';
+    patch.globalCompositeOperation = 'destination-in';
+    patch.drawImage(skin.canvas, 0, 0);
+    paste(patch);
+    free(near, patch);
+    sharpSmall.canvas.width = sharpSmall.canvas.height = nearSmall.canvas.width = nearSmall.canvas.height = 0;
+  }
+
+  if (f.smooth > 0) {
+    const soft = blurredCopy((f.smooth / 100) * faceW * 0.035 * k);
+    soft.globalCompositeOperation = 'destination-in';
+    soft.drawImage(skin.canvas, 0, 0);
+    // Never all the way: some of the skin's own texture has to stay, or it looks like plastic.
+    paste(soft, 'source-over', opacity * (0.35 + (f.smooth / 100) * 0.5));
+    free(soft);
+  }
+
+  if (f.tone !== 0) {
+    const tint = layer();
+    tint.fillStyle = f.tone > 0 ? '#ffb070' : '#70b0ff';
+    tint.fillRect(0, 0, tint.canvas.width, tint.canvas.height);
+    tint.globalCompositeOperation = 'destination-in';
+    tint.drawImage(skin.canvas, 0, 0);
+    paste(tint, 'soft-light', opacity * (Math.abs(f.tone) / 100) * 0.6);
+    free(tint);
+  }
+
+  if (f.redEye) {
+    for (const e of [f.leftEye, f.rightEye]) {
+      if (!e) continue;
+      const cx = (e.x - 0.5) * photo.w;
+      const cy = (e.y - 0.5) * photo.h;
+      const p = new DOMPoint(cx, cy).matrixTransform(base.translate(scene.w / 2, scene.h / 2).rotate((turn * 180) / Math.PI));
+      const r = Math.ceil(eyeRadius * k);
+      const x = Math.max(0, Math.round(p.x - r));
+      const y = Math.max(0, Math.round(p.y - r));
+      const w = Math.min(ctx.canvas.width - x, r * 2);
+      const h = Math.min(ctx.canvas.height - y, r * 2);
+      if (w <= 0 || h <= 0) continue;
+      const pixels = ctx.getImageData(x, y, w, h);
+      fixRedEyePixels(pixels.data);
+      ctx.putImageData(pixels, x, y);
+    }
+  }
+
+  if (f.eyes > 0) {
+    const mask = layer();
+    place(mask);
+    mask.filter = `blur(${eyeRadius * 0.25 * k}px)`;
+    mask.fillStyle = '#fff';
+    eyesOf(mask);
+    mask.filter = 'none';
+    const lit = layer();
+    const e = f.eyes / 100;
+    lit.filter = `brightness(${1 + e * 0.3}) contrast(${1 + e * 0.35}) saturate(${1 + e * 0.25})`;
+    lit.drawImage(ctx.canvas, 0, 0);
+    lit.filter = 'none';
+    lit.globalCompositeOperation = 'destination-in';
+    lit.drawImage(mask.canvas, 0, 0);
+    paste(lit);
+    free(mask, lit);
+  }
+  free(skin);
+}
+
 /**
  * RF-004: keeps what is under this layer only inside the subject, with the new background behind
  * it. The mask turns with the photo. A perspective correction would not line up with it.
@@ -246,6 +404,20 @@ function drawCutout(ctx: CanvasRenderingContext2D, c: Cutout, s: SceneInput, opa
   const mask = s.pictureOf?.(c.maskUri);
   if (!mask || opacity <= 0) return;
   const { scene, photo } = s.size;
+  // RF-012: the photo's own background, blurred, goes behind the sharp subject.
+  let blurred: HTMLCanvasElement | null = null;
+  if (c.backBlur) {
+    blurred = document.createElement('canvas');
+    blurred.width = ctx.canvas.width;
+    blurred.height = ctx.canvas.height;
+    const b = blurred.getContext('2d')!;
+    b.filter = `blur(${c.backBlur * Math.hypot(ctx.getTransform().a, ctx.getTransform().b)}px)`;
+    b.drawImage(ctx.canvas, 0, 0);
+    // A blur fades out at the picture's edge: the sharp photo fills what it leaves see-through.
+    b.filter = 'none';
+    b.globalCompositeOperation = 'destination-over';
+    b.drawImage(ctx.canvas, 0, 0);
+  }
   // What the subject leaves out is the whole picture without it, at the layer's strength.
   const keep = document.createElement('canvas');
   keep.width = ctx.canvas.width;
@@ -269,6 +441,15 @@ function drawCutout(ctx: CanvasRenderingContext2D, c: Cutout, s: SceneInput, opa
   ctx.restore();
   keep.width = keep.height = 0;
 
+  if (blurred) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.drawImage(blurred, 0, 0);
+    ctx.restore();
+    blurred.width = blurred.height = 0;
+    return;
+  }
   const back = c.backUri ? s.pictureOf?.(c.backUri) : undefined;
   if (!back && !c.backColor) return;
   ctx.save();

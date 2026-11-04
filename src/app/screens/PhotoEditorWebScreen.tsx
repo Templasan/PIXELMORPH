@@ -31,6 +31,8 @@ import {
   encodeHeic,
   heicSupported,
   segmentSubject,
+  labelImage,
+  detectFaces,
 } from '../../../modules/pixelmorph-video-export/src';
 import { lightCopyOf } from './photo-editor/lightCopy';
 import { presetStep } from './photo-editor/batchPreset';
@@ -200,6 +202,9 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         );
         return { name: 'Recorte', uri: cut.uri };
       },
+
+      labelImage: (uri: string) => labelImage(uri),
+      detectFaces: (uri: string) => detectFaces(uri),
 
       listWatermarks,
       saveWatermark,

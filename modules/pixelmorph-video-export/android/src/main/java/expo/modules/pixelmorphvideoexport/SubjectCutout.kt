@@ -3,12 +3,6 @@ package expo.modules.pixelmorphvideoexport
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
-import com.google.android.gms.common.ConnectionResult
-import com.google.android.gms.common.GoogleApiAvailability
-import com.google.android.gms.common.moduleinstall.InstallStatusListener
-import com.google.android.gms.common.moduleinstall.ModuleInstall
-import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
-import com.google.android.gms.common.moduleinstall.ModuleInstallStatusUpdate
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -23,8 +17,7 @@ import java.io.FileOutputStream
  */
 object SubjectCutout {
   fun run(context: Context, inputUri: String, outputPath: String, promise: Promise) {
-    val availability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
-    if (availability != ConnectionResult.SUCCESS) {
+    if (!MlKitModels.hasPlayServices(context)) {
       promise.reject("NO_PLAY_SERVICES", "Google Play services is not available.", null)
       return
     }
@@ -64,34 +57,7 @@ object SubjectCutout {
       }
     }
 
-    val modules = ModuleInstall.getClient(context)
-    modules.areModulesAvailable(segmenter)
-      .addOnSuccessListener { state ->
-        if (state.areModulesAvailable()) {
-          segment()
-          return@addOnSuccessListener
-        }
-        lateinit var listener: InstallStatusListener
-        listener = InstallStatusListener { update ->
-          when (update.installState) {
-            ModuleInstallStatusUpdate.InstallState.STATE_COMPLETED -> {
-              modules.unregisterListener(listener)
-              segment()
-            }
-            ModuleInstallStatusUpdate.InstallState.STATE_FAILED,
-            ModuleInstallStatusUpdate.InstallState.STATE_CANCELED -> {
-              modules.unregisterListener(listener)
-              fail("MODEL_DOWNLOAD_FAILED", null)
-            }
-            else -> Unit
-          }
-        }
-        val request = ModuleInstallRequest.newBuilder().addApi(segmenter).setListener(listener).build()
-        modules.installModules(request)
-          .addOnSuccessListener { if (it.areModulesAlreadyInstalled()) segment() }
-          .addOnFailureListener { fail("MODEL_DOWNLOAD_FAILED", it) }
-      }
-      .addOnFailureListener { fail("MODEL_DOWNLOAD_FAILED", it) }
+    MlKitModels.whenReady(context, segmenter, { segment() }) { fail("MODEL_DOWNLOAD_FAILED", it) }
   }
 
   /** The segmenter answers with an empty picture when it finds nothing to cut out. */

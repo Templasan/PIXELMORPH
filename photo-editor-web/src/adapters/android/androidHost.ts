@@ -1,3 +1,4 @@
+import type { DetectedFace } from '../../domain/layers';
 import type { BakedPhoto, EditorHost, PictureRef, PresetRef, WatermarkRef, SavedPhoto } from '../../ports/host';
 import { call } from './bridge';
 
@@ -21,6 +22,8 @@ export function createAndroidHost(): EditorHost {
     pickPicture: () => call<PictureRef | null>('pickPicture'),
     listPresets: () => call<PresetRef[]>('listPresets'),
     segmentSubject: (uri) => call<PictureRef>('segmentSubject', uri),
+    labelImage: (uri) => call<{ text: string; confidence: number }[]>('labelImage', uri),
+    detectFaces: (uri) => call<DetectedFace[]>('detectFaces', uri),
     listWatermarks: () => call<WatermarkRef[]>('listWatermarks'),
     saveWatermark: (watermark) => call<void>('saveWatermark', watermark),
     deleteWatermark: (id) => call<void>('deleteWatermark', id),
