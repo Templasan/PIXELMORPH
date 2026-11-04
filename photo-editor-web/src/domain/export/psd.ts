@@ -17,6 +17,8 @@ export interface PsdLayer {
   /** Shows only inside the layer below. */
   clip: boolean;
   visible: boolean;
+  /** A layer mask covering the whole picture, read from the alpha of these RGBA pixels. */
+  mask?: Uint8ClampedArray;
 }
 
 const BLEND_KEYS: Record<string, string> = {
@@ -133,6 +135,10 @@ export function encodePsd(
       const { table, rows } = rleChannel(l.rgba, l.width, l.height, index);
       return { id, table, rows };
     });
+    if (l.mask) {
+      const { table, rows } = rleChannel(l.mask, width, height, 3);
+      channels.push({ id: -2, table, rows });
+    }
     records.u32(l.top).u32(l.left).u32(l.top + l.height).u32(l.left + l.width).u16(channels.length);
     for (const c of channels) {
       records.u16(c.id & 0xffff).u32(2 + c.table.length + c.rows.length);
@@ -140,7 +146,13 @@ export function encodePsd(
     }
     const name = pascalName(l.name);
     records.ascii('8BIM').ascii(BLEND_KEYS[l.blend] ?? 'norm').u8(l.opacity).u8(l.clip ? 1 : 0).u8(l.visible ? 0 : 2).u8(0);
-    records.u32(8 + name.length).u32(0).u32(0).bytes(name);
+    // Extra data: the mask's box, what lies outside it (hidden), flags and padding; then blending ranges.
+    if (l.mask) {
+      records.u32(8 + 20 + name.length).u32(20).u32(0).u32(0).u32(height).u32(width).u8(0).u8(0).u8(0).u8(0);
+      records.u32(0).bytes(name);
+    } else {
+      records.u32(8 + name.length).u32(0).u32(0).bytes(name);
+    }
   }
   const info = new Writer();
   info.u16(layers.length).bytes(records.concat()).bytes(data.concat());
