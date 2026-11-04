@@ -13,6 +13,7 @@ import {
   type BrushShape,
   blemishAlpha,
   fixRedEyePixels,
+  RED_EYE_RADIUS,
   type Cutout,
   type EditorLayer,
   type FaceRetouch,
@@ -340,11 +341,11 @@ function drawFace(ctx: CanvasRenderingContext2D, f: FaceRetouch, s: SceneInput, 
   }
 
   if (f.smooth > 0) {
-    const soft = blurredCopy((f.smooth / 100) * faceW * 0.035 * k);
+    const soft = blurredCopy((f.smooth / 100) * faceW * 0.022 * k);
     soft.globalCompositeOperation = 'destination-in';
     soft.drawImage(skin.canvas, 0, 0);
     // Never all the way: some of the skin's own texture has to stay, or it looks like plastic.
-    paste(soft, 'source-over', opacity * (0.35 + (f.smooth / 100) * 0.5));
+    paste(soft, 'source-over', opacity * (0.25 + (f.smooth / 100) * 0.4));
     free(soft);
   }
 
@@ -364,7 +365,7 @@ function drawFace(ctx: CanvasRenderingContext2D, f: FaceRetouch, s: SceneInput, 
       const cx = (e.x - 0.5) * photo.w;
       const cy = (e.y - 0.5) * photo.h;
       const p = new DOMPoint(cx, cy).matrixTransform(base.translate(scene.w / 2, scene.h / 2).rotate((turn * 180) / Math.PI));
-      const r = Math.ceil(eyeRadius * k);
+      const r = Math.ceil(faceW * RED_EYE_RADIUS * k);
       const x = Math.max(0, Math.round(p.x - r));
       const y = Math.max(0, Math.round(p.y - r));
       const w = Math.min(ctx.canvas.width - x, r * 2);
@@ -379,13 +380,14 @@ function drawFace(ctx: CanvasRenderingContext2D, f: FaceRetouch, s: SceneInput, 
   if (f.eyes > 0) {
     const mask = layer();
     place(mask);
-    mask.filter = `blur(${eyeRadius * 0.25 * k}px)`;
+    // The eye itself: a wider patch lights up the skin around it.
+    mask.filter = `blur(${eyeRadius * 0.15 * k}px)`;
     mask.fillStyle = '#fff';
-    eyesOf(mask);
+    for (const p of [f.leftEye, f.rightEye]) if (p) ellipse(mask, p.x, p.y, eyeRadius * 0.7, eyeRadius * 0.35);
     mask.filter = 'none';
     const lit = layer();
     const e = f.eyes / 100;
-    lit.filter = `brightness(${1 + e * 0.3}) contrast(${1 + e * 0.35}) saturate(${1 + e * 0.25})`;
+    lit.filter = `brightness(${1 + e * 0.15}) contrast(${1 + e * 0.3}) saturate(${1 + e * 0.1})`;
     lit.drawImage(ctx.canvas, 0, 0);
     lit.filter = 'none';
     lit.globalCompositeOperation = 'destination-in';

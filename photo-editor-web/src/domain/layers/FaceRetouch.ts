@@ -53,8 +53,11 @@ export function faceRetouchOf(f: DetectedFace): FaceRetouch {
   };
 }
 
-/** Bright red against the other two channels: flash in a pupil, not a lip or a red shirt. */
-const RED_RATIO = 1.75;
+/** Around an eye's centre, as a share of the face's width: the pupil and iris, not the skin. */
+export const RED_EYE_RADIUS = 0.06;
+
+/** Bright red against the other two channels: flash in a pupil. Warm skin stays under this. */
+const RED_RATIO = 2.5;
 const MIN_RED = 70;
 
 export function isRedEyePixel(r: number, g: number, b: number): boolean {
