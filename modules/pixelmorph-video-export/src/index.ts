@@ -1,5 +1,18 @@
 import { requireNativeModule } from 'expo-modules-core';
 
+/** Normalized to the picture. Landmarks are null when the face is turned too far to see them. */
+export interface DetectedFace {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  leftEye: { x: number; y: number } | null;
+  rightEye: { x: number; y: number } | null;
+  mouthLeft: { x: number; y: number } | null;
+  mouthRight: { x: number; y: number } | null;
+  mouthBottom: { x: number; y: number } | null;
+}
+
 export interface ExportClip {
   uri: string;
   kind: 'video' | 'image';
@@ -58,6 +71,8 @@ interface NativeModule {
     maxWidth: number
   ): Promise<{ uri: string; width: number; height: number }>;
   segmentSubject(inputUri: string, outputPath: string): Promise<{ uri: string; width: number; height: number }>;
+  labelImage(uri: string): Promise<{ text: string; confidence: number }[]>;
+  detectFaces(uri: string): Promise<DetectedFace[]>;
   probeRotation(uri: string): Promise<number | null>;
   probeVideo(
     uri: string
@@ -91,6 +106,16 @@ export function cancelVideoExport(): void {
 }
 
 /** Exact frame of a video at `timeMs` (not just the nearest keyframe), as a cached JPEG. */
+/** RF-034: what a photo shows, read on the device. */
+export function labelImage(uri: string) {
+  return native.labelImage(uri);
+}
+
+/** RF-016: where a photo's faces are, read on the device. */
+export function detectFaces(uri: string) {
+  return native.detectFaces(uri);
+}
+
 /** RF-004: a PNG of a photo's main subject, transparent elsewhere. Rejects with a code when it cannot. */
 export function segmentSubject(inputUri: string, outputPath: string) {
   return native.segmentSubject(inputUri, outputPath);

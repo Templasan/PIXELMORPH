@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { t } from '../../i18n';
 import type { PhotoSession } from '../../application/session';
 import { harmonies, type Crop } from '../../domain/suggestions';
+import { SCENE_LOOKS, type SceneGuess } from '../../domain/scene';
 import { useStore } from '../../state/useStore';
 
 /** Sugestões (US-26): the picture's colours, what goes with them, and crops by composition. */
@@ -11,6 +12,23 @@ export function SuggestionsPanel({ session }: { session: PhotoSession }) {
   // Read once when the panel opens: the suggestions should not move while they are being tried.
   const found = useMemo(() => session.analyzePicture(), [session]);
   const [base, setBase] = useState<string | null>(null);
+  // Undefined while it looks; null when the photo gives no clear answer.
+  const [scene, setScene] = useState<SceneGuess | null | undefined>(undefined);
+  const [sceneError, setSceneError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    session
+      .recognizeScene()
+      .then((guess) => alive && setScene(guess))
+      .catch((e) => {
+        if (!alive) return;
+        setScene(null);
+        setSceneError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
   const color = base ?? found?.palette[0] ?? null;
   const applyCrop = (c: Crop) => editor.applyPreset({ cropX: c.x, cropY: c.y, cropW: c.w, cropH: c.h });
   const cropped = adjustments.cropW < 1 || adjustments.cropH < 1;
@@ -31,6 +49,16 @@ export function SuggestionsPanel({ session }: { session: PhotoSession }) {
   );
   return (
     <>
+      <div className="sub">{t('Cena')}</div>
+      {scene === undefined && <div className="muted">{t('Reconhecendo…')}</div>}
+      {scene === null && <div className="muted">{sceneError ?? t('Não deu para saber o tipo desta foto.')}</div>}
+      {scene && (
+        <div className="chips">
+          <button className="chip" onClick={() => editor.applyPreset(SCENE_LOOKS[scene.kind].look)}>
+            {t('Aplicar ajustes para {scene}', { scene: t(SCENE_LOOKS[scene.kind].name) })}
+          </button>
+        </div>
+      )}
       <div className="sub">{t('Paleta da foto')}</div>
       <div className="chips">{found.palette.map(swatch)}</div>
       {color &&

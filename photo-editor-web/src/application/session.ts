@@ -9,7 +9,18 @@ import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
 import { drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
 import { fillHole } from '../domain/fillHole';
-import { createCutoutLayer, createImageLayer, createLayerId, isFixedLayer, type EditorLayer } from '../domain/layers';
+import {
+  createCutoutLayer,
+  createFaceLayer,
+  createImageLayer,
+  createLayerId,
+  faceRetouchOf,
+  isFixedLayer,
+  redEyeShare,
+  type DetectedFace,
+  type EditorLayer,
+} from '../domain/layers';
+import { sceneOf } from '../domain/scene';
 import { isValidQRContent, readQr } from '../domain/QRCode';
 import { dominantColors, saliencyMap, suggestCrops } from '../domain/suggestions';
 import { detectStereoscopicFromDimensions, detectStereoscopicFromUri, eyeRects } from '../domain/stereoscopic/StereoscopicDetection';
@@ -53,6 +64,9 @@ const ANALYSIS_EDGE = 96;
 const WATERMARK_LOGO_EDGE = 512;
 /** A QR code is read back at this size at most: enough for any scanner, and quick. */
 const QR_CHECK_EDGE = 800;
+
+/** This share of red-eye pixels around an eye switches the fix on by itself. */
+const RED_EYE_SHARE = 0.015;
 
 /** What went wrong finding the subject, from the native module's error codes. */
 function cutoutErrorText(e: unknown): string {
@@ -787,20 +801,56 @@ export function createPhotoSession(host: EditorHost) {
      * RF-004: hides everything but the photo's main subject. It is a layer right above the photo's
      * colour adjustments, so they still apply, and deleting it brings the background back.
      */
-    async removeBackground() {
+    async removeBackground(backBlur?: number) {
       if (!host.segmentSubject) throw new Error(t('Recortar o fundo só funciona no app.'));
       setInfo({ busy: t('Procurando o objeto principal…') });
       try {
         const cut = await host.segmentSubject(lightUri);
         wantBlend(cut);
         await blendPictures.get(cut.uri);
-        const layer = createCutoutLayer(t('Fundo removido'), cut.uri);
+        const layer = createCutoutLayer(backBlur ? t('Efeito retrato') : t('Fundo removido'), cut.uri);
+        if (backBlur) layer.cutout!.backBlur = backBlur;
         const { layers } = editor.store.get();
         const after = layers.filter(isFixedLayer).length;
         editor.setLayers((ls) => [...ls.slice(0, after), layer, ...ls.slice(after)]);
         editor.selectLayer(layer.id);
       } catch (e) {
         throw new Error(cutoutErrorText(e));
+      } finally {
+        setInfo({ busy: null });
+      }
+    },
+    /** RF-034: what kind of photo this is. Null when the photo gives no clear answer. */
+    async recognizeScene() {
+      if (!host.labelImage) throw new Error(t('Reconhecer a cena só funciona no app.'));
+      const labels = await host.labelImage(lightUri);
+      // A face is the surest sign of a portrait; a failure to look for one should not stop the rest.
+      const faces = host.detectFaces ? await host.detectFaces(lightUri).catch(() => []) : [];
+      return sceneOf(labels, faces);
+    },
+    /** RF-016: one layer per face found, each with its own settings; red eye is checked at once. */
+    async retouchFaces() {
+      if (!host.detectFaces) throw new Error(t('Detectar rostos só funciona no app.'));
+      setInfo({ busy: t('Procurando rostos…') });
+      try {
+        const faces = await host.detectFaces(lightUri);
+        if (faces.length === 0) throw new Error(t('Nenhum rosto encontrado nesta foto.'));
+        const area = document.createElement('canvas');
+        const actx = area.getContext('2d', { willReadFrequently: true })!;
+        const hasRedEye = (f: DetectedFace) =>
+          [f.leftEye, f.rightEye].some((e) => {
+            if (!e || !light) return false;
+            const r = Math.max(2, Math.round(f.w * light.width * 0.1));
+            area.width = area.height = r * 2;
+            actx.drawImage(light, e.x * light.width - r, e.y * light.height - r, r * 2, r * 2, 0, 0, r * 2, r * 2);
+            return redEyeShare(actx.getImageData(0, 0, r * 2, r * 2).data) > RED_EYE_SHARE;
+          });
+        const added = faces.map((f, i) =>
+          createFaceLayer(t('Rosto {n}', { n: i + 1 }), { ...faceRetouchOf(f), redEye: hasRedEye(f) })
+        );
+        area.width = area.height = 0;
+        editor.addLayers(added);
+        return added.length;
       } finally {
         setInfo({ busy: null });
       }

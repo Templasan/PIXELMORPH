@@ -1,5 +1,5 @@
 import type { Adjustments } from '../domain/adjustments';
-import type { EditorLayer } from '../domain/layers';
+import type { DetectedFace, EditorLayer } from '../domain/layers';
 
 /** One undo step: an adjustment field and its values before/after (the app's history format). */
 export interface HistoryOp {
@@ -78,6 +78,10 @@ export interface EditorHost {
   listPresets(): Promise<PresetRef[]>;
   /** RF-004: the main subject of a picture, transparent elsewhere. Only the app can do this. */
   segmentSubject?(uri: string): Promise<PictureRef>;
+  /** RF-034: what a picture shows. Only the app can do this. */
+  labelImage?(uri: string): Promise<{ text: string; confidence: number }[]>;
+  /** RF-016: where a picture's faces are. Only the app can do this. */
+  detectFaces?(uri: string): Promise<DetectedFace[]>;
   listWatermarks(): Promise<WatermarkRef[]>;
   saveWatermark(watermark: WatermarkRef): Promise<void>;
   deleteWatermark(id: string): Promise<void>;

@@ -28,6 +28,7 @@ const KIND_LABEL: Record<EditorLayer['kind'], string> = {
   liquify: 'Liquify',
   art: 'Filtro artístico',
   cutout: 'Recorte',
+  face: 'Rosto',
 };
 
 const BRUSH_COLORS = ['#E5484D', '#F5A623', '#F5D90A', '#30A46C', '#3B82F6', '#FFFFFF', '#000000'];
@@ -39,10 +40,10 @@ function LayerThumb({ session, layer }: { session: PhotoSession; layer: EditorLa
   useEffect(() => {
     if (ref.current) session.drawThumb(ref.current, layer);
   }, [session, layer]);
-  if (layer.kind === 'adjustments' || layer.kind === 'local' || layer.kind === 'liquify' || layer.kind === 'art' || layer.kind === 'cutout')
+  if (layer.kind === 'adjustments' || layer.kind === 'local' || layer.kind === 'liquify' || layer.kind === 'art' || layer.kind === 'cutout' || layer.kind === 'face')
     return (
       <div className="layer-thumb">
-        <Icon name={layer.kind === 'local' ? 'sun' : layer.kind === 'liquify' ? 'ripple' : layer.kind === 'art' ? 'zap' : layer.kind === 'cutout' ? 'crop' : 'sliders'} size={16} />
+        <Icon name={layer.kind === 'local' ? 'sun' : layer.kind === 'liquify' ? 'ripple' : layer.kind === 'art' ? 'zap' : layer.kind === 'cutout' ? 'crop' : layer.kind === 'face' ? 'eye' : 'sliders'} size={16} />
       </div>
     );
   return <canvas ref={ref} className="layer-thumb" width={THUMB_PX} height={THUMB_PX} />;

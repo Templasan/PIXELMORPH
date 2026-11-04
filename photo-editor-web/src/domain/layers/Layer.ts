@@ -8,7 +8,8 @@
 import { t } from '../../i18n';
 import type { LocalAdjust } from './LocalAdjust';
 import type { WarpSample } from './Warp';
-export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify' | 'art' | 'cutout';
+import type { FaceRetouch } from './FaceRetouch';
+export type LayerKind = 'background' | 'adjustments' | 'paint' | 'text' | 'shape' | 'image' | 'local' | 'liquify' | 'art' | 'cutout' | 'face';
 
 /** RF-004: everything under the layer stays only inside the subject; behind it, this shows. */
 export interface Cutout {
@@ -17,6 +18,8 @@ export interface Cutout {
   /** Behind the subject; with neither, it is transparent. */
   backColor?: string;
   backUri?: string;
+  /** RF-012: blurs the photo's own background instead, in scene units: a portrait effect. */
+  backBlur?: number;
 }
 
 /** RF-050: painted looks, made by filters on the picture; opacity is their intensity. */
@@ -157,6 +160,7 @@ export interface EditorLayer {
   warp?: WarpSample[]; // only present (and meaningful) for kind === 'liquify'
   art?: ArtStyle; // only present (and meaningful) for kind === 'art'
   cutout?: Cutout; // only present (and meaningful) for kind === 'cutout'
+  face?: FaceRetouch; // only present (and meaningful) for kind === 'face'
 }
 
 let strokeCounter = 0;
@@ -256,6 +260,10 @@ export function createShapeLayer(
 
 export function createLocalLayer(name: string, local: LocalAdjust): EditorLayer {
   return { id: createLayerId(), name, kind: 'local', visible: true, opacity: 100, locked: false, local };
+}
+
+export function createFaceLayer(name: string, face: FaceRetouch): EditorLayer {
+  return { id: createLayerId(), name, kind: 'face', visible: true, opacity: 100, locked: false, face };
 }
 
 export function createCutoutLayer(name: string, maskUri: string): EditorLayer {
