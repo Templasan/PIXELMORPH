@@ -50,6 +50,7 @@ const en: Record<string, string> = {
   Cancelar: 'Cancel',
   Apagar: 'Delete',
   'Não foi possível apagar': 'Could not delete',
+  'Importando o arquivo. Um vídeo longo pode levar um minuto.': 'Importing the file. A long video can take a minute.',
   'Tente novamente.': 'Try again.',
   'Salvar prazo': 'Save deadline',
   Remover: 'Remove',

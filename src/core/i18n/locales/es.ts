@@ -53,6 +53,7 @@ const es: Record<string, string> = {
   Cancelar: 'Cancelar',
   Apagar: 'Eliminar',
   'Não foi possível apagar': 'No se pudo eliminar',
+  'Importando o arquivo. Um vídeo longo pode levar um minuto.': 'Importando el archivo. Un vídeo largo puede tardar un minuto.',
   'Tente novamente.': 'Inténtalo de nuevo.',
   'Salvar prazo': 'Guardar plazo',
   Remover: 'Quitar',
