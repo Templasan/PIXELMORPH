@@ -16,10 +16,16 @@ const PROXY_BITRATE = 5_000_000;
 /** Proxies keyframe every second: long gaps made seeks slow (the engine decodes from the keyframe). */
 const PROXY_KEYFRAME_SECONDS = 1;
 
-const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number }> = {
-  '720': { longEdge: PROXY_LONG_EDGE, bitrate: PROXY_BITRATE },
-  '540': { longEdge: 960, bitrate: 3_000_000 },
-  '1080': { longEdge: 1920, bitrate: 10_000_000 },
+/**
+ * The copy for low-end phones keyframes more often. On a Samsung A11 a jump took 315 ms at every
+ * 30 frames and 219 ms at every 10, for a file of the same size.
+ */
+const LOW_END_KEYFRAME_SECONDS = 1 / 3;
+
+const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number; keyframeSeconds: number }> = {
+  '720': { longEdge: PROXY_LONG_EDGE, bitrate: PROXY_BITRATE, keyframeSeconds: PROXY_KEYFRAME_SECONDS },
+  '540': { longEdge: 960, bitrate: 3_000_000, keyframeSeconds: LOW_END_KEYFRAME_SECONDS },
+  '1080': { longEdge: 1920, bitrate: 10_000_000, keyframeSeconds: PROXY_KEYFRAME_SECONDS },
 };
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
@@ -121,7 +127,7 @@ async function transcode(run: Run) {
         width: job.width,
         height: job.height,
         bitrate: VARIANTS[job.variant].bitrate,
-        keyFrameIntervalSeconds: PROXY_KEYFRAME_SECONDS,
+        keyFrameIntervalSeconds: VARIANTS[job.variant].keyframeSeconds,
         outputPath: nativePath(job.tmpUri),
       },
       (progress) => patch(key, { status: 'running', progress })

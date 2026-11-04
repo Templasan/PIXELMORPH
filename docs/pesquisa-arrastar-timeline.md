@@ -126,3 +126,28 @@ No A11, exportação de 12 s: abrir a foto 2,4 s, GPU 0,4 s, desenhar a cena 2,5
 ## Trocar abas no editor de fotos
 
 Sem causa demonstrada, nada mudou. No emulador, cada aba desenha em cerca de 32 ms (dois quadros) e o clique custa até 1 ms de JavaScript. A exceção é Sugestões, com 54 a 133 ms e tarefas longas de cerca de 120 ms; a análise da foto no painel é a suspeita, sem confirmação. O A11 marcou de 44 a 50% de quadros atrasados com `gfxinfo`, mas em poucos quadros (16 a 18), e esse número pode não representar o desenho dentro do WebView. Medir no A11 pelo mesmo caminho do emulador antes de mexer.
+
+## Vídeos pesados no A11
+
+Medido em 2026-11-04, com arquivos em `/sdcard/Movies/pm_test_*`, que ficam no celular para os próximos testes. Fora da pasta do app não há cópia leve, então os primeiros mostram como é sem ela. Essa é a situação de um vídeo recém-importado, até a cópia ficar pronta.
+
+| Arquivo, sem cópia leve | Quadro exato | Tocando |
+|---|---|---|
+| 1080p, 60 s, um quadro completo a cada 6 s | 3,6 s | 1,00, começa em 0,5 s |
+| 1080p, 60 s, só quadros completos | 0,6 s | 1,00, começa em 0,5 s |
+| 1080p em pé, 120 s, um a cada 6 s | 8,9 s | 0,99, começa em 2,5 s |
+| 4K, 60 s | não terminou | não chegou a tocar |
+
+Cópia em 540×960, 120 s, 3 Mbps, 44 MB em todas:
+
+| Quadro completo a cada | Quadro exato | Reserva pronta em |
+|---|---|---|
+| 30 quadros (o que era) | 315 ms | 23 s |
+| **10 quadros (o que ficou, em celular fraco)** | **219 ms** | **13 s** |
+| 3 quadros | 167 ms | 9 s |
+
+Em todas: arrastar custa cerca de 1 ms por salto, velocidade 1,00 ou 0,99, sem erro. A qualidade visual a 3 Mbps com quadros completos mais frequentes não foi avaliada, mas é só prévia; o vídeo final usa o original.
+
+- **`optimizeForLatency`: testado, sem ganho.** 317 a 385 ms contra 315, e 222 a 227 contra 219. Fica de fora.
+- **Durante os saltos exatos sem cópia leve apareceu "Decoding error."** Esse teste não passa por `session.seek`, então a reserva não se afasta. Pelo uso real com a cópia, em 3 rodadas, nenhum erro.
+- **Ainda não testado:** a cópia nova gerada de verdade pelo app. As da tabela foram feitas com ffmpeg, com os mesmos parâmetros.
