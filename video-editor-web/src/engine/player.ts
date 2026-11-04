@@ -1,3 +1,4 @@
+import type { ScrubFrames } from './scrubFrames';
 import type { VideoSample } from 'mediabunny';
 import {
   liveLayerCap,
@@ -54,6 +55,11 @@ const MAX_HOLD_MS = 400;
 /** Decoders of clips that left the window are closed this often while playing. */
 const PRUNE_EVERY_MS = 1000;
 
+/** After this long without a new position, a drag has rested: time for the exact frame. */
+const EXACT_AFTER_REST_MS = 90;
+const DECODE_RETRIES = 2;
+const DECODE_RETRY_MS = 250;
+
 /**
  * The preview. It is the ONLY owner of the playhead: the editor asks it to play, pause and seek,
  * and shows whatever time it reports. While playing, the sound's clock leads (the picture follows
@@ -74,6 +80,9 @@ export class Player {
   private stillWanted: number | null = null;
   private stillRun: Promise<void> | null = null;
   private primed = new Set<string>();
+  private exactTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Frames ready to show at once; the session gives it, and a player without it jumps as before. */
+  scrub: ScrubFrames | null = null;
   /** The moment whose exact frame a still draw last put on screen. */
   private stillShownAt: number | null = null;
   private heldSince = 0;
@@ -175,6 +184,7 @@ export class Player {
 
   async play() {
     if (this.playing || this.comp.durationMs <= 0) return;
+    clearTimeout(this.exactTimer);
     if (this.t >= this.endMs() - 1) this.setTime(this.loop?.startMs ?? 0);
     this.playing = true;
     this.events.onPlaying(true);
@@ -205,16 +215,53 @@ export class Player {
   /** Seek that resolves when the exact frame is on screen (diagnostics, tests). */
   seekAndWait(ms: number): Promise<void> {
     this.seek(ms);
-    return this.stillRun ?? Promise.resolve();
+    clearTimeout(this.exactTimer);
+    return this.drawStill(this.t);
   }
 
-  /** Moves the playhead now; the picture follows as soon as it is decoded (latest request wins). */
+  /**
+   * Moves the playhead now. A frame from the reserve shows at once when there is one, and the exact
+   * frame follows once the finger rests, so a drag does not start a decoder for every position.
+   */
   seek(ms: number) {
     const t = Math.max(0, Math.min(this.comp.durationMs, ms));
     this.setTime(t);
     this.primed.clear();
-    if (this.playing) this.anchorAt(t);
-    else void this.drawStill(t);
+    if (this.playing) {
+      this.anchorAt(t);
+      return;
+    }
+    clearTimeout(this.exactTimer);
+    if (this.drawNearest(t)) {
+      this.exactTimer = setTimeout(() => void this.drawStill(this.t), EXACT_AFTER_REST_MS);
+    } else {
+      void this.drawStill(t);
+    }
+  }
+
+  /** Every layer from what is already in memory. False, drawing nothing, if one has nothing. */
+  private drawNearest(t: number): boolean {
+    if (!this.scrub) return false;
+    const d = this.comp.durationMs;
+    const ops = opsAt(this.comp, d > 0 && t >= d ? d - 1 : t);
+    const frames = new Map<MediaOp, VideoSample | ImageBitmap | null>();
+    for (const op of ops) {
+      if (op.kind === 'video') {
+        const frame = this.scrub.nearest(op.uri, op.sourceTimeMs);
+        if (!frame) return false;
+        // drawFrame reads a canvas exactly as it reads a picture.
+        frames.set(op, frame as unknown as ImageBitmap);
+      } else if (op.kind === 'image') {
+        const picture = this.pool.pictureNow(op.uri, this.comp.width);
+        if (!picture) return false;
+        frames.set(op, picture);
+      }
+    }
+    this.stillShownAt = null;
+    this.lastSig = '';
+    drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null, this.boxes);
+    this.events.onDrawn?.();
+    return true;
   }
 
   private anchorAt(t: number) {
@@ -370,7 +417,7 @@ export class Player {
               frames.set(op, await this.pool.picture(op.uri, this.comp.width));
             if (op.kind !== 'video') return;
             const feed: Feed = await this.pool.feedReady(op.key, op.uri);
-            frames.set(op, await feed.seek(op.sourceTimeMs / 1000));
+            frames.set(op, await this.decodeExact(feed, op.sourceTimeMs / 1000));
           })
         );
         // A newer request arrived while decoding: draw that one instead of a stale frame.
@@ -386,12 +433,25 @@ export class Player {
     }
   }
 
+  /** A decoder can refuse while another still holds the hardware: that passes, so try again first. */
+  private async decodeExact(feed: Feed, sec: number) {
+    for (let tries = 0; ; tries += 1) {
+      try {
+        return await feed.seek(sec);
+      } catch (e) {
+        if (tries >= DECODE_RETRIES) throw e;
+        await new Promise((r) => setTimeout(r, DECODE_RETRY_MS));
+      }
+    }
+  }
+
   private fail(e: unknown) {
     this.events.onError(String((e as Error)?.message ?? e));
   }
 
   /** Stops this player; the media pool belongs to the session and stays open. */
   dispose() {
+    clearTimeout(this.exactTimer);
     this.playing = false;
     cancelAnimationFrame(this.raf);
     this.audio.dispose();

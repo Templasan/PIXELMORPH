@@ -2,6 +2,20 @@
 
 Escrito em 2026-11-04. Nada daqui está implementado ainda. Celular de teste: Samsung A11 (SM-A115M, serial `R9QN708EGRB`), Android 10, só 32 bits (`armeabi-v7a`), 2,9 GB de memória, sem giroscópio.
 
+## Estado em 2026-11-04
+
+Feito: reserva de quadros em segundo plano (`engine/scrubFrames.ts`, `domain/scrubPlan.ts`). Um salto mostra na hora o quadro mais próximo da memória, e o exato vem 90 ms depois de o dedo parar.
+
+Medido no A11, quente, num clipe de 24,5 s: cada salto custa cerca de 1 ms (pior 6 ms), 60 de 60 desenhados, antes cerca de 300 ms até a imagem mudar. O quadro exato chega em cerca de 360 ms depois de parar. A reserva tem 25 quadros, 5,5 MB, e fica pronta em cerca de 6,5 s se ninguém mexer.
+
+Limites: o quadro aproximado vem de até meio segundo antes ou depois, com 180 px no lado menor, então fica borrado e um pouco fora de lugar até o exato chegar. Até a reserva ficar pronta, e num clipe recém-importado, o salto é como antes. Enquanto se arrasta, a reserva não avança.
+
+Testado e descartado: a tag `<video>` no A11: abrir levou mais de 6 s e o quadro veio em cerca de 600 ms, contra cerca de 300 ms no nosso caminho.
+
+Achado: arrastar enquanto a reserva era feita dava "Decoding error.", porque o A11 tem poucos decodificadores de hardware. Agora a reserva e as miniaturas soltam o decodificador por 1,5 s depois de cada salto, e o quadro exato tenta de novo antes de mostrar erro.
+
+Falta sentir na mão, e medir com várias camadas e com clipes longos.
+
 ## O que o dono quer
 
 Pular e arrastar na linha do tempo com a sensação do CapCut, mesmo no A11. O critério é "isso é aceitável num app profissional?", não a comparação com versões antigas.
@@ -81,7 +95,7 @@ Lido no código em 2026-11-04, sem medir ainda.
 Cada passo é medido no A11 antes e depois, incluindo a memória.
 
 1. **Modo de arrastar:** interface na hora, pedidos velhos cancelados, último quadro bom na tela. Exato só ao soltar. Registrar as tarefas longas durante o arraste.
-2. **Experimento de decodificador:** medir o salto com `getSample` (hoje), com um decodificador mantido aberto, com `optimizeForLatency` e com `<video>`, na cópia leve. O resultado do OpenReel no computador não garante o mesmo no A11.
+2. **Experimento de decodificador:** medir o salto com `getSample` (hoje), com um decodificador mantido aberto e com `optimizeForLatency`, na cópia leve. Serve para o quadro exato chegar mais rápido. `<video>` já foi testado e descartado.
 3. **Saltos curtos para a frente sem recomeçar**, e sem jogar a fila fora.
 4. **Reserva de quadros perto do cursor**, bem menor que a do OpenReel, e liberada quando a memória apertar. O app já chegou a 534 MB no A11.
 5. **Miniaturas enquanto arrasta**, geradas em segundo plano.

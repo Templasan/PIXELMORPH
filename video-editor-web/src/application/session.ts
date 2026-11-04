@@ -18,10 +18,13 @@ import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat, SpeechProgress } from '../ports/host';
 import { captionClips } from './speechCaptions';
 import { trackFaces } from '../domain/faceTrack';
+import { scrubBudget } from '../domain/scrubPlan';
+import { ScrubFrames } from '../engine/scrubFrames';
 import { isLowEndDevice, previewShortEdge, speechMinutesOn } from '../domain/deviceClass';
 import { correctionsOf, type MotionSample } from '../domain/stabilize';
 import { motionPathOf, setMotionPath } from '../engine/motion';
 
+const BACKGROUND_WAITS_AFTER_JUMP_MS = 1500;
 const FACE_STEP_MS = 500;
 const FACE_MAX_SAMPLES = 240;
 import { frameSize } from '../domain/format';
@@ -72,7 +75,11 @@ export function createEditorSession(host: EditorHost) {
   const busy = createStore<string | null>(null);
   const projectName = createStore('Projeto sem nome');
   // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
-  const previews = new MediaPreviews(pool, () => playing.get());
+  // Background decoding waits while the person plays or moves the playhead: their frames come first.
+  let lastJumpAt = 0;
+  const previewBusy = () => playing.get() || performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
+  const previews = new MediaPreviews(pool, previewBusy);
+  const scrubFrames = new ScrubFrames(pool, previewBusy, scrubBudget(isLowEndDevice(deviceMemory)));
   const format = createStore<ProjectFormat>('16:9');
   /** Video layers holding their frame while playing (see liveLayerKeys). */
   const frozenLayers = createStore(0);
@@ -94,12 +101,20 @@ export function createEditorSession(host: EditorHost) {
       [...new Set(tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri)))],
       isLowEndDevice(deviceMemory)
     );
+  /** The files the preview shows: original or its light copy, whichever it reads now. */
+  const wantScrubFrames = (tracks: Track[]) =>
+    scrubFrames.want([
+      ...new Set(
+        tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video' && !c.frozen).map((c) => previewMap[c.sourceUri] ?? c.sourceUri))
+      ),
+    ]);
   /** How many video files the preview reads from a light copy (shown as a badge). */
   const previewCopies = createStore(0);
   host.onPreviewSources?.((map) => {
     previewMap = map;
     previewCopies.set(Object.keys(map).length);
     player?.setComposition(compose(editor.store.get().tracks));
+    wantScrubFrames(editor.store.get().tracks);
   });
   // Nothing is saved until the project has loaded: a save in between wrote an empty timeline.
   let loaded = false;
@@ -124,6 +139,7 @@ export function createEditorSession(host: EditorHost) {
     if (tracks === lastTracks) return;
     lastTracks = tracks;
     askPreviewSources(tracks);
+    wantScrubFrames(tracks);
     player?.setComposition(compose(tracks));
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS);
@@ -152,6 +168,7 @@ export function createEditorSession(host: EditorHost) {
     }
     loaded = true;
     askPreviewSources(editor.store.get().tracks);
+    wantScrubFrames(editor.store.get().tracks);
   }
 
   function attach(canvas: HTMLCanvasElement) {
@@ -169,6 +186,7 @@ export function createEditorSession(host: EditorHost) {
       },
       compose(editor.store.get().tracks)
     );
+    player.scrub = scrubFrames;
     player.seek(time.get());
   }
 
@@ -420,6 +438,7 @@ export function createEditorSession(host: EditorHost) {
       return t;
     },
     exportVideo,
+    scrubFrames,
     generateCaptions,
     findClipFaces,
     setClipSteady,
@@ -447,7 +466,10 @@ export function createEditorSession(host: EditorHost) {
     play: () => void player?.play(),
     pause: () => player?.pause(),
     toggle: () => player?.toggle(),
-    seek: (ms: number) => player?.seek(ms),
+    seek: (ms: number) => {
+      lastJumpAt = performance.now();
+      player?.seek(ms);
+    },
     seekAndWait: (ms: number) => player?.seekAndWait(ms) ?? Promise.resolve(),
     /** Diagnostics: what a media file is, as the editor reads it. */
     probe: (uri: string) => probeMedia(pool, uri),
