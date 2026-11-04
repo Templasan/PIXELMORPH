@@ -1,3 +1,4 @@
+import type { FaceTrack } from './faceTrack';
 /**
  * RF-005: a real (if intentionally simple) multi-track timeline data model. Clips on a
  * track are non-overlapping and ordered by `startMs`; the timeline itself has no
@@ -81,6 +82,8 @@ export interface Clip {
   sphericalFlat?: boolean;
   /** The flat cut's horizontal field of view, in degrees. */
   sphericalFov?: number;
+  /** RF-016: the faces followed in this clip, each with its own retouch. */
+  faces?: FaceTrack[];
   /** Fill the frame (or its PiP box), cropping, instead of fitting inside it. */
   fill?: boolean;
   /** RF-008: a clip with a text is a text over what is below it. */

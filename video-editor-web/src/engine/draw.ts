@@ -1,3 +1,4 @@
+import { poseAt } from '../domain/faceTrack';
 import type { VideoSample } from 'mediabunny';
 import type { Box, CompositionOp, MediaOp } from '../domain/composition';
 import { renderSphere } from './sphereGl';
@@ -60,8 +61,109 @@ function sphereFrame(op: MediaOp, frame: VideoSample | ImageBitmap): OffscreenCa
 }
 let sphereSource: OffscreenCanvas | null = null;
 
+let faceFrame: OffscreenCanvas | null = null;
+let faceWork: OffscreenCanvas | null = null;
+
+/**
+ * RF-016: the frame with its faces retouched. The same oval as a photo's, with the eyes and mouth
+ * left out so they stay sharp; only the box around each face is worked on, to keep up with playback.
+ */
+function retouchFaces(op: MediaOp, frame: VideoSample | ImageBitmap): OffscreenCanvas | null {
+  const sample = 'displayWidth' in frame ? frame : null;
+  const sw = sample ? sample.displayWidth : (frame as ImageBitmap).width;
+  const sh = sample ? sample.displayHeight : (frame as ImageBitmap).height;
+  if (!sw || !sh) return null;
+  const poses = op.faces!.flatMap((track) => {
+    const pose = poseAt(track.poses, op.sourceTimeMs);
+    return pose && (track.smooth > 0 || track.eyes > 0 || track.tone !== 0) ? [{ track, pose }] : [];
+  });
+  if (poses.length === 0) return null;
+  faceFrame ??= new OffscreenCanvas(sw, sh);
+  if (faceFrame.width !== sw || faceFrame.height !== sh) {
+    faceFrame.width = sw;
+    faceFrame.height = sh;
+  }
+  const out = faceFrame.getContext('2d')!;
+  if (sample) sample.draw(out, 0, 0, sw, sh);
+  else out.drawImage(frame as ImageBitmap, 0, 0, sw, sh);
+  faceWork ??= new OffscreenCanvas(2, 2);
+  for (const { track, pose } of poses) {
+    const margin = pose.w * sw * 0.15;
+    const x = Math.floor(pose.x * sw - margin);
+    const y = Math.floor(pose.y * sh - margin);
+    const w = Math.ceil(pose.w * sw + margin * 2);
+    const h = Math.ceil(pose.h * sh + margin * 2);
+    faceWork.width = w;
+    faceWork.height = h;
+    const work = faceWork.getContext('2d')!;
+    const cx = (pose.x + pose.w / 2) * sw - x;
+    const cy = (pose.y + pose.h / 2) * sh - y;
+    const faceW = pose.w * sw;
+    const eyeRx = faceW * 0.13;
+    const hole = (px: number, py: number, rx: number, ry: number) => {
+      work.beginPath();
+      work.ellipse(px * sw - x, py * sh - y, rx, ry, 0, 0, Math.PI * 2);
+      work.fill();
+    };
+    const skinOnly = () => {
+      // Soft oval, by a radial gradient on a squeezed circle: a filter would cost too much per frame.
+      work.globalCompositeOperation = 'destination-in';
+      work.save();
+      work.translate(cx, cy);
+      work.scale(1, (pose.h * sh) / (pose.w * sw));
+      const g = work.createRadialGradient(0, 0, faceW * 0.32, 0, 0, faceW * 0.5);
+      g.addColorStop(0, '#fff');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      work.fillStyle = g;
+      work.fillRect(-w, -h * 2, w * 2, h * 4);
+      work.restore();
+      work.globalCompositeOperation = 'destination-out';
+      work.fillStyle = '#000';
+      if (pose.leftEye) hole(pose.leftEye.x, pose.leftEye.y, eyeRx, eyeRx * 0.62);
+      if (pose.rightEye) hole(pose.rightEye.x, pose.rightEye.y, eyeRx, eyeRx * 0.62);
+      if (pose.mouth) hole(pose.mouth.x, pose.mouth.y, pose.mouth.w * sw * 0.65, pose.mouth.w * sw * 0.4);
+      work.globalCompositeOperation = 'source-over';
+    };
+    if (track.smooth > 0) {
+      work.filter = `blur(${((track.smooth / 100) * faceW * 0.022).toFixed(2)}px)`;
+      work.drawImage(faceFrame, -x, -y);
+      work.filter = 'none';
+      skinOnly();
+      out.globalAlpha = 0.25 + (track.smooth / 100) * 0.4;
+      out.drawImage(faceWork, x, y);
+      out.globalAlpha = 1;
+    }
+    if (track.tone !== 0) {
+      work.clearRect(0, 0, w, h);
+      work.fillStyle = track.tone > 0 ? '#ffb070' : '#70b0ff';
+      work.fillRect(0, 0, w, h);
+      skinOnly();
+      out.globalCompositeOperation = 'soft-light';
+      out.globalAlpha = (Math.abs(track.tone) / 100) * 0.6;
+      out.drawImage(faceWork, x, y);
+      out.globalCompositeOperation = 'source-over';
+      out.globalAlpha = 1;
+    }
+    if (track.eyes > 0) {
+      const e = track.eyes / 100;
+      out.save();
+      out.beginPath();
+      for (const p of [pose.leftEye, pose.rightEye]) {
+        if (!p) continue;
+        out.ellipse(p.x * sw, p.y * sh, eyeRx * 0.7, eyeRx * 0.35, 0, 0, Math.PI * 2);
+        out.closePath();
+      }
+      out.clip();
+      out.filter = `brightness(${1 + e * 0.15}) contrast(${1 + e * 0.3}) saturate(${1 + e * 0.1})`;
+      out.drawImage(faceFrame, 0, 0);
+      out.restore();
+    }
+  }
+  return faceFrame;
+}
+
 function drawMedia(ctx: Ctx2D, op: MediaOp, original: VideoSample | ImageBitmap): Box | null {
-  const frame = (op.sphere && sphereFrame(op, original)) || original;
+  const frame = (op.sphere && sphereFrame(op, original)) || (op.faces && retouchFaces(op, original)) || original;
   const sample = 'displayWidth' in frame ? frame : null;
   const sw = sample ? sample.displayWidth : (frame as ImageBitmap).width;
   const sh = sample ? sample.displayHeight : (frame as ImageBitmap).height;

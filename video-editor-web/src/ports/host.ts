@@ -1,3 +1,4 @@
+import type { FaceSample } from '../domain/faceTrack';
 import type { Track } from '../domain/Track';
 import type { FileReader } from '../engine/media';
 
@@ -61,6 +62,9 @@ export interface EditorHost {
    * video files it shows; the host answers, now and whenever more are ready, with
    * original → copy. Hosts without copies leave these out.
    */
+  /** RF-016: faces in frames sampled from a stretch of a file. Only the app can do this. */
+  sampleFaces?(uri: string, inMs: number, outMs: number, stepMs: number, onProgress: (percent: number) => void): Promise<FaceSample[]>;
+  cancelFaces?(): void;
   /** RF-069: only the app can do this. */
   speechModelReady?(): Promise<boolean>;
   transcribeSpeech?(uri: string, inMs: number, outMs: number, onProgress: (p: SpeechProgress) => void): Promise<SpeechSegment[]>;
