@@ -195,7 +195,12 @@ export async function copyToAppStorage(
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
   const extension = (fileName ?? uri).match(/\.(\w{2,5})$/)?.[1] ?? 'jpg';
   const destination = `${dir}${uniqueStamp()}.${extension}`;
-  await FileSystem.copyAsync({ from: uri, to: destination });
+  // The picker's own copy is ours to take: copying it again took half of importing a long video.
+  if (uri.startsWith(`${FileSystem.cacheDirectory}ImagePicker/`)) {
+    await FileSystem.moveAsync({ from: uri, to: destination });
+  } else {
+    await FileSystem.copyAsync({ from: uri, to: destination });
+  }
   return destination;
 }
 

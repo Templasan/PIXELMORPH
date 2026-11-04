@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -102,6 +102,12 @@ export function MainBar({ active }: { active: Destination }) {
 
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
+      <Modal visible={importing} transparent statusBarTranslucent animationType="fade">
+        <View style={styles.importing}>
+          <ActivityIndicator color={colors.texto} size="large" />
+          <Text style={styles.importingText}>{t('Importando o arquivo. Um vídeo longo pode levar um minuto.')}</Text>
+        </View>
+      </Modal>
       <BarLink
         icon="folder"
         label={t('Projetos')}
@@ -136,6 +142,15 @@ export function MainBar({ active }: { active: Destination }) {
 }
 
 const styles = StyleSheet.create({
+  importing: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 32,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  importingText: { color: colors.texto, fontSize: fontSize.md, textAlign: 'center' },
   bar: {
     zIndex: 1,
     flexDirection: 'row',
