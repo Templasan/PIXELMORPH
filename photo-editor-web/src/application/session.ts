@@ -7,7 +7,7 @@ import { encodePsd, opaqueBounds, type PsdLayer } from '../domain/export/psd';
 import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
-import { drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
+import { drawCutoutMask, localParts, drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
 import { fillHole } from '../domain/fillHole';
 import {
   createCutoutLayer,
@@ -156,6 +156,9 @@ async function deflated(bytes: Uint8Array): Promise<Uint8Array> {
  * rasterized. What works on the pixels below (colour adjustments, masks, retouch, painted looks)
  * has no equivalent to write, so it goes into a bottom layer with everything under it.
  */
+/** Effect steps kept as layers of their own in a PSD. */
+const MAX_PSD_EFFECT_LAYERS = 6;
+
 function psdOf(
   picture: HTMLCanvasElement,
   layers: EditorLayer[],
@@ -171,7 +174,6 @@ function psdOf(
   }
 ): Uint8Array {
   const { w, h } = s.size.scene;
-  const lastBaked = layers.reduce((last, l, i) => (l.visible && (l.local || l.warp || l.art) ? i : last), -1);
   const pixelsOf = (paint: (ctx: CanvasRenderingContext2D) => void) => {
     const c = document.createElement('canvas');
     c.width = picture.width;
@@ -202,24 +204,67 @@ function psdOf(
       visible: l?.visible ?? true,
     });
   };
-  add(
-    t('Fundo'),
-    pixelsOf((ctx) =>
-      drawScene(ctx, {
-        photo: s.photo,
-        size: s.size,
-        adjustments: s.a,
-        layers: layers.slice(0, lastBaked + 1),
-        frameColor: s.frameColor,
-        frameGradientColor: s.frameGradientColor,
-        pictureOf: s.pictureOf,
-      })
-    )
+  const scene = {
+    photo: s.photo,
+    size: s.size,
+    adjustments: s.a,
+    frameColor: s.frameColor,
+    frameGradientColor: s.frameGradientColor,
+    pictureOf: s.pictureOf,
+    layers: [] as EditorLayer[],
+  };
+  const through = (end: number) => (ctx: CanvasRenderingContext2D) => drawScene(ctx, { ...scene, layers: layers.slice(0, end) });
+  const isEffect = (l: EditorLayer) => !!(l.local || l.warp || l.art || l.face || l.cutout);
+  // A plain subject cut-out hides everything under it: that is a mask on the picture so far.
+  const cutAt = layers.reduce(
+    (last, l, i) => (l.visible && l.cutout && !l.cutout.backUri && !l.cutout.backColor && !l.cutout.backBlur ? i : last),
+    -1
   );
-  for (const l of layers.slice(lastBaked + 1)) {
-    if (l.kind === 'background' || l.kind === 'adjustments') continue;
-    add(l.name, pixelsOf((ctx) => drawLayer(ctx, { ...l, opacity: 100, blend: undefined, visible: true }, w, h, s.pictureOf)), l);
+  const effects = layers.flatMap((l, i) => (i > cutAt && l.visible && isEffect(l) ? [i] : []));
+  // Each of these is a whole picture in memory: past the limit, the earliest ones are merged.
+  const kept = effects.slice(-MAX_PSD_EFFECT_LAYERS);
+  const from = cutAt >= 0 && effects.length <= MAX_PSD_EFFECT_LAYERS ? cutAt + 1 : (kept[0] ?? cutAt + 1);
+  add(t('Fundo'), pixelsOf(through(cutAt >= 0 ? cutAt : from)));
+  if (cutAt >= 0) {
+    const { cutout } = layers[cutAt];
+    if (out.length) out[out.length - 1].mask = pixelsOf((ctx) => drawCutoutMask(ctx, cutout!, scene));
+    if (from > cutAt + 1) add(t('Efeitos'), pixelsOf(through(from)));
   }
+  layers.slice(from).forEach((l, offset) => {
+    const i = from + offset;
+    if (l.kind === 'background' || l.kind === 'adjustments') return;
+    if (!isEffect(l)) {
+      add(l.name, pixelsOf((ctx) => drawLayer(ctx, { ...l, opacity: 100, blend: undefined, visible: true }, w, h, s.pictureOf)), l);
+      return;
+    }
+    if (!l.visible) return;
+    const local = l.local && !l.clip && !layers[i + 1]?.clip ? l.local : null;
+    if (!local || (local.mask === 'brush' && local.strokes.length === 0) || (local.clone && !local.offset)) {
+      // Nothing a PSD can hold apart (liquify, art, a face, a filled background): this step's picture.
+      add(l.name, pixelsOf(through(i + 1)));
+      return;
+    }
+    // The change as its own pixels, with its real, editable mask, over what is under it.
+    const under = document.createElement('canvas');
+    under.width = picture.width;
+    under.height = picture.height;
+    const uctx = under.getContext('2d', { willReadFrequently: true })!;
+    uctx.setTransform(s.k, 0, 0, s.k, 0, 0);
+    through(i)(uctx);
+    const { changed, mask } = localParts(uctx, l, w, h);
+    const read = (c: CanvasRenderingContext2D) => {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      return c.getImageData(0, 0, picture.width, picture.height).data;
+    };
+    const pixels = read(changed);
+    const alpha = read(mask);
+    if (local.invert) for (let p = 3; p < alpha.length; p += 4) alpha[p] = 255 - alpha[p];
+    const before = out.length;
+    add(l.name, pixels, l);
+    if (out.length > before) out[before].mask = alpha;
+    changed.canvas.width = changed.canvas.height = mask.canvas.width = mask.canvas.height = 0;
+    under.width = under.height = 0;
+  });
   const composite = picture.getContext('2d')!.getImageData(0, 0, picture.width, picture.height).data;
   return encodePsd(picture.width, picture.height, out, composite, s.dpi);
 }

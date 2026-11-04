@@ -193,6 +193,23 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
     return;
   }
   if (l.clone && !l.offset) return;
+  const { changed, mask } = localParts(ctx, layer, w, h);
+  changed.globalCompositeOperation = l.invert ? 'destination-out' : 'destination-in';
+  changed.drawImage(mask.canvas, 0, 0);
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = layer.opacity / 100;
+  ctx.globalCompositeOperation = layer.blend ?? 'source-over';
+  ctx.drawImage(changed.canvas, 0, 0);
+  ctx.restore();
+  mask.canvas.width = mask.canvas.height = 0;
+  changed.canvas.width = changed.canvas.height = 0;
+}
+
+/** What a local layer makes of what is under it, and its mask, kept apart: a PSD needs them so. */
+export function localParts(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number, h: number) {
+  const l = layer.local!;
   const transform = ctx.getTransform();
   const k = Math.hypot(transform.a, transform.b);
 
@@ -230,17 +247,16 @@ function drawLocal(ctx: CanvasRenderingContext2D, layer: EditorLayer, w: number,
   changed.filter = localFilter(l, k);
   changed.drawImage(ctx.canvas, l.offset ? -l.offset.dx * k : 0, l.offset ? -l.offset.dy * k : 0);
   changed.filter = 'none';
-  changed.globalCompositeOperation = l.invert ? 'destination-out' : 'destination-in';
-  changed.drawImage(mask.canvas, 0, 0);
+  return { changed, mask };
+}
 
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = layer.opacity / 100;
-  ctx.globalCompositeOperation = layer.blend ?? 'source-over';
-  ctx.drawImage(changed.canvas, 0, 0);
-  ctx.restore();
-  mask.canvas.width = mask.canvas.height = 0;
-  changed.canvas.width = changed.canvas.height = 0;
+/** RF-004 for a PSD: the subject's mask, placed as the picture shows it. */
+export function drawCutoutMask(ctx: CanvasRenderingContext2D, c: Cutout, s: SceneInput) {
+  const mask = s.pictureOf?.(c.maskUri);
+  if (!mask) return;
+  ctx.translate(s.size.scene.w / 2, s.size.scene.h / 2);
+  ctx.rotate(totalRotationRadOf(s.adjustments));
+  ctx.drawImage(mask, -s.size.photo.w / 2, -s.size.photo.h / 2, s.size.photo.w, s.size.photo.h);
 }
 
 /** Readback for spot fixes stays this small: skin spots are soft, and this runs on every redraw. */

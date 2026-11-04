@@ -164,3 +164,27 @@ describe('Adobe RGB', () => {
     expect(text).not.toContain('sRGB');
   });
 });
+
+describe('encodePsd with a layer mask', () => {
+  const w = 2;
+  const h = 2;
+  const rgba = new Uint8ClampedArray(w * h * 4).fill(200);
+  const layer: PsdLayer = { name: 'Mascara', left: 0, top: 0, width: w, height: h, rgba, opacity: 255, blend: 'source-over', clip: false, visible: true };
+  const plain = encodePsd(w, h, [layer], rgba, 72);
+  const masked = encodePsd(w, h, [{ ...layer, mask: rgba }], rgba, 72);
+  const recordAt = (b: Uint8Array) => {
+    for (let i = 0; i + 8 < b.length; i += 1) {
+      if (String.fromCharCode(...b.subarray(i, i + 8)) === '8BIMnorm') return i;
+    }
+    return -1;
+  };
+
+  it('writes the mask box in the extra data, and its channel', () => {
+    const at = recordAt(masked);
+    expect(u32(masked, at + 12)).toBe(u32(plain, recordAt(plain) + 12) + 20);
+    expect(u32(masked, at + 16)).toBe(20);
+    expect(u32(masked, at + 28)).toBe(h);
+    expect(u32(masked, at + 32)).toBe(w);
+    expect(masked.length).toBeGreaterThan(plain.length);
+  });
+});
