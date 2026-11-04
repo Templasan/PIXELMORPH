@@ -172,3 +172,23 @@ Achados: miniaturas liam o original mesmo com cópia pronta, o que tirava o deco
 Mostrar na hora um blur do vídeo inteiro (a reserva já é isso), gerar a cópia em pedaços, começando por onde a pessoa está, e trocar o blur pela imagem boa conforme chegam. Ganha espera e não perder tudo se o sistema matar o app; não ganha tempo total, porque o A11 recusa mais decodificadores de hardware. O custo é a prévia saber qual arquivo cobre cada instante.
 
 Ordem combinada: (1) reserva durante a cópia, em arquivos que a página decodifica; (2) testar um vídeo de 30 minutos no A11. Projeção sem medir: 18 min de cópia em 1080p; (3) só então os pedaços, se a espera incomodar ou o app morrer no meio.
+
+## Hipóteses de velocidade testadas no A11 (2026-11-04, noite)
+
+| Hipótese | Resultado | Decisão |
+|---|---|---|
+| Prioridade e velocidade máxima do codec, cópia sem áudio | 16,2 s para 30 s de vídeo em todas | Sem ganho, fora |
+| A cópia em 1080p tem limite físico | 55 quadros/s; o aparelho declara 489.600 blocos/s, ou 1080p a 60 | Confirmado: cópia não acelera |
+| Saída menor (360p) | 24 s contra 16 s | Sem ganho, fora |
+| Pedaços em paralelo | O decodificador recusa o segundo, e o pedaço restante não acelera | Fora |
+| Quadro exato lento durante a cópia | Os 6,9 s vinham do vídeo de teste, com quadro completo a cada ~6 s. Com um por segundo: 248 ms de mediana (pior 1,2 s), toca a 1,00 | Sem mudança. Falta conferir um vídeo real da câmera |
+| Buffer de áudio maior (latencyHint) | Velocidade igual, cerca de 0,87 | Fora |
+| Um nó de som por trecho de 20 ms atrasa o relógio | Em blocos de 0,5 s, com 3 camadas: começa em 0,38 a 0,44 s e estabiliza em 1,00 (0,97 no total) | Adotado |
+| Duas cópias no 4K | Uma de 1080p serve à prévia e à exportação: 278 ms, toca a 1,00; exportação de 418 s para 183 s depois da cópia | Adotado |
+| MP4 fragmentado, legível enquanto é escrito | Primeira imagem do 4K em 32 s, em vez de ~4 min; toca até onde a cópia chegou | Adotado só acima de 1080p |
+| Cópia de 540p feita a partir da de 1080p | Não foi gerada; a causa provável é o arquivo fragmentado não informar duração (não confirmada). A de 1080p já bastava | Retirado |
+| Importar copia o arquivo duas vezes | Mover a cópia do seletor: 30 min de 63 s para 16 s | Adotado |
+
+Medidas finais: cópia de 1080p de 30 min em cerca de 12 min 40 s, com o app aberto até o fim; de 2 min em 68 s. 4K de 1 min em 244 a 256 s. Vídeo tipo câmera de 60 s: importa em 7 s; durante a cópia, arrastar 0,1 ms e quadro exato de 180 a 991 ms; o app em segundo plano por 25 s não matou a cópia; depois dela, 107 a 154 ms; exportação em 1080×1920 em 211 s.
+
+Pendente: se o sistema matar o app, a cópia recomeça do zero. Várias camadas de 4K ao mesmo tempo não foram testadas, e cada uma usa uma cópia de 1080p; o hardware decodifica o equivalente a duas a 30 quadros/s. O dono precisa ouvir se os estalos sumiram.

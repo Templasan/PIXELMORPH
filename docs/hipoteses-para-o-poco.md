@@ -22,3 +22,7 @@ Uma hipótese só volta ao código se não piorar o A11: o app precisa continuar
 - **Chrome, Worker e `OffscreenCanvas`** para levar os quadros para fora da thread principal. Tocando, a thread fica 37% ociosa, então não é prioridade.
 
 Detalhes das medições em [pesquisa-arrastar-timeline.md](pesquisa-arrastar-timeline.md) e [leitura-documentacao.md](leitura-documentacao.md).
+
+## Também testadas no A11 em 2026-11-04, a repetir no Poco
+
+Prioridade e velocidade máxima do codec, latencyHint maior e pedaços em paralelo não ajudaram no A11, cujo decodificador recusa o segundo arquivo. O Poco pode ter mais de um decodificador disponível, então vale repetir os pedaços. Detalhes em [pesquisa-arrastar-timeline.md](pesquisa-arrastar-timeline.md).
