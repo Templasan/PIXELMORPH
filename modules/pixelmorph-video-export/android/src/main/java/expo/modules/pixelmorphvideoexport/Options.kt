@@ -55,6 +55,8 @@ data class ExportOptions(
   @Field val bitrate: Int = 0,
   /** Seconds between keyframes of the encoded video; 0 keeps the encoder default (preview proxies use 1). */
   @Field val keyFrameIntervalSeconds: Double = 0.0,
+  /** A file that can be read while it is being written. */
+  @Field val fragmented: Boolean = false,
   @Field val outputPath: String
 ) : Record
 

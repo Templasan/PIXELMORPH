@@ -66,6 +66,8 @@ export interface ExportOptions {
   bitrate?: number;
   /** Seconds between keyframes; omit (0) for the encoder default. Preview proxies pass 1. */
   keyFrameIntervalSeconds?: number;
+  /** Written so it can be read while it is being made. */
+  fragmented?: boolean;
   outputPath: string;
 }
 

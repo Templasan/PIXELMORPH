@@ -81,6 +81,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   const wanted = useRef<string[]>([]);
   const lowEnd = useRef(false);
   const lastMap = useRef('');
+  const lastPartial = useRef('{}');
   const lastPreparing = useRef<number | null | undefined>(undefined);
   const pushProxies = useCallback(() => {
     const state = proxyStore.get();
@@ -100,13 +101,29 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
       );
     }
     const map: Record<string, string> = {};
+    const partial: Record<string, { file: string; progress: number }> = {};
     for (const uri of wanted.current) {
       // A low-end phone takes the lightest copy once there is one, and the usual one until then.
+      const full = lowEnd.current ? state[proxyKey(uri, '1080')] : undefined;
+      if (full?.status === 'running' && full.partialUri) {
+        partial[uri] = { file: full.partialUri, progress: Math.floor(full.progress) };
+      }
+      // The export keeps the 1080p copy. Made from it, the lightest one takes the hardware decoder.
+      const fullUri = full?.status === 'ready' ? full.uri : undefined;
+      if (fullUri && !state[proxyKey(fullUri, '540')]) void requestSourceProxy(fullUri, '540');
+      const fromFull = fullUri ? state[proxyKey(fullUri, '540')] : undefined;
       const light = lowEnd.current
-        ? [state[proxyKey(uri, '540')], state[proxyKey(uri, '1080')]].find((e) => e?.status === 'ready')
+        ? [fromFull, state[proxyKey(uri, '540')], full].find((e) => e?.status === 'ready')
         : undefined;
       const entry = light ?? state[uri];
       if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
+    }
+    const partialJson = JSON.stringify(partial);
+    if (partialJson !== lastPartial.current) {
+      lastPartial.current = partialJson;
+      webRef.current?.injectJavaScript(
+        `window.__pmEvent && window.__pmEvent({type:'previewPartial',partial:${partialJson}});true;`
+      );
     }
     const json = JSON.stringify(map);
     if (json === lastMap.current) return;

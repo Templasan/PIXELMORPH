@@ -42,6 +42,8 @@ export interface ProxyEntry {
   progress: number;
   /** The finished proxy file, once status is 'ready'. */
   uri?: string;
+  /** The file being written, readable up to `progress`, for a copy the page needs meanwhile. */
+  partialUri?: string;
 }
 
 /** Proxy state by source uri. The preview and the editor label subscribe to it with useStore. */
@@ -128,9 +130,15 @@ async function transcode(run: Run) {
         height: job.height,
         bitrate: VARIANTS[job.variant].bitrate,
         keyFrameIntervalSeconds: VARIANTS[job.variant].keyframeSeconds,
+        fragmented: job.variant === '1080',
         outputPath: nativePath(job.tmpUri),
       },
-      (progress) => patch(key, { status: 'running', progress })
+      (progress) =>
+        patch(key, {
+          status: 'running',
+          progress,
+          partialUri: job.variant === '1080' ? job.tmpUri : undefined,
+        })
     );
     await FileSystem.deleteAsync(job.uri, { idempotent: true });
     await FileSystem.moveAsync({ from: job.tmpUri, to: job.uri });

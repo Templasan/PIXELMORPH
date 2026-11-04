@@ -88,6 +88,9 @@ export function createAndroidHost(): EditorHost {
     onPreviewSources(listener) {
       onEvent('previewSources', (e) => listener(e.map as Record<string, string>));
     },
+    onPreviewPartial(listener) {
+      onEvent('previewPartial', (e) => listener(e.partial as Record<string, { file: string; progress: number }>));
+    },
     onPreviewPreparing(listener) {
       onEvent('previewPreparing', (e) => listener(e.progress as number | null));
     },
