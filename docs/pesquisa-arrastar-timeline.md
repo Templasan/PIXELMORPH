@@ -58,12 +58,30 @@ Os dois têm licença MIT. Sobre o CapCut, não há fonte técnica pública enco
 - Mantém uns 10 quadros decodificados à frente.
 - Miniaturas têm decodificador próprio.
 
+## Onde podemos estar errando em relação a eles
+
+Lido no código em 2026-11-04, sem medir ainda.
+
+**1. Um decodificador novo a cada salto. É a suspeita principal.** `feed.seek` chama `sink.getSample`, e na MediaBunny 1.61 isso passa por `mediaSamplesAtTimestamps`, que cria um decodificador, decodifica desde o último quadro completo, faz `flush` e fecha, a cada chamada. Decodificador de hardware no Android pode custar caro para abrir. O WebAV deixa o seu aberto e só recria ao voltar ou pular mais de 3 s. O OpenReel, no caminho com `<video>`, deixa até dois abertos e só muda `currentTime`; quanto o navegador reaproveita por dentro não foi verificado.
+
+**2. Sem `optimizeForLatency`.** O nosso `VideoSampleSink` é criado sem opções de decodificador, se a leitura de `media.ts` estiver certa. Sem isso, o decodificador pode segurar vários quadros antes de entregar o primeiro. A MediaBunny aceita a opção, e nenhum dos dois repositórios foi visto usando, então é uma ideia nossa a medir.
+
+**3. Sem espera antes de decodificar.** O OpenReel espera cerca de 50 ms e, se chegou pedido novo, nem começa. O nosso começa todo pedido.
+
+**4. Fila curta.** Guardamos até 2 quadros à frente; o WebAV, uns 10. Fila maior usa mais memória, então precisa de medida no A11.
+
+**5. Sem qualidade de prévia à escolha.** O OpenReel oferece automático, cheia, metade e um quarto. O nosso agora escolhe pela memória do aparelho, sem opção para o usuário.
+
+**O que nós fazemos bem e eles não:** não fechamos o quadro em tela ao recomeçar, juntamos pedidos (`stillWanted`) e o relógio segue o som. O OpenReel tem timeouts fixos de 250 e 300 ms nesse caminho, o que pode dar quadro errado em celular lento: não copiar sem cuidado.
+
+**Medição a fazer primeiro:** dividir o tempo do salto em abrir o decodificador, demultiplexar, decodificar e desenhar, e comparar `getSample`, um decodificador mantido aberto, e `<video>`.
+
 ## Plano, na ordem
 
 Cada passo é medido no A11 antes e depois, incluindo a memória.
 
 1. **Modo de arrastar:** interface na hora, pedidos velhos cancelados, último quadro bom na tela. Exato só ao soltar. Registrar as tarefas longas durante o arraste.
-2. **Experimento com `<video>`:** medir o salto com ele contra o nosso, na cópia leve. O resultado do OpenReel no computador não garante o mesmo no A11.
+2. **Experimento de decodificador:** medir o salto com `getSample` (hoje), com um decodificador mantido aberto, com `optimizeForLatency` e com `<video>`, na cópia leve. O resultado do OpenReel no computador não garante o mesmo no A11.
 3. **Saltos curtos para a frente sem recomeçar**, e sem jogar a fila fora.
 4. **Reserva de quadros perto do cursor**, bem menor que a do OpenReel, e liberada quando a memória apertar. O app já chegou a 534 MB no A11.
 5. **Miniaturas enquanto arrasta**, geradas em segundo plano.

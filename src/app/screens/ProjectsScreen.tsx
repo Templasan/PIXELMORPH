@@ -377,7 +377,9 @@ export default function ProjectsScreen({ navigation }: Props) {
 
   // Search results are found by name, so they always show it, whatever the view.
   const showRows = layout === 'list' || searchOpen;
-  const nothingToShow = showAlbums ? groupSections.length === 0 : filtered.length === 0;
+  // A single project is the hero card above the grid, so it counts as something to show.
+  const heroShown = !!hero && filtered.includes(hero);
+  const nothingToShow = showAlbums ? groupSections.length === 0 && !heroShown : filtered.length === 0;
   const emptyState = !loading && nothingToShow && (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateText}>
