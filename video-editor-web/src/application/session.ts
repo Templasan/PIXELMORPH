@@ -224,7 +224,11 @@ export function createEditorSession(host: EditorHost) {
           if (text !== null) error.set(text);
           else originalUndecodable = true;
         },
-        onDrawn: () => drawn.set(drawn.get() + 1),
+        onDrawn: () => {
+          drawn.set(drawn.get() + 1);
+          // A refusal that passed: the hardware decoder was only busy for a moment.
+          if (error.get() === t(UNDECODABLE_TEXT)) error.set(null);
+        },
         onFrozenLayers: (count) => frozenLayers.set(count),
         onFrame: (f) => trace?.push(f),
       },

@@ -25,7 +25,7 @@ const LOW_END_KEYFRAME_SECONDS = 1 / 3;
 const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number; keyframeSeconds: number }> = {
   '720': { longEdge: PROXY_LONG_EDGE, bitrate: PROXY_BITRATE, keyframeSeconds: PROXY_KEYFRAME_SECONDS },
   '540': { longEdge: 960, bitrate: 3_000_000, keyframeSeconds: LOW_END_KEYFRAME_SECONDS },
-  '1080': { longEdge: 1920, bitrate: 10_000_000, keyframeSeconds: PROXY_KEYFRAME_SECONDS },
+  '1080': { longEdge: 1920, bitrate: 10_000_000, keyframeSeconds: LOW_END_KEYFRAME_SECONDS },
 };
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
@@ -239,6 +239,26 @@ async function probeSource(uri: string): Promise<ProbedVideo | null> {
 
 const probes = new Map<string, Promise<ProbedVideo | null>>();
 
+function probeOnce(uri: string): Promise<ProbedVideo | null> {
+  let probe = probes.get(uri);
+  if (!probe) {
+    probe = probeSource(uri);
+    probes.set(uri, probe);
+  }
+  return probe;
+}
+
+/**
+ * The copy for a low-end phone. A file above 1080p gets one 1080p copy, which the preview and the
+ * export share: on a Samsung A11 it jumps in 231 ms and plays at 1.00, and making a second copy for
+ * the export took another four minutes of a 4K minute. A smaller file gets the lightest one.
+ */
+export async function requestLowEndProxy(sourceUri: string): Promise<void> {
+  const size = await probeOnce(sourceUri);
+  const above = size !== null && Math.max(size.width, size.height) > VARIANTS['1080'].longEdge;
+  return requestSourceProxy(sourceUri, above ? '1080' : '540');
+}
+
 /**
  * Editor entry point: reads the source's size once (cached per uri), then queues its proxy.
  * Does nothing for sources outside the documents folder.
@@ -254,12 +274,7 @@ export function requestSourceProxy(
     return Promise.resolve();
   }
   if (!current()) patch(key, { status: 'checking', progress: 0 });
-  let probe = probes.get(sourceUri);
-  if (!probe) {
-    probe = probeSource(sourceUri);
-    probes.set(sourceUri, probe);
-  }
-  return probe
+  return probeOnce(sourceUri)
     .then(async (size) => {
       if (size && proxyDimensions(size.width, size.height, variant)) {
         await requestProxy(sourceUri, size.width, size.height, size.durationMs, variant);

@@ -1,11 +1,14 @@
 import { AudioBufferSink, type Input } from 'mediabunny';
 import { spanGainAt, type AudioSpan } from '../domain/webScene';
+import { mergedBuffers } from './audioMerge';
 
 /** Headroom between "play" and the first scheduled sample, so the first chunk is not late. */
 const LEAD_S = 0.15;
 /** The live mixer decodes at most this far ahead of what is playing. */
 const AHEAD_S = 2;
 const OUT_RATE = 48_000;
+/** Sound blocks of the live mixer. Fades ramp across a block, so they stay smooth. */
+const LIVE_BLOCK_S = 0.5;
 
 type OpenInput = (uri: string) => Promise<Input>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -33,7 +36,11 @@ async function scheduleSpan(
   const srcTo = (span.inMs + (outTo - span.startMs) * span.speed) / 1000;
   const outOf = (srcS: number) => span.startMs + (srcS * 1000 - span.inMs) / span.speed;
 
-  for await (const { buffer, timestamp } of new AudioBufferSink(track).buffers(srcFrom, srcTo)) {
+  const decoded = new AudioBufferSink(track).buffers(srcFrom, srcTo);
+  const chunks = live
+    ? mergedBuffers(decoded, (channels, frames, rate) => ctx.createBuffer(channels, frames, rate), LIVE_BLOCK_S)
+    : decoded;
+  for await (const { buffer, timestamp } of chunks) {
     if (live && !live.alive()) return;
     if (live) {
       while (whenOf(outOf(timestamp)) - ctx.currentTime > AHEAD_S) {
@@ -54,7 +61,12 @@ async function scheduleSpan(
     node.buffer = buffer;
     node.playbackRate.value = span.speed;
     const gain = ctx.createGain();
-    gain.gain.value = spanGainAt(span, outOf(timestamp + (offset + end) / 2));
+    if (live) {
+      gain.gain.setValueAtTime(spanGainAt(span, outOf(timestamp + offset)), at);
+      gain.gain.linearRampToValueAtTime(spanGainAt(span, outOf(timestamp + end)), at + (end - offset) / span.speed);
+    } else {
+      gain.gain.value = spanGainAt(span, outOf(timestamp + (offset + end) / 2));
+    }
     node.connect(gain).connect(ctx.destination);
     node.start(at, offset, end - offset);
     if (live?.track) {

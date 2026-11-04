@@ -6,6 +6,7 @@ import {
   proxyDimensions,
   proxyPathOf,
   proxyStore,
+  requestLowEndProxy,
   requestProxy,
   requestSourceProxy,
   resumeProxies,
@@ -255,6 +256,17 @@ describe('pauseProxiesForExport / resumeProxies', () => {
 
     job.resolve();
     await flush();
+  });
+});
+
+describe('requestLowEndProxy', () => {
+  it('gives a file above 1080p one 1080p copy, and a smaller one the lightest copy', async () => {
+    probeVideo.mockResolvedValueOnce({ width: 3840, height: 2160, rotation: 0, durationMs: 1000 });
+    await requestLowEndProxy('file:///docs/big.mp4');
+    expect(Object.keys(proxyStore.get())).toContain('file:///docs/big.mp4#1080');
+    probeVideo.mockResolvedValueOnce({ width: 1920, height: 1080, rotation: 0, durationMs: 1000 });
+    await requestLowEndProxy('file:///docs/hd.mp4');
+    expect(Object.keys(proxyStore.get())).toContain('file:///docs/hd.mp4#540');
   });
 });
 

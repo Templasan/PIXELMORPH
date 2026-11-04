@@ -35,6 +35,7 @@ import { createFileHost } from './video-editor/web-engine/fileHost';
 import {
   awaitExportCopies,
   proxyStore,
+  requestLowEndProxy,
   requestSourceProxy,
   sourcesReadiness,
 } from './video-editor/previewProxy';
@@ -86,7 +87,9 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
     // How far the copies the page will read are: it shows a badge until they are ready.
     // Still 'checking' says nothing yet: most files need no copy, and the badge would just flash.
     const keys = wanted.current
-      .map((uri) => (lowEnd.current ? proxyKey(uri, '540') : proxyKey(uri, '720')))
+      .flatMap((uri) =>
+        lowEnd.current ? [proxyKey(uri, '540'), proxyKey(uri, '1080')] : [proxyKey(uri, '720')]
+      )
       .filter((key) => state[key]?.status === 'pending' || state[key]?.status === 'running');
     const readiness = sourcesReadiness(state, keys);
     const preparing = readiness.ready ? null : Math.round(readiness.progress);
@@ -99,8 +102,10 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
     const map: Record<string, string> = {};
     for (const uri of wanted.current) {
       // A low-end phone takes the lightest copy once there is one, and the usual one until then.
-      const light = lowEnd.current ? state[proxyKey(uri, '540')] : undefined;
-      const entry = light?.status === 'ready' ? light : state[uri];
+      const light = lowEnd.current
+        ? [state[proxyKey(uri, '540')], state[proxyKey(uri, '1080')]].find((e) => e?.status === 'ready')
+        : undefined;
+      const entry = light ?? state[uri];
       if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
     }
     const json = JSON.stringify(map);
@@ -248,7 +253,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
       async wantPreviewSources(uris: string[], low = false) {
         wanted.current = uris;
         lowEnd.current = low;
-        for (const uri of uris) void requestSourceProxy(uri, low ? '540' : '720');
+        for (const uri of uris) void (low ? requestLowEndProxy(uri) : requestSourceProxy(uri, '720'));
         pushProxies();
       },
 
