@@ -85,6 +85,8 @@ export class Player {
   scrub: ScrubFrames | null = null;
   /** The moment whose exact frame a still draw last put on screen. */
   private stillShownAt: number | null = null;
+  /** The moment a frame from the reserve was last put on screen for. */
+  private nearestShownAt: number | null = null;
   private heldSince = 0;
   /** While playing, time never goes back: the wall clock leads until the sound starts, then the
    * sound's clock (which starts a little later, at its own anchor) takes over without a step back. */
@@ -159,6 +161,7 @@ export class Player {
   setComposition(comp: Composition) {
     this.comp = comp;
     this.stillShownAt = null;
+    this.nearestShownAt = null;
     this.lastSig = '';
     this.resize();
     this.primed.clear();
@@ -190,7 +193,9 @@ export class Player {
     this.events.onPlaying(true);
     // Start on an exact, complete frame instead of a black one, but if that frame is already on
     // screen, decoding it again only delays the start by a few hundred ms on a slow phone.
-    if (this.stillShownAt !== this.t) await this.drawStill(this.t);
+    // A frame from the reserve counts too: with several layers, the exact one would add over a second.
+    if (this.stillRun) await this.stillRun;
+    else if (this.stillShownAt !== this.t && this.nearestShownAt !== this.t) await this.drawStill(this.t);
     if (!this.playing) return;
     this.anchorAt(this.t);
     this.raf = requestAnimationFrame(this.tick);
@@ -258,6 +263,7 @@ export class Player {
       }
     }
     this.stillShownAt = null;
+    this.nearestShownAt = t;
     this.lastSig = '';
     drawFrame(this.ctx, this.comp.width, this.comp.height, ops, (op) => frames.get(op) ?? null, this.boxes);
     this.events.onDrawn?.();

@@ -14,6 +14,8 @@ Testado e descartado: a tag `<video>` no A11: abrir levou mais de 6 s e o quadro
 
 Achado: arrastar enquanto a reserva era feita dava "Decoding error.", porque o A11 tem poucos decodificadores de hardware. Agora a reserva e as miniaturas soltam o decodificador por 1,5 s depois de cada salto, e o quadro exato tenta de novo antes de mostrar erro.
 
+Tocar logo depois de arrastar, com 3 camadas, no emulador (só vale para a lógica): o tempo começa em 0,3 a 1,5 s, antes 1,6 a 2,8 s. O quadro da reserva já conta como imagem pronta, e só um quadro exato em andamento é esperado. Testado e descartado: não esperar esse quadro. O relógio saía em 0,1 s, mas a imagem ficava congelada por uns 2 s, porque os decodificadores corriam atrás do tempo. Falta medir no A11.
+
 Falta sentir na mão, e medir com várias camadas e com clipes longos.
 
 ## O que o dono quer
