@@ -20,6 +20,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.util.Clock
 import androidx.media3.common.OverlaySettings
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.MatrixTransformation
@@ -29,6 +30,8 @@ import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultAssetLoaderFactory
+import androidx.media3.transformer.DefaultDecoderFactory
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
@@ -297,8 +300,12 @@ class PixelMorphVideoExportModule : Module() {
     outputFile.parentFile?.mkdirs()
     if (outputFile.exists()) outputFile.delete()
 
+    // A file above the hardware decoder's limit (4K on a Samsung A11) failed at once without this.
+    val decoderFactory = DefaultDecoderFactory.Builder(context).setEnableDecoderFallback(true).build()
+
     var finished = false
     val transformer = Transformer.Builder(context)
+      .setAssetLoaderFactory(DefaultAssetLoaderFactory(context, decoderFactory, Clock.DEFAULT, null))
       .setVideoMimeType(MimeTypes.VIDEO_H264)
       .setAudioMimeType(MimeTypes.AUDIO_AAC)
       .setEncoderFactory(encoderFactory)
