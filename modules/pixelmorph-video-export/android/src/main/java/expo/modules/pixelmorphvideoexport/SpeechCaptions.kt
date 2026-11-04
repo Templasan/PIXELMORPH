@@ -6,6 +6,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.os.Build
 import expo.modules.kotlin.Promise
 import java.io.File
 import java.net.HttpURLConnection
@@ -51,10 +52,13 @@ object SpeechCaptions {
     Thread {
       try {
         if (outMs - inMs > MAX_MS) throw Stop("TOO_LONG")
+        if (!engineRunsHere()) throw Stop("NO_ENGINE")
         val model = modelFile(context)
         if (!model.exists()) download(model) { progress("model", it) }
         progress("audio", 0)
         val samples = readSpeech(context, uri, inMs, outMs)
+        // The first figure from whisper comes only after its first long step: say it has begun.
+        progress("speech", 0)
         promise.resolve(transcribe(model, samples) { progress("speech", it) })
       } catch (e: Stop) {
         promise.reject(e.code, e.code, e)
@@ -66,6 +70,16 @@ object SpeechCaptions {
         promise.reject("FAILED", e.message ?: "FAILED", e)
       }
     }.start()
+  }
+
+  /** The 32-bit build needs vfpv4: on a much older core it would stop the whole app, not just fail. */
+  private fun engineRunsHere(): Boolean {
+    if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) return true
+    return try {
+      File("/proc/cpuinfo").readText().contains("vfpv4")
+    } catch (e: Exception) {
+      false
+    }
   }
 
   private fun download(target: File, progress: (Int) -> Unit) {
@@ -180,9 +194,9 @@ object SpeechCaptions {
             format.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
         } else if (slot >= 0) {
           val bytes = codec.getOutputBuffer(slot)!!.order(ByteOrder.nativeOrder())
-          val floats = if (isFloat) bytes.asFloatBuffer() else null
-          val shorts = if (isFloat) null else bytes.asShortBuffer()
-          val frames = (floats?.remaining() ?: shorts!!.remaining()) / channels
+          val floats = bytes.asFloatBuffer()
+          val shorts = bytes.asShortBuffer()
+          val frames = (if (isFloat) floats.remaining() else shorts.remaining()) / channels
           // The sound may start after the clip's in-point: the gap stays silent, and times stay true.
           val firstFrame = ((inMs * 1000 - info.presentationTimeUs) * rate / 1_000_000).coerceAtLeast(0)
           if (written == 0 && info.presentationTimeUs > inMs * 1000) {
@@ -190,10 +204,11 @@ object SpeechCaptions {
           }
           var frame = firstFrame.toInt()
           while (frame < frames && written < out.size) {
+            // Read directly: this runs for every sample, and a slow phone feels boxed values here.
             var mono = 0f
             for (c in 0 until channels) {
               val at = frame * channels + c
-              mono += floats?.get(at) ?: (shorts!!.get(at) / 32768f)
+              mono += if (isFloat) floats.get(at) else shorts.get(at) / 32768f
             }
             sum += mono / channels
             summed += 1

@@ -71,6 +71,7 @@ export interface EditorHost {
   speechModelReady?(): Promise<boolean>;
   transcribeSpeech?(uri: string, inMs: number, outMs: number, onProgress: (p: SpeechProgress) => void): Promise<SpeechSegment[]>;
   cancelSpeech?(): void;
-  wantPreviewSources?(uris: string[]): void;
+  /** `low`: a low-end phone, which should get the lightest copies. */
+  wantPreviewSources?(uris: string[], low?: boolean): void;
   onPreviewSources?(listener: (map: Record<string, string>) => void): void;
 }

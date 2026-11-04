@@ -189,6 +189,8 @@ const en: Record<string, string> = {
   "Estabilizar": "Stabilize",
   "Estabilizado": "Stabilized",
   "Este vídeo não tem dados de movimento: só os gravados na câmera do app, em aparelho com giroscópio, têm.": "This video has no motion data: only those recorded with the app's camera, on a phone with a gyroscope, do.",
+  "Neste aparelho pode levar cerca de {n} min.": "On this device it may take about {n} min.",
+  "Tempo: {time}": "Time: {time}",
 };
 
 export default en;

@@ -18,6 +18,7 @@ import { probeMedia } from '../engine/probe';
 import type { EditorHost, MediaItem, ProjectFormat, SpeechProgress } from '../ports/host';
 import { captionClips } from './speechCaptions';
 import { trackFaces } from '../domain/faceTrack';
+import { isLowEndDevice, previewShortEdge, speechMinutesOn } from '../domain/deviceClass';
 import { correctionsOf, type MotionSample } from '../domain/stabilize';
 import { motionPathOf, setMotionPath } from '../engine/motion';
 
@@ -33,7 +34,8 @@ import { timelapseClips } from '../domain/timelapse';
 import type { TransitionType } from '../domain/transitions';
 
 /** Short edge of the preview canvas (the export renders the same composition at its own size). */
-const PREVIEW_SHORT_EDGE = 720;
+/** Not in every browser, and the app's WebView reports it rounded. */
+const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
 const SAVE_DEBOUNCE_MS = 400;
 
 const KIND_COLORS: Record<Track['kind'], string> = {
@@ -84,15 +86,14 @@ export function createEditorSession(host: EditorHost) {
   let previewMap: Record<string, string> = {};
   const compose = (tracks: Track[]) =>
     buildComposition(tracks, {
-      ...frameSize(format.get(), PREVIEW_SHORT_EDGE),
+      ...frameSize(format.get(), previewShortEdge(deviceMemory)),
       mapUri: (u) => previewMap[u] ?? u,
     });
   const askPreviewSources = (tracks: Track[]) =>
-    host.wantPreviewSources?.([
-      ...new Set(
-        tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri))
-      ),
-    ]);
+    host.wantPreviewSources?.(
+      [...new Set(tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri)))],
+      isLowEndDevice(deviceMemory)
+    );
   /** How many video files the preview reads from a light copy (shown as a badge). */
   const previewCopies = createStore(0);
   host.onPreviewSources?.((map) => {
@@ -425,6 +426,11 @@ export function createEditorSession(host: EditorHost) {
     canFindFaces: !!host.sampleFaces,
     cancelFaces: () => host.cancelFaces?.(),
     speechModelReady: () => host.speechModelReady?.() ?? Promise.resolve(null),
+    /** RF-069: minutes to expect here, on a phone slow enough to warn about. */
+    speechMinutes(clipId: string) {
+      const found = findClip(editor.store.get().tracks, clipId);
+      return found ? speechMinutesOn(deviceMemory, found.clip.outPointMs - found.clip.inPointMs) : null;
+    },
     cancelSpeech: () => host.cancelSpeech?.(),
     duplicateSelected,
     editor,
