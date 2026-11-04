@@ -9,6 +9,8 @@ const AHEAD_S = 2;
 const OUT_RATE = 48_000;
 /** Sound starting or stopping dead is an audible tick, so it fades over this. Too short to hear as a fade. */
 const FADE_S = 0.012;
+/** Turning the phone's audio output off and on is itself an audible tick: a short pause leaves it on. */
+const RELEASE_AFTER_MS = 30_000;
 /** Sound blocks of the live mixer. Fades ramp across a block, so they stay smooth. */
 const LIVE_BLOCK_S = 0.5;
 
@@ -130,14 +132,13 @@ export class AudioMixer {
     }
   }
 
-  /** Silences and releases the audio device (an open context keeps it running, costing battery). */
+  /** Silences, and releases the audio device after a while (an open context keeps it running, costing battery). */
   stop() {
     this.halt();
     const my = this.epoch;
-    // After the fade, unless playing started again meanwhile.
     setTimeout(() => {
       if (my === this.epoch && this.ctx?.state === 'running') void this.ctx.suspend().catch(() => {});
-    }, FADE_S * 3000);
+    }, RELEASE_AFTER_MS);
   }
 
   private halt() {
