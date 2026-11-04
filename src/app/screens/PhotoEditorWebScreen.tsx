@@ -25,6 +25,7 @@ import {
 import { copyToAppStorage, pickFromGallery } from '@modules/device-media';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
+import { useEditorRecovery } from './useEditorRecovery';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
 import {
@@ -94,6 +95,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
   const webRef = useRef<WebView>(null);
+  const { editorKey, onRenderProcessGone } = useEditorRecovery(navigation.goBack);
   const files = useMemo(createFileHost, []);
   const historyRepo = useMemo(() => new LocalHistoryRepository(), []);
   // The asset a bake replaces the photo of (set when the project loads).
@@ -359,7 +361,9 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <WebView
+        key={editorKey}
         ref={webRef}
+        onRenderProcessGone={onRenderProcessGone}
         source={{ uri: EDITOR_URL }}
         originWhitelist={['*']}
         allowFileAccess

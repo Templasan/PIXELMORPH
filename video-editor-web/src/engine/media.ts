@@ -2,7 +2,7 @@ import {
   ALL_FORMATS,
   BlobSource,
   Input,
-  StreamSource,
+  CustomSource,
   VideoSampleSink,
 } from 'mediabunny';
 import { BlockReader } from './blockReader';
@@ -83,7 +83,7 @@ export class MediaPool {
       blockSize: STREAM_BLOCK,
       fetchBlock: (offset, length) => reader.readChunk(uri, offset, length),
     });
-    const source = new StreamSource({
+    const source = new CustomSource({
       getSize: () => size,
       prefetchProfile: 'fileSystem',
       read: (start, end) => blocks.read(start, end),

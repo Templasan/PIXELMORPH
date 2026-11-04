@@ -300,6 +300,10 @@ const es: Record<string, string> = {
   "Desfoque o fundo com uma máscara.": "Desenfoca el fondo con una máscara.",
   "Cada tutorial abre uma foto de exemplo e guia você passo a passo. Pode sair quando quiser.": "Cada tutorial abre una foto de ejemplo y te guía paso a paso. Puedes salir cuando quieras.",
   "Não foi possível abrir o tutorial": "No se pudo abrir el tutorial",
+  "O editor fechou de novo": "El editor se cerró de nuevo",
+  "Este aparelho ficou sem memória. Feche outros apps e abra o projeto novamente.": "Este dispositivo se quedó sin memoria. Cierra otras apps y abre el proyecto de nuevo.",
+  "O editor foi reaberto": "El editor se reabrió",
+  "O sistema fechou o editor, geralmente por falta de memória. A última alteração pode não ter sido salva.": "El sistema cerró el editor, normalmente por falta de memoria. Puede que el último cambio no se haya guardado.",
 };
 
 export default es;
