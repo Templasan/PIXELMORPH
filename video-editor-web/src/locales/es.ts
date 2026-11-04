@@ -4,6 +4,8 @@ const es: Record<string, string> = {
   Desfazer: 'Deshacer',
   Refazer: 'Rehacer',
   'Prévia leve': 'Vista previa ligera',
+  'Preparando vídeo: {n}%': 'Preparando video: {n}%',
+  'Este aparelho não conseguiu mostrar este vídeo.': 'Este dispositivo no pudo mostrar este video.',
   'Formato do vídeo': 'Formato del vídeo',
   Fechar: 'Cerrar',
   'Vídeos de outro formato ficam inteiros com faixas pretas; use Posição → Preencher para cortar.':

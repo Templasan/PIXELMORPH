@@ -28,6 +28,7 @@ const BACKGROUND_WAITS_AFTER_JUMP_MS = 1500;
 const FACE_STEP_MS = 500;
 const FACE_MAX_SAMPLES = 240;
 import { frameSize } from '../domain/format';
+import { playerErrorText, UNDECODABLE_TEXT } from '../domain/playerError';
 import { exportComposition, type ExportOutcome } from '../engine/exporter';
 import { createStore } from '../state/createStore';
 import { createHistory } from './history';
@@ -72,6 +73,8 @@ export function createEditorSession(host: EditorHost) {
   const time = createStore(0);
   const playing = createStore(false);
   const error = createStore<string | null>(null);
+  /** 0..100 while the host makes a light copy of a file the preview reads; null when none is pending. */
+  const preparing = createStore<number | null>(null);
   const busy = createStore<string | null>(null);
   const projectName = createStore('Projeto sem nome');
   // Timeline thumbnails and waveforms wait while the preview plays (its decoders come first).
@@ -113,8 +116,16 @@ export function createEditorSession(host: EditorHost) {
   host.onPreviewSources?.((map) => {
     previewMap = map;
     previewCopies.set(Object.keys(map).length);
+    // A copy that just arrived replaces the file that could not be decoded: its message is stale.
+    if (error.get() === t(UNDECODABLE_TEXT)) error.set(null);
+    // A paused player redraws its frame from the new file here (setComposition draws the still).
     player?.setComposition(compose(editor.store.get().tracks));
     wantScrubFrames(editor.store.get().tracks);
+  });
+  host.onPreviewPreparing?.((progress) => {
+    preparing.set(progress);
+    // The draw can fail just before this first word: the badge now explains it.
+    if (progress !== null && error.get() === t(UNDECODABLE_TEXT)) error.set(null);
   });
   // Nothing is saved until the project has loaded: a save in between wrote an empty timeline.
   let loaded = false;
@@ -179,7 +190,10 @@ export function createEditorSession(host: EditorHost) {
       {
         onTime: (ms) => time.set(ms),
         onPlaying: (p) => playing.set(p),
-        onError: (m) => error.set(m),
+        onError: (m) => {
+          const text = playerErrorText(m, preparing.get() !== null);
+          if (text !== null) error.set(text);
+        },
         onDrawn: () => drawn.set(drawn.get() + 1),
         onFrozenLayers: (count) => frozenLayers.set(count),
         onFrame: (f) => trace?.push(f),
@@ -426,6 +440,7 @@ export function createEditorSession(host: EditorHost) {
     host,
     previews,
     previewCopies,
+    preparing,
     format,
     drawn,
     frozenLayers,

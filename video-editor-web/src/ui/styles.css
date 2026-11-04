@@ -143,6 +143,12 @@ button:disabled {
   right: auto;
 }
 
+/* Top left, so it never sits under the 'Prévia leve' badge on the right. */
+.preview .badge.preparing {
+  left: 8px;
+  right: auto;
+}
+
 .preview .toast {
   position: absolute;
   left: 12px;

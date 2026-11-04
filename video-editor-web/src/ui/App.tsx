@@ -143,6 +143,7 @@ function Preview({ session }: { session: EditorSession }) {
   const error = useStore(session.error);
   const busy = useStore(session.busy);
   const copies = useStore(session.previewCopies);
+  const preparing = useStore(session.preparing);
   const frozen = useStore(session.frozenLayers);
   useEffect(() => {
     session.attach(canvasRef.current!);
@@ -153,6 +154,7 @@ function Preview({ session }: { session: EditorSession }) {
       <canvas ref={canvasRef} />
       <PreviewHandles session={session} canvasRef={canvasRef} />
       {copies > 0 && <div className="badge">{t('Prévia leve')}</div>}
+      {preparing !== null && <div className="badge preparing">{t('Preparando vídeo: {n}%', { n: preparing })}</div>}
       {frozen > 0 && (
         <div className="badge frozen">{t('Camadas paradas na prévia: {n}. O vídeo final toca todas.', { n: frozen })}</div>
       )}
