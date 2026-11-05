@@ -134,7 +134,7 @@ describe('requestProxy queue', () => {
         width: 1280,
         height: 720,
         bitrate: 5_000_000,
-        keyFrameIntervalSeconds: 1,
+        keyFrameIntervalSeconds: 1 / 3,
         outputPath: '/docs/media/a/a.proxy720.mp4.tmp.mp4',
       }),
       expect.any(Function)
