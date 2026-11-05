@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -50,6 +50,12 @@ export function MainBar({ active }: { active: Destination }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { projects } = useAppModules();
   const [importing, setImporting] = useState(false);
+  // Behind the picker the spinner still drew every frame: 110% of a CPU on a Poco, for nothing.
+  const [onScreen, setOnScreen] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => setOnScreen(state === 'active'));
+    return () => subscription.remove();
+  }, []);
 
   // RF-028/US-11: a real device gallery import — creates a project from the file the user
   // actually picked, not a bundled demo asset.
@@ -102,7 +108,7 @@ export function MainBar({ active }: { active: Destination }) {
 
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
-      <Modal visible={importing} transparent statusBarTranslucent animationType="fade">
+      <Modal visible={importing && onScreen} transparent statusBarTranslucent animationType="fade">
         <View style={styles.importing}>
           <ActivityIndicator color={colors.texto} size="large" />
           <Text style={styles.importingText}>{t('Importando o arquivo. Um vídeo longo pode levar um minuto.')}</Text>
