@@ -8,6 +8,7 @@ import { TutorialCoach } from './TutorialCoach';
 import { tutorialOf } from '../application/tutorials';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
+import { QualitySheet, qualityChipText } from './QualitySheet';
 import { PhotoView, type ViewMode } from './PhotoView';
 import { AdjustPanel } from './panels/AdjustPanel';
 import { EffectsPanel } from './panels/EffectsPanel';
@@ -52,6 +53,7 @@ export function App({ session }: { session: PhotoSession }) {
   const tool = useStore(editor.store, (s) => s.activeTool);
   const compare = useStore(editor.store, (s) => s.compareMode);
   const [exporting, setExporting] = useState(false);
+  const [qualityOpen, setQualityOpen] = useState(false);
   const [perspective, setPerspective] = useState(false);
   const [lightEdit, setLightEdit] = useState(false);
 
@@ -131,12 +133,17 @@ export function App({ session }: { session: PhotoSession }) {
           {p?.sizeBytes ? formatBytes(p.sizeBytes) : ''}
         </span>
       </div>
-      <PhotoView
-        session={session}
-        mode={mode}
-        onExport={() => info.status === 'ready' && setExporting(true)}
-        onNextTool={nextTool}
-      />
+      <div className="stage">
+        <PhotoView
+          session={session}
+          mode={mode}
+          onExport={() => info.status === 'ready' && setExporting(true)}
+          onNextTool={nextTool}
+        />
+        <button className="quality-chip" onClick={() => setQualityOpen(true)}>
+          {qualityChipText(session.quality)}
+        </button>
+      </div>
       {panel && <div className="panel">{panel}</div>}
       <nav className="toolbar">
         {TOOLS.map((item) => (
@@ -156,6 +163,7 @@ export function App({ session }: { session: PhotoSession }) {
       </nav>
       {info.busy && <div className="toast">{info.busy}</div>}
       {exporting && <ExportSheet session={session} onClose={() => setExporting(false)} />}
+      {qualityOpen && <QualitySheet session={session} onClose={() => setQualityOpen(false)} />}
       {viewing3d && <StereoViewer session={session} onClose={() => setViewing3d(false)} />}
     </div>
   );

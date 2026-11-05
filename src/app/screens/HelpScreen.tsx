@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { t } from '@core/i18n';
 import { Icon } from '@core/ui';
 import { colors, fontSize, monoFontFamily } from '@core/theme';
 
@@ -15,11 +16,11 @@ const FAQS = [
   },
   {
     q: 'Por que meu vídeo 4K trava na linha do tempo?',
-    a: 'Para vídeos acima de 1280 px, a prévia usa uma cópia de 720p. Toque no selo de qualidade da prévia para escolher outra opção. A exportação usa o vídeo original.',
+    a: 'A prévia usa uma cópia menor para não travar. Toque no selo "Prévia" sobre a prévia para escolher Alta, Média ou Baixa; Automática, o padrão, escolhe pelo aparelho. A exportação usa sempre o vídeo original.',
   },
   {
     q: 'As edições com IA saem do meu aparelho?',
-    a: 'Ainda não há edição por IA funcionando: o painel IA do editor de fotos não altera a imagem.',
+    a: 'Não. O recorte do sujeito, a cena, os rostos e as legendas rodam no próprio aparelho. Só a primeira legenda baixa o modelo de fala.',
   },
 ];
 
@@ -97,7 +98,7 @@ export default function HelpScreen({ navigation }: Props) {
                   color={colors.texto2}
                 />
               </Pressable>
-              {expanded === item.q ? <Text style={styles.faqAnswer}>{item.a}</Text> : null}
+              {expanded === item.q ? <Text style={styles.faqAnswer}>{t(item.a)}</Text> : null}
             </View>
           ))}
           {faqs.length === 0 && <Text style={styles.faqEmpty}>Nenhuma pergunta encontrada.</Text>}

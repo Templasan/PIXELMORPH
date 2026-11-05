@@ -36,5 +36,7 @@ export function useEditorRecovery(leave: () => void) {
       )
     );
   }, [leave]);
-  return { editorKey, onRenderProcessGone };
+  /** A new WebView, which loads the project again: the editor restarts (e.g. at another preview quality). */
+  const reopen = useCallback(() => setEditorKey((key) => key + 1), []);
+  return { editorKey, onRenderProcessGone, reopen };
 }

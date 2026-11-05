@@ -29,6 +29,7 @@ import {
 } from '../../../modules/pixelmorph-video-export/src';
 import { useAppModules } from '../hooks';
 import { useEditorRecovery } from './useEditorRecovery';
+import { parseQualitySetting, usePreviewQuality } from './usePreviewQuality';
 import { motionFileOf } from './camera/motionRecorder';
 import { buildInitialTracks } from './video-editor/initialTracks';
 import { createFileHost } from './video-editor/web-engine/fileHost';
@@ -39,7 +40,7 @@ import {
   requestSourceProxy,
   sourcesReadiness,
 } from './video-editor/previewProxy';
-import { proxyKey } from './video-editor/previewTier';
+import { previewCopiesOf, type PreviewTier } from './video-editor/previewQuality';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoEditor'>;
 
@@ -66,7 +67,9 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
   const webRef = useRef<WebView>(null);
-  const { editorKey, onRenderProcessGone } = useEditorRecovery(navigation.goBack);
+  const { editorKey, onRenderProcessGone, reopen } = useEditorRecovery(navigation.goBack);
+  // The preview quality the person picked; the page is not drawn until it is read.
+  const { quality, setQuality } = usePreviewQuality();
   const files = useMemo(createFileHost, []);
   // Edits made with the old editor live in its undo log: the first open replays them.
   const history = usePersistedHistory(projectId ?? 'unsaved-video-session');
@@ -79,20 +82,16 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
   // (now and whenever another one is ready). The export keeps reading the originals.
   const facesCancelled = useRef(false);
   const wanted = useRef<string[]>([]);
-  const lowEnd = useRef(false);
+  const tier = useRef<PreviewTier>('media');
   const lastMap = useRef('');
   const lastPartial = useRef('{}');
   const lastPreparing = useRef<number | null | undefined>(undefined);
   const pushProxies = useCallback(() => {
     const state = proxyStore.get();
+    const copies = previewCopiesOf(tier.current, wanted.current, state);
     // How far the copies the page will read are: it shows a badge until they are ready.
     // Still 'checking' says nothing yet: most files need no copy, and the badge would just flash.
-    const keys = wanted.current
-      .flatMap((uri) =>
-        lowEnd.current ? [proxyKey(uri, '540'), proxyKey(uri, '1080')] : [proxyKey(uri, '720')]
-      )
-      .filter((key) => state[key]?.status === 'pending' || state[key]?.status === 'running');
-    const readiness = sourcesReadiness(state, keys);
+    const readiness = sourcesReadiness(state, copies.pendingKeys);
     const preparing = readiness.ready ? null : Math.round(readiness.progress);
     if (preparing !== lastPreparing.current) {
       lastPreparing.current = preparing;
@@ -100,28 +99,14 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
         `window.__pmEvent && window.__pmEvent({type:'previewPreparing',progress:${preparing}});true;`
       );
     }
-    const map: Record<string, string> = {};
-    const partial: Record<string, { file: string; progress: number }> = {};
-    for (const uri of wanted.current) {
-      // A low-end phone takes the lightest copy once there is one, and the usual one until then.
-      const full = lowEnd.current ? state[proxyKey(uri, '1080')] : undefined;
-      if (full?.status === 'running' && full.partialUri) {
-        partial[uri] = { file: full.partialUri, progress: Math.floor(full.progress) };
-      }
-      const light = lowEnd.current
-        ? [state[proxyKey(uri, '540')], full].find((e) => e?.status === 'ready')
-        : undefined;
-      const entry = light ?? state[uri];
-      if (entry?.status === 'ready' && entry.uri) map[uri] = entry.uri;
-    }
-    const partialJson = JSON.stringify(partial);
+    const partialJson = JSON.stringify(copies.partial);
     if (partialJson !== lastPartial.current) {
       lastPartial.current = partialJson;
       webRef.current?.injectJavaScript(
         `window.__pmEvent && window.__pmEvent({type:'previewPartial',partial:${partialJson}});true;`
       );
     }
-    const json = JSON.stringify(map);
+    const json = JSON.stringify(copies.map);
     if (json === lastMap.current) return;
     lastMap.current = json;
     webRef.current?.injectJavaScript(
@@ -263,11 +248,22 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
         navigation.goBack();
       },
 
-      async wantPreviewSources(uris: string[], low = false) {
+      async wantPreviewSources(uris: string[], picked: string) {
+        const next: PreviewTier = picked === 'alta' || picked === 'baixa' ? picked : 'media';
         wanted.current = uris;
-        lowEnd.current = low;
-        for (const uri of uris) void (low ? requestLowEndProxy(uri) : requestSourceProxy(uri, '720'));
+        tier.current = next;
+        for (const uri of uris) {
+          void (next === 'baixa'
+            ? requestLowEndProxy(uri)
+            : requestSourceProxy(uri, next === 'media' ? '720' : '1080'));
+        }
         pushProxies();
+      },
+
+      /** The page saved its project; the editor reopens at the quality picked (a new WebView). */
+      async setPreviewQuality(setting: string) {
+        await setQuality(parseQualitySetting(setting));
+        reopen();
       },
 
       /** Export fallback: the page waits for these 1080p copies, and gets their progress as events. */
@@ -278,7 +274,7 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
           );
         }),
     }),
-    [files, navigation, projectId, projects, timelineFile, pushProxies]
+    [files, navigation, projectId, projects, timelineFile, pushProxies, setQuality, reopen]
   );
 
   const onMessage = useCallback(
@@ -314,9 +310,13 @@ export default function VideoEditorWebScreen({ navigation, route }: Props) {
     );
   }
 
+  // The saved preview quality is read asynchronously: the page must not start before it is known.
+  if (quality === null) return <View style={styles.container} />;
+
   // The page draws edge to edge: give it the system bars' sizes before it lays out.
   // The editor's UI language (RNF-016), read once by the page before it draws.
-  const insetsScript = `(function(){window.__pmLanguage='${language}';window.__pmStart='${start}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
+  // The preview quality (a fixed word, read once by the page; see video-editor-web/domain/previewQuality).
+  const insetsScript = `(function(){window.__pmLanguage='${language}';window.__pmStart='${start}';window.__pmQuality='${quality}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
 
   return (
     <View style={styles.container}>

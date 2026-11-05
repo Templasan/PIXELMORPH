@@ -1,5 +1,6 @@
 import type { Adjustments } from '../domain/adjustments';
 import type { DetectedFace, EditorLayer } from '../domain/layers';
+import type { QualitySetting } from '../domain/previewQuality';
 
 /** One undo step: an adjustment field and its values before/after (the app's history format). */
 export interface HistoryOp {
@@ -71,8 +72,11 @@ export type BakedPhoto = Pick<SavedPhoto, 'photo' | 'previewUri'>;
  * projects, gallery and file system; the browser dev host on a local folder.
  */
 export interface EditorHost {
-  loadProject(): Promise<SavedPhoto | null>;
+  /** `previewEdge`: the long edge of the light copy the screen works on (the preview quality's). */
+  loadProject(previewEdge: number): Promise<SavedPhoto | null>;
   saveProject(project: SavedPhoto): Promise<void>;
+  /** The person picked another preview quality (or Automática): the host saves it and reopens the editor. */
+  setPreviewQuality(setting: QualitySetting): void;
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
   listPresets(): Promise<PresetRef[]>;

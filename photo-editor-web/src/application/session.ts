@@ -33,6 +33,7 @@ import type { CollageLayout } from '../domain/collage/CollageMath';
 import { alignPair, type GreyPicture, type PairAlignment } from '../domain/panorama/alignPair';
 import { panoramaLayout } from '../domain/panorama/panoramaLayout';
 import type { EditorHost, PictureRef, PresetRef, SavedPhoto, WatermarkRef } from '../ports/host';
+import { LIGHT_EDGE, qualitySettingOf, tierOf, type QualitySetting } from '../domain/previewQuality';
 import { createStore } from '../state/createStore';
 import { createHistory, replay } from './history';
 import { createPhotoEditorStore, LAYERS_OP } from './photoEditorStore';
@@ -46,8 +47,11 @@ const ALIGN_HEIGHT = 120;
 /** Each picture of a collage or panorama is read at most this long. */
 const MONTAGE_PICTURE_EDGE = 4096;
 
-/** The screen works on a copy this long at most; the export always reads the original. */
-const PREVIEW_LONG_EDGE = 2048;
+/** The quality the app set (or Automática), read once: picking another one reopens the editor. */
+const qualitySetting = qualitySettingOf((globalThis as { __pmQuality?: unknown }).__pmQuality);
+const deviceMemory = (globalThis as { navigator?: { deviceMemory?: number } }).navigator?.deviceMemory;
+/** The screen works on a copy this long at most (the tier's); the export always reads the original. */
+const previewEdge = LIGHT_EDGE[tierOf(qualitySetting, deviceMemory)];
 
 /** Geometry belongs to one photo; presets carry everything else. */
 const GEOMETRY = /^(rotation90|fineRotation|flipH|flipV|mirrorOpacity|persp[XY]\d|crop[XYWH])$/;
@@ -357,7 +361,7 @@ export function createPhotoSession(host: EditorHost) {
 
   function wantBlend(ref: PictureRef | null) {
     if (!ref || blendPictures.has(ref.uri)) return;
-    const p = loadPicture(ref.uri, PREVIEW_LONG_EDGE)
+    const p = loadPicture(ref.uri, previewEdge)
       .then(({ bitmap }) => {
         blendReady.set(ref.uri, bitmap);
         requestDraw();
@@ -465,6 +469,11 @@ export function createPhotoSession(host: EditorHost) {
       void host.saveProject(snapshot()).catch((e) => console.error('save failed', e));
     }, 400);
   }
+  /** Saves now instead of after the debounce: the editor is about to be reopened. */
+  function flushSave() {
+    clearTimeout(saveTimer);
+    return loaded ? host.saveProject(snapshot()) : Promise.resolve();
+  }
 
   let lastStore = editor.store.get();
   editor.store.subscribe(() => {
@@ -523,6 +532,17 @@ export function createPhotoSession(host: EditorHost) {
   return {
     editor,
     info,
+    /** The preview quality: the person's pick, the tier it means here, and the automatic tier. */
+    quality: {
+      setting: qualitySetting,
+      tier: tierOf(qualitySetting, deviceMemory),
+      auto: tierOf('auto', deviceMemory),
+    },
+    /** Saves the project, then asks the host to reopen the editor at that quality. */
+    async setPreviewQuality(setting: QualitySetting) {
+      await flushSave();
+      host.setPreviewQuality(setting);
+    },
     history: historyState,
     histogram,
     exportOptions,
@@ -531,7 +551,7 @@ export function createPhotoSession(host: EditorHost) {
     async load() {
       try {
         performance.mark('pm:load');
-        const saved = await host.loadProject();
+        const saved = await host.loadProject(previewEdge);
         performance.mark('pm:project');
         if (!saved) throw new Error(t('Projeto sem foto.'));
         history = createHistory(saved.history);
@@ -547,7 +567,7 @@ export function createPhotoSession(host: EditorHost) {
         if (saved.layers) editor.hydrateLayers(saved.layers);
         wantLayerPictures(editor.store.get().layers);
         lightUri = saved.previewUri ?? saved.photo.uri;
-        const picture = await loadPicture(lightUri, PREVIEW_LONG_EDGE);
+        const picture = await loadPicture(lightUri, previewEdge);
         light = picture.bitmap;
         performance.mark('pm:picture');
         // Without a light copy the original was decoded: what it really is beats the project's
@@ -833,7 +853,7 @@ export function createPhotoSession(host: EditorHost) {
         await sink.start(`baked_${Date.now()}.jpg`);
         await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
         const baked = await sink.finish();
-        const picture = await loadPicture(baked.previewUri ?? baked.photo.uri, PREVIEW_LONG_EDGE);
+        const picture = await loadPicture(baked.previewUri ?? baked.photo.uri, previewEdge);
         light?.close();
         light = picture.bitmap;
         preview?.setSource(light);

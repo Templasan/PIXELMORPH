@@ -305,6 +305,10 @@ const es: Record<string, string> = {
   "Este aparelho ficou sem memória. Feche outros apps e abra o projeto novamente.": "Este dispositivo se quedó sin memoria. Cierra otras apps y abre el proyecto de nuevo.",
   "O editor foi reaberto": "El editor se reabrió",
   "O sistema fechou o editor, geralmente por falta de memória. A última alteração pode não ter sido salva.": "El sistema cerró el editor, normalmente por falta de memoria. Puede que el último cambio no se haya guardado.",
+  'A prévia usa uma cópia menor para não travar. Toque no selo "Prévia" sobre a prévia para escolher Alta, Média ou Baixa; Automática, o padrão, escolhe pelo aparelho. A exportação usa sempre o vídeo original.':
+    'La vista previa usa una copia más pequeña para no trabarse. Toca la etiqueta "Vista previa" sobre la vista previa para elegir Alta, Media o Baja; Automática, la predeterminada, elige según el teléfono. La exportación usa siempre el video original.',
+  'Não. O recorte do sujeito, a cena, os rostos e as legendas rodam no próprio aparelho. Só a primeira legenda baixa o modelo de fala.':
+    'No. El recorte del sujeto, la escena, los rostros y los subtítulos se ejecutan en el propio teléfono. Solo el primer subtítulo descarga el modelo de voz.',
 };
 
 export default es;
