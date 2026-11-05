@@ -6,9 +6,6 @@ const LOW_MEMORY_GB = 3;
 
 export const isLowEndDevice = (memoryGb: number | undefined) => memoryGb !== undefined && memoryGb <= LOW_MEMORY_GB;
 
-/** The preview's short edge. A low one draws and decodes less; the export always reads the originals. */
-export const previewShortEdge = (memoryGb: number | undefined) => (isLowEndDevice(memoryGb) ? 540 : 720);
-
 /** Measured on a Samsung A11: speech takes about this many times the clip's length there. */
 const LOW_END_SPEECH_FACTOR = 1.5;
 

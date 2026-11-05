@@ -57,5 +57,7 @@ export function createDevHost(): EditorHost {
     close() {
       location.reload();
     },
+    // No app here to reopen the editor: the dev page keeps its own quality (Automática).
+    setPreviewQuality() {},
   };
 }

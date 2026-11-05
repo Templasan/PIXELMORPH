@@ -26,6 +26,7 @@ import { copyToAppStorage, pickFromGallery } from '@modules/device-media';
 import { createMediaAsset, createMediaMetadata } from '@modules/projects';
 import { useAppModules } from '../hooks';
 import { useEditorRecovery } from './useEditorRecovery';
+import { parseQualitySetting, usePreviewQuality } from './usePreviewQuality';
 import { createFileHost } from './video-editor/web-engine/fileHost';
 import { loadFullImage } from './photo-editor/photoProxySkia';
 import {
@@ -36,6 +37,7 @@ import {
   detectFaces,
 } from '../../../modules/pixelmorph-video-export/src';
 import { lightCopyOf } from './photo-editor/lightCopy';
+import { PREVIEW_LONG_EDGE } from './photo-editor/resolution';
 import { presetStep } from './photo-editor/batchPreset';
 import { dateFormatter } from './projects/projectFormat';
 
@@ -95,11 +97,15 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { language } = useI18n();
   const webRef = useRef<WebView>(null);
-  const { editorKey, onRenderProcessGone } = useEditorRecovery(navigation.goBack);
+  const { editorKey, onRenderProcessGone, reopen } = useEditorRecovery(navigation.goBack);
+  // The preview quality the person picked; the page is not drawn until it is read.
+  const { quality, setQuality } = usePreviewQuality();
   const files = useMemo(createFileHost, []);
   const historyRepo = useMemo(() => new LocalHistoryRepository(), []);
   // The asset a bake replaces the photo of (set when the project loads).
   const assetRef = useRef<{ id: string; format: string } | null>(null);
+  // The light copy's long edge the page asked for (the quality's); a bake makes its copy the same.
+  const previewEdgeRef = useRef(PREVIEW_LONG_EDGE);
   // The running export is a HEIC one (its quality) or not (null).
   const heicRef = useRef<number | null>(null);
 
@@ -107,7 +113,8 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
 
   const handlers = useMemo<Record<string, (...args: never[]) => Promise<unknown>>>(
     () => ({
-      async loadProject(): Promise<SavedPhoto | null> {
+      async loadProject(previewEdge: number): Promise<SavedPhoto | null> {
+        previewEdgeRef.current = previewEdge;
         const project = projectId ? await projects.getProject.execute(projectId) : null;
         const asset = project?.assets[0];
         if (!project || !asset) return null;
@@ -118,7 +125,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           format: rawFormatLabel(mime) ?? (mime.split('/')[1] ?? '').toUpperCase(),
         };
         // The screen opens a small upright copy (made once); the export reads the original.
-        const light = await lightCopyOf(uri);
+        const light = await lightCopyOf(uri, previewEdge);
         // The file's own size: the asset's metadata keeps the first file's after a bake.
         const file = await FileSystem.getInfoAsync(uri);
         const [snapshot, layers, images] = await Promise.all([
@@ -236,7 +243,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           workingUri: cached,
         });
         const uri = project.assets.find((a) => a.id === asset.id)?.workingUri ?? cached;
-        const light = await lightCopyOf(uri);
+        const light = await lightCopyOf(uri, previewEdgeRef.current);
         const info = await FileSystem.getInfoAsync(uri);
         return {
           photo: {
@@ -316,8 +323,14 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
       async close() {
         navigation.navigate('Projects');
       },
+
+      /** The page saved its project; the editor reopens at the quality picked (a new WebView). */
+      async setPreviewQuality(setting: string) {
+        await setQuality(parseQualitySetting(setting));
+        reopen();
+      },
     }),
-    [files, historyRepo, navigation, projectId, projects]
+    [files, historyRepo, navigation, projectId, projects, setQuality, reopen]
   );
 
   const onMessage = useCallback(
@@ -354,9 +367,13 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
     );
   }
 
+  // The saved preview quality is read asynchronously: the page must not start before it is known.
+  if (quality === null) return <View style={styles.container} />;
+
   // The page draws edge to edge: give it the system bars' sizes before it lays out.
   // The editor's UI language (RNF-016), read once by the page before it draws.
-  const insetsScript = `(function(){window.__pmLanguage='${language}';window.__pmStart='${start}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
+  // The preview quality (a fixed word, read once by the page; see photo-editor-web/domain/previewQuality).
+  const insetsScript = `(function(){window.__pmLanguage='${language}';window.__pmStart='${start}';window.__pmQuality='${quality}';var s=document.documentElement.style;s.setProperty('--safe-top','${insets.top}px');s.setProperty('--safe-bottom','${insets.bottom}px');})();true;`;
 
   return (
     <View style={styles.container}>

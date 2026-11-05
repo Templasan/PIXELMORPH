@@ -1,6 +1,7 @@
 import { clipMedia, createClip, type Clip, type Track } from '../src/domain/Track';
 import { addPictureTrack, migrateTracks, moveClipToTrack, shiftTrack } from '../src/domain/timeline';
-import { buildComposition, liveLayerCap, liveLayerKeys, opsAt, type CompositionOp, type MediaOp } from '../src/domain/composition';
+import { buildComposition, liveLayerKeys, opsAt, type CompositionOp, type MediaOp } from '../src/domain/composition';
+import { LIVE_LAYER_CAP } from '../src/domain/previewQuality';
 import { displayOrder } from '../src/ui/trackOrder';
 
 const clip = (id: string, startMs: number, extra: Partial<Clip> = {}): Clip => ({
@@ -114,11 +115,10 @@ describe('video layers decoded while playing', () => {
     expect(liveLayerKeys(ops, 8).size).toBe(4);
   });
 
-  it('the cap follows the memory of the device', () => {
-    expect(liveLayerCap(2)).toBe(2);
-    expect(liveLayerCap(4)).toBe(4);
-    expect(liveLayerCap(8)).toBe(8);
-    expect(liveLayerCap(undefined)).toBe(4);
+  it('the cap follows the preview tier', () => {
+    expect(LIVE_LAYER_CAP.baixa).toBe(2);
+    expect(LIVE_LAYER_CAP.media).toBe(4);
+    expect(LIVE_LAYER_CAP.alta).toBe(8);
   });
 });
 

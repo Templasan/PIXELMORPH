@@ -45,6 +45,8 @@ export function createDevHost(): EditorHost {
       const answer = prompt(all.map((p, i) => `${i + 1}. ${p.name}`).join('\n'), '1');
       return answer ? (all[Number(answer) - 1] ?? null) : null;
     },
+    // No app here to reopen the editor: the dev page keeps its own quality (Automática).
+    setPreviewQuality() {},
     async listPhotoProjects() {
       const current = key.replace('pixelmorph.dev.photo.', '');
       return (await pictures()).filter((p) => p.name !== current).map((p) => ({ id: p.name, name: p.name }));

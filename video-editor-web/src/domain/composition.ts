@@ -346,12 +346,6 @@ export function mediaAround(c: Composition, t: number, aheadMs: number): MediaOp
   return [...seen.values()];
 }
 
-/** Video layers a device decodes at once while playing, by its memory (a coarse bucket, in GB). */
-export function liveLayerCap(deviceMemoryGb: number | undefined): number {
-  if (deviceMemoryGb === undefined) return 4;
-  return deviceMemoryGb <= 3 ? 2 : deviceMemoryGb <= 6 ? 4 : 8;
-}
-
 /**
  * The video layers that keep decoding while playing when there are more than `cap`: the biggest
  * on screen (a frozen background shows most), the upper one on a tie. The others hold their frame

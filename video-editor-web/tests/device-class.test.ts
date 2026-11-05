@@ -1,4 +1,4 @@
-import { isLowEndDevice, previewShortEdge, speechMinutesOn } from '../src/domain/deviceClass';
+import { isLowEndDevice, speechMinutesOn } from '../src/domain/deviceClass';
 
 describe('deviceClass', () => {
   it('treats 3 GB or less as low-end, and an unknown phone as normal', () => {
@@ -6,12 +6,6 @@ describe('deviceClass', () => {
     expect(isLowEndDevice(3)).toBe(true);
     expect(isLowEndDevice(4)).toBe(false);
     expect(isLowEndDevice(undefined)).toBe(false);
-  });
-
-  it('draws the preview smaller on a low-end phone', () => {
-    expect(previewShortEdge(2)).toBe(540);
-    expect(previewShortEdge(8)).toBe(720);
-    expect(previewShortEdge(undefined)).toBe(720);
   });
 
   it('warns about speech time only on a low-end phone, rounded up', () => {

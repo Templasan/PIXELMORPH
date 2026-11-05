@@ -299,6 +299,10 @@ const en: Record<string, string> = {
   "Este aparelho ficou sem memória. Feche outros apps e abra o projeto novamente.": "This device ran out of memory. Close other apps and open the project again.",
   "O editor foi reaberto": "The editor was reopened",
   "O sistema fechou o editor, geralmente por falta de memória. A última alteração pode não ter sido salva.": "The system closed the editor, usually for lack of memory. The last change may not have been saved.",
+  'A prévia usa uma cópia menor para não travar. Toque no selo "Prévia" sobre a prévia para escolher Alta, Média ou Baixa; Automática, o padrão, escolhe pelo aparelho. A exportação usa sempre o vídeo original.':
+    'The preview uses a smaller copy so it does not stall. Tap the "Preview" tag over the preview to choose High, Medium or Low; Automatic, the default, picks by the phone. The export always uses the original video.',
+  'Não. O recorte do sujeito, a cena, os rostos e as legendas rodam no próprio aparelho. Só a primeira legenda baixa o modelo de fala.':
+    'No. Subject cut-out, scene, faces and captions run on the phone itself. Only the first caption downloads the speech model.',
 };
 
 export default en;

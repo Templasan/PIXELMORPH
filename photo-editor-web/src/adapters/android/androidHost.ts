@@ -17,8 +17,9 @@ const CHUNK = 512 * 1024;
  */
 export function createAndroidHost(): EditorHost {
   return {
-    loadProject: () => call<SavedPhoto | null>('loadProject'),
+    loadProject: (previewEdge) => call<SavedPhoto | null>('loadProject', previewEdge),
     saveProject: (project) => call<void>('saveProject', project),
+    setPreviewQuality: (setting) => void call('setPreviewQuality', setting).catch(() => {}),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
     listPresets: () => call<PresetRef[]>('listPresets'),
     segmentSubject: (uri) => call<PictureRef>('segmentSubject', uri),

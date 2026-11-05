@@ -7,6 +7,7 @@ import { useStore } from '../state/useStore';
 import { CaptionsSheet } from './CaptionsSheet';
 import { ExportSheet } from './ExportSheet';
 import { Icon } from './Icon';
+import { QualitySheet, qualityChipText } from './QualitySheet';
 import { ClipPanel, type ClipTool } from './panels/ClipPanel';
 import { LayersPanel } from './panels/LayersPanel';
 import { MediaPanel } from './panels/MediaPanel';
@@ -42,6 +43,7 @@ export function App({ session }: { session: EditorSession }) {
   const [panel, setPanel] = useState<Panel>({ kind: startsWithTimelapse() ? 'timelapse' : 'none' });
   const [exporting, setExporting] = useState(false);
   const [captionsFor, setCaptionsFor] = useState<string | null>(null);
+  const [qualityOpen, setQualityOpen] = useState(false);
   /** The system picker where the host has one (the app); the file list otherwise (dev). */
   const addMedia = (media: 'video' | 'image' | 'audio', stack = false) =>
     session.host.pickIsFinal
@@ -99,7 +101,7 @@ export function App({ session }: { session: EditorSession }) {
         </button>
       </header>
 
-      <Preview session={session} />
+      <Preview session={session} onQuality={() => setQualityOpen(true)} />
       <Transport session={session} />
       <Timeline
         session={session}
@@ -134,11 +136,12 @@ export function App({ session }: { session: EditorSession }) {
       )}
       {exporting && <ExportSheet session={session} onClose={() => setExporting(false)} />}
       {captionsFor && <CaptionsSheet session={session} clipId={captionsFor} onClose={() => setCaptionsFor(null)} />}
+      {qualityOpen && <QualitySheet session={session} onClose={() => setQualityOpen(false)} />}
     </div>
   );
 }
 
-function Preview({ session }: { session: EditorSession }) {
+function Preview({ session, onQuality }: { session: EditorSession; onQuality: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const error = useStore(session.error);
   const busy = useStore(session.busy);
@@ -154,6 +157,16 @@ function Preview({ session }: { session: EditorSession }) {
       <canvas ref={canvasRef} />
       <PreviewHandles session={session} canvasRef={canvasRef} />
       {copies > 0 && <div className="badge">{t('Prévia leve')}</div>}
+      {/* Its own tap: the preview toggles play on a click, and this opens the quality list instead. */}
+      <button
+        className="badge quality"
+        onClick={(e) => {
+          e.stopPropagation();
+          onQuality();
+        }}
+      >
+        {qualityChipText(session.quality)}
+      </button>
       {preparing !== null && <div className="badge preparing">{t('Preparando vídeo: {n}%', { n: preparing })}</div>}
       {frozen > 0 && (
         <div className="badge frozen">{t('Camadas paradas na prévia: {n}. O vídeo final toca todas.', { n: frozen })}</div>

@@ -2,7 +2,7 @@
 // decodes the full file again.
 import * as FileSystem from 'expo-file-system/legacy';
 import { encodeImage } from '@modules/export';
-import { PREVIEW_LONG_EDGE } from './resolution';
+import { lightCopyNamesOf } from './resolution';
 import { downscaleToLongEdge, loadFullImage } from './photoProxySkia';
 
 const DECODE_TIMEOUT_MS = 30_000;
@@ -14,11 +14,9 @@ export interface LightCopy {
   height: number;
 }
 
-/** `<name>.preview.jpg` next to `uri` (+ `.json` with the original's size), made once. */
-export async function lightCopyOf(uri: string): Promise<LightCopy> {
-  const base = uri.replace(/\.[^./]+$/, '');
-  const copy = `${base}.preview.jpg`;
-  const meta = `${base}.preview.json`;
+/** `<name>.preview.jpg` next to `uri` (+ `.json` with the original's size) for long edge `edge`, made once. */
+export async function lightCopyOf(uri: string, edge: number): Promise<LightCopy> {
+  const { copy, meta } = lightCopyNamesOf(uri, edge);
   if (
     (await FileSystem.getInfoAsync(copy)).exists &&
     (await FileSystem.getInfoAsync(meta)).exists
@@ -40,7 +38,7 @@ export async function lightCopyOf(uri: string): Promise<LightCopy> {
   try {
     const width = image.width();
     const height = image.height();
-    const light = downscaleToLongEdge(image, PREVIEW_LONG_EDGE);
+    const light = downscaleToLongEdge(image, edge);
     const { base64 } = encodeImage(light, 'JPEG', 90);
     if (light !== image) light.dispose();
     // Written under a temporary name and moved: a killed app never leaves a half file.

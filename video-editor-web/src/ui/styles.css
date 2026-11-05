@@ -149,6 +149,24 @@ button:disabled {
   right: auto;
 }
 
+/* Bottom left: the top corners hold the badges above. A button: a tap opens the quality list. */
+.preview .badge.quality {
+  top: auto;
+  bottom: 8px;
+  left: 8px;
+  right: auto;
+  cursor: pointer;
+}
+
+.quality-list {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.quality-list .chip {
+  text-align: left;
+}
+
 .preview .toast {
   position: absolute;
   left: 12px;

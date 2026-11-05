@@ -21,7 +21,15 @@ import { captionClips } from './speechCaptions';
 import { trackFaces } from '../domain/faceTrack';
 import { scrubBudget } from '../domain/scrubPlan';
 import { ScrubFrames } from '../engine/scrubFrames';
-import { isLowEndDevice, previewShortEdge, speechMinutesOn } from '../domain/deviceClass';
+import { speechMinutesOn } from '../domain/deviceClass';
+import {
+  autoTier,
+  LIVE_LAYER_CAP,
+  PREVIEW_SHORT_EDGE,
+  qualitySettingOf,
+  tierOf,
+  type QualitySetting,
+} from '../domain/previewQuality';
 import { correctionsOf, type MotionSample } from '../domain/stabilize';
 import { motionPathOf, setMotionPath } from '../engine/motion';
 
@@ -43,9 +51,12 @@ import { freeStart, mainTrack, newLayer, placeAtPlayhead } from './placement';
 import { timelapseClips } from '../domain/timelapse';
 import type { TransitionType } from '../domain/transitions';
 
-/** Short edge of the preview canvas (the export renders the same composition at its own size). */
 /** Not in every browser, and the app's WebView reports it rounded. */
 const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+/** The quality the app set (or Automática), read once: picking another one reopens the editor. */
+const qualitySetting = qualitySettingOf((globalThis as { __pmQuality?: unknown }).__pmQuality);
+/** The tier in use: sets the preview's size, its scrub reserve and its live layers. */
+const previewTier = tierOf(qualitySetting, deviceMemory);
 const SAVE_DEBOUNCE_MS = 400;
 
 const KIND_COLORS: Record<Track['kind'], string> = {
@@ -119,7 +130,7 @@ export function createEditorSession(host: EditorHost) {
     (preparing.get() !== null && originalUndecodable) ||
     performance.now() - lastJumpAt < BACKGROUND_WAITS_AFTER_JUMP_MS;
   const previews = new MediaPreviews(pool, previewBusy, (uri) => previewMap[uri] ?? uri);
-  const scrubFrames = new ScrubFrames(pool, previewBusy, scrubBudget(isLowEndDevice(deviceMemory)));
+  const scrubFrames = new ScrubFrames(pool, previewBusy, scrubBudget(previewTier === 'baixa'));
   const format = createStore<ProjectFormat>('16:9');
   /** Video layers holding their frame while playing (see liveLayerKeys). */
   const frozenLayers = createStore(0);
@@ -135,13 +146,13 @@ export function createEditorSession(host: EditorHost) {
   let partialReadAt = 0;
   const compose = (tracks: Track[]) =>
     buildComposition(tracks, {
-      ...frameSize(format.get(), previewShortEdge(deviceMemory)),
+      ...frameSize(format.get(), PREVIEW_SHORT_EDGE[previewTier]),
       mapUri: (u) => previewMap[u] ?? u,
     });
   const askPreviewSources = (tracks: Track[]) =>
     host.wantPreviewSources?.(
       [...new Set(tracks.flatMap((t) => t.clips.filter((c) => clipMedia(t, c) === 'video').map((c) => c.sourceUri)))],
-      isLowEndDevice(deviceMemory)
+      previewTier
     );
   /** The files the preview shows: original or its light copy, whichever it reads now. */
   const wantScrubFrames = (tracks: Track[]) =>
@@ -209,6 +220,11 @@ export function createEditorSession(host: EditorHost) {
 
   let lastTracks = editor.store.get().tracks;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Saves now instead of after the debounce: the editor is about to be reopened. */
+  const flushSave = () => {
+    clearTimeout(saveTimer);
+    return save();
+  };
   editor.store.subscribe(() => {
     const { tracks } = editor.store.get();
     if (tracks === lastTracks) return;
@@ -281,7 +297,8 @@ export function createEditorSession(host: EditorHost) {
         onFrozenLayers: (count) => frozenLayers.set(count),
         onFrame: (f) => trace?.push(f),
       },
-      compose(editor.store.get().tracks)
+      compose(editor.store.get().tracks),
+      LIVE_LAYER_CAP[previewTier]
     );
     player.scrub = scrubFrames;
     player.seek(time.get());
@@ -545,6 +562,13 @@ export function createEditorSession(host: EditorHost) {
     previews,
     previewCopies,
     preparing,
+    /** The preview quality: the person's pick, the tier it means here, and the automatic tier. */
+    quality: { setting: qualitySetting, tier: previewTier, auto: autoTier(deviceMemory) },
+    /** Saves the project, then asks the host to reopen the editor at that quality. */
+    async setPreviewQuality(setting: QualitySetting) {
+      await flushSave();
+      host.setPreviewQuality(setting);
+    },
     format,
     drawn,
     frozenLayers,

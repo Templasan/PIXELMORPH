@@ -1,7 +1,6 @@
 import type { ScrubFrames } from './scrubFrames';
 import type { VideoSample } from 'mediabunny';
 import {
-  liveLayerCap,
   liveLayerKeys,
   mediaAround,
   opsAt,
@@ -68,7 +67,6 @@ const DECODE_RETRY_MS = 250;
 export class Player {
   /** Where each clip was last drawn, in frame pixels. */
   readonly boxes = new Map<string, Box>();
-  private readonly liveCap = liveLayerCap((navigator as { deviceMemory?: number }).deviceMemory);
   private frozen = 0;
   private comp: Composition;
   private t = 0;
@@ -130,7 +128,9 @@ export class Player {
     private readonly canvas: HTMLCanvasElement,
     private readonly pool: MediaPool,
     private readonly events: PlayerEvents,
-    comp: Composition
+    comp: Composition,
+    /** Video layers that decode live while playing (the preview tier's cap). */
+    private readonly liveCap: number
   ) {
     this.comp = comp;
     this.stillShownAt = null;

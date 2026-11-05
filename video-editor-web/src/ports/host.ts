@@ -1,4 +1,5 @@
 import type { FaceSample } from '../domain/faceTrack';
+import type { QualitySetting, Tier } from '../domain/previewQuality';
 import type { Track } from '../domain/Track';
 import type { FileReader } from '../engine/media';
 
@@ -71,8 +72,10 @@ export interface EditorHost {
   speechModelReady?(): Promise<boolean>;
   transcribeSpeech?(uri: string, inMs: number, outMs: number, onProgress: (p: SpeechProgress) => void): Promise<SpeechSegment[]>;
   cancelSpeech?(): void;
-  /** `low`: a low-end phone, which should get the lightest copies. */
-  wantPreviewSources?(uris: string[], low?: boolean): void;
+  /** The preview tier in use: the host makes the copies that tier reads. */
+  wantPreviewSources?(uris: string[], tier: Tier): void;
+  /** The person picked another preview quality (or Automática): the host saves it and reopens the editor. */
+  setPreviewQuality(setting: QualitySetting): void;
   onPreviewSources?(listener: (map: Record<string, string>) => void): void;
   /** Copies still being written, which can already be read up to `progress` percent. */
   onPreviewPartial?(listener: (partial: Record<string, { file: string; progress: number }>) => void): void;

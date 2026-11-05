@@ -294,6 +294,43 @@ button:disabled {
   display: block;
 }
 
+/* The picture's box and the quality chip over it, top left (the zoom badge is bottom right). */
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage > .view-box {
+  flex: 1 1 auto;
+}
+
+.quality-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  padding: 2px 8px;
+  border: 1px solid var(--linha);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.6);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.quality-list {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.quality-list .chip {
+  text-align: left;
+}
+
 .zoom-badge {
   position: absolute;
   right: 8px;

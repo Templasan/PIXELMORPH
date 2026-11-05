@@ -6,6 +6,17 @@ export const PREVIEW_LONG_EDGE = 2048;
 /** Long edge cap for an export: keeps the offscreen surface within GPU limits. */
 export const EXPORT_MAX_LONG_EDGE = 8192;
 
+/**
+ * The light copy's files for `uri` at long edge `edge`. 2048 keeps the names from before the
+ * preview quality tiers, so those copies stay valid; any other edge gets its own names.
+ */
+export function lightCopyNamesOf(uri: string, edge: number): { copy: string; meta: string } {
+  if (!Number.isInteger(edge) || edge < 1) throw new RangeError(`edge ${edge}`);
+  const base = uri.replace(/\.[^./]+$/, '');
+  const size = edge === PREVIEW_LONG_EDGE ? '' : String(edge);
+  return { copy: `${base}.preview${size}.jpg`, meta: `${base}.preview${size}.json` };
+}
+
 /** Size of an image scaled down so its long edge is at most `maxLongEdge`, aspect kept. */
 export function fitLongEdgeOf(
   width: number,
