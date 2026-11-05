@@ -192,3 +192,27 @@ Ordem combinada: (1) reserva durante a cópia, em arquivos que a página decodif
 Medidas finais: cópia de 1080p de 30 min em cerca de 12 min 40 s, com o app aberto até o fim; de 2 min em 68 s. 4K de 1 min em 244 a 256 s. Vídeo tipo câmera de 60 s: importa em 7 s; durante a cópia, arrastar 0,1 ms e quadro exato de 180 a 991 ms; o app em segundo plano por 25 s não matou a cópia; depois dela, 107 a 154 ms; exportação em 1080×1920 em 211 s.
 
 Pendente: se o sistema matar o app, a cópia recomeça do zero. Várias camadas de 4K ao mesmo tempo não foram testadas, e cada uma usa uma cópia de 1080p; o hardware decodifica o equivalente a duas a 30 quadros/s. Estalo ao dar play ou pausa: resolvido e confirmado de ouvido pelo dono no A11. O fade de 12 ms sozinho não bastou; o som parou ao manter a saída de áudio ligada durante a pausa, por 30 s.
+
+## Comparativo A11 × Poco (2026-11-04)
+
+Poco (modelo 24095PCADG), Android 16, 8 GB, arm64. O A11 está no modo de celular fraco (cópia de 540p, ou de 1080p acima de 1080p). O Poco usa a cópia de 720p. O A11 foi medido antes das duas últimas mudanças (cópia não passa da taxa do original, aviso de importação depois do seletor).
+
+| Medida | A11 | Poco |
+|---|---|---|
+| Importar 30 min (466 MB) | 16 s | 6 a 8 s |
+| Cópia, 1080p de 2 min | 68 s | não medida com relógio limpo |
+| Cópia, 1080p de 30 min | 12 min 40 s | 3 min 37 s |
+| Cópia, 4K de 1 min | 244 a 256 s | 51 s |
+| Quadro exato, vídeo tipo câmera, durante a cópia | 180 a 991 ms | 153 a 218 ms |
+| Quadro exato, vídeo tipo câmera, depois da cópia | 107 a 154 ms | 185 ms de mediana |
+| Quadro exato, 30 min | 215 ms | 225 ms |
+| Quadro exato, 4K | 278 ms | 223 ms |
+| Arrastar | 0,1 a 1,5 ms | 0,4 a 1,4 ms |
+| Tocar, 3 camadas: início | 0,31 a 0,49 s | 0,27 a 0,45 s |
+| Tocar, 3 camadas: velocidade estável | 1,00 | 1,00 |
+| Exportar 60 s em 1080×1920 | 211 s | 39 s |
+| Exportar 4K de 60 s em 720p | 183 s, mais a cópia | 35 s |
+
+Achados no Poco: a cópia de 720p a 5 Mbps tinha 1,14 GB para um original de 466 MB, e acima de 1 GB a página lê em pedaços pela ponte. Com a taxa limitada: 576 MB, quadro exato de cerca de 680 ms para 225 ms, reserva de 251 s para 45 s. Quadros completos 3 vezes por segundo em toda cópia. O aviso de importação desenhava 120 quadros por segundo atrás do seletor (110% de CPU, agora cerca de 15%); a AppState não muda ali, porque o seletor é translúcido. Pedaços em paralelo funcionam no Poco, mas não compensam: 1080p 6,0 s contra 7,3 s; 4K 9,2 a 11 s contra 8,1 s.
+
+Em `file://` o Android 16 não deixa a página ler `/sdcard/Movies`, então os testes de 3 camadas no Poco usaram o arquivo do projeto, três vezes.
