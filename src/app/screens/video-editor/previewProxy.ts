@@ -27,6 +27,8 @@ const VARIANTS: Record<ProxyVariant, { longEdge: number; bitrate: number; keyfra
   '540': { longEdge: 960, bitrate: 3_000_000, keyframeSeconds: LOW_END_KEYFRAME_SECONDS },
   '1080': { longEdge: 1920, bitrate: 10_000_000, keyframeSeconds: LOW_END_KEYFRAME_SECONDS },
 };
+/** Below this a preview copy shows blocks. */
+const MIN_COPY_BITRATE = 1_000_000;
 /** How long a pause waits for the cancelled transcode to report back before carrying on. */
 const SETTLE_TIMEOUT_MS = 10_000;
 
@@ -66,6 +68,16 @@ export function proxyDimensions(
 }
 
 /**
+ * A copy is never heavier than its source: at a fixed rate, a 466 MB file got a 1.14 GB "light" copy,
+ * which the page then had to read slowly in chunks.
+ */
+export function copyBitrate(variant: ProxyVariant, sourceBytes: number, durationMs: number): number {
+  const wanted = VARIANTS[variant].bitrate;
+  if (!(sourceBytes > 0) || !(durationMs > 0)) return wanted;
+  return Math.max(MIN_COPY_BITRATE, Math.min(wanted, Math.round((sourceBytes * 8000) / durationMs)));
+}
+
+/**
  * The proxy sits next to its source (`<name>.proxy720.mp4`). Only sources inside the app's
  * documents folder get one; anything else plays the original.
  */
@@ -83,6 +95,7 @@ interface Job {
   width: number;
   height: number;
   durationMs: number;
+  bitrate: number;
 }
 
 interface Run {
@@ -128,7 +141,7 @@ async function transcode(run: Run) {
         audio: [],
         width: job.width,
         height: job.height,
-        bitrate: VARIANTS[job.variant].bitrate,
+        bitrate: job.bitrate,
         keyFrameIntervalSeconds: VARIANTS[job.variant].keyframeSeconds,
         fragmented: job.variant === '1080',
         outputPath: nativePath(job.tmpUri),
@@ -195,7 +208,9 @@ export async function requestProxy(
     patch(key, { status: 'ready', progress: 100, uri });
     return;
   }
+  const source = await FileSystem.getInfoAsync(sourceUri).catch(() => ({ exists: false, size: 0 }));
   queue.push({
+    bitrate: copyBitrate(variant, source.exists ? source.size : 0, durationMs),
     sourceUri,
     variant,
     uri,
