@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { errorLogger } from '@core/reliability';
 import {
   awaitExportCopies,
+  copyBitrate,
   pauseProxiesForExport,
   proxyDimensions,
   proxyPathOf,
@@ -256,6 +257,18 @@ describe('pauseProxiesForExport / resumeProxies', () => {
 
     job.resolve();
     await flush();
+  });
+});
+
+describe('copyBitrate', () => {
+  it('never makes a copy heavier than its source', () => {
+    const halfHour = 1_800_000;
+    expect(copyBitrate('720', 466_000_000, halfHour)).toBe(Math.round((466_000_000 * 8000) / halfHour));
+  });
+  it('keeps the variant rate for a heavier source, and a floor for a very light one', () => {
+    expect(copyBitrate('720', 1_000_000_000, 60_000)).toBe(5_000_000);
+    expect(copyBitrate('720', 1_000_000, 60_000)).toBe(1_000_000);
+    expect(copyBitrate('720', 0, 60_000)).toBe(5_000_000);
   });
 });
 
