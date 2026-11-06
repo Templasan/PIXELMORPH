@@ -21,6 +21,7 @@ export function createAndroidHost(): EditorHost {
     saveProject: (project) => call<void>('saveProject', project),
     setPreviewQuality: (setting) => void call('setPreviewQuality', setting).catch(() => {}),
     pickPicture: () => call<PictureRef | null>('pickPicture'),
+    lightCopy: (uri, edge) => call<string>('lightCopy', uri, edge),
     listPresets: () => call<PresetRef[]>('listPresets'),
     segmentSubject: (uri) => call<PictureRef>('segmentSubject', uri),
     labelImage: (uri) => call<{ text: string; confidence: number }[]>('labelImage', uri),

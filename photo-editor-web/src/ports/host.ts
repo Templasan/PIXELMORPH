@@ -79,6 +79,8 @@ export interface EditorHost {
   setPreviewQuality(setting: QualitySetting): void;
   /** A second picture from the gallery (double exposure, overlay); null when cancelled. */
   pickPicture(): Promise<PictureRef | null>;
+  /** A small copy of a JPEG with long edge `edge`, made once by the app; its uri. */
+  lightCopy?(uri: string, edge: number): Promise<string>;
   listPresets(): Promise<PresetRef[]>;
   /** RF-004: the main subject of a picture, transparent elsewhere. Only the app can do this. */
   segmentSubject?(uri: string): Promise<PictureRef>;
