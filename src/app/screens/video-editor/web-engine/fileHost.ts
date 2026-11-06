@@ -18,6 +18,11 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+/** Bytes a base64 string decodes to. */
+export function base64Bytes(b64: string): number {
+  return (b64.length * 3) / 4 - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0);
+}
+
 function fromBase64(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -27,18 +32,24 @@ function fromBase64(b64: string): Uint8Array {
 
 export function createFileHost() {
   const handles = new Map<string, FileHandle>();
-  let exporting: { file: File; handle: FileHandle } | null = null;
+  let exporting: { file: File; handle: FileHandle; end: number } | null = null;
   return {
     /** The engine's export writes here: the app cache, like the native exporter's output. */
     async startExport(ext = 'mp4') {
       const file = new File(Paths.cache, `pixelmorph_export_${Date.now()}.${ext}`);
       file.create({ overwrite: true });
-      exporting = { file, handle: file.open(FileMode.WriteOnly) };
+      exporting = { file, handle: file.open(FileMode.WriteOnly), end: 0 };
     },
     async writeExportChunk(position: number, b64: string) {
       if (!exporting) throw new Error('export not started');
-      exporting.handle.offset = position;
-      exporting.handle.writeBytes(fromBase64(b64));
+      // An append is decoded natively: decoding byte by byte in JS took ~8 s for a 32 MB photo.
+      if (position === exporting.end) {
+        exporting.file.write(b64, { encoding: 'base64', append: true });
+      } else {
+        exporting.handle.offset = position;
+        exporting.handle.writeBytes(fromBase64(b64));
+      }
+      exporting.end = Math.max(exporting.end, position + base64Bytes(b64));
     },
     async finishExport() {
       if (!exporting) throw new Error('export not started');
