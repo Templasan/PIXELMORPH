@@ -25,6 +25,7 @@ const en: Record<string, string> = {
   'Nada para exportar.': 'Nothing to export.',
   'Exportando…': 'Exporting…',
   'Aplicando…': 'Applying…',
+  'Removendo objeto…': 'Removing object…',
   'WebGL2 indisponível': 'WebGL2 unavailable',
   'Abrindo a foto…': 'Opening photo…',
 
