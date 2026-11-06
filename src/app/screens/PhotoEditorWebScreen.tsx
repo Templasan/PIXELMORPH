@@ -385,7 +385,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         key={editorKey}
         ref={webRef}
         onRenderProcessGone={onRenderProcessGone}
-        source={{ uri: EDITOR_URL }}
+        source={{ uri: `${EDITOR_URL}#q=${quality}` }}
         originWhitelist={['*']}
         allowFileAccess
         allowFileAccessFromFileURLs

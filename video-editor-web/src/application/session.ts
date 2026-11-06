@@ -54,7 +54,11 @@ import type { TransitionType } from '../domain/transitions';
 /** Not in every browser, and the app's WebView reports it rounded. */
 const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
 /** The quality the app set (or Automática), read once: picking another one reopens the editor. */
-const qualitySetting = qualitySettingOf((globalThis as { __pmQuality?: unknown }).__pmQuality);
+const qualitySetting = qualitySettingOf(
+  // The page address carries it: the script injected before load can run after this module.
+  new URLSearchParams(globalThis.location?.hash.slice(1)).get('q') ??
+    (globalThis as { __pmQuality?: unknown }).__pmQuality
+);
 /** The tier in use: sets the preview's size, its scrub reserve and its live layers. */
 const previewTier = tierOf(qualitySetting, deviceMemory);
 const SAVE_DEBOUNCE_MS = 400;
