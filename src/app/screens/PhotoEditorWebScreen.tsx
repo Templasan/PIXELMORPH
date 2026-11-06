@@ -182,6 +182,10 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
         };
       },
 
+      async lightCopy(uri: string, edge: number): Promise<string> {
+        return (await lightCopyOf(uri, edge)).uri;
+      },
+
       // US-02 batch edit: the other photo projects, and a look applied to some of them as one
       // undo step each (their editor shows it on open and can undo it).
       async listPhotoProjects() {

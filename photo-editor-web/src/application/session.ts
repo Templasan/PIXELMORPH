@@ -359,9 +359,19 @@ export function createPhotoSession(host: EditorHost) {
     return out;
   }
 
+  /**
+   * Extra pictures (blends, image layers, collage, panorama) open from a small copy the app makes
+   * once: the page decodes a whole original before shrinking it, slow for a 50 MP photo.
+   * shortcut: JPEG only (a PNG copy would lose its transparency), add PNG copies if big PNGs show up.
+   */
+  async function loadLight(uri: string, edge: number) {
+    const small = host.lightCopy && /\.jpe?g$/i.test(uri) ? await host.lightCopy(uri, edge).catch(() => uri) : uri;
+    return loadPicture(small, edge);
+  }
+
   function wantBlend(ref: PictureRef | null) {
     if (!ref || blendPictures.has(ref.uri)) return;
-    const p = loadPicture(ref.uri, previewEdge)
+    const p = loadLight(ref.uri, previewEdge)
       .then(({ bitmap }) => {
         blendReady.set(ref.uri, bitmap);
         requestDraw();
@@ -511,7 +521,7 @@ export function createPhotoSession(host: EditorHost) {
     let canvas: HTMLCanvasElement | null = null;
     try {
       for (const ref of refs) {
-        const { bitmap } = await loadPicture(ref.uri, MONTAGE_PICTURE_EDGE);
+        const { bitmap } = await loadLight(ref.uri, MONTAGE_PICTURE_EDGE);
         pics.push({ bitmap, width: bitmap.width, height: bitmap.height });
       }
       canvas = draw(pics);
@@ -1170,7 +1180,7 @@ export function createPhotoSession(host: EditorHost) {
     async alignPanorama(refs: PictureRef[]): Promise<(PairAlignment | null)[]> {
       const greys: GreyPicture[] = [];
       for (const ref of refs) {
-        const { bitmap } = await loadPicture(ref.uri, MONTAGE_PICTURE_EDGE);
+        const { bitmap } = await loadLight(ref.uri, MONTAGE_PICTURE_EDGE);
         const height = ALIGN_HEIGHT;
         const width = Math.max(4, Math.round((bitmap.width * height) / bitmap.height));
         const c = document.createElement('canvas');
