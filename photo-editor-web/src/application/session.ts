@@ -8,7 +8,7 @@ import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
 import { drawCutoutMask, localParts, drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
-import { fillHole } from '../domain/fillHole';
+import { fillHoleAsync } from '../engine/fillHoleAsync';
 import {
   createCutoutLayer,
   createFaceLayer,
@@ -397,6 +397,8 @@ export function createPhotoSession(host: EditorHost) {
   let screen: HTMLCanvasElement | null = null;
   let frame = 0;
   let lastGlKey = '';
+  // Grows only: a panel shrinking the preview would reallocate the GPU canvas (a hitch on open).
+  let outFit = 0;
   let firstDrawn = false;
   function requestDraw() {
     if (!frame) frame = requestAnimationFrame(draw);
@@ -411,7 +413,8 @@ export function createPhotoSession(host: EditorHost) {
     const blends = blendsOf(a);
     const k = screen.width / size.scene.w;
     // The passes draw what the screen shows of the photo, never more than the light copy has.
-    const fit = Math.min(1, (size.photo.w * k) / light.width);
+    const fit = Math.max(outFit, Math.min(1, (size.photo.w * k) / light.width));
+    outFit = fit;
     preview.setOutput(Math.max(1, Math.round(light.width * fit)), Math.max(1, Math.round(light.height * fit)));
     // The GPU passes run again only when something they draw changed.
     const glKey = JSON.stringify([a, adjustmentsVisible, blends.map((b) => [b.blend, b.opacity, b.image.width]), fit]);
@@ -583,6 +586,7 @@ export function createPhotoSession(host: EditorHost) {
         lightUri = saved.previewUri ?? saved.photo.uri;
         const picture = await loadPicture(lightUri, previewEdge);
         light = picture.bitmap;
+        outFit = 0;
         performance.mark('pm:picture');
         // Without a light copy the original was decoded: what it really is beats the project's
         // metadata (a project's file can change after its metadata was written).
@@ -870,6 +874,7 @@ export function createPhotoSession(host: EditorHost) {
         const picture = await loadPicture(baked.previewUri ?? baked.photo.uri, previewEdge);
         light?.close();
         light = picture.bitmap;
+        outFit = 0;
         preview?.setSource(light);
         lastGlKey = '';
         editor.resetFields(fields);
@@ -965,7 +970,8 @@ export function createPhotoSession(host: EditorHost) {
      * RF-055: replaces a marked area with what surrounds it. The result is a picture layer over
      * that spot, so the photo stays untouched and the removal can be undone or hidden.
      */
-    removeMarked(layerId: string) {
+    async removeMarked(layerId: string) {
+      if (info.get().busy) return;
       const st = editor.store.get();
       const index = st.layers.findIndex((l) => l.id === layerId);
       const marked = st.layers[index];
@@ -1042,7 +1048,12 @@ export function createPhotoSession(host: EditorHost) {
       const alpha = mctx.getImageData(0, 0, width, height).data;
       const hole = new Uint8Array(width * height);
       for (let i = 0; i < hole.length; i += 1) hole[i] = alpha[i * 4 + 3] > 0 ? 1 : 0;
-      fillHole(image.data, width, height, hole);
+      setInfo({ busy: t('Removendo objeto…') });
+      try {
+        image.data.set(await fillHoleAsync(image.data.slice(), width, height, hole));
+      } finally {
+        setInfo({ busy: null });
+      }
       ctx.putImageData(image, 0, 0);
 
       // Only the filled part goes in the layer, with a soft edge so it melts into the photo.
