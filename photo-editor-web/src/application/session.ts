@@ -48,7 +48,11 @@ const ALIGN_HEIGHT = 120;
 const MONTAGE_PICTURE_EDGE = 4096;
 
 /** The quality the app set (or Automática), read once: picking another one reopens the editor. */
-const qualitySetting = qualitySettingOf((globalThis as { __pmQuality?: unknown }).__pmQuality);
+const qualitySetting = qualitySettingOf(
+  // The page address carries it: the script injected before load can run after this module.
+  new URLSearchParams(globalThis.location?.hash.slice(1)).get('q') ??
+    (globalThis as { __pmQuality?: unknown }).__pmQuality
+);
 const deviceMemory = (globalThis as { navigator?: { deviceMemory?: number } }).navigator?.deviceMemory;
 /** The screen works on a copy this long at most (the tier's); the export always reads the original. */
 const previewEdge = LIGHT_EDGE[tierOf(qualitySetting, deviceMemory)];
