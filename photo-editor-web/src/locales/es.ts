@@ -25,6 +25,7 @@ const es: Record<string, string> = {
   'Nada para exportar.': 'Nada que exportar.',
   'Exportando…': 'Exportando…',
   'Aplicando…': 'Aplicando…',
+  'Pode levar alguns segundos.': 'Puede tardar unos segundos.',
   'Removendo objeto…': 'Eliminando objeto…',
   'WebGL2 indisponível': 'WebGL2 no disponible',
   'Abrindo a foto…': 'Abriendo la foto…',

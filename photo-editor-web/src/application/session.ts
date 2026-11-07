@@ -854,7 +854,9 @@ export function createPhotoSession(host: EditorHost) {
           `pixelmorph_${Date.now()}.${format === 'jpeg' ? 'jpg' : format}`,
           heic ? { heicQuality: quality } : undefined
         );
+        lap('prepared');
         await sink.write(0, bytes);
+        lap('written');
         const where = await sink.finish();
         lap('saved');
         return {
