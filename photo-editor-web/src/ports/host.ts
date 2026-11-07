@@ -43,6 +43,8 @@ export interface SavedPhoto {
   overlay?: PictureRef | null;
   frameColor?: string;
   frameGradientColor?: string;
+  /** "Aplicar e recomeçar" passes, oldest first (partial adjustments drawn in at export). */
+  bakes?: Record<string, number>[];
   history?: SavedHistory;
 }
 
@@ -64,8 +66,6 @@ export interface Sink<T> {
 /** An export: `finish` returns where the file ended up (shown to the user). */
 export type ExportSink = Sink<string>;
 
-/** The project's photo after a bake: the new file and its light copy. */
-export type BakedPhoto = Pick<SavedPhoto, 'photo' | 'previewUri'>;
 
 /**
  * Everything the editor needs from outside (port). The Android app implements it on top of its
@@ -99,8 +99,6 @@ export interface EditorHost {
   exportSink(): ExportSink;
   /** A picture made here (collage, panorama) becomes a new photo project, which the host opens. */
   newProject(name: string, width: number, height: number): Sink<void>;
-  /** A baked version of the photo (adjustments made pixels) becomes the project's photo. */
-  photoSink(): Sink<BakedPhoto>;
   /** Leave the editor (the app goes back to its projects). */
   close(): void;
 }
