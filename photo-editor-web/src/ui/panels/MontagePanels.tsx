@@ -252,7 +252,13 @@ export function PanoramaPanel({ session }: { session: PhotoSession }) {
         + {t('Adicionar foto')}
       </button>
       <button className="chip" disabled={items.length < 2 || aligning} onClick={() => void align()}>
-        {aligning ? t('Alinhando…') : t('Alinhar automaticamente')}
+        {aligning ? (
+          <>
+            <span className="spinner" aria-hidden="true" /> {t('Alinhando…')}
+          </>
+        ) : (
+          t('Alinhar automaticamente')
+        )}
       </button>
       {note && <div className="muted">{note}</div>}
       <button

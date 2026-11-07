@@ -161,7 +161,15 @@ export function App({ session }: { session: PhotoSession }) {
           </button>
         ))}
       </nav>
-      {info.busy && <div className="toast">{info.busy}</div>}
+      {info.busy && (
+        <div className="toast busy" role="status">
+          <span className="spinner" aria-hidden="true" />
+          <span>
+            {info.busy}
+            <small>{t('Pode levar alguns segundos.')}</small>
+          </span>
+        </div>
+      )}
       {exporting && <ExportSheet session={session} onClose={() => setExporting(false)} />}
       {qualityOpen && <QualitySheet session={session} onClose={() => setQualityOpen(false)} />}
       {viewing3d && <StereoViewer session={session} onClose={() => setViewing3d(false)} />}

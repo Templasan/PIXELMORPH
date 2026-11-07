@@ -32,7 +32,12 @@ export function SuggestionsPanel({ session }: { session: PhotoSession }) {
   const color = base ?? found?.palette[0] ?? null;
   const applyCrop = (c: Crop) => editor.applyPreset({ cropX: c.x, cropY: c.y, cropW: c.w, cropH: c.h });
   const cropped = adjustments.cropW < 1 || adjustments.cropH < 1;
-  if (!found) return <div className="muted">{t('Abrindo a foto…')}</div>;
+  if (!found)
+    return (
+      <div className="muted" role="status">
+        <span className="spinner" aria-hidden="true" /> {t('Abrindo a foto…')}
+      </div>
+    );
   const swatch = (hex: string) => (
     <button
       key={hex}
@@ -50,7 +55,11 @@ export function SuggestionsPanel({ session }: { session: PhotoSession }) {
   return (
     <>
       <div className="sub">{t('Cena')}</div>
-      {scene === undefined && <div className="muted">{t('Reconhecendo…')}</div>}
+      {scene === undefined && (
+        <div className="muted" role="status">
+          <span className="spinner" aria-hidden="true" /> {t('Reconhecendo…')}
+        </div>
+      )}
       {scene === null && <div className="muted">{sceneError ?? t('Não deu para saber o tipo desta foto.')}</div>}
       {scene && (
         <div className="chips">
