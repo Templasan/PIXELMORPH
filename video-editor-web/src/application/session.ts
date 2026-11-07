@@ -460,7 +460,10 @@ export function createEditorSession(host: EditorHost) {
     const { clip } = found;
     // A long clip is sampled more thinly, so the search keeps to about a minute's work.
     const stepMs = Math.max(FACE_STEP_MS, (clip.outPointMs - clip.inPointMs) / FACE_MAX_SAMPLES);
-    const samples = await host.sampleFaces(clip.sourceUri, clip.inPointMs, clip.outPointMs, stepMs, onProgress);
+    // The finished preview copy has the same frames (the host scales every frame to one width), and
+    // a 4K original costs a full-size decode per sample.
+    const uri = partial[clip.sourceUri] ? clip.sourceUri : (previewMap[clip.sourceUri] ?? clip.sourceUri);
+    const samples = await host.sampleFaces(uri, clip.inPointMs, clip.outPointMs, stepMs, onProgress);
     const faces = trackFaces(samples, stepMs);
     if (faces.length) {
       editor.commit((before) =>
