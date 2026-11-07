@@ -1,5 +1,5 @@
 import type { DetectedFace } from '../../domain/layers';
-import type { BakedPhoto, EditorHost, PictureRef, PresetRef, WatermarkRef, SavedPhoto } from '../../ports/host';
+import type { EditorHost, PictureRef, PresetRef, WatermarkRef, SavedPhoto } from '../../ports/host';
 import { call } from './bridge';
 
 function toBase64(bytes: Uint8Array): string {
@@ -54,17 +54,6 @@ export function createAndroidHost(): EditorHost {
         finish: async () => {
           await call<string>('newProjectFinish', name, width, height);
         },
-      };
-    },
-    photoSink() {
-      return {
-        start: () => call<void>('bakeStart'),
-        async write(position, bytes) {
-          for (let i = 0; i < bytes.length; i += CHUNK) {
-            await call<void>('bakeWrite', position + i, toBase64(bytes.subarray(i, i + CHUNK)));
-          }
-        },
-        finish: () => call<BakedPhoto>('bakeFinish'),
       };
     },
     close() {

@@ -41,6 +41,8 @@ export interface EditorImage {
 export interface EditorImages {
   doubleExposure: EditorImage | null;
   overlay: EditorImage | null;
+  /** "Aplicar e recomeçar" passes, oldest first: the editor draws them into the original at export. */
+  bakes?: Record<string, number>[];
 }
 
 const IMAGES_KEY_PREFIX = 'editorImages:';
@@ -58,9 +60,12 @@ export async function loadEditorImages(projectId: string): Promise<EditorImages 
       !!i &&
       typeof (i as EditorImage).uri === 'string' &&
       typeof (i as EditorImage).name === 'string';
+    const isPass = (p: unknown): p is Record<string, number> =>
+      !!p && typeof p === 'object' && Object.values(p).every((v) => typeof v === 'number');
     return {
       doubleExposure: valid(parsed.doubleExposure) ? parsed.doubleExposure : null,
       overlay: valid(parsed.overlay) ? parsed.overlay : null,
+      ...(Array.isArray(parsed.bakes) && parsed.bakes.every(isPass) ? { bakes: parsed.bakes } : {}),
     };
   } catch {
     return null;

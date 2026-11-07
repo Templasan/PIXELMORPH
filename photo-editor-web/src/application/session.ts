@@ -154,6 +154,31 @@ export interface SessionInfo {
   canHeic: boolean;
 }
 
+/**
+ * `picture` with each "Aplicar e recomeçar" pass drawn in, in order (the same render a pass got
+ * when it was written into the file). Closes `picture` when it returns a new one.
+ */
+async function withBakes(picture: ImageBitmap, passes: readonly Record<string, number>[]): Promise<ImageBitmap> {
+  let out = picture;
+  for (const pass of passes) {
+    const gl = new PhotoGl();
+    try {
+      const size = sceneSizeOf(out.width, out.height, 0);
+      gl.setSource(out, false);
+      gl.setOutput(out.width, out.height);
+      gl.render({ adjustments: { ...DEFAULT_ADJUSTMENTS, ...pass } as Adjustments, adjustmentsVisible: true, units: size.photo, blends: [] });
+      const pixels = gl.picture();
+      const next = await createImageBitmap(pixels);
+      if (pixels !== gl.canvas) pixels.width = pixels.height = 0;
+      out.close();
+      out = next;
+    } finally {
+      gl.dispose();
+    }
+  }
+  return out;
+}
+
 async function deflated(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream('deflate'));
   return new Uint8Array(await new Response(stream).arrayBuffer());
@@ -341,8 +366,13 @@ export function createPhotoSession(host: EditorHost) {
   let preview: PhotoGl | null = null;
   /** The upright copy of the photo on file: what is read to find its subject. */
   let lightUri = '';
-  /** The photo as the screen shows it (the light copy). */
+  /** The photo as the screen shows it (the light copy, with `bakes` drawn in). */
   let light: ImageBitmap | null = null;
+  /**
+   * "Aplicar e recomeçar" passes, oldest first: drawn into the light copy at once and into the
+   * original only at export, so applying never re-encodes the full photo.
+   */
+  let bakes: Record<string, number>[] = [];
   const blendPictures = new Map<string, Promise<ImageBitmap | null>>();
   const blendReady = new Map<string, ImageBitmap>();
   let loaded = false;
@@ -476,6 +506,7 @@ export function createPhotoSession(host: EditorHost) {
       overlay: i.overlay,
       frameColor: i.frameColor,
       frameGradientColor: i.frameGradientColor,
+      bakes,
       history: { done: done.filter(lasting), undone: undone.filter(lasting) },
     };
   }
@@ -585,7 +616,8 @@ export function createPhotoSession(host: EditorHost) {
         wantLayerPictures(editor.store.get().layers);
         lightUri = saved.previewUri ?? saved.photo.uri;
         const picture = await loadPicture(lightUri, previewEdge);
-        light = picture.bitmap;
+        bakes = saved.bakes ?? [];
+        light = await withBakes(picture.bitmap, bakes);
         outFit = 0;
         performance.mark('pm:picture');
         // Without a light copy the original was decoded: what it really is beats the project's
@@ -663,7 +695,7 @@ export function createPhotoSession(host: EditorHost) {
         const a = st.adjustments;
         const t0 = performance.now();
         const lap = (stage: string) => (exportTimings[stage] = Math.round(performance.now() - t0));
-        const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
+        const full = await withBakes((await loadPicture(i.photo.uri, gl.maxSize)).bitmap, bakes);
         bitmaps.push(full);
         lap('decoded');
         // A social frame is cover-cropped from the full render; a size preset renders smaller.
@@ -842,46 +874,27 @@ export function createPhotoSession(host: EditorHost) {
     },
 
     /**
-     * "Aplicar e recomeçar": `fields` (e.g. the Ajustes drawer's) are drawn into the full photo,
-     * which becomes the project's photo, and reset to neutral with their undo steps, so the next
-     * pass starts on top of the result. Everything else keeps applying live.
+     * "Aplicar e recomeçar": `fields` (e.g. the Ajustes drawer's) become a pass drawn into the
+     * light copy now and into the original at export (`bakes`), and reset to neutral with their
+     * undo steps, so the next pass starts on top of the result. The original file is never rewritten.
      */
     async bake(fields: readonly string[]) {
       const i = info.get();
-      if (!i.photo || i.busy) return;
+      if (!i.photo || i.busy || !light) return;
+      const now = editor.store.get().adjustments;
+      const pass: Record<string, number> = {};
+      for (const f of fields) if (now[f] !== DEFAULT_ADJUSTMENTS[f]) pass[f] = now[f];
+      if (Object.keys(pass).length === 0) return;
       setInfo({ busy: t('Aplicando…') });
-      const gl = new PhotoGl();
-      let bitmap: ImageBitmap | null = null;
       try {
-        const now = editor.store.get().adjustments;
-        const only = { ...DEFAULT_ADJUSTMENTS } as Adjustments;
-        for (const f of fields) only[f] = now[f];
-        // shortcut: a photo larger than the GPU's texture limit is baked at that limit; tile it if a phone ever hits this.
-        const full = (await loadPicture(i.photo.uri, gl.maxSize)).bitmap;
-        bitmap = full;
-        const size = sceneSizeOf(full.width, full.height, 0);
-        gl.setSource(full, false);
-        gl.setOutput(full.width, full.height);
-        gl.render({ adjustments: only, adjustmentsVisible: true, units: size.photo, blends: [] });
-        const pixels = gl.picture();
-        const blob = await new Promise<Blob | null>((r) => pixels.toBlob(r, 'image/jpeg', 0.92));
-        if (pixels !== gl.canvas) pixels.width = pixels.height = 0;
-        if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
-        const sink = host.photoSink();
-        await sink.start(`baked_${Date.now()}.jpg`);
-        await sink.write(0, new Uint8Array(await blob.arrayBuffer()));
-        const baked = await sink.finish();
-        const picture = await loadPicture(baked.previewUri ?? baked.photo.uri, previewEdge);
-        light?.close();
-        light = picture.bitmap;
+        light = await withBakes(light, [pass]);
+        bakes = [...bakes, pass];
         outFit = 0;
         preview?.setSource(light);
         lastGlKey = '';
         editor.resetFields(fields);
-        setInfo({ photo: baked.photo });
+        scheduleSave();
       } finally {
-        bitmap?.close();
-        gl.dispose();
         setInfo({ busy: null });
       }
     },

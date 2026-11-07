@@ -97,21 +97,6 @@ export function createDevHost(): EditorHost {
         },
       };
     },
-    photoSink() {
-      const sink = this.exportSink();
-      let name = '';
-      return {
-        start(fileName) {
-          name = `baked/${fileName}`;
-          return sink.start(name);
-        },
-        write: (position, bytes) => sink.write(position, bytes),
-        async finish() {
-          await sink.finish();
-          return { photo: { name, uri: `/exports/${name}` } };
-        },
-      };
-    },
     exportSink() {
       let name = 'export.jpg';
       let writes = Promise.resolve();

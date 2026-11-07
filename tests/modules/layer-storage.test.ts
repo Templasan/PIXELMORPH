@@ -63,6 +63,15 @@ describe('editor image storage (RF-075 / RF-028)', () => {
     expect(await loadEditorImages('p2')).toBeNull();
   });
 
+  it('round-trips the applied passes and drops malformed ones', async () => {
+    const bakes: Record<string, number>[] = [{ exposicao: 25 }, { perspX0: 0.1 }];
+    const images = { doubleExposure: null, overlay: null, bakes };
+    await saveEditorImages('p1', images);
+    expect(await loadEditorImages('p1')).toEqual(images);
+    await AsyncStorage.setItem('editorImages:p1', JSON.stringify({ bakes: [{ exposicao: 'x' }] }));
+    expect(await loadEditorImages('p1')).toEqual({ doubleExposure: null, overlay: null });
+  });
+
   it('drops entries that are not valid images and survives corrupted data', async () => {
     await AsyncStorage.setItem(
       'editorImages:p1',

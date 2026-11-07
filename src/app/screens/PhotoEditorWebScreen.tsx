@@ -60,6 +60,7 @@ interface SavedPhoto {
   layers?: EditorLayer[];
   doubleExposure?: PictureRef | null;
   overlay?: PictureRef | null;
+  bakes?: Record<string, number>[];
   history?: { done: Operation[]; undone: Operation[] };
 }
 
@@ -148,6 +149,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           layers: layers ?? undefined,
           doubleExposure: images?.doubleExposure ?? null,
           overlay: images?.overlay ?? null,
+          bakes: images?.bakes,
           history: snapshot
             ? { done: snapshot.past, undone: [...snapshot.future].reverse() }
             : undefined,
@@ -161,6 +163,7 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
           saveEditorImages(projectId, {
             doubleExposure: saved.doubleExposure ?? null,
             overlay: saved.overlay ?? null,
+            bakes: saved.bakes,
           }),
           saved.history
             ? historyRepo.save(projectId, {
@@ -229,37 +232,6 @@ export default function PhotoEditorWebScreen({ navigation, route }: Props) {
       },
       async savePreset(name: string, adjustments: Record<string, number>) {
         await createPhotoEditorModule().savePreset.execute(name, adjustments);
-      },
-
-      // A bake: the page writes the new photo into the cache, then it becomes the asset's working
-      // file (updateMediaAsset moves it into the project's folder). The original stays.
-      async bakeStart() {
-        await files.startExport('jpg');
-      },
-      async bakeWrite(position: number, b64: string) {
-        await files.writeExportChunk(position, b64);
-      },
-      async bakeFinish() {
-        const cached = await files.finishExport();
-        const asset = assetRef.current;
-        if (!projectId || !asset) throw new Error('Sem projeto para aplicar.');
-        const project = await projects.updateMediaAsset.execute(projectId, asset.id, {
-          workingUri: cached,
-        });
-        const uri = project.assets.find((a) => a.id === asset.id)?.workingUri ?? cached;
-        const light = await lightCopyOf(uri, previewEdgeRef.current);
-        const info = await FileSystem.getInfoAsync(uri);
-        return {
-          photo: {
-            name: project.name,
-            uri,
-            format: 'JPEG',
-            sizeBytes: info.exists ? info.size : undefined,
-            width: light.width,
-            height: light.height,
-          },
-          previewUri: light.uri,
-        };
       },
 
       // A collage or panorama made in the page becomes its own project, opened in a fresh editor
