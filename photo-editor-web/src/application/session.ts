@@ -45,8 +45,8 @@ const PANORAMA_HEIGHT = 2048;
 /** Photos are compared at this height: enough to line them up, small enough to try every shift. */
 const ALIGN_HEIGHT = 120;
 const ALIGN_PICTURE_EDGE = 512;
-/** Up to this size an export is encoded from a CPU copy (see exportImage). */
-const CPU_ENCODE_MAX_PIXELS = 16_000_000;
+/** Up to this size a JPEG export is encoded from a CPU copy (see exportImage). */
+const CPU_ENCODE_MAX_PIXELS = 4_000_000;
 /** Each picture of a collage or panorama is read at most this long. */
 const MONTAGE_PICTURE_EDGE = 4096;
 
@@ -843,10 +843,10 @@ export function createPhotoSession(host: EditorHost) {
         const quality = targetOn
           ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
           : options.quality;
-        // A GPU-backed canvas encodes slowly in the Android WebView (2.6 MP JPEG: ~4 s on the Poco,
-        // 50 MP, too big for the GPU, under 1 s): a CPU copy is encoded instead.
+        // Measured on the Poco: a 2.6 MP JPEG took ~4 s from the GPU-backed canvas and 0.35-2 s from
+        // a CPU copy, but PNG, HEIC (JPEG at quality 1) and big JPEGs got slower from the copy.
         let encodeFrom = out;
-        if (out.width * out.height <= CPU_ENCODE_MAX_PIXELS) {
+        if (format === 'jpeg' && out.width * out.height <= CPU_ENCODE_MAX_PIXELS) {
           encodeFrom = newCanvas(out.width, out.height);
           encodeFrom.getContext('2d', { willReadFrequently: true })!.drawImage(out, 0, 0);
         }
