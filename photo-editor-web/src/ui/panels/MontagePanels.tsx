@@ -11,7 +11,6 @@ import {
   type CellPan,
 } from '../../domain/collage/CollageMath';
 import { drawCollage } from '../../engine/compose';
-import { loadPicture } from '../../engine/picture';
 import type { PictureRef } from '../../ports/host';
 import { useStore } from '../../state/useStore';
 import { Chips, Range, Swatches } from '../controls';
@@ -56,7 +55,7 @@ export function CollageSection({ session }: { session: PhotoSession }) {
   const pick = async (i: number) => {
     const ref = await session.pickPicture();
     if (!ref) return;
-    const { bitmap, width, height } = await loadPicture(ref.uri, PREVIEW_PICTURE_EDGE);
+    const { bitmap, width, height } = await session.loadSmall(ref.uri, PREVIEW_PICTURE_EDGE);
     setCells((c) => Object.assign([...c], { [i]: { ref, bitmap, width, height } }));
     setPans((p) => Object.assign([...p], { [i]: CENTRED_PAN }));
   };

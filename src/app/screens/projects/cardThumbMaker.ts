@@ -2,7 +2,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { encodeImage } from '@modules/export';
 import { extractFrame } from '../../../../modules/pixelmorph-video-export/src';
-import { photoProxyPathOf } from '../photo-editor/photoProxy';
+import { lightCopyNamesOf } from '../photo-editor/resolution';
 import { proxyPathOf } from '../video-editor/previewProxy';
 import { downscaleToLongEdge, loadFullImage } from '../photo-editor/photoProxySkia';
 import type { MakeCardThumb } from './cardThumb';
@@ -28,9 +28,16 @@ export const makeCardThumb: MakeCardThumb = async (sourceUri, tmpUri) => {
     await FileSystem.deleteAsync(frame.uri, { idempotent: true }).catch(() => {});
     return;
   }
-  const proxy = photoProxyPathOf(sourceUri);
-  const hasProxy = proxy !== null && (await FileSystem.getInfoAsync(proxy)).exists;
-  const image = await loadFullImage(hasProxy && proxy ? proxy : sourceUri);
+  // The editor's light copy (any quality) when it exists: decoding a 50 MP original takes seconds.
+  let source = sourceUri;
+  for (const edge of [1080, 1600, 2048]) {
+    const { copy } = lightCopyNamesOf(sourceUri, edge);
+    if ((await FileSystem.getInfoAsync(copy)).exists) {
+      source = copy;
+      break;
+    }
+  }
+  const image = await loadFullImage(source);
   if (!image) throw new Error(`Não foi possível decodificar a imagem: ${sourceUri}`);
   const light = downscaleToLongEdge(image, CARD_THUMB_EDGE);
   try {

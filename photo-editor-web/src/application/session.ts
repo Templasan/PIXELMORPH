@@ -44,6 +44,7 @@ export const COLLAGE_SIZE = 2048;
 const PANORAMA_HEIGHT = 2048;
 /** Photos are compared at this height: enough to line them up, small enough to try every shift. */
 const ALIGN_HEIGHT = 120;
+const ALIGN_PICTURE_EDGE = 512;
 /** Each picture of a collage or panorama is read at most this long. */
 const MONTAGE_PICTURE_EDGE = 4096;
 
@@ -1160,7 +1161,7 @@ export function createPhotoSession(host: EditorHost) {
     async saveWatermark(name: string, layer: EditorLayer) {
       let kept = layer;
       if (layer.image && !layer.image.uri.startsWith('data:')) {
-        const { bitmap } = await loadPicture(layer.image.uri, WATERMARK_LOGO_EDGE);
+        const { bitmap } = await loadLight(layer.image.uri, WATERMARK_LOGO_EDGE);
         const c = document.createElement('canvas');
         c.width = bitmap.width;
         c.height = bitmap.height;
@@ -1195,6 +1196,19 @@ export function createPhotoSession(host: EditorHost) {
 
     /** One more picture for a collage or panorama (the gallery picker); null when cancelled. */
     pickPicture: () => host.pickPicture(),
+    /** A picked picture opened small (its light copy), for a panel's own preview. */
+    loadSmall: (uri: string, edge: number) => loadLight(uri, edge),
+    /** A blend picture (double exposure, overlay) drawn cover-fit on a small canvas. */
+    async drawPictureThumb(canvas: HTMLCanvasElement, ref: PictureRef) {
+      wantBlend(ref);
+      const bitmap = await blendPictures.get(ref.uri);
+      const ctx = canvas.getContext('2d');
+      if (!bitmap || !ctx) return;
+      const k = Math.max(canvas.width / bitmap.width, canvas.height / bitmap.height);
+      const w = bitmap.width * k;
+      const h = bitmap.height * k;
+      ctx.drawImage(bitmap, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    },
     /** RF-011: a collage of `refs` (one per cell) becomes a new project. */
     createCollage(refs: PictureRef[], layout: CollageLayout, options: CollageOptions) {
       return makeProject(t('Colagem'), refs, (pics) =>
@@ -1208,7 +1222,8 @@ export function createPhotoSession(host: EditorHost) {
     async alignPanorama(refs: PictureRef[]): Promise<(PairAlignment | null)[]> {
       const greys: GreyPicture[] = [];
       for (const ref of refs) {
-        const { bitmap } = await loadLight(ref.uri, MONTAGE_PICTURE_EDGE);
+        // Matched at ALIGN_HEIGHT: a small copy is plenty (the 4096 one is for the final picture).
+        const { bitmap } = await loadLight(ref.uri, ALIGN_PICTURE_EDGE);
         const height = ALIGN_HEIGHT;
         const width = Math.max(4, Math.round((bitmap.width * height) / bitmap.height));
         const c = document.createElement('canvas');

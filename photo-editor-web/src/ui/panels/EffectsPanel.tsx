@@ -1,6 +1,6 @@
 import { ART_STYLES, createArtLayer } from '../../domain/layers';
 import { t } from '../../i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PhotoSession } from '../../application/session';
 import type { PictureRef } from '../../ports/host';
 import { BLEND_MODE_LABELS, FRAME_STYLES, LIGHT_TYPES, OVERLAY_TEXTURE_NAMES } from '../../domain/effects';
@@ -117,7 +117,7 @@ export function EffectsPanel({
           <div className="panel-head">{t('Galeria do dispositivo')}</div>
           {info.overlay ? (
             <>
-              <Picked picture={info.overlay} onClear={() => session.clearBlend('overlay')} />
+              <Picked session={session} picture={info.overlay} onClear={() => session.clearBlend('overlay')} />
               {chips(BLEND_MODE_LABELS, 'overlayBlend')}
               {slider('overlayIntensity', t('Intensidade da imagem'), 0, 100)}
             </>
@@ -170,7 +170,7 @@ export function EffectsPanel({
         <>
           {info.doubleExposure ? (
             <>
-              <Picked picture={info.doubleExposure} onClear={() => session.clearBlend('doubleExposure')} />
+              <Picked session={session} picture={info.doubleExposure} onClear={() => session.clearBlend('doubleExposure')} />
               {chips(BLEND_MODE_LABELS, 'doubleExposureBlend')}
               {slider('doubleExposureOpacity', t('Opacidade'), 0, 100)}
             </>
@@ -185,10 +185,15 @@ export function EffectsPanel({
   );
 }
 
-function Picked({ picture, onClear }: { picture: PictureRef; onClear: () => void }) {
+function Picked({ session, picture, onClear }: { session: PhotoSession; picture: PictureRef; onClear: () => void }) {
+  // Drawn from the small copy the preview already holds: an <img> of the file decodes the original.
+  const thumb = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (thumb.current) void session.drawPictureThumb(thumb.current, picture);
+  }, [session, picture]);
   return (
     <div className="picked">
-      <img src={picture.uri} alt="" />
+      <canvas ref={thumb} width={64} height={64} />
       <span className="picked-name">{picture.name}</span>
       <button className="icon-btn" onClick={onClear} aria-label={t('Remover imagem')}>
         <Icon name="x" size={14} />

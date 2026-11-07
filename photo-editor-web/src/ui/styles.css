@@ -572,7 +572,7 @@ button:disabled {
   margin-bottom: 10px;
 }
 
-.picked img {
+.picked canvas {
   width: 32px;
   height: 32px;
   object-fit: cover;
