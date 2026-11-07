@@ -8,6 +8,7 @@ import { dataUrlBytes } from '../domain/export/dataUrl';
 import { PhotoGl, type BlendImage } from '../engine/photoGl';
 import { t } from '../i18n';
 import { drawCutoutMask, localParts, drawLayer, drawScene, isClosedStroke, layerBox } from '../engine/scene';
+import { encodeCanvas } from '../engine/encodeCanvas';
 import { fillHoleAsync } from '../engine/fillHoleAsync';
 import {
   createCutoutLayer,
@@ -565,7 +566,7 @@ export function createPhotoSession(host: EditorHost) {
       }
       canvas = draw(pics);
       const done = canvas;
-      const blob = await new Promise<Blob | null>((r) => done.toBlob(r, 'image/jpeg', 0.9));
+      const blob = await encodeCanvas(done, 'image/jpeg', 0.9);
       if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
       const sink = host.newProject(name, canvas.width, canvas.height);
       await sink.start(`${name.toLowerCase()}_${Date.now()}.jpg`);
@@ -837,11 +838,11 @@ export function createPhotoSession(host: EditorHost) {
         const type = heic ? 'image/jpeg' : `image/${format}`;
         const targetOn = options.targetOn && (format === 'jpeg' || format === 'webp');
         const targetBytes = Math.round(options.targetMB * 1024 * 1024);
-        // The probe is the same encoder as toBlob below, at the same quality, so the sizes agree.
+        // The probe is the same encoder as the export below, at the same quality, so the sizes agree.
         const quality = targetOn
           ? searchQualityForTargetSize(targetBytes, (q) => dataUrlBytes(out.toDataURL(type, q / 100)), 20, 100)
           : options.quality;
-        const blob = await new Promise<Blob | null>((r) => out.toBlob(r, type, heic ? 1 : quality / 100));
+        const blob = await encodeCanvas(out, type, heic ? 1 : quality / 100);
         if (!blob) throw new Error(t('O navegador não gerou o arquivo.'));
         lap('encoded');
         let bytes: Uint8Array = new Uint8Array(await blob.arrayBuffer());
