@@ -114,3 +114,16 @@ export function meteringToPercent(db: number | undefined): number {
   const clamped = Math.max(-60, Math.min(0, db));
   return ((clamped + 60) / 60) * 100;
 }
+
+/**
+ * A photo's upright size from the camera's stored size and its EXIF orientation (1-8): the tags
+ * 5-8 mean the picture is stored sideways and shown turned a quarter.
+ */
+export function sizeFromExif(
+  width: number,
+  height: number,
+  orientation: unknown
+): { width: number; height: number } {
+  const o = Number(orientation);
+  return o >= 5 && o <= 8 ? { width: height, height: width } : { width, height };
+}
