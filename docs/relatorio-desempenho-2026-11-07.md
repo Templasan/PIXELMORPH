@@ -86,7 +86,7 @@ No ensaio do roteiro (Poco): dividir 56 ms, mudar velocidade ~0,4 s, texto anima
 
 ## Variação na exportação (medido depois, 07/11 à tarde)
 
-Com o mesmo código e o Poco frio (CPU ~46 °C), um teste alternado (versão antiga, nova, antiga) deu: foto 1080×2400 JPEG 2,7–3,6 s, PNG 8–13 s, JPEG de 50 MP ~22 s, enquanto o mesmo JPEG de 50 MP tinha levado ~10 s mais cedo. A etapa que varia é gerar o arquivo (`toBlob`), entre 0,9 s e 13,8 s. Causa ainda não encontrada; está na fila (`docs/fila-desempenho.md`, item 11). Os tempos de exportação deste relatório são da fase rápida.
+Com o mesmo código e o Poco frio (CPU ~46 °C), um teste alternado (versão antiga, nova, antiga) deu: foto 1080×2400 JPEG 2,7–3,6 s, PNG 8–13 s, JPEG de 50 MP ~22 s, enquanto o mesmo JPEG de 50 MP tinha levado ~10 s mais cedo. A etapa que varia é gerar o arquivo (`toBlob`), entre 0,9 s e 13,8 s. Causa encontrada (08/11): o `toBlob` do navegador só codifica JPEG/PNG quando a página está parada, e o ícone de carregamento a mantinha animando. Com a codificação num worker (`7182ddb`), foto 1080×2400: JPEG 1,4–1,9 s, PNG 2,1 s, HEIC 2,2–2,4 s; JPEG de 50 MP 9,1 s (o resto é abrir o original e aplicar os ajustes guardados).
 
 ## Pontos ainda abertos
 
