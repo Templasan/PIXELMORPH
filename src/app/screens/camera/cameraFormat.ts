@@ -1,8 +1,53 @@
 import type { BasicAdjustments } from '@modules/photo-editor';
 
-export type CameraMode = 'FOTO' | 'VÍDEO' | 'TEMPORIZADOR' | 'STOP-MOTION' | 'AR';
+export type CameraMode = 'FOTO' | 'VÍDEO' | 'STOP-MOTION' | 'AR';
 
-export const MODES: CameraMode[] = ['FOTO', 'VÍDEO', 'TEMPORIZADOR', 'STOP-MOTION', 'AR'];
+/** Carousel order. */
+export const MODES: CameraMode[] = ['VÍDEO', 'FOTO', 'STOP-MOTION', 'AR'];
+
+export type FlashMode = 'off' | 'auto' | 'on';
+
+export const FLASH_LABEL: Record<FlashMode, string> = { off: 'OFF', auto: 'AUTO', on: 'ON' };
+
+/** Photo flash: OFF → AUTO → ON. */
+export function nextFlash(flash: FlashMode): FlashMode {
+  return flash === 'off' ? 'auto' : flash === 'auto' ? 'on' : 'off';
+}
+
+/** The torch has no AUTO, so in VÍDEO the same button only toggles ON and OFF. */
+export function nextTorch(flash: FlashMode): FlashMode {
+  return flash === 'on' ? 'off' : 'on';
+}
+
+/** Seconds of countdown before a photo; 0 is OFF. */
+export const TIMER_STEPS = [0, 3, 10];
+
+export function nextTimer(seconds: number): number {
+  return TIMER_STEPS[(TIMER_STEPS.indexOf(seconds) + 1) % TIMER_STEPS.length];
+}
+
+export const timerLabel = (seconds: number): string => (seconds === 0 ? 'OFF' : `${seconds} s`);
+
+export const STOP_FPS_STEPS = [4, 6, 8, 12];
+
+export function nextStopFps(fps: number): number {
+  return STOP_FPS_STEPS[(STOP_FPS_STEPS.indexOf(fps) + 1) % STOP_FPS_STEPS.length];
+}
+
+/** Onion skin: how strongly the last stop-motion frame shows over the preview, in percent. */
+export const ONION_STEPS = [0, 25, 40, 60];
+export const ONION_DEFAULT = 40;
+
+export function nextOnion(percent: number): number {
+  return ONION_STEPS[(ONION_STEPS.indexOf(percent) + 1) % ONION_STEPS.length];
+}
+
+/** mm:ss for the recording clock. */
+export function formatElapsed(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
 
 // RF-006/RF-079: Real-time filter presets computed from HSL adjustments.
 // Each preset maps to a BasicAdjustments configuration. The overlay is computed
