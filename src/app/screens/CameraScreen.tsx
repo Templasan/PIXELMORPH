@@ -407,7 +407,8 @@ export default function CameraScreen({ navigation }: Props) {
             isActive={isFocused}
             device={facing}
             outputs={[photoOutput, videoOutput]}
-            torchMode={torch ? 'on' : 'off'}
+            // The front camera has no flash unit: even setting the torch off throws, so it is left unset.
+            torchMode={facing === 'back' ? (torch ? 'on' : 'off') : undefined}
           />
         </Pressable>
         <FilterTint
