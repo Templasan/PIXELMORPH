@@ -6,15 +6,21 @@ interface Props {
   stopFrames: string[];
 }
 
+/** Captured frames above the mode row. Centred while they fit; scrolls once they do not. */
 const StopMotionFrameStrip = memo(function StopMotionFrameStrip({ stopFrames }: Props) {
   if (stopFrames.length === 0) return null;
 
   return (
-    <ScrollView horizontal style={styles.stopFramesRow} showsHorizontalScrollIndicator={false}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.strip}
+      contentContainerStyle={styles.content}
+    >
       {stopFrames.map((uri, i) => (
-        <View key={i} style={styles.stopFrame}>
+        <View key={i} style={styles.frame}>
           <Image source={{ uri }} style={StyleSheet.absoluteFill} />
-          <Text style={styles.stopFrameNum}>{i + 1}</Text>
+          <Text style={styles.frameNum}>{i + 1}</Text>
         </View>
       ))}
     </ScrollView>
@@ -22,23 +28,27 @@ const StopMotionFrameStrip = memo(function StopMotionFrameStrip({ stopFrames }: 
 });
 
 const styles = StyleSheet.create({
-  stopFramesRow: {
-    position: 'absolute',
-    top: 56,
-    left: 8,
-    right: 8,
+  strip: {
+    flexGrow: 0,
   },
-  stopFrame: {
-    width: 48,
-    height: 48,
-    marginRight: 4,
-    backgroundColor: 'rgba(26,26,26,0.85)',
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  frame: {
+    width: 44,
+    height: 58,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.linha,
+    backgroundColor: 'rgba(26,26,26,0.85)',
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stopFrameNum: {
+  frameNum: {
     fontFamily: monoFontFamily,
     fontSize: 10,
     fontWeight: '600',

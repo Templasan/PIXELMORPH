@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { motionFileOf, startMotionRecording } from './camera/motionRecorder';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   Animated,
@@ -22,8 +22,10 @@ import {
   usePhotoOutput,
   useVideoOutput,
 } from 'react-native-vision-camera';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
+import * as NavigationBar from 'expo-navigation-bar';
+import { setStatusBarHidden } from 'expo-status-bar';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
@@ -37,23 +39,35 @@ import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src
 import { type ARSession } from '@modules/camera/ar';
 import {
   FILTER_PRESETS,
+  FLASH_LABEL,
+  ONION_DEFAULT,
   adjustmentsToOverlayColor,
+  nextFlash,
+  nextOnion,
+  nextStopFps,
+  nextTimer,
+  nextTorch,
   quarterTurnsOf,
+  timerLabel,
   type CameraMode,
+  type FlashMode,
 } from './camera/cameraFormat';
-import CameraTopBar from './camera/CameraTopBar';
-import FilterStrip from './camera/FilterStrip';
-import ModeTabs from './camera/ModeTabs';
-import CaptureControls from './camera/CaptureControls';
+import CameraTopBar, { type TopControl } from './camera/CameraTopBar';
+import { CameraButton } from './camera/CameraButton';
+import { LastCaptureThumb, ShutterButton, ShutterRow, type LastCapture } from './camera/ShutterRow';
+import ModeCarousel from './camera/ModeCarousel';
+import FiltersSheet from './camera/FiltersSheet';
 import FocusSquare from './camera/FocusSquare';
 import FilterTint from './camera/FilterTint';
 import CountdownOverlay from './camera/CountdownOverlay';
 import AudioMeter from './camera/AudioMeter';
 import StopMotionFrameStrip from './camera/StopMotionFrameStrip';
+import GridOverlay from './camera/GridOverlay';
+import OnionSkin from './camera/OnionSkin';
+import RecordingPill from './camera/RecordingPill';
+import { ScrimGradient } from './camera/ScrimGradient';
 import AROverlay from './camera/AROverlay';
 import { ARAnchorsLayer } from './camera/ARAnchorsLayer';
-import StopMotionPanel from './camera/StopMotionPanel';
-import TimerPanel from './camera/TimerPanel';
 import { LocalHistoryRepository } from '@core/history';
 import { presetStep } from './photo-editor/batchPreset';
 import ARControlPanel from './camera/ARControlPanel';
@@ -69,6 +83,9 @@ const STOP_MOTION_EDGE = 1920;
 // at low quality: encoding high-quality sound nonstop while framing kept the camera near 50% CPU.
 const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true };
 
+/** Top of the row under the top bar: 8 px pad, 44 px buttons, 8 px gap. */
+const ROW_BELOW_TOP = 60;
+
 /**
  * RF-018: real camera capture (VisionCamera). The photo and video outputs are both attached to
  * one camera session, so switching FOTO/VÍDEO does not restart the camera; video recording
@@ -78,23 +95,30 @@ const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.LOW_QUALITY, isMeteringEnab
  * RF-018 is left out rather than faked with a slider that would not do anything.
  */
 export default function CameraScreen({ navigation }: Props) {
-  // The app draws edge to edge: keep the controls clear of the status and navigation bars.
+  // The preview fills the screen; the controls float over it, clear of the status and nav bars.
   const insets = useSafeAreaInsets();
   const { projects } = useAppModules();
   const [activeFilter, setActiveFilter] = useState(0);
   const [intensity, setIntensity] = useState(100);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [mode, setMode] = useState<CameraMode>('FOTO');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [timerSeconds, setTimerSeconds] = useState(3);
+  const [timerSeconds, setTimerSeconds] = useState(0);
   const [stopFrames, setStopFrames] = useState<string[]>([]);
   const [recording, setRecording] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [stopFps, setStopFps] = useState(6);
+  const [onionPercent, setOnionPercent] = useState(ONION_DEFAULT);
+  const [gridOn, setGridOn] = useState(false);
+  const [zoom, setZoom] = useState<1 | 2>(1);
   // Escala do AR: valor local durante o arraste, aplicado ao fim do gesto.
   const [arScaleDraft, setArScaleDraft] = useState<{ id: string; v: number } | null>(null);
   const [facing, setFacing] = useState<TargetCameraPosition>('back');
-  const [torch, setTorch] = useState(false);
+  // One flash state: photo flash in FOTO, the torch in VÍDEO.
+  const [flash, setFlash] = useState<FlashMode>('off');
   const [busy, setBusy] = useState(false);
-  const [lastCaptureUri, setLastCaptureUri] = useState<string | null>(null);
+  const [lastCapture, setLastCapture] = useState<LastCapture | null>(null);
   // RF-024: AR anchoring system
   const [arSession, setArSession] = useState<ARSession>({
     anchors: [],
@@ -132,6 +156,19 @@ export default function CameraScreen({ navigation }: Props) {
   const recorderRef = useRef<Recorder | null>(null);
   // The camera runs only while this screen is shown (it stays mounted under the editor).
   const isFocused = useIsFocused();
+
+  // A camera app is full screen: the status and navigation bars go away while this screen is
+  // shown, and come back when it is left. Swipe-from-edge overlay is not in this version's API.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarHidden(true, 'fade');
+      NavigationBar.setVisibilityAsync('hidden').catch(() => {});
+      return () => {
+        setStatusBarHidden(false, 'fade');
+        NavigationBar.setVisibilityAsync('visible').catch(() => {});
+      };
+    }, [])
+  );
 
   const audioRecorder = useAudioRecorder(AUDIO_RECORDER_OPTIONS);
   // RF-018: gain for the recorded sound, applied to its own audio track in the editor.
@@ -174,6 +211,13 @@ export default function CameraScreen({ navigation }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, recording, micPermission.hasPermission]);
+
+  // The clock counts only while a take is running and not paused.
+  useEffect(() => {
+    if (!recording || paused) return;
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [recording, paused]);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -276,13 +320,16 @@ export default function CameraScreen({ navigation }: Props) {
     setBusy(true);
     let photo: Photo | null = null;
     try {
+      // The flash belongs to the back camera's FOTO only: the front one has no flash unit, and
+      // AR keeps the light off.
+      const photoFlash: FlashMode = facing === 'back' && mode === 'FOTO' ? flash : 'off';
       // The camera's own JPEG is kept as is: both editors turn it upright from its EXIF tag.
-      photo = await photoOutput.capturePhoto({}, {});
+      photo = await photoOutput.capturePhoto({ flashMode: photoFlash }, {});
       const uri = `file://${await photo.saveToTemporaryFileAsync()}`;
       const turned = quarterTurnsOf(photo.orientation) % 2 === 1;
       const width = turned ? photo.height : photo.width;
       const height = turned ? photo.width : photo.height;
-      setLastCaptureUri(uri);
+      setLastCapture({ uri, kind: 'image' });
       const k = intensity / 100;
       const look = Object.fromEntries(
         Object.entries(FILTER_PRESETS[activeFilter].adjustments)
@@ -297,7 +344,7 @@ export default function CameraScreen({ navigation }: Props) {
       photo?.dispose();
       setBusy(false);
     }
-  }, [busy, photoOutput, openInEditor, activeFilter, intensity]);
+  }, [busy, photoOutput, openInEditor, activeFilter, intensity, facing, mode, flash]);
 
   const toggleVideoRecording = useCallback(async () => {
     if (recording) {
@@ -308,6 +355,8 @@ export default function CameraScreen({ navigation }: Props) {
     }
     if (busy) return;
     if (audioRecorder.isRecording) audioRecorder.stop();
+    setElapsed(0);
+    setPaused(false);
     setRecording(true);
     setBusy(true);
     const motion = startMotionRecording();
@@ -325,7 +374,7 @@ export default function CameraScreen({ navigation }: Props) {
       setRecording(false);
       setBusy(false);
       const uri = `file://${path}`;
-      setLastCaptureUri(uri);
+      setLastCapture({ uri, kind: 'video' });
       await openInEditor(uri, 'video', 1920, 1080, undefined, recorded);
     } catch (error) {
       setRecording(false);
@@ -335,8 +384,17 @@ export default function CameraScreen({ navigation }: Props) {
     }
   }, [recording, busy, audioRecorder, videoOutput, openInEditor]);
 
+  const togglePause = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    const next = !paused;
+    (next ? recorder.pauseRecording() : recorder.resumeRecording())
+      .then(() => setPaused(next))
+      .catch((error) => errorLogger.log(error, 'CameraScreen.togglePause'));
+  }, [paused]);
+
   const handleShutter = useCallback(async () => {
-    if (mode === 'TEMPORIZADOR') {
+    if (mode === 'FOTO' && timerSeconds > 0) {
       // A second press while it counts calls the photo off.
       setCountdown((c) => (c === null ? timerSeconds : null));
     } else if (mode === 'STOP-MOTION') {
@@ -372,6 +430,12 @@ export default function CameraScreen({ navigation }: Props) {
     }
   }, [mode, busy, timerSeconds, photoOutput, toggleVideoRecording, takePhoto]);
 
+  // Changing mode closes the filter sheet: it belongs to the photo modes.
+  const changeMode = useCallback((next: CameraMode) => {
+    setFiltersOpen(false);
+    setMode(next);
+  }, []);
+
   const filterPreset = FILTER_PRESETS[activeFilter];
   const filterOverlayColor = adjustmentsToOverlayColor(filterPreset.adjustments);
   const permissionsReady = cameraPermission.hasPermission && micPermission.hasPermission;
@@ -397,92 +461,259 @@ export default function CameraScreen({ navigation }: Props) {
     );
   }
 
+  const torchOn = flash === 'on';
+  const lastFrame = stopFrames[stopFrames.length - 1];
+
+  // Top bar toggles. Each one shows only in the modes it affects.
+  let flashControl: TopControl | null = null;
+  if (facing === 'back' && mode === 'VÍDEO') {
+    flashControl = {
+      icon: 'flash',
+      label: torchOn ? 'ON' : 'OFF',
+      active: torchOn,
+      accessibilityLabel: 'Lanterna',
+      onPress: () => setFlash(nextTorch(flash)),
+    };
+  } else if (facing === 'back' && mode === 'FOTO') {
+    flashControl = {
+      icon: 'flash',
+      label: FLASH_LABEL[flash],
+      active: flash !== 'off',
+      accessibilityLabel: 'Flash',
+      onPress: () => setFlash(nextFlash(flash)),
+    };
+  }
+  const timerControl: TopControl | null =
+    mode === 'FOTO'
+      ? {
+          icon: 'clock',
+          label: timerLabel(timerSeconds),
+          active: timerSeconds > 0,
+          accessibilityLabel: 'Temporizador',
+          onPress: () => setTimerSeconds(nextTimer(timerSeconds)),
+        }
+      : null;
+  const gridControl: TopControl = {
+    icon: 'grid',
+    active: gridOn,
+    accessibilityLabel: 'Grade de linhas',
+    onPress: () => setGridOn((on) => !on),
+  };
+  const onionControl: TopControl | null =
+    mode === 'STOP-MOTION'
+      ? {
+          icon: 'layers',
+          label: `${onionPercent}%`,
+          active: onionPercent > 0,
+          accessibilityLabel: 'Quadro anterior',
+          onPress: () => setOnionPercent(nextOnion(onionPercent)),
+        }
+      : null;
+  const topControls = [flashControl, timerControl, gridControl, onionControl].filter(
+    (c): c is TopControl => c !== null
+  );
+
+  // One centred pill under the top bar at a time.
+  let topRowPill: ReactNode;
+  if (filtersOpen) {
+    topRowPill = (
+      <View style={styles.pill}>
+        <Text style={styles.pillText}>{`${filterPreset.name} · ${intensity}%`}</Text>
+      </View>
+    );
+  } else if (recording) {
+    topRowPill = <RecordingPill seconds={elapsed} />;
+  } else if (mode === 'STOP-MOTION') {
+    topRowPill = (
+      <Pressable
+        onPress={() => setStopFps(nextStopFps(stopFps))}
+        accessibilityRole="button"
+        accessibilityLabel={`Taxa de quadros: ${stopFps} fps`}
+        hitSlop={4}
+        style={styles.pill}
+      >
+        <Text style={styles.pillText}>
+          {`${stopFrames.length} ${stopFrames.length === 1 ? 'quadro' : 'quadros'} · ${stopFps} fps`}
+        </Text>
+      </Pressable>
+    );
+  } else {
+    topRowPill = (
+      <Pressable
+        onPress={() => setZoom((z) => (z === 1 ? 2 : 1))}
+        accessibilityRole="button"
+        accessibilityLabel={`Zoom ${zoom} vez${zoom === 1 ? '' : 'es'}`}
+        hitSlop={4}
+        style={styles.pill}
+      >
+        <Text style={styles.pillText}>{`${zoom}×`}</Text>
+      </Pressable>
+    );
+  }
+
+  // Shutter row: the sides change with the mode and with recording; the slots keep their width.
+  let leftSlot: ReactNode;
+  let centerSlot: ReactNode;
+  let rightSlot: ReactNode = null;
+  if (mode === 'STOP-MOTION') {
+    const noFrames = stopFrames.length === 0;
+    const composeReady = stopFrames.length >= 2 && !busy;
+    leftSlot = (
+      <CameraButton
+        icon="undo"
+        accessibilityLabel="Desfazer último quadro"
+        disabled={busy || noFrames}
+        onPress={() => setStopFrames((prev) => prev.slice(0, -1))}
+        size={52}
+      />
+    );
+    centerSlot = (
+      <ShutterButton
+        variant="photo"
+        accessibilityLabel="Capturar quadro"
+        disabled={busy}
+        onPress={handleShutter}
+      />
+    );
+    rightSlot = (
+      <Pressable
+        onPress={composeStopMotionVideo}
+        disabled={!composeReady}
+        accessibilityRole="button"
+        accessibilityLabel="Montar vídeo"
+        style={[styles.compose, !composeReady && styles.dim]}
+      >
+        <Text style={styles.composeText}>Montar</Text>
+      </Pressable>
+    );
+  } else if (recording) {
+    leftSlot = (
+      <CameraButton
+        icon={paused ? 'play' : 'pause'}
+        accessibilityLabel={paused ? 'Retomar gravação' : 'Pausar gravação'}
+        onPress={togglePause}
+        size={52}
+      />
+    );
+    centerSlot = (
+      <ShutterButton
+        variant="recording"
+        accessibilityLabel="Parar gravação"
+        onPress={handleShutter}
+      />
+    );
+  } else {
+    leftSlot = <LastCaptureThumb capture={lastCapture} />;
+    centerSlot = (
+      <ShutterButton
+        variant={mode === 'VÍDEO' ? 'video' : 'photo'}
+        accessibilityLabel={mode === 'VÍDEO' ? 'Gravar vídeo' : 'Tirar foto'}
+        disabled={busy}
+        onPress={handleShutter}
+      />
+    );
+    rightSlot = (
+      <CameraButton
+        icon="rotate"
+        accessibilityLabel="Trocar câmera"
+        onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+        size={52}
+      />
+    );
+  }
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.previewWrap}>
-        <Pressable style={styles.preview} onPress={handleFocusTap}>
-          <Camera
-            ref={cameraRef}
-            style={styles.preview}
-            isActive={isFocused}
-            device={facing}
-            outputs={[photoOutput, videoOutput]}
-            // The front camera has no flash unit: even setting the torch off throws, so it is left unset.
-            torchMode={facing === 'back' ? (torch ? 'on' : 'off') : undefined}
-          />
-        </Pressable>
-        <FilterTint
-          filterName={filterPreset.name}
-          filterOverlayColor={filterOverlayColor}
-          intensity={intensity}
+    <View style={styles.container}>
+      <Pressable style={styles.preview} onPress={handleFocusTap}>
+        <Camera
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          isActive={isFocused}
+          device={facing}
+          outputs={[photoOutput, videoOutput]}
+          // Stop-motion stays at 1×, so its frames match each other.
+          zoom={mode === 'STOP-MOTION' ? 1 : zoom}
+          // The front camera has no flash unit: even setting the torch off throws, so it is left unset.
+          torchMode={facing === 'back' ? (mode === 'VÍDEO' && torchOn ? 'on' : 'off') : undefined}
         />
-        <FocusSquare focusPoint={focusPoint} focusAnim={focusAnim} />
+      </Pressable>
+      <FilterTint
+        filterName={filterPreset.name}
+        filterOverlayColor={filterOverlayColor}
+        intensity={intensity}
+      />
+      <FocusSquare focusPoint={focusPoint} focusAnim={focusAnim} />
 
-        <CameraTopBar
-          torch={torch}
-          onTorchChange={setTorch}
-          facing={facing}
-          onFacingChange={setFacing}
-          onBack={() => navigation.navigate('Projects')}
-        />
+      {gridOn && <GridOverlay />}
+      {mode === 'STOP-MOTION' && lastFrame !== undefined && onionPercent > 0 && (
+        <OnionSkin uri={lastFrame} opacity={onionPercent / 100} />
+      )}
 
-        <CountdownOverlay countdown={countdown} />
+      <ScrimGradient edge="top" height={insets.top + 100} />
+      <CountdownOverlay countdown={countdown} />
 
-        {/* RF-018: a real mic level meter while framing a video shot. */}
-        {mode === 'VÍDEO' && !recording && micPermission.hasPermission && (
+      {mode === 'AR' && <AROverlay />}
+      {mode === 'AR' && (
+        <ARAnchorsLayer anchors={arSession.anchors} selectedId={selectedAnchorId} />
+      )}
+
+      {/* RF-018: a real mic level meter while framing a video shot. */}
+      {mode === 'VÍDEO' && !recording && micPermission.hasPermission && (
+        <View
+          style={[styles.meterSlot, { top: insets.top + ROW_BELOW_TOP }]}
+          pointerEvents="box-none"
+        >
           <AudioMeter recorder={audioRecorder} gain={micGain} onGain={setMicGain} />
-        )}
+        </View>
+      )}
 
-        {mode === 'STOP-MOTION' && <StopMotionFrameStrip stopFrames={stopFrames} />}
+      <CameraTopBar
+        topInset={insets.top}
+        onClose={() => navigation.navigate('Projects')}
+        controls={topControls}
+      />
 
-        {mode === 'AR' && <AROverlay />}
-        {mode === 'AR' && (
-          <ARAnchorsLayer anchors={arSession.anchors} selectedId={selectedAnchorId} />
-        )}
+      <View style={[styles.topRow, { top: insets.top + ROW_BELOW_TOP }]} pointerEvents="box-none">
+        {topRowPill}
       </View>
 
-      <FilterStrip
-        activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
-        intensity={intensity}
-        onIntensityChange={setIntensity}
-      />
+      <ScrimGradient edge="bottom" height={300 + insets.bottom} />
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
+        {mode === 'STOP-MOTION' && <StopMotionFrameStrip stopFrames={stopFrames} />}
 
-      <ModeTabs mode={mode} onModeChange={setMode} />
+        {mode === 'AR' ? (
+          <ARControlPanel
+            arSession={arSession}
+            onSessionChange={setArSession}
+            selectedAnchorId={selectedAnchorId}
+            onAnchorSelect={setSelectedAnchorId}
+            arScaleDraft={arScaleDraft}
+            onScaleDraftChange={setArScaleDraft}
+          />
+        ) : filtersOpen ? (
+          <FiltersSheet
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
+            intensity={intensity}
+            onIntensityChange={setIntensity}
+            onDone={() => setFiltersOpen(false)}
+          />
+        ) : (
+          <Pressable
+            onPress={() => setFiltersOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir filtros"
+            hitSlop={4}
+            style={styles.chip}
+          >
+            <Text style={styles.chipText}>{`Filtro: ${filterPreset.name}`}</Text>
+          </Pressable>
+        )}
 
-      <CaptureControls
-        lastCaptureUri={lastCaptureUri}
-        onShutter={handleShutter}
-        facing={facing}
-        onFacingChange={setFacing}
-        busy={busy}
-        recording={recording}
-        mode={mode}
-      />
+        <ModeCarousel mode={mode} onModeChange={changeMode} disabled={recording} />
 
-      {mode === 'TEMPORIZADOR' && <TimerPanel seconds={timerSeconds} onChange={setTimerSeconds} />}
-
-      {mode === 'STOP-MOTION' && (
-        <StopMotionPanel
-          stopFps={stopFps}
-          onFpsChange={setStopFps}
-          stopFramesCount={stopFrames.length}
-          onClear={() => setStopFrames([])}
-          onCompose={composeStopMotionVideo}
-          busy={busy}
-        />
-      )}
-
-      {mode === 'AR' && (
-        <ARControlPanel
-          arSession={arSession}
-          onSessionChange={setArSession}
-          selectedAnchorId={selectedAnchorId}
-          onAnchorSelect={setSelectedAnchorId}
-          arScaleDraft={arScaleDraft}
-          onScaleDraftChange={setArScaleDraft}
-        />
-      )}
+        <ShutterRow left={leftSlot} center={centerSlot} right={rightSlot} />
+      </View>
     </View>
   );
 }
@@ -491,6 +722,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.preto,
+    overflow: 'hidden',
   },
   permissionWrap: {
     alignItems: 'center',
@@ -517,13 +749,69 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: '#0D2036',
   },
-  previewWrap: {
-    flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
-  },
   preview: {
-    width: '100%',
-    height: '100%',
+    ...StyleSheet.absoluteFill,
+  },
+  meterSlot: {
+    position: 'absolute',
+    right: 12,
+  },
+  topRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  pill: {
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
+    color: colors.branco,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    gap: 8,
+  },
+  chip: {
+    alignSelf: 'center',
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipText: {
+    color: colors.branco,
+    fontSize: 13,
+  },
+  compose: {
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    backgroundColor: colors.acento,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composeText: {
+    color: '#0D2036',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  dim: {
+    opacity: 0.4,
   },
 });

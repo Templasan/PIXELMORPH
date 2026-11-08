@@ -10,7 +10,7 @@ const CountdownOverlay = memo(function CountdownOverlay({ countdown }: Props) {
   if (countdown === null) return null;
 
   return (
-    <View style={styles.countdownOverlay}>
+    <View style={styles.countdownOverlay} pointerEvents="none">
       <Text style={styles.countdownText}>{countdown}</Text>
     </View>
   );

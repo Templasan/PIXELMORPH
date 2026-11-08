@@ -1,69 +1,52 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { TargetCameraPosition as CameraType } from 'react-native-vision-camera';
-import { Icon } from '@core/ui';
-import { colors, monoFontFamily } from '@core/theme';
+import { StyleSheet, View } from 'react-native';
+import { CameraButton } from './CameraButton';
 
-interface Props {
-  torch: boolean;
-  onTorchChange: (enabled: boolean) => void;
-  facing: CameraType;
-  onFacingChange: (facing: CameraType) => void;
-  onBack: () => void;
+export interface TopControl {
+  icon: string;
+  label?: string;
+  active: boolean;
+  accessibilityLabel: string;
+  onPress: () => void;
 }
 
-const CameraTopBar = memo(function CameraTopBar({
-  torch,
-  onTorchChange,
-  facing,
-  onFacingChange,
-  onBack,
-}: Props) {
+interface Props {
+  /** Status bar height: the bar is pushed below it. */
+  topInset: number;
+  onClose: () => void;
+  controls: TopControl[];
+}
+
+/** Close on the left, feature toggles on the right. Floats over the preview, so no background. */
+const CameraTopBar = memo(function CameraTopBar({ topInset, onClose, controls }: Props) {
   return (
-    <View style={styles.topControls}>
-      <Pressable onPress={onBack} hitSlop={8}>
-        <Icon name="chevronLeft" size={24} color={colors.branco} />
-      </Pressable>
-      <View style={{ flexDirection: 'row', gap: 20 }}>
-        <Pressable onPress={() => onTorchChange(!torch)} hitSlop={8}>
-          <Icon name="flash" size={20} color={torch ? colors.acento : colors.branco} />
-        </Pressable>
-        <Icon name="grid" size={20} color={colors.branco} />
-        <Pressable onPress={() => onFacingChange(facing === 'back' ? 'front' : 'back')} hitSlop={8}>
-          <Icon name="rotate" size={20} color={colors.branco} />
-        </Pressable>
-      </View>
-      <View style={styles.fpsBadge}>
-        <Text style={styles.fpsBadgeText}>60 FPS</Text>
+    <View style={[styles.bar, { paddingTop: topInset + 8 }]} pointerEvents="box-none">
+      <CameraButton icon="x" accessibilityLabel="Fechar câmera" onPress={onClose} />
+      <View style={styles.right}>
+        {controls.map((c) => (
+          <CameraButton key={c.accessibilityLabel} {...c} />
+        ))}
       </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  topControls: {
+  bar: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 52,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingBottom: 8,
   },
-  fpsBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: colors.ok,
-    backgroundColor: 'rgba(95,185,143,0.2)',
-  },
-  fpsBadgeText: {
-    fontFamily: monoFontFamily,
-    fontSize: 11,
-    color: colors.ok,
+  right: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
 

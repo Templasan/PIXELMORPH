@@ -27,4 +27,5 @@ published under MPL-2.0.
 | react-native-vision-camera | 5.2.3 | MIT | https://github.com/mrousavy/react-native-vision-camera | Camera preview, photo and video capture (replaces expo-camera) |
 | react-native-nitro-modules | 0.37.1 | MIT | https://github.com/mrousavy/nitro | Native bridge VisionCamera is built on |
 | react-native-nitro-image | 0.15.2 | MIT | https://github.com/mrousavy/react-native-nitro-image | Rotating and resizing stop-motion frames |
+| expo-navigation-bar | 56.0.3 | MIT | https://github.com/expo/expo | Hides the Android navigation bar on the camera screen |
 | patch-package (dev only, not in the app) | 8.0.1 | MIT | https://github.com/ds300/patch-package | Applies `patches/` on install |
