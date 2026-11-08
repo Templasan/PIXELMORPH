@@ -52,7 +52,7 @@ import {
   type CameraMode,
   type FlashMode,
 } from './camera/cameraFormat';
-import CameraTopBar, { type TopControl } from './camera/CameraTopBar';
+import CameraTopBar, { TOP_BAR_TOP, type TopControl } from './camera/CameraTopBar';
 import { CameraButton } from './camera/CameraButton';
 import { LastCaptureThumb, ShutterButton, ShutterRow, type LastCapture } from './camera/ShutterRow';
 import ModeCarousel from './camera/ModeCarousel';
@@ -83,8 +83,8 @@ const STOP_MOTION_EDGE = 1920;
 // at low quality: encoding high-quality sound nonstop while framing kept the camera near 50% CPU.
 const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true };
 
-/** Top of the row under the top bar: 8 px pad, 44 px buttons, 8 px gap. */
-const ROW_BELOW_TOP = 60;
+/** Top of the row under the top bar: the bar, its 44 px buttons and a 12 px gap. */
+const ROW_BELOW_TOP = TOP_BAR_TOP + 44 + 12;
 
 /**
  * RF-018: real camera capture (VisionCamera). The photo and video outputs are both attached to
@@ -576,15 +576,14 @@ export default function CameraScreen({ navigation }: Props) {
       />
     );
     rightSlot = (
-      <Pressable
-        onPress={composeStopMotionVideo}
-        disabled={!composeReady}
-        accessibilityRole="button"
+      <CameraButton
+        icon="check"
         accessibilityLabel="Montar vídeo"
-        style={[styles.compose, !composeReady && styles.dim]}
-      >
-        <Text style={styles.composeText}>Montar</Text>
-      </Pressable>
+        active={composeReady}
+        disabled={!composeReady}
+        onPress={composeStopMotionVideo}
+        size={52}
+      />
     );
   } else if (recording) {
     leftSlot = (
@@ -659,21 +658,14 @@ export default function CameraScreen({ navigation }: Props) {
 
       {/* RF-018: a real mic level meter while framing a video shot. */}
       {mode === 'VÍDEO' && !recording && micPermission.hasPermission && (
-        <View
-          style={[styles.meterSlot, { top: insets.top + ROW_BELOW_TOP }]}
-          pointerEvents="box-none"
-        >
+        <View style={[styles.meterSlot, { top: ROW_BELOW_TOP }]} pointerEvents="box-none">
           <AudioMeter recorder={audioRecorder} gain={micGain} onGain={setMicGain} />
         </View>
       )}
 
-      <CameraTopBar
-        topInset={insets.top}
-        onClose={() => navigation.navigate('Projects')}
-        controls={topControls}
-      />
+      <CameraTopBar onClose={() => navigation.navigate('Projects')} controls={topControls} />
 
-      <View style={[styles.topRow, { top: insets.top + ROW_BELOW_TOP }]} pointerEvents="box-none">
+      <View style={[styles.topRow, { top: ROW_BELOW_TOP }]} pointerEvents="box-none">
         {topRowPill}
       </View>
 
@@ -796,22 +788,5 @@ const styles = StyleSheet.create({
   chipText: {
     color: colors.branco,
     fontSize: 13,
-  },
-  compose: {
-    height: 44,
-    paddingHorizontal: 18,
-    borderRadius: 22,
-    backgroundColor: colors.acento,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  composeText: {
-    color: '#0D2036',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  dim: {
-    opacity: 0.4,
   },
 });

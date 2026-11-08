@@ -11,22 +11,28 @@ export interface TopControl {
 }
 
 interface Props {
-  /** Status bar height: the bar is pushed below it. */
-  topInset: number;
   onClose: () => void;
   controls: TopControl[];
 }
 
-/** Close on the left, feature toggles on the right. Floats over the preview, so no background. */
-const CameraTopBar = memo(function CameraTopBar({ topInset, onClose, controls }: Props) {
+/** Distance from the screen's top edge: the status bar is hidden on this screen. */
+export const TOP_BAR_TOP = 24;
+
+/**
+ * Close and the feature toggles, each in a slot of equal width, so the row is spread evenly
+ * across the screen whatever the buttons' labels are. Floats over the preview, no background.
+ */
+const CameraTopBar = memo(function CameraTopBar({ onClose, controls }: Props) {
   return (
-    <View style={[styles.bar, { paddingTop: topInset + 8 }]} pointerEvents="box-none">
-      <CameraButton icon="x" accessibilityLabel="Fechar câmera" onPress={onClose} />
-      <View style={styles.right}>
-        {controls.map((c) => (
-          <CameraButton key={c.accessibilityLabel} {...c} />
-        ))}
+    <View style={styles.bar} pointerEvents="box-none">
+      <View style={styles.slot}>
+        <CameraButton icon="x" accessibilityLabel="Fechar câmera" onPress={onClose} />
       </View>
+      {controls.map((c) => (
+        <View key={c.accessibilityLabel} style={styles.slot}>
+          <CameraButton {...c} />
+        </View>
+      ))}
     </View>
   );
 });
@@ -39,14 +45,12 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingTop: TOP_BAR_TOP,
+    paddingHorizontal: 8,
   },
-  right: {
-    flexDirection: 'row',
+  slot: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
   },
 });
 
