@@ -17,7 +17,7 @@ import {
   useCameraPermissions,
   useMicrophonePermissions,
 } from 'expo-camera';
-import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-audio';
+import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { Icon } from '@core/ui';
@@ -116,13 +116,19 @@ export default function CameraScreen({ navigation }: Props) {
   const audioRecorder = useAudioRecorder(AUDIO_RECORDER_OPTIONS);
   // RF-018: gain for the recorded sound, applied to its own audio track in the editor.
   const [micGain, setMicGain] = useState(1);
-  const audioState = useAudioRecorderState(audioRecorder, 100);
 
+  // Asked only once the status is known and missing: asking while it loads (null) opened the
+  // system's permission activity on every visit, even with both already granted.
   useEffect(() => {
-    if (!cameraPermission) requestCameraPermission();
-    if (!micPermission) requestMicPermission();
+    if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain)
+      requestCameraPermission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cameraPermission?.granted, cameraPermission?.canAskAgain]);
+  useEffect(() => {
+    if (micPermission && !micPermission.granted && micPermission.canAskAgain)
+      requestMicPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [micPermission?.granted, micPermission?.canAskAgain]);
 
   // RF-018 "monitoramento em tempo real": a real mic level meter, running while framing a
   // shot in VÍDEO mode (not during the recording itself — CameraView takes exclusive mic
@@ -379,7 +385,7 @@ export default function CameraScreen({ navigation }: Props) {
 
         {/* RF-018: a real mic level meter while framing a video shot. */}
         {mode === 'VÍDEO' && !recording && micPermission?.granted && (
-          <AudioMeter metering={audioState.metering} gain={micGain} onGain={setMicGain} />
+          <AudioMeter recorder={audioRecorder} gain={micGain} onGain={setMicGain} />
         )}
 
         {mode === 'STOP-MOTION' && <StopMotionFrameStrip stopFrames={stopFrames} />}

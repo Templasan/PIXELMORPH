@@ -1,11 +1,13 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAudioRecorderState, type AudioRecorder } from 'expo-audio';
 import { Icon } from '@core/ui';
 import { colors } from '@core/theme';
 import { meteringToPercent } from './cameraFormat';
 
 interface Props {
-  metering: number | undefined;
+  /** Its level is polled here, so only the meter redraws ten times a second, not the camera screen. */
+  recorder: AudioRecorder;
   /** RF-018: mic gain (1 = as captured); the meter shows the level with it applied. */
   gain: number;
   onGain: (gain: number) => void;
@@ -14,7 +16,8 @@ interface Props {
 const GAIN_STEP = 0.25;
 const MAX_GAIN = 2;
 
-const AudioMeter = memo(function AudioMeter({ metering, gain, onGain }: Props) {
+const AudioMeter = memo(function AudioMeter({ recorder, gain, onGain }: Props) {
+  const { metering } = useAudioRecorderState(recorder, 100);
   const level = metering === undefined || gain <= 0 ? undefined : metering + 20 * Math.log10(gain);
   return (
     <View style={styles.audioMeterWrap}>
