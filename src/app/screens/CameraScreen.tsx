@@ -12,11 +12,17 @@ import {
 } from 'react-native';
 
 import {
-  CameraView,
-  type CameraType,
-  useCameraPermissions,
-  useMicrophonePermissions,
-} from 'expo-camera';
+  Camera,
+  type CameraRef,
+  type Photo,
+  type Recorder,
+  type TargetCameraPosition,
+  useCameraPermission,
+  useMicrophonePermission,
+  usePhotoOutput,
+  useVideoOutput,
+} from 'react-native-vision-camera';
+import { useIsFocused } from '@react-navigation/native';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -32,7 +38,7 @@ import { type ARSession } from '@modules/camera/ar';
 import {
   FILTER_PRESETS,
   adjustmentsToOverlayColor,
-  sizeFromExif,
+  quarterTurnsOf,
   type CameraMode,
 } from './camera/cameraFormat';
 import CameraTopBar from './camera/CameraTopBar';
@@ -54,6 +60,9 @@ import ARControlPanel from './camera/ARControlPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 
+/** Long edge of a stop-motion frame: the composed video is 1080p. */
+const STOP_MOTION_EDGE = 1920;
+
 // A stable, module-level constant — passing a fresh object literal to useAudioRecorder on
 // every render made it recreate (and prematurely release) the native recorder each time.
 // It only feeds the level meter (the video's own sound is recorded by the camera), so it records
@@ -61,9 +70,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true };
 
 /**
- * RF-018: real camera capture. Photo and video both use a live `expo-camera` feed and save
- * a real file — video recording includes a real embedded audio track (CameraView's `mute`
- * defaults to false). Before recording, a real mic level meter (expo-audio, metering
+ * RF-018: real camera capture (VisionCamera). The photo and video outputs are both attached to
+ * one camera session, so switching FOTO/VÍDEO does not restart the camera; video recording
+ * includes a real embedded audio track. Before recording, a real mic level meter (expo-audio, metering
  * enabled) lets the user check their audio — "monitoramento em tempo real". There is no
  * manual input-gain API exposed by either module on a managed Expo build, so that part of
  * RF-018 is left out rather than faked with a slider that would not do anything.
@@ -82,7 +91,7 @@ export default function CameraScreen({ navigation }: Props) {
   const [stopFps, setStopFps] = useState(6);
   // Escala do AR: valor local durante o arraste, aplicado ao fim do gesto.
   const [arScaleDraft, setArScaleDraft] = useState<{ id: string; v: number } | null>(null);
-  const [facing, setFacing] = useState<CameraType>('back');
+  const [facing, setFacing] = useState<TargetCameraPosition>('back');
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastCaptureUri, setLastCaptureUri] = useState<string | null>(null);
@@ -95,15 +104,14 @@ export default function CameraScreen({ navigation }: Props) {
   });
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
 
-  // Tap-to-focus square: expo-camera's Android backend has no manual focus-point API
-  // (CameraX already runs continuous autofocus on its own), so this is the visual
-  // affordance without a native refocus call behind it — same honesty as the AR
-  // "static illustration" note below.
+  // Tap-to-focus: the square shows where, the camera really refocuses there.
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
   const focusAnim = useRef(new Animated.Value(0)).current;
+  const cameraRef = useRef<CameraRef | null>(null);
   const handleFocusTap = useCallback(
     (event: GestureResponderEvent) => {
       const { locationX, locationY } = event.nativeEvent;
+      cameraRef.current?.focusTo({ x: locationX, y: locationY }).catch(() => {});
       setFocusPoint({ x: locationX, y: locationY });
       focusAnim.setValue(1);
       Animated.timing(focusAnim, {
@@ -116,9 +124,14 @@ export default function CameraScreen({ navigation }: Props) {
     [focusAnim]
   );
 
-  const cameraRef = useRef<CameraView | null>(null);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const cameraPermission = useCameraPermission();
+  const micPermission = useMicrophonePermission();
+  // Both outputs stay attached: the mode only decides what the shutter does.
+  const photoOutput = usePhotoOutput();
+  const videoOutput = useVideoOutput({ enableAudio: micPermission.hasPermission });
+  const recorderRef = useRef<Recorder | null>(null);
+  // The camera runs only while this screen is shown (it stays mounted under the editor).
+  const isFocused = useIsFocused();
 
   const audioRecorder = useAudioRecorder(AUDIO_RECORDER_OPTIONS);
   // RF-018: gain for the recorded sound, applied to its own audio track in the editor.
@@ -127,21 +140,21 @@ export default function CameraScreen({ navigation }: Props) {
   // Asked only once the status is known and missing: asking while it loads (null) opened the
   // system's permission activity on every visit, even with both already granted.
   useEffect(() => {
-    if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain)
-      requestCameraPermission();
+    if (!cameraPermission.hasPermission && cameraPermission.canRequestPermission)
+      cameraPermission.requestPermission().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraPermission?.granted, cameraPermission?.canAskAgain]);
+  }, [cameraPermission.hasPermission, cameraPermission.canRequestPermission]);
   useEffect(() => {
-    if (micPermission && !micPermission.granted && micPermission.canAskAgain)
-      requestMicPermission();
+    if (!micPermission.hasPermission && micPermission.canRequestPermission)
+      micPermission.requestPermission().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [micPermission?.granted, micPermission?.canAskAgain]);
+  }, [micPermission.hasPermission, micPermission.canRequestPermission]);
 
   // RF-018 "monitoramento em tempo real": a real mic level meter, running while framing a
   // shot in VÍDEO mode (not during the recording itself — CameraView takes exclusive mic
   // access once `recordAsync` starts).
   useEffect(() => {
-    if (mode !== 'VÍDEO' || recording || !micPermission?.granted) return;
+    if (mode !== 'VÍDEO' || recording || !micPermission.hasPermission) return;
     // The prepare is async: if the screen leaves first (recording done -> editor), the hook has
     // already released the recorder and touching it crashes the app.
     let active = true;
@@ -160,7 +173,7 @@ export default function CameraScreen({ navigation }: Props) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, recording, micPermission?.granted]);
+  }, [mode, recording, micPermission.hasPermission]);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -259,77 +272,97 @@ export default function CameraScreen({ navigation }: Props) {
   }, [stopFrames, stopFps, busy, projects, navigation]);
 
   const takePhoto = useCallback(async () => {
-    if (!cameraRef.current || busy) return;
+    if (busy) return;
     setBusy(true);
+    let photo: Photo | null = null;
     try {
-      // The camera's own JPEG is kept as is: the library otherwise decodes and re-encodes the
-      // whole photo just to turn it upright, which both editors already do from its EXIF tag.
-      // (Stop-motion frames still get it: the native video exporter does not read EXIF.)
-      const photo = await cameraRef.current.takePictureAsync({ skipProcessing: true, exif: true });
-      if (!photo) return;
-      setLastCaptureUri(photo.uri);
-      const { width, height } = sizeFromExif(photo.width, photo.height, photo.exif?.Orientation);
+      // The camera's own JPEG is kept as is: both editors turn it upright from its EXIF tag.
+      photo = await photoOutput.capturePhoto({}, {});
+      const uri = `file://${await photo.saveToTemporaryFileAsync()}`;
+      const turned = quarterTurnsOf(photo.orientation) % 2 === 1;
+      const width = turned ? photo.height : photo.width;
+      const height = turned ? photo.width : photo.height;
+      setLastCaptureUri(uri);
       const k = intensity / 100;
       const look = Object.fromEntries(
         Object.entries(FILTER_PRESETS[activeFilter].adjustments)
           .filter(([, value]) => value !== 0)
           .map(([field, value]) => [field, (value as number) * k])
       );
-      await openInEditor(photo.uri, 'image', width, height, look);
+      await openInEditor(uri, 'image', width, height, look);
     } catch (error) {
       errorLogger.log(error, 'CameraScreen.takePhoto');
       Alert.alert('Não foi possível capturar a foto', 'Tente novamente.');
     } finally {
+      photo?.dispose();
       setBusy(false);
     }
-  }, [busy, openInEditor, activeFilter, intensity]);
+  }, [busy, photoOutput, openInEditor, activeFilter, intensity]);
 
   const toggleVideoRecording = useCallback(async () => {
-    if (!cameraRef.current) return;
     if (recording) {
-      // Not gated behind `busy` — that stays true for the whole recordAsync() call below,
-      // and this is the only way to end it.
-      cameraRef.current.stopRecording();
+      // Not gated behind `busy` — that stays true for the whole recording, and this is the only
+      // way to end it.
+      recorderRef.current?.stopRecording().catch(() => {});
       return;
     }
     if (busy) return;
     if (audioRecorder.isRecording) audioRecorder.stop();
     setRecording(true);
     setBusy(true);
+    const motion = startMotionRecording();
+    let recorded: string | null = null;
     try {
-      const motion = startMotionRecording();
-      let recorded: string | null = null;
-      const video = await cameraRef.current.recordAsync().finally(() => {
+      const recorder = await videoOutput.createRecorder({});
+      recorderRef.current = recorder;
+      // Resolves when the file is finished (stop pressed), rejects on a recording error.
+      const path = await new Promise<string>((resolve, reject) => {
+        recorder.startRecording((filePath) => resolve(filePath), reject).catch(reject);
+      }).finally(() => {
+        recorderRef.current = null;
         recorded = motion.stop();
       });
       setRecording(false);
       setBusy(false);
-      if (!video) return;
-      setLastCaptureUri(video.uri);
-      await openInEditor(video.uri, 'video', 1920, 1080, undefined, recorded);
+      const uri = `file://${path}`;
+      setLastCaptureUri(uri);
+      await openInEditor(uri, 'video', 1920, 1080, undefined, recorded);
     } catch (error) {
       setRecording(false);
       setBusy(false);
       errorLogger.log(error, 'CameraScreen.toggleVideoRecording');
       Alert.alert('Não foi possível gravar o vídeo', 'Tente novamente.');
     }
-  }, [recording, busy, audioRecorder, openInEditor]);
+  }, [recording, busy, audioRecorder, videoOutput, openInEditor]);
 
   const handleShutter = useCallback(async () => {
     if (mode === 'TEMPORIZADOR') {
       // A second press while it counts calls the photo off.
       setCountdown((c) => (c === null ? timerSeconds : null));
     } else if (mode === 'STOP-MOTION') {
-      if (!cameraRef.current || busy) return;
+      if (busy) return;
       setBusy(true);
+      let photo: Photo | null = null;
       try {
-        const photo = await cameraRef.current.takePictureAsync();
-        if (photo) {
-          setStopFrames((prev) => [...prev, photo.uri]);
-        }
+        // The native video exporter ignores EXIF: frames are turned upright here, and kept at
+        // video size (the composed clip is 1080p).
+        photo = await photoOutput.capturePhoto({ enableShutterSound: false }, {});
+        const image = await photo.toImageAsync();
+        const upright = await image.rotateAsync(quarterTurnsOf(photo.orientation) * 90);
+        const k = Math.min(1, STOP_MOTION_EDGE / Math.max(upright.width, upright.height));
+        const small =
+          k < 1
+            ? await upright.resizeAsync(
+                Math.round(upright.width * k),
+                Math.round(upright.height * k)
+              )
+            : upright;
+        const path = await small.saveToTemporaryFileAsync('jpg', 90);
+        setStopFrames((prev) => [...prev, `file://${path}`]);
       } catch (error) {
         errorLogger.log(error, 'CameraScreen.handleShutter.stopMotion');
       } finally {
+        photo?.dispose();
         setBusy(false);
       }
     } else if (mode === 'VÍDEO') {
@@ -337,11 +370,11 @@ export default function CameraScreen({ navigation }: Props) {
     } else {
       takePhoto();
     }
-  }, [mode, busy, timerSeconds, toggleVideoRecording, takePhoto]);
+  }, [mode, busy, timerSeconds, photoOutput, toggleVideoRecording, takePhoto]);
 
   const filterPreset = FILTER_PRESETS[activeFilter];
   const filterOverlayColor = adjustmentsToOverlayColor(filterPreset.adjustments);
-  const permissionsReady = cameraPermission?.granted && micPermission?.granted;
+  const permissionsReady = cameraPermission.hasPermission && micPermission.hasPermission;
 
   if (!permissionsReady) {
     return (
@@ -354,8 +387,8 @@ export default function CameraScreen({ navigation }: Props) {
         <Pressable
           style={styles.permissionButton}
           onPress={() => {
-            requestCameraPermission();
-            requestMicPermission();
+            cameraPermission.requestPermission().catch(() => {});
+            micPermission.requestPermission().catch(() => {});
           }}
         >
           <Text style={styles.permissionButtonText}>Permitir acesso</Text>
@@ -368,13 +401,13 @@ export default function CameraScreen({ navigation }: Props) {
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.previewWrap}>
         <Pressable style={styles.preview} onPress={handleFocusTap}>
-          <CameraView
+          <Camera
             ref={cameraRef}
             style={styles.preview}
-            facing={facing}
-            enableTorch={torch}
-            mode={mode === 'VÍDEO' ? 'video' : 'picture'}
-            mute={false}
+            isActive={isFocused}
+            device={facing}
+            outputs={[photoOutput, videoOutput]}
+            torchMode={torch ? 'on' : 'off'}
           />
         </Pressable>
         <FilterTint
@@ -395,7 +428,7 @@ export default function CameraScreen({ navigation }: Props) {
         <CountdownOverlay countdown={countdown} />
 
         {/* RF-018: a real mic level meter while framing a video shot. */}
-        {mode === 'VÍDEO' && !recording && micPermission?.granted && (
+        {mode === 'VÍDEO' && !recording && micPermission.hasPermission && (
           <AudioMeter recorder={audioRecorder} gain={micGain} onGain={setMicGain} />
         )}
 

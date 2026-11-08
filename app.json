@@ -10,14 +10,22 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "O PixelMorph usa a câmera para fotografar e gravar vídeos.",
+        "NSMicrophoneUsageDescription": "O PixelMorph usa o microfone para gravar áudio junto com o vídeo."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.pixelmorph"
+      "package": "com.anonymous.pixelmorph",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -52,13 +60,6 @@
           "photosPermission": "O PixelMorph salva suas fotos exportadas na galeria.",
           "savePhotosPermission": "O PixelMorph salva suas fotos exportadas na galeria.",
           "isAccessMediaLocationEnabled": false
-        }
-      ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "O PixelMorph usa a câmera para fotografar e gravar vídeos.",
-          "microphonePermission": "O PixelMorph usa o microfone para gravar áudio junto com o vídeo."
         }
       ],
       [
