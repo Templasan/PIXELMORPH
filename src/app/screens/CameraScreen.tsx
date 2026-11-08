@@ -29,7 +29,12 @@ import { errorLogger } from '@core/reliability';
 import { probeFileMetadata, uprightDimensions } from '@modules/device-media';
 import { probeVideoRotation } from '../../../modules/pixelmorph-video-export/src';
 import { type ARSession } from '@modules/camera/ar';
-import { FILTER_PRESETS, adjustmentsToOverlayColor, type CameraMode } from './camera/cameraFormat';
+import {
+  FILTER_PRESETS,
+  adjustmentsToOverlayColor,
+  sizeFromExif,
+  type CameraMode,
+} from './camera/cameraFormat';
 import CameraTopBar from './camera/CameraTopBar';
 import FilterStrip from './camera/FilterStrip';
 import ModeTabs from './camera/ModeTabs';
@@ -257,16 +262,20 @@ export default function CameraScreen({ navigation }: Props) {
     if (!cameraRef.current || busy) return;
     setBusy(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync();
+      // The camera's own JPEG is kept as is: the library otherwise decodes and re-encodes the
+      // whole photo just to turn it upright, which both editors already do from its EXIF tag.
+      // (Stop-motion frames still get it: the native video exporter does not read EXIF.)
+      const photo = await cameraRef.current.takePictureAsync({ skipProcessing: true, exif: true });
       if (!photo) return;
       setLastCaptureUri(photo.uri);
+      const { width, height } = sizeFromExif(photo.width, photo.height, photo.exif?.Orientation);
       const k = intensity / 100;
       const look = Object.fromEntries(
         Object.entries(FILTER_PRESETS[activeFilter].adjustments)
           .filter(([, value]) => value !== 0)
           .map(([field, value]) => [field, (value as number) * k])
       );
-      await openInEditor(photo.uri, 'image', photo.width, photo.height, look);
+      await openInEditor(photo.uri, 'image', width, height, look);
     } catch (error) {
       errorLogger.log(error, 'CameraScreen.takePhoto');
       Alert.alert('Não foi possível capturar a foto', 'Tente novamente.');
