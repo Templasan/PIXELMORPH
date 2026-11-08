@@ -51,7 +51,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 
 // A stable, module-level constant — passing a fresh object literal to useAudioRecorder on
 // every render made it recreate (and prematurely release) the native recorder each time.
-const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
+// It only feeds the level meter (the video's own sound is recorded by the camera), so it records
+// at low quality: encoding high-quality sound nonstop while framing kept the camera near 50% CPU.
+const AUDIO_RECORDER_OPTIONS = { ...RecordingPresets.LOW_QUALITY, isMeteringEnabled: true };
 
 /**
  * RF-018: real camera capture. Photo and video both use a live `expo-camera` feed and save
