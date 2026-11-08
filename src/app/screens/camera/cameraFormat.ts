@@ -116,14 +116,9 @@ export function meteringToPercent(db: number | undefined): number {
 }
 
 /**
- * A photo's upright size from the camera's stored size and its EXIF orientation (1-8): the tags
- * 5-8 mean the picture is stored sideways and shown turned a quarter.
+ * Clockwise quarter turns that make a captured picture upright, from VisionCamera's
+ * orientation of its pixels ('up' is already upright).
  */
-export function sizeFromExif(
-  width: number,
-  height: number,
-  orientation: unknown
-): { width: number; height: number } {
-  const o = Number(orientation);
-  return o >= 5 && o <= 8 ? { width: height, height: width } : { width, height };
+export function quarterTurnsOf(orientation: 'up' | 'right' | 'down' | 'left'): number {
+  return { up: 0, right: 1, down: 2, left: 3 }[orientation];
 }

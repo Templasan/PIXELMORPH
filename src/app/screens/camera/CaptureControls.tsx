@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { CameraType } from 'expo-camera';
+import type { TargetCameraPosition as CameraType } from 'react-native-vision-camera';
 import { Icon } from '@core/ui';
 import { colors } from '@core/theme';
 import type { CameraMode } from './cameraFormat';
