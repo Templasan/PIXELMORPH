@@ -150,7 +150,7 @@ export default function CameraScreen({ navigation }: Props) {
 
   const cameraPermission = useCameraPermission();
   const micPermission = useMicrophonePermission();
-  // Both outputs stay attached: the mode only decides what the shutter does.
+  // Video mode binds the video output, the others the photo output (see the Camera below).
   const photoOutput = usePhotoOutput();
   const videoOutput = useVideoOutput({ enableAudio: micPermission.hasPermission });
   const recorderRef = useRef<Recorder | null>(null);
@@ -629,7 +629,9 @@ export default function CameraScreen({ navigation }: Props) {
           style={StyleSheet.absoluteFill}
           isActive={isFocused}
           device={facing}
-          outputs={[photoOutput, videoOutput]}
+          // Video bound next to the photo made the phone pick a video sensor mode (cropped, with
+          // stabilisation margin): photos came out more zoomed than the system camera's.
+          outputs={mode === 'VÍDEO' ? [videoOutput] : [photoOutput]}
           // Stop-motion stays at 1×, so its frames match each other.
           zoom={mode === 'STOP-MOTION' ? 1 : zoom}
           // The front camera has no flash unit: even setting the torch off throws, so it is left unset.
