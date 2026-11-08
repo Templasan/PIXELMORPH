@@ -129,7 +129,8 @@ export default function ExploreScreen({ navigation }: Props) {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    // The bottom edge is MainBar's: it pads itself above the system navigation.
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.topBar}>
         <Text style={styles.title}>{t('Explorar')}</Text>
       </View>

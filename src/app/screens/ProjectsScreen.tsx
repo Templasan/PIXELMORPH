@@ -395,7 +395,8 @@ export default function ProjectsScreen({ navigation }: Props) {
     selected.length === 1 ? projects.find((p) => p.id === selected[0]) : undefined;
 
   return (
-    <SafeAreaView style={styles.container}>
+    // The bottom edge is MainBar's: it pads itself above the system navigation.
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {multiSelect ? (
         <View style={styles.contextBar}>
           <Pressable onPress={exitMultiSelect} hitSlop={8}>
