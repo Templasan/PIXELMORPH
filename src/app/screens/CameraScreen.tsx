@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type GestureResponderEvent,
 } from 'react-native';
 
@@ -73,6 +74,13 @@ import { presetStep } from './photo-editor/batchPreset';
 import ARControlPanel from './camera/ARControlPanel';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Camera'>;
+
+/**
+ * Photos are asked at the system camera's size: 20 MP (3:4) on the Poco's front camera, and the
+ * binned ~12 MP on the back one rather than the slow full 50 MP. The target is a size to come
+ * close to, not a minimum; the default (12 MP) gave the front camera only 5 MP.
+ */
+const PHOTO_TARGET = { width: 3888, height: 5184 };
 
 /** Long edge of a stop-motion frame: the composed video is 1080p. */
 const STOP_MOTION_EDGE = 1920;
@@ -151,7 +159,21 @@ export default function CameraScreen({ navigation }: Props) {
   const cameraPermission = useCameraPermission();
   const micPermission = useMicrophonePermission();
   // Video mode binds the video output, the others the photo output (see the Camera below).
-  const photoOutput = usePhotoOutput();
+  const photoOutput = usePhotoOutput({ targetResolution: PHOTO_TARGET });
+  // Photo modes show the whole 3:4 frame the photo will have (what you see is what is shot);
+  // video fills the screen, since the clip is as tall as the screen.
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const fillScreen = mode === 'VÍDEO';
+  const frameH = Math.min(screenH, (screenW * 4) / 3);
+  const frame = fillScreen
+    ? StyleSheet.absoluteFill
+    : {
+        position: 'absolute' as const,
+        left: 0,
+        width: screenW,
+        top: (screenH - frameH) / 2,
+        height: frameH,
+      };
   const videoOutput = useVideoOutput({ enableAudio: micPermission.hasPermission });
   const recorderRef = useRef<Recorder | null>(null);
   // The camera runs only while this screen is shown (it stays mounted under the editor).
@@ -636,19 +658,22 @@ export default function CameraScreen({ navigation }: Props) {
           zoom={mode === 'STOP-MOTION' ? 1 : zoom}
           // The front camera has no flash unit: even setting the torch off throws, so it is left unset.
           torchMode={facing === 'back' ? (mode === 'VÍDEO' && torchOn ? 'on' : 'off') : undefined}
+          resizeMode={fillScreen ? 'cover' : 'contain'}
         />
       </Pressable>
-      <FilterTint
-        filterName={filterPreset.name}
-        filterOverlayColor={filterOverlayColor}
-        intensity={intensity}
-      />
+      {/* Tint, grid and onion skin cover the picture's frame, not the black bands around it. */}
+      <View style={frame} pointerEvents="none">
+        <FilterTint
+          filterName={filterPreset.name}
+          filterOverlayColor={filterOverlayColor}
+          intensity={intensity}
+        />
+        {gridOn && <GridOverlay />}
+        {mode === 'STOP-MOTION' && lastFrame !== undefined && onionPercent > 0 && (
+          <OnionSkin uri={lastFrame} opacity={onionPercent / 100} />
+        )}
+      </View>
       <FocusSquare focusPoint={focusPoint} focusAnim={focusAnim} />
-
-      {gridOn && <GridOverlay />}
-      {mode === 'STOP-MOTION' && lastFrame !== undefined && onionPercent > 0 && (
-        <OnionSkin uri={lastFrame} opacity={onionPercent / 100} />
-      )}
 
       <ScrimGradient edge="top" height={insets.top + 100} />
       <CountdownOverlay countdown={countdown} />
