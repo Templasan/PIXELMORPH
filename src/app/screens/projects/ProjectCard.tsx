@@ -73,7 +73,7 @@ export const ProjectTile = memo(function ProjectTile({
 }: ItemProps) {
   return (
     <Pressable
-      style={[styles.tile, isSelected && styles.tileSelected]}
+      style={styles.tile}
       onPress={() => onPressProject(project)}
       onLongPress={() => onLongPressProject(project)}
       accessibilityLabel={project.name}
@@ -81,6 +81,8 @@ export const ProjectTile = memo(function ProjectTile({
       <ProjectThumb project={project} style={styles.fill} />
       <Duration project={project} />
       {multiSelect && <Check isSelected={isSelected} />}
+      {/* A separate ring: changing this clipped tile's own border left its picture clipped away until the grid was rebuilt. */}
+      {isSelected && <View pointerEvents="none" style={styles.tileRing} />}
     </Pressable>
   );
 });
@@ -255,6 +257,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: colors.faixa,
+  },
+  tileRing: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: colors.branco,
   },
   tileSelected: {
     borderWidth: 3,
