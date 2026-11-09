@@ -1,6 +1,6 @@
 # PixelMorph
 
-Aplicativo Android de edição de fotos e vídeos (React Native + Expo SDK 56). Este documento reúne o **backlog do produto**, o **backlog da Sprint 1**, o **roadmap** e o **tutorial de instalação**.
+Aplicativo Android de edição de fotos e vídeos (React Native + Expo SDK 56). Este documento reúne o **backlog do produto**, o **backlog da Sprint 1**, o **roadmap** (com a situação da Sprint 2) e o **tutorial de instalação**.
 
 ## Sumário
 
@@ -194,36 +194,45 @@ Itens técnicos que não pertencem a uma US (pendências de requisitos não func
 | Sprint | Tema | User Stories | Situação |
 |---|---|---|---|
 | **Sprint 1** | Fundação: projetos, ajustes de foto, camadas, linha do tempo e exportação | US-01, US-03, US-04, US-05, US-08, US-09, US-11, US-14, US-15, US-16, US-30 | ✅ **Completa** |
-| **Sprint 2** | Composição gráfica, guias de alinhamento, controle de velocidade e áudio | US-10, US-12, US-17, US-33 | 🚧 **Em desenvolvimento** |
-| **Sprint 3** | Máscaras, retoque, câmera avançada, IA, exportação profissional e colaboração | 21 US (tabela abaixo) | Planejada. Algumas já têm implementação inicial no código; conferir antes de dar como concluídas |
+| **Sprint 2** (05/10 – 08/11/2026) | Composição gráfica, guias, velocidade, áudio, e continuação de projetos, montagem e exportação | US-01, US-10, US-12, US-16, US-17, US-30, US-33 | ✅ **Concluída**, com 17 US da Sprint 3 adiantadas |
+| **Sprint 3** | Câmera avançada (filtro ao vivo, realidade aumentada), colaboração e comunidade, e testes do que foi adiantado | US-21, US-23, US-34, US-35 + revisão das adiantadas | Planejada |
 
 ### 4.1 Sprint 2 — situação
 
 | US | Título | Situação |
 |---|---|---|
-| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | 🚧 Em desenvolvimento |
-| US-12 | Comparação, guias e atalhos de produtividade | 🚧 Em desenvolvimento |
-| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | 🚧 Em desenvolvimento |
-| US-33 | Captura e trilha de áudio no vídeo | 🚧 Em desenvolvimento |
+| US-01 | Central de projetos | ✅ (lembrete só dentro do app, sem notificação do sistema) |
+| US-10 | Composição gráfica: colagens, textos e elementos vetoriais | ✅ |
+| US-12 | Comparação, guias e atalhos de produtividade | ✅ (gestos de 2/3 dedos com teste parcial) |
+| US-16 | Transições e montagem de múltiplos clipes | ✅ |
+| US-17 | Controle de velocidade: câmera lenta, aceleração e time-lapse | ✅ |
+| US-30 | Exportação em múltiplos formatos e otimização de tamanho | ✅ (RNF-011: 1 min Full HD em 39 s no Poco; 211 s no A11) |
+| US-33 | Captura e trilha de áudio no vídeo | ✅ |
 
-Medições feitas em 05/10/2026 em celular real (arm64, Android 16, build release). O registro dos testes critério a critério está em [`SPRINT_2_STATUS.md`](backlog/SPRINT_2_STATUS.md).
+Também nesta sprint:
 
-Resultados de desempenho medidos no celular: inicialização a frio entre **0,82 e 1,2 s** (meta: menos de 3 s), instalação de **59 MB** (meta: até 200 MB) e exportação de 10 s em Full HD com transição em **2,7 s**.
+- **Editores de foto e vídeo refeitos** (páginas web dentro do app), ambos com camadas, cópias leves para a prévia e qualidade da prévia ajustável (Alta/Média/Baixa).
+- **Câmera nova** (VisionCamera): tela cheia, controles redesenhados, foto em 3:4 na resolução da câmera do sistema, captura em 0,24 s.
+- **Desempenho** (Poco, foto de 50 MP): aplicar ajustes 11,3 s → 0,19 s; exportar JPEG 1,4–1,9 s (foto 1080×2400); edição ao vivo a 8 ms por quadro.
 
-### 4.2 Sprint 3 — escopo planejado
+Pendente: verificação de e-mail por código (RNF-001).
+
+Documentos: [entregas](docs/entregas-sprint-2.md), [user stories e requisitos](docs/user-stories-sprint-2.md), [relatório de desempenho](docs/relatorio-desempenho-2026-11-07.md), [roteiro da Sprint Review](docs/roteiro-sprint-review.md), [fila de desempenho](docs/fila-desempenho.md).
+
+### 4.2 Sprint 3 — escopo
+
+Adiantadas na Sprint 2 (entregues; ⚠️ = falta teste com material real):
 
 | US | Título | Épico |
 |---|---|---|
 | US-02 | Presets e edição em lote | EP-01 Projetos e Organização |
 | US-06 | Máscaras e seleção localizada | EP-02 Edição de Foto |
 | US-07 | Retoque e distorção | EP-02 Edição de Foto |
-| US-13 | Visualização 3D de fotos estereoscópicas | EP-02 Edição de Foto |
-| US-18 | Estabilização de vídeo por sensores | EP-03 Edição de Vídeo |
-| US-19 | Edição de vídeo em 360 graus | EP-03 Edição de Vídeo |
+| US-13 | Visualização 3D de fotos estereoscópicas ⚠️ | EP-02 Edição de Foto |
+| US-18 | Estabilização de vídeo por sensores ⚠️ | EP-03 Edição de Vídeo |
+| US-19 | Edição de vídeo em 360 graus ⚠️ | EP-03 Edição de Vídeo |
 | US-20 | Picture-in-picture | EP-03 Edição de Vídeo |
-| US-21 | Filtros em tempo real na pré-visualização da câmera | EP-04 Câmera e Captura |
 | US-22 | Captura assistida: temporizador e stop-motion | EP-04 Câmera e Captura |
-| US-23 | Sobreposição em realidade aumentada | EP-04 Câmera e Captura |
 | US-24 | Recorte e remoção inteligente de elementos | EP-05 IA e Automação |
 | US-25 | Efeitos de retrato e correção facial automática | EP-05 IA e Automação |
 | US-26 | Sugestões automáticas de cor, cena e enquadramento | EP-05 IA e Automação |
@@ -232,15 +241,23 @@ Resultados de desempenho medidos no celular: inicialização a frio entre **0,82
 | US-29 | Automação de vídeo: miniaturas e legendas por IA | EP-05 IA e Automação |
 | US-31 | Exportação para fluxos profissionais: PSD, impressão e gerenciamento de cor | EP-06 Exportação |
 | US-32 | Marca d'água e QR code personalizados | EP-06 Exportação |
+| US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade |
+
+Restantes:
+
+| US | Título | Épico |
+|---|---|---|
+| US-21 | Filtros em tempo real na pré-visualização da câmera | EP-04 Câmera e Captura |
+| US-23 | Sobreposição em realidade aumentada | EP-04 Câmera e Captura |
 | US-34 | Edição colaborativa remota em tempo real | EP-08 Colaboração e Comunidade |
 | US-35 | Feedback e anotações da comunidade | EP-08 Colaboração e Comunidade |
-| US-36 | Galeria de amostras e tutoriais interativos | EP-08 Colaboração e Comunidade |
 
 ### 4.3 Próximos passos
 
-1. Iniciar a Sprint 3, começando por máscaras e retoque (US-06, US-07), que reaproveitam a base de camadas.
-2. Backend para login com 2FA e HTTPS (RNF-001, RNF-002), necessário para colaboração e comunidade (US-34, US-35).
-3. Traduzir as telas restantes para EN/ES (RNF-016).
+1. Verificação de e-mail por código (RNF-001), que fecha a US-01.
+2. US-21 (filtro ao vivo, agora possível com a câmera nova) e US-23 (realidade aumentada com detecção de superfície).
+3. Decidir o escopo de colaboração e comunidade (US-34, US-35).
+4. Testar as adiantadas marcadas com ⚠️ e resolver a [fila de desempenho](docs/fila-desempenho.md) (PSD lento, memória no A11).
 
 ---
 
