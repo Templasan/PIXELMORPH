@@ -9,3 +9,4 @@
 *.jar binary
 *.keystore binary
 *.apk binary
+modules/pixelmorph-video-export/android/src/main/cpp/whisper.cpp/** linguist-vendored
